@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "java-timeout",
+  "language": "java",
+  "scenario": "队列逐项统计",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "dd4060b4427c534080606ce52fad8e61f4ff3cd144201b9199b1d55d6a3e5a28",
+  "initial_output_sha256": "02f79a445e14669ce38cd928a366192e1186b41c435fb424fe8501d0067c1d06",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 3,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

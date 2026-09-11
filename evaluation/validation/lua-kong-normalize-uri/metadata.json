@@ -1,0 +1,57 @@
+{
+  "schema_version": 3,
+  "case_id": "lua-kong-normalize-uri",
+  "language": "lua",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "Kong/kong",
+    "commit": "3091de006da341d5f289d446a3d73875a14560e0",
+    "path": "kong/tools/uri.lua",
+    "start_line": 78,
+    "end_line": 167,
+    "symbol": "uri.normalize",
+    "url": "https://github.com/Kong/kong/blob/3091de006da341d5f289d446a3d73875a14560e0/kong/tools/uri.lua#L78-L167",
+    "local_file": "data/validation/kong/kong/tools/uri.lua",
+    "file_sha256": "485cd4caf033a35fe0f6ab5fd6f5fce76c65f04069a1ccd74ea801ca39b64da9",
+    "excerpt_sha256": "9fbc77397d3c910075a18c879fb61f2d24a21091ee1eef807d0202163fc06782",
+    "upstream_header": "local table_new = require \"table.new\"\n\nlocal string_char = string.char\nlocal string_upper = string.upper\nlocal string_find = string.find\nlocal string_sub = string.sub\nlocal string_byte = string.byte\nlocal string_format = string.format\nlocal tonumber = tonumber\nlocal table_concat = table.concat\nlocal ngx_re_find = ngx.re.find\nlocal ngx_re_gsub = ngx.re.gsub\n\n-- Charset:\n--   reserved = \"!\" / \"*\" / \"'\" / \"(\" / \")\" / \";\" / \":\" /\n--       \"@\" / \"&\" / \"=\" / \"+\" / \"$\" / \",\" / \"/\" / \"?\" / \"%\" / \"#\" / \"[\" / \"]\"\n--   unreserved  = ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\"\n--   other: * (meaning any char that is not mentioned above)\n\n-- Reserved characters have special meaning in URI. Encoding/decoding it affects the semantics of the URI;\n-- Unreserved characters are safe to use as part of HTTP message without encoding;\n-- Other characters has not special meaning but may be not safe to use as part of HTTP message without encoding;\n\n-- We should not unescape or escape reserved characters;\n-- We should unescape but not escape unreserved characters;\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      82,
+      89,
+      97,
+      102,
+      104,
+      110,
+      116,
+      134,
+      143,
+      144,
+      147,
+      156,
+      160,
+      164
+    ],
+    "protected_source_ranges": [],
+    "notes": "真实URI状态扫描；相邻单行局部声明连续，赋值到if分段；elseif/else不被当成独立表达式；嵌套多行块外侧与最终返回分隔。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/kong/LICENSE",
+  "input_sha256": {
+    "dense": "f7decbd321a397c5a398dcbc1f87e020d4673f6f81367222ff217763006b3f48",
+    "spaced": "0eca0eae8351481d295b7e8feeeb81ddac6170e03434b74f9bab97c4282664fb"
+  },
+  "initial_output_sha256": "f5085ff49431309bd6059b43994898a0b4f839b3e9f5f0b70261a0cf19019e1b",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

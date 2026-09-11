@@ -1,0 +1,53 @@
+{
+  "schema_version": 3,
+  "case_id": "ocaml-infer-process-output",
+  "language": "ocaml",
+  "language_in_archives": false,
+  "generalization_scope": "new repository and language absent from archived corpus language list",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "facebook/infer",
+    "commit": "3d38229b04b649024fee065621f6a4c838f6d029",
+    "path": "infer/src/base/Process.ml",
+    "start_line": 15,
+    "end_line": 40,
+    "symbol": "create_process_and_wait_with_output",
+    "url": "https://github.com/facebook/infer/blob/3d38229b04b649024fee065621f6a4c838f6d029/infer/src/base/Process.ml#L15-L40",
+    "local_file": "data/validation/infer/infer/src/base/Process.ml",
+    "file_sha256": "071880318affeaff098af2b0e497246411b4cd3131027cd9f9d446c48ca05d0c",
+    "excerpt_sha256": "00bca97cf793760bd84ebf0eaf1c52fc50939c82b489860681f526dc399dbbbd",
+    "upstream_header": "(*\n * Copyright (c) Facebook, Inc. and its affiliates.\n *\n * This source code is licensed under the MIT license found in the\n * LICENSE file in the root directory of this source tree.\n *)\n\nopen! IStd\nmodule L = Logging\n\n[@@@warning \"+missing-record-field-pattern\"]\n\ntype action = ReadStdout | ReadStderr\n\nlet create_process_and_wait_with_output ~prog ~args ?(env = `Extend []) action =\n  let redirected_fd_name, redirect_spec =\n    match action with ReadStderr -> (\"stderr\", \"2>\") | ReadStdout -> (\"stdout\", \">\")\n  in\n  let output_file =\n    IFilename.temp_file ~in_dir:(ResultsDir.get_path Temporary) prog redirected_fd_name\n  in\n  let escaped_cmd = List.map ~f:Escape.escape_shell (prog :: args) |> String.concat ~sep:\" \" in\n  let redirected_cmd = Printf.sprintf \"exec %s %s'%s'\" escaped_cmd redirect_spec output_file in\n  let {IUnix.Process_info.stdin; stdout; stderr; pid} =\n    IUnix.create_process_env ~prog:\"sh\" ~args:[\"-c\"; redirected_cmd] ~env\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      18,
+      21,
+      23,
+      26,
+      29,
+      30,
+      34
+    ],
+    "gap_after_wrapper_lines": [],
+    "protected_source_ranges": [],
+    "notes": "Nested let-bindings include their RHS and terminating in. The one-line escaped_cmd and redirected_cmd bindings are same-kind and stay together; each multi-line binding needs outer separation. After channel_to_log binding, the four single-line calls form a continuous semicolon sequence; the final match is a separate expression. Match arms, record destructuring, optional arguments and the two-line L.die application stay continuous.",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/infer/LICENSE",
+  "input_sha256": {
+    "dense": "00bca97cf793760bd84ebf0eaf1c52fc50939c82b489860681f526dc399dbbbd",
+    "spaced": "a2ee5fc280a856692fecbca524c24d25798d16103e5d9041910466afedf1b805"
+  },
+  "initial_output_sha256": "c1856aa4e2c2653134eb92532d62fae8252a2abe13a9eaa765e440d57b1d1b48",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

@@ -1,0 +1,59 @@
+[
+  {
+    "source": {
+      "repository": "openages/if",
+      "branch": "main",
+      "language": "typescript",
+      "role": "style",
+      "trust": "user_confirmed_handwritten",
+      "paths": ["packages/app"]
+    },
+    "commit": "4595025f0b6dd5c7825255edb04966a5612e0cbe",
+    "archive_url": "https://github.com/openages/if/tree/4595025f0b6dd5c7825255edb04966a5612e0cbe",
+    "archive_path": "",
+    "raw_path": "data/style/openages/if",
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "MatrixAges/polywise",
+      "branch": "master",
+      "language": "typescript",
+      "role": "style",
+      "trust": "style_candidate_unknown_authorship",
+      "paths": [
+        "packages/polywise/src/cron/runJobSession.ts",
+        "packages/polywise/src/cron/createJob.ts",
+        "packages/polywise/src/cron/loadStore.ts",
+        "packages/polywise/src/llama/getModelContext.ts",
+        "packages/stk/src/mobx/useInstanceWatch.ts",
+        "packages/stk/src/storage/index.ts",
+        "packages/polywise/src/io/semanticSearch.ts",
+        "packages/polywise/src/oauth/openai/refreshCodexAuthState.ts",
+        "packages/polywise/src/fst/session/session/initSession.ts",
+        "packages/polywise/src/io/save/saveDocument.ts",
+        "packages/stk/src/mobx/setStoreWhenChange.ts",
+        "packages/erpc/src/renderer/utils.ts"
+      ],
+      "regions": [
+        {"path":"packages/polywise/src/cron/runJobSession.ts","start_line":11,"end_line":26},
+        {"path":"packages/polywise/src/cron/createJob.ts","start_line":10,"end_line":57},
+        {"path":"packages/polywise/src/cron/loadStore.ts","start_line":13,"end_line":59},
+        {"path":"packages/polywise/src/llama/getModelContext.ts","start_line":21,"end_line":74},
+        {"path":"packages/stk/src/mobx/useInstanceWatch.ts","start_line":9,"end_line":69},
+        {"path":"packages/stk/src/storage/index.ts","start_line":13,"end_line":36},
+        {"path":"packages/polywise/src/io/semanticSearch.ts","start_line":9,"end_line":31},
+        {"path":"packages/polywise/src/oauth/openai/refreshCodexAuthState.ts","start_line":14,"end_line":60},
+        {"path":"packages/polywise/src/fst/session/session/initSession.ts","start_line":11,"end_line":43},
+        {"path":"packages/polywise/src/io/save/saveDocument.ts","start_line":11,"end_line":36},
+        {"path":"packages/stk/src/mobx/setStoreWhenChange.ts","start_line":25,"end_line":48},
+        {"path":"packages/erpc/src/renderer/utils.ts","start_line":9,"end_line":34}
+      ]
+    },
+    "commit": "f8d2320f84fe07da327c5e2e690e50061ea4e599",
+    "archive_url": "https://github.com/MatrixAges/polywise/tree/f8d2320f84fe07da327c5e2e690e50061ea4e599",
+    "archive_path": "",
+    "raw_path": "data/style/MatrixAges/polywise",
+    "status": "complete"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {"repository":"gin-gonic/gin","branch":"master","language":"go","role":"unseen_language","paths":["."]},
+  {"repository":"fmtlib/fmt","branch":"main","language":"cpp","role":"unseen_language","paths":["src","include/fmt"]},
+  {"repository":"DapperLib/Dapper","branch":"main","language":"csharp","role":"unseen_language","paths":["Dapper"]},
+  {"repository":"sinatra/sinatra","branch":"main","language":"ruby","role":"unseen_language","paths":["lib"]},
+  {"repository":"square/okhttp","branch":"main","language":"kotlin","role":"unseen_language","paths":["okhttp/src/commonJvmAndroid/kotlin","okhttp/src/jvmMain/kotlin"]},
+  {"repository":"Alamofire/Alamofire","branch":"master","language":"swift","role":"unseen_language","paths":["Source"]}
+]

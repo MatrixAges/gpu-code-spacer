@@ -1,0 +1,20 @@
+export default {
+	line_height: 1.62,
+	color_main: 'rgb(var(--color_main_rgb))',
+	color_warning: '#FF8F00',
+	color_warning_rgb: '255,143,0',
+	color_success: '#00C853',
+	color_success_rgb: '0,200,83',
+	color_danger: '#FF1744',
+	color_danger_rgb: '255,23,68',
+	color_lime: '#AEEA00',
+	color_lime_rgb: '174,234,0',
+	color_purple: '#ab47bc',
+	color_purple_rgb: '171,71,188',
+	color_gold: '#e6ba2a',
+	color_gold_rgb: '230,186,42',
+	color_blue: '#075cdd',
+	color_blue_rgb: '7,92,221',
+	color_blue_active: '#3d87f5',
+	color_bg_blur: 'rgba(var(--color_bg_rgb), 0.48)'
+}

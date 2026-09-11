@@ -1,0 +1,1190 @@
+{
+  "version": 2,
+  "cases": [
+    {
+      "id": "holdout-ts-route",
+      "language": "typescript",
+      "training_language": true,
+      "scenario": "解析路由参数并发送查询",
+      "source": "async function route(path: string, query: (id: number) => Promise<string>): Promise<string> {\n  const segment = path.split(\"/\").at(-1);\n  if (!segment) {\n    return \"missing\";\n  }\n  const id = Number(segment);\n  if (!Number.isInteger(id)) {\n    return \"invalid\";\n  }\n  const response = await query(id);\n  return response.trim();\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "principle": "control_to_declaration",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "principle": "control_to_declaration",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-ts-buffer",
+      "language": "typescript",
+      "training_language": true,
+      "scenario": "缓冲区准备和提交阶段",
+      "source": "function flush(chunks: string[], append: (text: string) => void, commit: () => void): void {\n  const header = \"BEGIN\";\n  const payload = chunks\n    .filter((chunk) => chunk.length > 0)\n    .join(\";\");\n  append(header);\n  append(payload);\n  // Commit the completed batch.\n  commit();\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "multiline_expression_boundary",
+          "scope": "style",
+          "comparison": "at_least",
+          "left_expression_lines": [
+            2,
+            2
+          ],
+          "right_expression_lines": [
+            3,
+            5
+          ]
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "comment_attachment",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "holdout-js-retry",
+      "language": "javascript",
+      "training_language": true,
+      "scenario": "异步重试调用",
+      "source": "async function retry(attempt, fallback) {\n  const first = await attempt();\n  if (first !== null) {\n    return first;\n  }\n  const backup = await fallback();\n  return backup;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "left_expression_lines": [
+            3,
+            5
+          ],
+          "right_expression_lines": [
+            6,
+            6
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-js-index",
+      "language": "javascript",
+      "training_language": true,
+      "scenario": "映射表构建和结果输出",
+      "source": "function index(entries, report) {\n  const byName = new Map();\n  for (const [name, value] of entries) {\n    const key = name.toLowerCase();\n    byName.set(key, value);\n  }\n  const names = [...byName.keys()];\n  names.sort();\n  report(names);\n  return byName;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "principle": "control_to_declaration",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-py-groups",
+      "language": "python",
+      "training_language": true,
+      "scenario": "分批遍历并写入",
+      "source": "def batches(values, width, emit):\n    count = len(values)\n    if width <= 0:\n        raise ValueError(\"positive width required\")\n    for start in range(0, count, width):\n        end = min(start + width, count)\n        batch = values[start:end]\n        emit(batch)\n    return count\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "left_expression_lines": [
+            3,
+            4
+          ],
+          "right_expression_lines": [
+            5,
+            8
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-py-names",
+      "language": "python",
+      "training_language": true,
+      "scenario": "默认值与关联字典绑定",
+      "source": "def resolve(records, identifier):\n    record = records.get(identifier)\n    if record is None:\n        return \"anonymous\"\n    first = record.get(\"first\", \"\")\n    last = record.get(\"last\", \"\")\n    # Empty components are omitted from the display name.\n    return \" \".join(\n        part for part in (first, last) if part\n    )\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "left_expression_lines": [
+            3,
+            4
+          ],
+          "right_expression_lines": [
+            5,
+            5
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 0,
+          "principle": "comment_attachment",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "holdout-java-write",
+      "language": "java",
+      "training_language": true,
+      "scenario": "缓冲写入并报告字符数",
+      "source": "import java.io.IOException;\nimport java.io.Writer;\nclass Export {\n    static int write(Writer target, String body) throws IOException {\n        String cleaned = body.strip();\n        if (cleaned.isEmpty()) {\n            return 0;\n        }\n        String ending = System.lineSeparator();\n        target.write(cleaned);\n        target.write(ending);\n        target.flush();\n        return cleaned.length();\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "left_expression_lines": [
+            6,
+            8
+          ],
+          "right_expression_lines": [
+            9,
+            9
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 11,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 12,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-java-search",
+      "language": "java",
+      "training_language": true,
+      "scenario": "嵌套循环与提前结束",
+      "source": "class Search {\n    static int firstLong(String[] words, int length) {\n        int result = -1;\n        for (int i = 0; i < words.length; i++) {\n            String word = words[i];\n            if (word.length() >= length) {\n                result = i;\n                break;\n            }\n        }\n        return result;\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "principle": "assignment_to_control_transfer",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-rust-key",
+      "language": "rust",
+      "training_language": true,
+      "scenario": "可选值解构与消息输出",
+      "source": "fn inspect(key: Option<&str>, output: &mut Vec<String>) -> bool {\n    let Some(text) = key else {\n        return false;\n    };\n    if text.is_empty() {\n        return false;\n    }\n    let description = format!(\"key={}\", text);\n    output.push(description);\n    return true;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "left_expression_lines": [
+            5,
+            7
+          ],
+          "right_expression_lines": [
+            8,
+            8
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-rust-fold",
+      "language": "rust",
+      "training_language": true,
+      "scenario": "迭代累积与尾表达式",
+      "source": "fn lengths(words: &[&str]) -> (usize, usize) {\n    let mut count = 0;\n    let mut total = 0;\n    for word in words {\n        count += 1;\n        total += word.len();\n    }\n    (\n        count,\n        total,\n    )\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 7,
+          "principle": "control_to_return",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "holdout-zig-slice",
+      "language": "zig",
+      "training_language": true,
+      "scenario": "可选索引检查和切片输出",
+      "source": "fn publish(bytes: []const u8, offset: ?usize, send: *const fn ([]const u8) void) bool {\n    const start = offset orelse return false;\n    if (start >= bytes.len) {\n        return false;\n    }\n    const selected = bytes[start..];\n    send(selected);\n    return true;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "left_expression_lines": [
+            3,
+            5
+          ],
+          "right_expression_lines": [
+            6,
+            6
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-zig-search",
+      "language": "zig",
+      "training_language": true,
+      "scenario": "循环内局部绑定和提前返回",
+      "source": "fn position(values: []const i32, wanted: i32) ?usize {\n    const count = values.len;\n    for (0..count) |index| {\n        const value = values[index];\n        if (value == wanted) {\n            return index;\n        }\n    }\n    // The requested value was absent.\n    return null;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 0,
+          "principle": "comment_attachment",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "holdout-go-map",
+      "language": "go",
+      "training_language": false,
+      "scenario": "字典查找和回调保存",
+      "source": "package sample\nfunc lookup(values map[string]int, name string, save func(int)) bool {\n    amount, found := values[name]\n    if !found {\n        return false\n    }\n    doubled := amount * 2\n    save(doubled)\n    return true\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "left_expression_lines": [
+            4,
+            6
+          ],
+          "right_expression_lines": [
+            7,
+            7
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-go-partition",
+      "language": "go",
+      "training_language": false,
+      "scenario": "遍历分类到两个相关切片",
+      "source": "package sample\nfunc partition(values []int) ([]int, []int) {\n    positive := make([]int, 0)\n    negative := make([]int, 0)\n    for _, value := range values {\n        if value >= 0 {\n            positive = append(positive, value)\n        } else {\n            negative = append(negative, value)\n        }\n    }\n    return positive, negative\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 11,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-cpp-erase",
+      "language": "cpp",
+      "training_language": false,
+      "scenario": "查找迭代器及移除",
+      "source": "#include <algorithm>\n#include <vector>\nbool erase(std::vector<int>& values, int wanted) {\n    const auto found = std::find(values.begin(), values.end(), wanted);\n    if (found == values.end()) {\n        return false;\n    }\n    const auto index = found - values.begin();\n    values.erase(values.begin() + index);\n    return true;\n}\n",
+      "expectations": [
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "left_expression_lines": [
+            5,
+            7
+          ],
+          "right_expression_lines": [
+            8,
+            8
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-cpp-average",
+      "language": "cpp",
+      "training_language": false,
+      "scenario": "lambda参数和累积求值",
+      "source": "#include <numeric>\n#include <vector>\ndouble average(const std::vector<int>& values) {\n    const auto count = values.size();\n    if (count == 0) {\n        return 0.0;\n    }\n    const auto total = std::accumulate(\n        values.begin(), values.end(), 0.0,\n        [](double sum, int value) { return sum + value; });\n    return total / count;\n}\n",
+      "expectations": [
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "left_expression_lines": [
+            5,
+            7
+          ],
+          "right_expression_lines": [
+            8,
+            10
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-cs-parse",
+      "language": "csharp",
+      "training_language": false,
+      "scenario": "解析成功分支和结果回调",
+      "source": "using System;\npublic static class Input\n{\n    public static bool Accept(string text, Action<int> submit)\n    {\n        var parsed = int.TryParse(text, out var number);\n        if (!parsed)\n        {\n            return false;\n        }\n        var normalized = Math.Abs(number);\n        submit(normalized);\n        return true;\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 10,
+          "left_expression_lines": [
+            7,
+            10
+          ],
+          "right_expression_lines": [
+            11,
+            11
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 11,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 12,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-cs-count",
+      "language": "csharp",
+      "training_language": false,
+      "scenario": "模式条件和多行匿名对象",
+      "source": "public static class Counts\n{\n    public static object Describe(string? text)\n    {\n        var length = text?.Length ?? 0;\n        if (length == 0)\n        {\n            return new { Label = \"empty\", Size = 0 };\n        }\n        var result = new\n        {\n            Label = \"content\",\n            Size = length\n        };\n        return result;\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "left_expression_lines": [
+            6,
+            9
+          ],
+          "right_expression_lines": [
+            10,
+            14
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 11,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 12,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 13,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 14,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-rb-lookup",
+      "language": "ruby",
+      "training_language": false,
+      "scenario": "查找记录与写入事件",
+      "source": "def lookup(entries, key, logger)\n  record = entries[key]\n  unless record\n    return nil\n  end\n  message = \"Found #{key}\"\n  logger.write(message)\n  return record\nend\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "left_expression_lines": [
+            3,
+            5
+          ],
+          "right_expression_lines": [
+            6,
+            6
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-rb-tally",
+      "language": "ruby",
+      "training_language": false,
+      "scenario": "块调用内分类累积",
+      "source": "def tally(words)\n  counts = Hash.new(0)\n  words.each do |word|\n    key = word.downcase\n    if key.empty?\n      next\n    end\n    counts[key] += 1\n  end\n  return counts\nend\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "principle": "control_to_assignment",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-kt-cache",
+      "language": "kotlin",
+      "training_language": false,
+      "scenario": "空值绑定与结果缓存",
+      "source": "fun remember(values: MutableMap<String, String>, key: String, load: () -> String?): Boolean {\n    val loaded = load()\n    if (loaded == null) {\n        return false\n    }\n    val cleaned = loaded.trim()\n    values.put(key, cleaned)\n    return true\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "left_expression_lines": [
+            3,
+            5
+          ],
+          "right_expression_lines": [
+            6,
+            6
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-kt-join",
+      "language": "kotlin",
+      "training_language": false,
+      "scenario": "排序链保持连续以及注释附着",
+      "source": "fun names(entries: Map<String, Int>): String {\n    val active = entries.filterValues { it > 0 }\n    if (active.isEmpty()) {\n        return \"none\"\n    }\n    val result = active.keys\n        .sorted()\n        .joinToString(\", \")\n    // Present the stable ordering to the caller.\n    return result\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "left_expression_lines": [
+            3,
+            5
+          ],
+          "right_expression_lines": [
+            6,
+            8
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 0,
+          "principle": "comment_attachment",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "holdout-swift-save",
+      "language": "swift",
+      "training_language": false,
+      "scenario": "可选值解包及存储回调",
+      "source": "func save(value: String?, store: (String) -> Void) -> Bool {\n    let missing = value == nil\n    if missing {\n        return false\n    }\n    if let text = value {\n        let wrapped = \"[\" + text + \"]\"\n        store(wrapped)\n    }\n    return true\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "left_expression_lines": [
+            3,
+            5
+          ],
+          "right_expression_lines": [
+            6,
+            9
+          ],
+          "principle": "multiline_expression_boundary",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "holdout-swift-total",
+      "language": "swift",
+      "training_language": false,
+      "scenario": "字典遍历与相关更新",
+      "source": "func total(records: [String: Int]) -> (Int, Int) {\n    var count = 0\n    var sum = 0\n    for (_, value) in records {\n        count += 1\n        sum += value\n    }\n    return (\n        count,\n        sum\n    )\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 9,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    }
+  ],
+  "status": "regression",
+  "criteria": {
+    "basis": "完整表达式的类型和跨度决定分组；多行完整表达式优先独立成段",
+    "multiline": "完整表达式跨多行时，与前后相邻完整语句之间至少一个空行",
+    "same_kind_single_line": "相邻表达式均为单行且类型相同，必须连写",
+    "different_kind": "相邻完整表达式类型不同，至少一个空行",
+    "structure": "表达式内部连续、注释贴附、块首尾保护分别检查，不混入风格得分"
+  }
+}

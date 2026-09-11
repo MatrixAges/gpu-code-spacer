@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-rb-lookup",
+  "language": "ruby",
+  "scenario": "查找记录与写入事件",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "06eb597a8eedee60be0575d7319e466e4a9eb16e9f7add5fcdd950e6db2d5dee",
+  "initial_output_sha256": "4e1e96e339d628da3433ab0ca6c48df0552951a3742bbe2296c781426ccddaa8",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

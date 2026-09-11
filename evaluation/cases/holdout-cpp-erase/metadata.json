@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-cpp-erase",
+  "language": "cpp",
+  "scenario": "查找迭代器及移除",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "57cba9b25f65c5d984b2e23b56c6538c338d6dbf3f35a6218b75136888ec0755",
+  "initial_output_sha256": "7eb679043a61a253112e5578ae75d8e5c86100e99ae692a301f74040c153da3b",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 4,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 9,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

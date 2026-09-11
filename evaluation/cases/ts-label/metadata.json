@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "ts-label",
+  "language": "typescript",
+  "scenario": "多行参数与注释归属",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "ea11a35c1969a17f7bb71998791afaa7752d0b1215fa554431f2a7bbb460737a",
+  "initial_output_sha256": "209df34e876c97ed5b253c2fcf599de6f8a7f4648687e6e1b48c6cea29aa9d83",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 0,
+      "principle": "comment_attachment",
+      "scope": "structure",
+      "comparison": "exact"
+    }
+  ]
+}

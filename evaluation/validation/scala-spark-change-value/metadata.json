@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "case_id": "scala-spark-change-value",
+  "language": "scala",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "apache/spark",
+    "commit": "5641a808168c316f71a8be3d920f38a23fef4320",
+    "path": "core/src/main/scala/org/apache/spark/util/collection/OpenHashMap.scala",
+    "start_line": 116,
+    "end_line": 137,
+    "symbol": "OpenHashMap.changeValue",
+    "url": "https://github.com/apache/spark/blob/5641a808168c316f71a8be3d920f38a23fef4320/core/src/main/scala/org/apache/spark/util/collection/OpenHashMap.scala#L116-L137",
+    "local_file": "data/validation/spark/core/src/main/scala/org/apache/spark/util/collection/OpenHashMap.scala",
+    "file_sha256": "c9d9d6ddaf4f96f473afaa2a50bf4ba048d3f5242e14a4171016b73746e43cd0",
+    "excerpt_sha256": "cb3bda9f9e18c7809f99d86bd718cb05c71f8d02815a8d52f4af72fd8f4204e0",
+    "upstream_header": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements.  See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License.  You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.spark.util.collection\n\nimport scala.reflect.ClassTag\n\n/**\n * A fast hash map implementation for nullable keys. This hash map supports insertions and updates,\n * but not deletions. This map uses much less space than java.util.HashMap and is competitive with\n * it for aggregation workloads (`changeValue`), while java.util.HashMap is faster for pure\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample[K, V, T] {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      123,
+      126,
+      128,
+      129,
+      130,
+      133
+    ],
+    "protected_source_ranges": [],
+    "notes": "哈希表空键/普通键分支、惰性参数、赋值和容量维护调用、尾表达式。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/spark/LICENSE",
+  "input_sha256": {
+    "dense": "16ea7ad0f07ecb44ffa45094fc4aab49c0cfbf2b9c9665ceab8caeb61eb4c832",
+    "spaced": "007c934c04df3249115ef0f7d553144f0697a73c644e8eee889982ac94483291"
+  },
+  "initial_output_sha256": "8dc20f97623b19f8bb577022bf9bb0df117172c887146a0765f692fbb17dd6e3",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

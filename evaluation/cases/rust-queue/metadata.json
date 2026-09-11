@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "rust-queue",
+  "language": "rust",
+  "scenario": "队列声明与变更调用",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "77f6d1c856585402d5859274dd4d85707934b0b48d196007a31bd1c59e74984e",
+  "initial_output_sha256": "ae80e9a4e7795b17a9580f9ef23364cf2a850065ab63b6ab2c06dfdc28ec4282",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    }
+  ]
+}

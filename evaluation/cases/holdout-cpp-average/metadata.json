@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-cpp-average",
+  "language": "cpp",
+  "scenario": "lambda参数和累积求值",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "34eb776f8d4ca0dce31dbc709f62397d6406358ad63b52772aa1018dcfa414ff",
+  "initial_output_sha256": "c80eabbaf5821701b7aa300112f913833b96b82c1c11d477648dd0fcc718cef0",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 4,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 9,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 10,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

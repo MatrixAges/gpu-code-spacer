@@ -1,0 +1,56 @@
+{
+  "schema_version": 3,
+  "case_id": "go-hugo-emojify",
+  "language": "go",
+  "language_in_archives": true,
+  "generalization_scope": "new repository; language already present in archived evaluation",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "gohugoio/hugo",
+    "commit": "881c0ec70d746d3a86b29c9104aa56ac51040ee9",
+    "path": "helpers/emoji.go",
+    "start_line": 36,
+    "end_line": 74,
+    "symbol": "Emojify",
+    "url": "https://github.com/gohugoio/hugo/blob/881c0ec70d746d3a86b29c9104aa56ac51040ee9/helpers/emoji.go#L36-L74",
+    "local_file": "data/validation/hugo/helpers/emoji.go",
+    "file_sha256": "1b460d8d875dcd57bbe8f8e8cc5b4cc0bf027c805af04ee64f62402fdcedbb96",
+    "excerpt_sha256": "e0084f9fda99489751e54aefe314a3b22aad8f701daf700da20e1b38df0a6709",
+    "upstream_header": "// Copyright 2016 The Hugo Authors. All rights reserved.\n//\n// Licensed under the Apache License, Version 2.0 (the \"License\");\n// you may not use this file except in compliance with the License.\n// You may obtain a copy of the License at\n// http://www.apache.org/licenses/LICENSE-2.0\n//\n// Unless required by applicable law or agreed to in writing, software\n// distributed under the License is distributed on an \"AS IS\" BASIS,\n// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n// See the License for the specific language governing permissions and\n// limitations under the License.\n\npackage helpers\n\nimport (\n\t\"bytes\"\n\t\"sync\"\n\n\t\"github.com/kyokomi/emoji/v2\"\n)\n\nvar (\n\temojiInit sync.Once\n\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "package validation\n",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      37,
+      40,
+      49,
+      57,
+      61,
+      64,
+      68,
+      71
+    ],
+    "gap_after_wrapper_lines": [
+      1
+    ],
+    "protected_source_ranges": [],
+    "notes": "文本扫描替换；连续声明、循环和条件链、索引更新、延迟初始化调用。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/hugo/LICENSE",
+  "input_sha256": {
+    "dense": "de88d5b6e2ecde64283635ea5fa2b9130448a496023c72c5bc05c6a5d98e1fba",
+    "spaced": "42ef286fef35bc883d45307daccccba79da06aacc0bc0d7a3d1a639a70723d6c"
+  },
+  "initial_output_sha256": "15d7edec9b5efd002987df8ac54d2850d3e3b8a7941ab79f447ca4a8fa95b0e5",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

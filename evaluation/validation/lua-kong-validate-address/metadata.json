@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "case_id": "lua-kong-validate-address",
+  "language": "lua",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "Kong/kong",
+    "commit": "3091de006da341d5f289d446a3d73875a14560e0",
+    "path": "kong/tools/ip.lua",
+    "start_line": 42,
+    "end_line": 65,
+    "symbol": "ip.validate",
+    "url": "https://github.com/Kong/kong/blob/3091de006da341d5f289d446a3d73875a14560e0/kong/tools/ip.lua#L42-L65",
+    "local_file": "data/validation/kong/kong/tools/ip.lua",
+    "file_sha256": "48234180af76cbda651edb853af46fae17f59686b4810ffa9f2e75385a3bd639",
+    "excerpt_sha256": "7e8dc641d7e31a7992ef7b84d05c672ee282b4f909d15a5f7dc5aecf5ec2a143",
+    "upstream_header": "local ipmatcher  = require \"resty.ipmatcher\"\n\n\n\nlocal type     = type\nlocal ipairs   = ipairs\nlocal tonumber = tonumber\nlocal tostring = tostring\nlocal gsub     = string.gsub\nlocal fmt      = string.format\nlocal lower    = string.lower\nlocal find     = string.find\nlocal splitn   = require(\"kong.tools.string\").splitn\nlocal split_once = require(\"kong.tools.string\").split_once\n\n\nlocal _M = {}\n\n\nlocal ipv4_prefixes = {}\nfor i = 0, 32 do\n  ipv4_prefixes[tostring(i)] = i\nend\n\n\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      45,
+      48,
+      51,
+      54,
+      58,
+      62
+    ],
+    "protected_source_ranges": [],
+    "notes": "类型早退、可选前缀校验和连续多行条件块；局部声明到条件、条件到赋值及返回分隔。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/kong/LICENSE",
+  "input_sha256": {
+    "dense": "d14c1ea642f0e1a5424672862a0174d18c00e4c19828c8790537a3b8054198f9",
+    "spaced": "dcd40936013e1a00d23ce134d59e6873ddfcaa477c2b2fa751ad0a83369380d6"
+  },
+  "initial_output_sha256": "86eea683bed5a16c63d17fb98139b8c21d306b9ca5ff236e5a750e18c2e2e9d9",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

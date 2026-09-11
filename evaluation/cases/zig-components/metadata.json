@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "case_id": "zig-components",
+  "language": "zig",
+  "scenario": "数组元素连续性",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "f79979e2a1622f784d12f20c0d5f5502dd903c36cda9940c75a8d041f262ccfc",
+  "initial_output_sha256": "263f389af19756215fcf4c21adfeea2ad619dbe3602869814d2dc316c58249a3",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

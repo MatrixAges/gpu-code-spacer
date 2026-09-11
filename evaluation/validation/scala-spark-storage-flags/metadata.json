@@ -1,0 +1,48 @@
+{
+  "schema_version": 3,
+  "case_id": "scala-spark-storage-flags",
+  "language": "scala",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "apache/spark",
+    "commit": "5641a808168c316f71a8be3d920f38a23fef4320",
+    "path": "common/utils/src/main/scala/org/apache/spark/storage/StorageLevel.scala",
+    "start_line": 84,
+    "end_line": 99,
+    "symbol": "StorageLevel.toInt",
+    "url": "https://github.com/apache/spark/blob/5641a808168c316f71a8be3d920f38a23fef4320/common/utils/src/main/scala/org/apache/spark/storage/StorageLevel.scala#L84-L99",
+    "local_file": "data/validation/spark/common/utils/src/main/scala/org/apache/spark/storage/StorageLevel.scala",
+    "file_sha256": "54eb392fe5cf8039245b28935de72c769cfa9aa2f893ba7e8e9a84cb5862ce52",
+    "excerpt_sha256": "aa2444a9360621dfb75f2d8f7b51e1d478f3e84103e2a862267741563d2a1480",
+    "upstream_header": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements.  See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License.  You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.spark.storage\n\nimport java.io.{Externalizable, IOException, ObjectInput, ObjectOutput}\nimport java.util.concurrent.ConcurrentHashMap\n\nimport org.apache.spark.annotation.DeveloperApi\nimport org.apache.spark.memory.MemoryMode\nimport org.apache.spark.util.SparkErrorUtils\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample[K, V, T] {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      85,
+      88,
+      91,
+      94,
+      97
+    ],
+    "protected_source_ranges": [],
+    "notes": "配置位掩码累积；四个多行if外侧分组与尾表达式。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/spark/LICENSE",
+  "input_sha256": {
+    "dense": "84c6b7cb02a6aac9ed260381c495cf4a4c73e77383a5686c5b2c9d0f35171bbe",
+    "spaced": "204205e1253fadcd4d74b990b9fd3ceeedc487773ff820049f0b372dc98c7a68"
+  },
+  "initial_output_sha256": "53de71cfd2449aa3331fe7682e89b4b17d781ab1f0ed3dbe576062ae6f0b51cd",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

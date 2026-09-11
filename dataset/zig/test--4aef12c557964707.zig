@@ -1,0 +1,888 @@
+const std = @import("std");
+const builtin = @import("builtin");
+const os = std.os;
+const posix = std.posix;
+const testing = std.testing;
+const assert = std.debug.assert;
+const stdx = @import("stdx");
+const maybe = stdx.maybe;
+const MiB = stdx.MiB;
+const Instant = stdx.Instant;
+const Duration = stdx.Duration;
+
+const TimeOS = @import("../time.zig").TimeOS;
+const Time = @import("../time.zig").Time;
+const IO = @import("../io.zig").IO;
+
+pub const tcp_options: IO.TCPOptions = .{
+    .rcvbuf = 0,
+    .sndbuf = 0,
+    .keepalive = null,
+    .user_timeout_ms = 0,
+    .nodelay = false,
+};
+
+test "TCP socket buffer options" {
+    var io = try IO.init(32, 0);
+    defer io.deinit();
+
+    var options = tcp_options;
+    options.rcvbuf = 1;
+    options.sndbuf = 1;
+
+    const socket = try io.open_socket_tcp(.IPv4, options);
+    defer io.close_socket(socket);
+}
+
+test "open/write/read/close/statx" {
+    try struct {
+        const Context = @This();
+        const StatxType = if (builtin.target.os.tag == .linux) std.os.linux.Statx else void;
+
+        path: [:0]const u8 = "test_io_write_read_close",
+        io: IO,
+        done: bool = false,
+
+        fd: ?posix.fd_t = null,
+        write_buf: [20]u8 = @splat(97),
+        read_buf: [20]u8 = @splat(98),
+
+        written: usize = 0,
+        read: usize = 0,
+
+        statx: StatxType = undefined,
+
+        fn run_test() !void {
+            var self: Context = .{
+                .io = try IO.init(32, 0),
+            };
+            defer self.io.deinit();
+
+            // The file gets created below, either by createFile or openat.
+            defer std.fs.cwd().deleteFile(self.path) catch {};
+
+            var completion: IO.Completion = undefined;
+
+            if (builtin.target.os.tag == .linux or builtin.target.os.tag.isDarwin()) {
+                self.io.openat(
+                    *Context,
+                    &self,
+                    openat_callback,
+                    &completion,
+                    posix.AT.FDCWD,
+                    self.path,
+                    .{ .ACCMODE = .RDWR, .TRUNC = true, .CREAT = true },
+                    std.fs.File.default_mode,
+                );
+            } else {
+                const file = try std.fs.cwd().createFile(self.path, .{
+                    .read = true,
+                    .truncate = true,
+                });
+                self.openat_callback(&completion, file.handle);
+            }
+            while (!self.done) try self.io.run();
+
+            try testing.expectEqual(self.write_buf.len, self.written);
+            try testing.expectEqual(self.read_buf.len, self.read);
+            try testing.expectEqualSlices(u8, &self.write_buf, &self.read_buf);
+
+            if (builtin.target.os.tag == .linux) {
+                // Offset of 10 specified to read / write below.
+                try testing.expectEqual(self.statx.size - 10, self.written);
+            }
+        }
+
+        fn openat_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: anyerror!posix.fd_t,
+        ) void {
+            self.fd = result catch @panic("openat error");
+            self.io.write(
+                *Context,
+                self,
+                write_callback,
+                completion,
+                self.fd.?,
+                &self.write_buf,
+                10,
+                .{ .dsync = true },
+            );
+        }
+
+        fn write_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.WriteError!usize,
+        ) void {
+            self.written = result catch @panic("write error");
+            self.io.read(*Context, self, read_callback, completion, self.fd.?, &self.read_buf, 10);
+        }
+
+        fn read_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.ReadError!usize,
+        ) void {
+            self.read = result catch @panic("read error");
+            self.io.close(*Context, self, close_callback, completion, self.fd.?);
+        }
+
+        fn close_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.CloseError!void,
+        ) void {
+            _ = result catch @panic("close error");
+
+            if (builtin.target.os.tag == .linux) {
+                self.io.statx(
+                    *Context,
+                    self,
+                    statx_callback,
+                    completion,
+                    posix.AT.FDCWD,
+                    self.path,
+                    0,
+                    os.linux.STATX_BASIC_STATS,
+                    &self.statx,
+                );
+            } else {
+                self.done = true;
+            }
+        }
+
+        fn statx_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.StatxError!void,
+        ) void {
+            _ = completion;
+            _ = result catch @panic("statx error");
+
+            assert(!self.done);
+            self.done = true;
+        }
+    }.run_test();
+}
+
+test "accept/connect/send/receive" {
+    try struct {
+        const Context = @This();
+
+        io: *IO,
+        done: bool = false,
+        server: posix.socket_t,
+        client: posix.socket_t,
+
+        accepted_sock: posix.socket_t = undefined,
+
+        send_buf: [10]u8 = [_]u8{ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 },
+        recv_buf: [5]u8 = [_]u8{ 0, 1, 0, 1, 0 },
+
+        sent: usize = 0,
+        received: usize = 0,
+
+        fn run_test() !void {
+            var io = try IO.init(32, 0);
+            defer io.deinit();
+
+            const address: stdx.SocketAddress = .{ .ip = .@"127.0.0.1", .port = 0 };
+            const kernel_backlog = 1;
+
+            const server = try io.open_socket_tcp(address.ip.family(), tcp_options);
+            defer io.close_socket(server);
+
+            const client = try io.open_socket_tcp(address.ip.family(), tcp_options);
+            defer io.close_socket(client);
+
+            try posix.setsockopt(
+                server,
+                posix.SOL.SOCKET,
+                posix.SO.REUSEADDR,
+                &std.mem.toBytes(@as(c_int, 1)),
+            );
+            const address_std = address.to_std();
+            try posix.bind(server, &address_std.any, address_std.getOsSockLen());
+            try posix.listen(server, kernel_backlog);
+
+            var client_address_std = std.net.Address.initIp4(undefined, undefined);
+            var client_address_std_len = client_address_std.getOsSockLen();
+            try posix.getsockname(server, &client_address_std.any, &client_address_std_len);
+            const client_address = try stdx.SocketAddress.from_std(client_address_std);
+
+            var self: Context = .{
+                .io = &io,
+                .server = server,
+                .client = client,
+            };
+
+            var client_completion: IO.Completion = undefined;
+            self.io.connect(
+                *Context,
+                &self,
+                connect_callback,
+                &client_completion,
+                client,
+                client_address,
+            );
+
+            var server_completion: IO.Completion = undefined;
+            self.io.accept(*Context, &self, accept_callback, &server_completion, server);
+
+            while (!self.done) try self.io.run();
+
+            try testing.expectEqual(self.send_buf.len, self.sent);
+            try testing.expectEqual(self.recv_buf.len, self.received);
+
+            try testing.expectEqualSlices(u8, self.send_buf[0..self.received], &self.recv_buf);
+        }
+
+        fn connect_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.ConnectError!void,
+        ) void {
+            _ = result catch @panic("connect error");
+
+            self.io.send(
+                *Context,
+                self,
+                send_callback,
+                completion,
+                self.client,
+                &self.send_buf,
+            );
+        }
+
+        fn send_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.SendError!usize,
+        ) void {
+            _ = completion;
+
+            self.sent = result catch @panic("send error");
+        }
+
+        fn accept_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.AcceptError!posix.socket_t,
+        ) void {
+            self.accepted_sock = result catch @panic("accept error");
+            self.io.recv(
+                *Context,
+                self,
+                recv_callback,
+                completion,
+                self.accepted_sock,
+                &self.recv_buf,
+            );
+        }
+
+        fn recv_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.RecvError!usize,
+        ) void {
+            _ = completion;
+
+            self.received = result catch @panic("recv error");
+            self.done = true;
+        }
+    }.run_test();
+}
+
+test "timeout" {
+    try struct {
+        io: IO,
+        time: Time,
+        timeouts_fired: u32 = 0,
+        stop: ?Instant = null,
+
+        const delay: Duration = .ms(20);
+        const timeouts_total = 10;
+
+        const Context = @This();
+
+        fn run_test() !void {
+            var time_os: TimeOS = .{};
+            var self: Context = .{
+                .time = time_os.time(),
+                .io = try IO.init(32, 0),
+            };
+            defer self.io.deinit();
+
+            const start = self.time.monotonic();
+
+            var completions: [timeouts_total]IO.Completion = undefined;
+            for (&completions) |*completion| {
+                self.io.timeout(
+                    *Context,
+                    &self,
+                    timeout_callback,
+                    completion,
+                    delay.ns,
+                );
+            }
+            while (self.timeouts_fired < timeouts_total) try self.io.run();
+
+            try self.io.run();
+            try testing.expectEqual(@as(u32, timeouts_total), self.timeouts_fired);
+
+            const elapsed = start.elapsed(self.stop.?);
+            if (elapsed.ns < delay.ns) {
+                std.log.err("elapsed={} < delay={}", .{ elapsed, delay });
+                return error.TestUnexpectedResult;
+            }
+
+            assert(elapsed.ns >= delay.ns);
+            // We aren't running on RTOSes, and we did observed delays as large as 200ms on CI.
+            // This is unlikely under most normal circumstances though!
+            maybe(elapsed.ns >= delay.ns * 2);
+        }
+
+        fn timeout_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.TimeoutError!void,
+        ) void {
+            _ = completion;
+            _ = result catch @panic("timeout error");
+
+            if (self.stop == null) self.stop = self.time.monotonic();
+            self.timeouts_fired += 1;
+        }
+    }.run_test();
+}
+
+test "event" {
+    try struct {
+        const Context = @This();
+
+        io: IO,
+        count: u32 = 0,
+        main_thread_id: std.Thread.Id,
+        event: IO.Event = IO.INVALID_EVENT,
+        event_completion: IO.Completion = undefined,
+
+        const delay = 5 * std.time.ns_per_ms;
+        const events_count = 5;
+
+        fn run_test() !void {
+            var self: Context = .{
+                .io = try IO.init(32, 0),
+                .main_thread_id = std.Thread.getCurrentId(),
+            };
+            defer self.io.deinit();
+
+            self.event = try self.io.open_event();
+            defer self.io.close_event(self.event);
+
+            var time: TimeOS = .{};
+            const timer = time.monotonic();
+
+            // Listen to the event and spawn a thread that triggers the completion after some time.
+            self.io.event_listen(self.event, &self.event_completion, on_event);
+            const thread = try std.Thread.spawn(.{}, Context.trigger_event, .{&self});
+
+            // Wait for the number of events to complete.
+            while (self.count < events_count) try self.io.run();
+            thread.join();
+
+            // Make sure the event was triggered multiple times.
+            assert(self.count == events_count);
+
+            // Make sure at least some time has passed.
+            const elapsed = timer.elapsed(time.monotonic());
+            assert(elapsed.ns >= delay);
+        }
+
+        fn trigger_event(self: *Context) void {
+            assert(std.Thread.getCurrentId() != self.main_thread_id);
+            while (self.count < events_count) {
+                std.time.sleep(delay + 1);
+
+                // Triggering the event:
+                self.io.event_trigger(self.event, &self.event_completion);
+            }
+        }
+
+        fn on_event(completion: *IO.Completion) void {
+            const self: *Context = @fieldParentPtr("event_completion", completion);
+            assert(std.Thread.getCurrentId() == self.main_thread_id);
+
+            self.count += 1;
+            if (self.count == events_count) return;
+
+            // Reattaching the event.
+            self.io.event_listen(self.event, &self.event_completion, on_event);
+        }
+    }.run_test();
+}
+
+test "submission queue full" {
+    // This test purposefully overflows the queue, set the log level to error to suppress the
+    // warning from IO.
+    std.testing.log_level = .err;
+
+    const ms = 20;
+    const count = 10;
+
+    try struct {
+        const Context = @This();
+
+        io: IO,
+        count: u32 = 0,
+
+        fn run_test() !void {
+            var self: Context = .{ .io = try IO.init(1, 0) };
+            defer self.io.deinit();
+
+            var completions: [count]IO.Completion = undefined;
+            for (&completions) |*completion| {
+                self.io.timeout(
+                    *Context,
+                    &self,
+                    timeout_callback,
+                    completion,
+                    ms * std.time.ns_per_ms,
+                );
+            }
+            while (self.count < count) try self.io.run();
+
+            try self.io.run();
+            try testing.expectEqual(@as(u32, count), self.count);
+        }
+
+        fn timeout_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.TimeoutError!void,
+        ) void {
+            _ = completion;
+            _ = result catch @panic("timeout error");
+
+            self.count += 1;
+        }
+    }.run_test();
+}
+
+test "tick to wait" {
+    // This test purposefully overflows the queue, set the log level to error to suppress the
+    // warning from IO.
+    std.testing.log_level = .err;
+
+    // Use only IO.run() to see if pending IO is actually processed.
+
+    try struct {
+        const Context = @This();
+
+        io: IO,
+        accepted: ?posix.socket_t = null,
+        connected: bool = false,
+        received: bool = false,
+
+        fn run_test() !void {
+            var self: Context = .{ .io = try IO.init(1, 0) };
+            defer self.io.deinit();
+
+            const address: stdx.SocketAddress = .{ .ip = .@"127.0.0.1", .port = 0 };
+            const kernel_backlog = 1;
+
+            const server = try self.io.open_socket_tcp(address.ip.family(), tcp_options);
+            defer self.io.close_socket(server);
+
+            try posix.setsockopt(
+                server,
+                posix.SOL.SOCKET,
+                posix.SO.REUSEADDR,
+                &std.mem.toBytes(@as(c_int, 1)),
+            );
+            const address_std = address.to_std();
+            try posix.bind(server, &address_std.any, address_std.getOsSockLen());
+            try posix.listen(server, kernel_backlog);
+
+            var client_address_std = std.net.Address.initIp4(undefined, undefined);
+            var client_address_std_len = client_address_std.getOsSockLen();
+            try posix.getsockname(server, &client_address_std.any, &client_address_std_len);
+            const client_address = try stdx.SocketAddress.from_std(client_address_std);
+
+            const client = try self.io.open_socket_tcp(client_address.ip.family(), tcp_options);
+            defer self.io.close_socket(client);
+
+            // Start the accept.
+            var server_completion: IO.Completion = undefined;
+            self.io.accept(*Context, &self, accept_callback, &server_completion, server);
+
+            // Start the connect.
+            var client_completion: IO.Completion = undefined;
+            self.io.connect(
+                *Context,
+                &self,
+                connect_callback,
+                &client_completion,
+                client,
+                client_address,
+            );
+
+            // Tick the IO to drain the accept & connect completions.
+            assert(!self.connected);
+            assert(self.accepted == null);
+
+            while (self.accepted == null or !self.connected)
+                try self.io.run();
+
+            assert(self.connected);
+            assert(self.accepted != null);
+            defer self.io.close_socket(self.accepted.?);
+
+            // Start receiving on the client.
+            var recv_completion: IO.Completion = undefined;
+            var recv_buffer: [64]u8 = undefined;
+            @memset(&recv_buffer, 0xaa);
+            self.io.recv(
+                *Context,
+                &self,
+                recv_callback,
+                &recv_completion,
+                client,
+                &recv_buffer,
+            );
+
+            // Drain out the recv completion from any internal IO queues.
+            try self.io.run();
+            try self.io.run();
+            try self.io.run();
+
+            // Complete the recv() *outside* of the IO instance.
+            // Other tests already check .tick() with IO based completions.
+            // This simulates IO being completed by an external system.
+            var send_buf: [64]u8 = @splat(0);
+            const wrote = try os_send(self.accepted.?, &send_buf, 0);
+            try testing.expectEqual(wrote, send_buf.len);
+
+            // Wait for the recv() to complete using only IO.run().
+            // If tick is broken, then this will deadlock
+            assert(!self.received);
+            while (!self.received) {
+                try self.io.run();
+            }
+
+            // Make sure the receive actually happened.
+            assert(self.received);
+            try testing.expect(std.mem.eql(u8, &recv_buffer, &send_buf));
+        }
+
+        fn accept_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.AcceptError!posix.socket_t,
+        ) void {
+            _ = completion;
+
+            assert(self.accepted == null);
+            self.accepted = result catch @panic("accept error");
+        }
+
+        fn connect_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.ConnectError!void,
+        ) void {
+            _ = completion;
+            _ = result catch @panic("connect error");
+
+            assert(!self.connected);
+            self.connected = true;
+        }
+
+        fn recv_callback(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.RecvError!usize,
+        ) void {
+            _ = completion;
+            _ = result catch |err| std.debug.panic("recv error: {}", .{err});
+
+            assert(!self.received);
+            self.received = true;
+        }
+
+        fn os_send(sock: posix.socket_t, buf: []const u8, flags: u32) !usize {
+            return posix.sendto(sock, buf, flags, null, 0);
+        }
+    }.run_test();
+}
+
+test "pipe data over socket" {
+    try struct {
+        io: IO,
+        tx: Pipe,
+        rx: Pipe,
+        server: Socket = .{},
+
+        const buffer_size = 1 * MiB;
+
+        const Context = @This();
+        const Socket = struct {
+            fd: ?posix.socket_t = null,
+            completion: IO.Completion = undefined,
+        };
+        const Pipe = struct {
+            socket: Socket = .{},
+            buffer: []u8,
+            transferred: usize = 0,
+        };
+
+        fn run() !void {
+            const tx_buf = try testing.allocator.alloc(u8, buffer_size);
+            defer testing.allocator.free(tx_buf);
+
+            const rx_buf = try testing.allocator.alloc(u8, buffer_size);
+            defer testing.allocator.free(rx_buf);
+
+            @memset(tx_buf, 1);
+            @memset(rx_buf, 0);
+            var self = Context{
+                .io = try IO.init(32, 0),
+                .tx = .{ .buffer = tx_buf },
+                .rx = .{ .buffer = rx_buf },
+            };
+            defer self.io.deinit();
+
+            self.server.fd = try self.io.open_socket_tcp(.IPv4, tcp_options);
+            defer self.io.close_socket(self.server.fd.?);
+
+            const address: stdx.SocketAddress = .{ .ip = .@"127.0.0.1", .port = 0 };
+            try posix.setsockopt(
+                self.server.fd.?,
+                posix.SOL.SOCKET,
+                posix.SO.REUSEADDR,
+                &std.mem.toBytes(@as(c_int, 1)),
+            );
+
+            const address_std = address.to_std();
+            try posix.bind(self.server.fd.?, &address_std.any, address_std.getOsSockLen());
+            try posix.listen(self.server.fd.?, 1);
+
+            var client_address_std = std.net.Address.initIp4(undefined, undefined);
+            var client_address_std_len = client_address_std.getOsSockLen();
+            try posix.getsockname(
+                self.server.fd.?,
+                &client_address_std.any,
+                &client_address_std_len,
+            );
+            const client_address = try stdx.SocketAddress.from_std(client_address_std);
+
+            self.io.accept(
+                *Context,
+                &self,
+                on_accept,
+                &self.server.completion,
+                self.server.fd.?,
+            );
+
+            self.tx.socket.fd = try self.io.open_socket_tcp(.IPv4, tcp_options);
+            defer self.io.close_socket(self.tx.socket.fd.?);
+
+            self.io.connect(
+                *Context,
+                &self,
+                on_connect,
+                &self.tx.socket.completion,
+                self.tx.socket.fd.?,
+                client_address,
+            );
+
+            var tick: usize = 0xdeadbeef;
+            while (self.rx.transferred != self.rx.buffer.len) : (tick +%= 1) {
+                if (tick % 61 == 0) {
+                    const timeout_ns = tick % (10 * std.time.ns_per_ms);
+                    try self.io.run_for_ns(@as(u63, @intCast(timeout_ns)));
+                } else {
+                    try self.io.run();
+                }
+            }
+
+            try testing.expect(self.server.fd != null);
+            try testing.expect(self.tx.socket.fd != null);
+            try testing.expect(self.rx.socket.fd != null);
+            self.io.close_socket(self.rx.socket.fd.?);
+
+            try testing.expectEqual(self.tx.transferred, buffer_size);
+            try testing.expectEqual(self.rx.transferred, buffer_size);
+            try testing.expect(std.mem.eql(u8, self.tx.buffer, self.rx.buffer));
+        }
+
+        fn on_accept(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.AcceptError!posix.socket_t,
+        ) void {
+            assert(self.rx.socket.fd == null);
+            assert(&self.server.completion == completion);
+            self.rx.socket.fd = result catch |err| std.debug.panic("accept error {}", .{err});
+
+            assert(self.rx.transferred == 0);
+            self.do_receiver(0);
+        }
+
+        fn on_connect(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.ConnectError!void,
+        ) void {
+            _ = result catch unreachable;
+
+            assert(self.tx.socket.fd != null);
+            assert(&self.tx.socket.completion == completion);
+
+            assert(self.tx.transferred == 0);
+            self.do_sender(0);
+        }
+
+        fn do_sender(self: *Context, bytes: usize) void {
+            self.tx.transferred += bytes;
+            assert(self.tx.transferred <= self.tx.buffer.len);
+
+            if (self.tx.transferred < self.tx.buffer.len) {
+                self.io.send(
+                    *Context,
+                    self,
+                    on_send,
+                    &self.tx.socket.completion,
+                    self.tx.socket.fd.?,
+                    self.tx.buffer[self.tx.transferred..],
+                );
+            }
+        }
+
+        fn on_send(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.SendError!usize,
+        ) void {
+            const bytes = result catch |err| std.debug.panic("send error: {}", .{err});
+            assert(&self.tx.socket.completion == completion);
+            self.do_sender(bytes);
+        }
+
+        fn do_receiver(self: *Context, bytes: usize) void {
+            self.rx.transferred += bytes;
+            assert(self.rx.transferred <= self.rx.buffer.len);
+
+            if (self.rx.transferred < self.rx.buffer.len) {
+                self.io.recv(
+                    *Context,
+                    self,
+                    on_recv,
+                    &self.rx.socket.completion,
+                    self.rx.socket.fd.?,
+                    self.rx.buffer[self.rx.transferred..],
+                );
+            }
+        }
+
+        fn on_recv(
+            self: *Context,
+            completion: *IO.Completion,
+            result: IO.RecvError!usize,
+        ) void {
+            const bytes = result catch |err| std.debug.panic("recv error: {}", .{err});
+            assert(&self.rx.socket.completion == completion);
+            self.do_receiver(bytes);
+        }
+    }.run();
+}
+
+test "flush checks timeouts even when completions are queued" {
+    // The invariant this test exercises - that flush_timeouts() runs even
+    // when the completed queue already has items - is specific to the
+    // userspace timeout queue used by Windows and Darwin. On Linux,
+    // timeouts are kernel-managed via io_uring SQEs and a non-blocking
+    // run() does not necessarily dispatch the timeouts. This test is
+    // verifying identical behavior on windows and darwin but leaves
+    // the different linux behavior to future work.
+    if (builtin.target.os.tag == .linux) return error.SkipZigTest;
+    try struct {
+        const Context = @This();
+
+        io: IO,
+        instant_fired: bool = false,
+        timeout_fired: bool = false,
+
+        fn run_test() !void {
+            var self: Context = .{ .io = try IO.init(32, 0) };
+            defer self.io.deinit();
+
+            // next_tick goes directly into the completed queue.
+            // The 1ns timeout goes into the timeouts queue and expires
+            // immediately on the next flush_timeouts call. If flush
+            // skips flush_timeouts when completed is non-empty, the
+            // 1ns timeout will be stranded.
+            var c1: IO.Completion = undefined;
+            var c2: IO.Completion = undefined;
+            self.io.next_tick(*Context, &self, on_instant, &c1, .vsr);
+            self.io.timeout(*Context, &self, on_timeout, &c2, 1);
+
+            try self.io.run();
+
+            try testing.expect(self.instant_fired);
+            try testing.expect(self.timeout_fired);
+        }
+
+        fn on_instant(self: *Context, _: *IO.Completion, _: IO.NextTickResult) void {
+            self.instant_fired = true;
+        }
+
+        fn on_timeout(self: *Context, _: *IO.Completion, result: IO.TimeoutError!void) void {
+            _ = result catch @panic("timeout error");
+            self.timeout_fired = true;
+        }
+    }.run_test();
+}
+
+test "chained zero-delay callbacks complete in a single flush" {
+    try struct {
+        const Context = @This();
+
+        io: IO,
+        count: u32 = 0,
+        completions: [chain_length]IO.Completion = undefined,
+
+        const chain_length = 10;
+
+        fn run_test() !void {
+            var self: Context = .{ .io = try IO.init(32, 0) };
+            defer self.io.deinit();
+
+            // Start the chain with a single next_tick.
+            self.io.next_tick(*Context, &self, on_next_tick, &self.completions[0], .vsr);
+
+            // A single run() calls flush once. If the dispatch loop
+            // drains the live completed queue, each callback's next_tick
+            // successor is picked up in the same pass and the entire
+            // chain completes. If completed were snapshot'd, only the
+            // first link would fire per run() call.
+            try self.io.run();
+
+            try testing.expectEqual(@as(u32, chain_length), self.count);
+        }
+
+        fn on_next_tick(self: *Context, _: *IO.Completion, _: IO.NextTickResult) void {
+            self.count += 1;
+            if (self.count < chain_length) {
+                self.io.next_tick(
+                    *Context,
+                    self,
+                    on_next_tick,
+                    &self.completions[self.count],
+                    .vsr,
+                );
+            }
+        }
+    }.run_test();
+}

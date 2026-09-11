@@ -1,0 +1,20 @@
+[
+  {"repository":"vuejs/core","branch":"main","language":"typescript","role":"development","paths":["packages/reactivity/src","packages/runtime-core/src"]},
+  {"repository":"vitejs/vite","branch":"main","language":"typescript","role":"development","paths":["packages/vite/src/node"]},
+  {"repository":"colinhacks/zod","branch":"main","language":"typescript","role":"test","paths":["packages/zod/src/v4/core"]},
+  {"repository":"expressjs/express","branch":"master","language":"javascript","role":"development","paths":["lib"]},
+  {"repository":"prettier/prettier","branch":"main","language":"javascript","role":"development","paths":["src/main","src/utils"]},
+  {"repository":"koajs/koa","branch":"master","language":"javascript","role":"test","paths":["lib"]},
+  {"repository":"psf/requests","branch":"main","language":"python","role":"development","paths":["src/requests"]},
+  {"repository":"pallets/flask","branch":"main","language":"python","role":"development","paths":["src/flask"]},
+  {"repository":"encode/httpx","branch":"master","language":"python","role":"test","paths":["httpx"]},
+  {"repository":"google/guava","branch":"master","language":"java","role":"development","paths":["guava/src"]},
+  {"repository":"junit-team/junit-framework","branch":"main","language":"java","role":"development","paths":["junit-platform-commons/src/main","junit-jupiter-api/src/main"]},
+  {"repository":"google/gson","branch":"main","language":"java","role":"test","paths":["gson/src/main"]},
+  {"repository":"BurntSushi/ripgrep","branch":"master","language":"rust","role":"development","paths":["crates/core","crates/searcher/src"]},
+  {"repository":"tokio-rs/tokio","branch":"master","language":"rust","role":"development","paths":["tokio/src"]},
+  {"repository":"tokio-rs/axum","branch":"main","language":"rust","role":"test","paths":["axum/src"]},
+  {"repository":"ziglang/zig","branch":"master","language":"zig","role":"development","paths":["lib/std"]},
+  {"repository":"tigerbeetle/tigerbeetle","branch":"main","language":"zig","role":"development","paths":["src"]},
+  {"repository":"zigtools/zls","branch":"master","language":"zig","role":"test","paths":["src"]}
+]

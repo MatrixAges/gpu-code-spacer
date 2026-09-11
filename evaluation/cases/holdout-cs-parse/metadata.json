@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-cs-parse",
+  "language": "csharp",
+  "scenario": "解析成功分支和结果回调",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "35c4961d8e7fef2be1bbf47c91c1694665a3ae0cf83c51b0b96282e810e48543",
+  "initial_output_sha256": "2c496229efd7c1c57662f9fc0e5e9eaa9f3aeb80f6028cc6e64a2cebb7947ee9",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 0,
+      "principle": "block_edge",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 0,
+      "principle": "block_edge",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 10,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 11,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 12,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

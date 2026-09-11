@@ -1,0 +1,45 @@
+{
+  "schema_version": 3,
+  "case_id": "dart-flutter-transform-point",
+  "language": "dart",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "flutter/flutter",
+    "commit": "7232346962d641f84fa8cd085cb335d8203c705a",
+    "path": "packages/flutter/lib/src/painting/matrix_utils.dart",
+    "start_line": 204,
+    "end_line": 221,
+    "symbol": "MatrixUtils.transformPoint",
+    "url": "https://github.com/flutter/flutter/blob/7232346962d641f84fa8cd085cb335d8203c705a/packages/flutter/lib/src/painting/matrix_utils.dart#L204-L221",
+    "local_file": "data/validation/flutter/packages/flutter/lib/src/painting/matrix_utils.dart",
+    "file_sha256": "b5e81d6548652c664971d43bc946677078155c7e3532d448a5a90ba810c88bdb",
+    "excerpt_sha256": "67f46d03524781607780a0fb0096f76203e81bc0a685c1a343c039ccd8e58d40",
+    "upstream_header": "// Copyright 2014 The Flutter Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style license that can be\n// found in the LICENSE file.\n\n/// @docImport 'package:flutter/rendering.dart';\nlibrary;\n\nimport 'package:flutter/foundation.dart';\nimport 'package:vector_math/vector_math_64.dart';\n\nimport 'basic_types.dart';\n\n/// Utility functions for working with matrices.\nabstract final class MatrixUtils {\n  /// Returns the given [transform] matrix as an [Offset], if the matrix is\n  /// nothing but a 2D translation.\n  ///\n  /// Otherwise, returns null.\n  static Offset? getAsTranslation(Matrix4 transform) {\n    // Values are stored in column-major order, so the appearance\n    // of dx is transposed from the top-right to the bottom-left.\n    if (transform.storage case [\n      1.0,\n      0.0,\n      0.0,\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      207,
+      215
+    ],
+    "protected_source_ranges": [],
+    "notes": "矩阵坐标计算、相关声明、解释注释和分支返回。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/flutter/LICENSE",
+  "input_sha256": {
+    "dense": "b95f6a7529d0e16c200c664cd710ab0941d5bd6a2397a63f0d96f406e491966a",
+    "spaced": "235650f6b532f0d5c9fd56723eb1b1f3782e3304b791ad32d457892a09cbd3d7"
+  },
+  "initial_output_sha256": "dc03a864ef7c7fb6ecc6818461bee09adc289c53da625321803828583c18e6da",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

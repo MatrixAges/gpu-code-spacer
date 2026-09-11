@@ -1,0 +1,384 @@
+[
+  {
+    "source": {
+      "repository": "vuejs/core",
+      "branch": "main",
+      "language": "typescript",
+      "role": "development",
+      "paths": [
+        "packages/reactivity/src",
+        "packages/runtime-core/src"
+      ]
+    },
+    "commit": "54097087a0918b98f16c84599b1a6d654e952ca7",
+    "archive_url": "https://codeload.github.com/vuejs/core/tar.gz/54097087a0918b98f16c84599b1a6d654e952ca7",
+    "archive_path": "data/archives/vuejs/core/54097087a0918b98f16c84599b1a6d654e952ca7.tar.gz",
+    "raw_path": "data/raw/vuejs/core/54097087a0918b98f16c84599b1a6d654e952ca7",
+    "archive_sha256": "4ea4aac010a6ee1f2f82b1354435e0e0de33d1a3e24f6566e9f3c69705b99ba5",
+    "archive_bytes": 1597760,
+    "extracted_bytes": 6362066,
+    "files": 705,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "vitejs/vite",
+      "branch": "main",
+      "language": "typescript",
+      "role": "development",
+      "paths": [
+        "packages/vite/src/node"
+      ]
+    },
+    "commit": "9913672bee9c34a2df7fff4c2538783cd4f43b4e",
+    "archive_url": "https://codeload.github.com/vitejs/vite/tar.gz/9913672bee9c34a2df7fff4c2538783cd4f43b4e",
+    "archive_path": "data/archives/vitejs/vite/9913672bee9c34a2df7fff4c2538783cd4f43b4e.tar.gz",
+    "raw_path": "data/raw/vitejs/vite/9913672bee9c34a2df7fff4c2538783cd4f43b4e",
+    "archive_sha256": "2fe178a5ba3639d3dc5dcb81059af903326ce25b514a7b3bc2a1ff99b31b2fcb",
+    "archive_bytes": 12963174,
+    "extracted_bytes": 17605325,
+    "files": 2829,
+    "skipped_symlinks": 5,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "colinhacks/zod",
+      "branch": "main",
+      "language": "typescript",
+      "role": "test",
+      "paths": [
+        "packages/zod/src/v4/core"
+      ]
+    },
+    "commit": "62311eb2c4a93c7348a8b1c5abbde1ec77c66b67",
+    "archive_url": "https://codeload.github.com/colinhacks/zod/tar.gz/62311eb2c4a93c7348a8b1c5abbde1ec77c66b67",
+    "archive_path": "data/archives/colinhacks/zod/62311eb2c4a93c7348a8b1c5abbde1ec77c66b67.tar.gz",
+    "raw_path": "data/raw/colinhacks/zod/62311eb2c4a93c7348a8b1c5abbde1ec77c66b67",
+    "archive_sha256": "7d2366c508ded317bbc2acf1bcbdaf35874f76cc5bcf003f9b0b0f49b4e9a8f0",
+    "archive_bytes": 10397103,
+    "extracted_bytes": 15363306,
+    "files": 726,
+    "skipped_symlinks": 4,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "expressjs/express",
+      "branch": "master",
+      "language": "javascript",
+      "role": "development",
+      "paths": [
+        "lib"
+      ]
+    },
+    "commit": "bed501c695a61886399ee622875f3be933c716d8",
+    "archive_url": "https://codeload.github.com/expressjs/express/tar.gz/bed501c695a61886399ee622875f3be933c716d8",
+    "archive_path": "data/archives/expressjs/express/bed501c695a61886399ee622875f3be933c716d8.tar.gz",
+    "raw_path": "data/raw/expressjs/express/bed501c695a61886399ee622875f3be933c716d8",
+    "archive_sha256": "b5b2e8df0f16067e7c78122ccbb098d5bfddee970952ac8119f09bb02c7a6249",
+    "archive_bytes": 133534,
+    "extracted_bytes": 713814,
+    "files": 213,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "prettier/prettier",
+      "branch": "main",
+      "language": "javascript",
+      "role": "development",
+      "paths": [
+        "src/main",
+        "src/utils"
+      ]
+    },
+    "commit": "bbd3b6785173742ef3a080484ee7ee5a3f73bc62",
+    "archive_url": "https://codeload.github.com/prettier/prettier/tar.gz/bbd3b6785173742ef3a080484ee7ee5a3f73bc62",
+    "archive_path": "data/archives/prettier/prettier/bbd3b6785173742ef3a080484ee7ee5a3f73bc62.tar.gz",
+    "raw_path": "data/raw/prettier/prettier/bbd3b6785173742ef3a080484ee7ee5a3f73bc62",
+    "archive_sha256": "47ddd3e6f4bf41d598b5e6c67aa35d112e1c869fa8c820ac04f8b046838e40d3",
+    "archive_bytes": 5943040,
+    "extracted_bytes": 24874463,
+    "files": 9469,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "koajs/koa",
+      "branch": "master",
+      "language": "javascript",
+      "role": "test",
+      "paths": [
+        "lib"
+      ]
+    },
+    "commit": "571938d1b42d5bbfbc4f203202e1095a63003f7e",
+    "archive_url": "https://codeload.github.com/koajs/koa/tar.gz/571938d1b42d5bbfbc4f203202e1095a63003f7e",
+    "archive_path": "data/archives/koajs/koa/571938d1b42d5bbfbc4f203202e1095a63003f7e.tar.gz",
+    "raw_path": "data/raw/koajs/koa/571938d1b42d5bbfbc4f203202e1095a63003f7e",
+    "archive_sha256": "f85d4acf79c64b921c461ed5faaba935dc66848af614b8c5ce77c314468ff842",
+    "archive_bytes": 211469,
+    "extracted_bytes": 630999,
+    "files": 111,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "psf/requests",
+      "branch": "main",
+      "language": "python",
+      "role": "development",
+      "paths": [
+        "src/requests"
+      ]
+    },
+    "commit": "dae7ef63b4df6eded86637f251fc4e3a06c3b479",
+    "archive_url": "https://codeload.github.com/psf/requests/tar.gz/dae7ef63b4df6eded86637f251fc4e3a06c3b479",
+    "archive_path": "data/archives/psf/requests/dae7ef63b4df6eded86637f251fc4e3a06c3b479.tar.gz",
+    "raw_path": "data/raw/psf/requests/dae7ef63b4df6eded86637f251fc4e3a06c3b479",
+    "archive_sha256": "55999922723576238c243ca02183f2c367c9b0c197a3c1afc671b35c2daf96c2",
+    "archive_bytes": 3333932,
+    "extracted_bytes": 4451532,
+    "files": 128,
+    "skipped_symlinks": 2,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "pallets/flask",
+      "branch": "main",
+      "language": "python",
+      "role": "development",
+      "paths": [
+        "src/flask"
+      ]
+    },
+    "commit": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+    "archive_url": "https://codeload.github.com/pallets/flask/tar.gz/d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+    "archive_path": "data/archives/pallets/flask/d73fa1cdcbd8b1465c151db8924ba58b1dd14e35.tar.gz",
+    "raw_path": "data/raw/pallets/flask/d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+    "archive_sha256": "f2859ca2addf5a0c09e66f79a97851c26ea534727970596fd9e1f643e469a827",
+    "archive_bytes": 765022,
+    "extracted_bytes": 1870682,
+    "files": 236,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "encode/httpx",
+      "branch": "master",
+      "language": "python",
+      "role": "test",
+      "paths": [
+        "httpx"
+      ]
+    },
+    "commit": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+    "archive_url": "https://codeload.github.com/encode/httpx/tar.gz/b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+    "archive_path": "data/archives/encode/httpx/b5addb64f0161ff6bfe94c124ef76f6a1fba5254.tar.gz",
+    "raw_path": "data/raw/encode/httpx/b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+    "archive_sha256": "5beb544895f7e097af22493048b33b6f41807ef459694d67e184e3029dedd08f",
+    "archive_bytes": 2299247,
+    "extracted_bytes": 3321071,
+    "files": 125,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "google/guava",
+      "branch": "master",
+      "language": "java",
+      "role": "development",
+      "paths": [
+        "guava/src"
+      ]
+    },
+    "commit": "0bfee017f6146c3e09b14c08e1634d51b5a6c791",
+    "archive_url": "https://codeload.github.com/google/guava/tar.gz/0bfee017f6146c3e09b14c08e1634d51b5a6c791",
+    "archive_path": "data/archives/google/guava/0bfee017f6146c3e09b14c08e1634d51b5a6c791.tar.gz",
+    "raw_path": "data/raw/google/guava/0bfee017f6146c3e09b14c08e1634d51b5a6c791",
+    "archive_sha256": "201aafe65fa2b618a65b4f82bf23742829b70375695f27f3d611b509ba2df514",
+    "archive_bytes": 5970998,
+    "extracted_bytes": 35499928,
+    "files": 3363,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "junit-team/junit-framework",
+      "branch": "main",
+      "language": "java",
+      "role": "development",
+      "paths": [
+        "junit-platform-commons/src/main",
+        "junit-jupiter-api/src/main"
+      ]
+    },
+    "commit": "4a9ff0f552ffd1755d3ce423a8e3ac12153a672f",
+    "archive_url": "https://codeload.github.com/junit-team/junit-framework/tar.gz/4a9ff0f552ffd1755d3ce423a8e3ac12153a672f",
+    "archive_path": "data/archives/junit-team/junit-framework/4a9ff0f552ffd1755d3ce423a8e3ac12153a672f.tar.gz",
+    "raw_path": "data/raw/junit-team/junit-framework/4a9ff0f552ffd1755d3ce423a8e3ac12153a672f",
+    "archive_sha256": "88bb97c722375387ad7a1de67b99d0a3866363b755cb8f1073ec59aab2ec3bda",
+    "archive_bytes": 2172491,
+    "extracted_bytes": 9935032,
+    "files": 2362,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "google/gson",
+      "branch": "main",
+      "language": "java",
+      "role": "test",
+      "paths": [
+        "gson/src/main"
+      ]
+    },
+    "commit": "8b4b55051489132190cb8d1c61eb9dc7f5381295",
+    "archive_url": "https://codeload.github.com/google/gson/tar.gz/8b4b55051489132190cb8d1c61eb9dc7f5381295",
+    "archive_path": "data/archives/google/gson/8b4b55051489132190cb8d1c61eb9dc7f5381295.tar.gz",
+    "raw_path": "data/raw/google/gson/8b4b55051489132190cb8d1c61eb9dc7f5381295",
+    "archive_sha256": "822d98ce281c0a01dd4669f89e82b369b430f2b755d99474874ab8470edd9b64",
+    "archive_bytes": 493561,
+    "extracted_bytes": 2335607,
+    "files": 313,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "BurntSushi/ripgrep",
+      "branch": "master",
+      "language": "rust",
+      "role": "development",
+      "paths": [
+        "crates/core",
+        "crates/searcher/src"
+      ]
+    },
+    "commit": "3fce3b5bb0236da2df6d99672afb8a719642eca7",
+    "archive_url": "https://codeload.github.com/BurntSushi/ripgrep/tar.gz/3fce3b5bb0236da2df6d99672afb8a719642eca7",
+    "archive_path": "data/archives/BurntSushi/ripgrep/3fce3b5bb0236da2df6d99672afb8a719642eca7.tar.gz",
+    "raw_path": "data/raw/BurntSushi/ripgrep/3fce3b5bb0236da2df6d99672afb8a719642eca7",
+    "archive_sha256": "e2c23831f1057a7e15575a72a64a900b317a86661561a786a36795717d602561",
+    "archive_bytes": 632386,
+    "extracted_bytes": 3255965,
+    "files": 236,
+    "skipped_symlinks": 1,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "tokio-rs/tokio",
+      "branch": "master",
+      "language": "rust",
+      "role": "development",
+      "paths": [
+        "tokio/src"
+      ]
+    },
+    "commit": "022c004b4a7c42c0c534e9737e9c66ff916517b1",
+    "archive_url": "https://codeload.github.com/tokio-rs/tokio/tar.gz/022c004b4a7c42c0c534e9737e9c66ff916517b1",
+    "archive_path": "data/archives/tokio-rs/tokio/022c004b4a7c42c0c534e9737e9c66ff916517b1.tar.gz",
+    "raw_path": "data/raw/tokio-rs/tokio/022c004b4a7c42c0c534e9737e9c66ff916517b1",
+    "archive_sha256": "cc74979e6493ed35962393b4f2914c5886b5d94f94643a3f2678d723c5572ee2",
+    "archive_bytes": 1233237,
+    "extracted_bytes": 6150263,
+    "files": 872,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "tokio-rs/axum",
+      "branch": "main",
+      "language": "rust",
+      "role": "test",
+      "paths": [
+        "axum/src"
+      ]
+    },
+    "commit": "af1345b53a259b0990be1ff853f9b56c05040ef7",
+    "archive_url": "https://codeload.github.com/tokio-rs/axum/tar.gz/af1345b53a259b0990be1ff853f9b56c05040ef7",
+    "archive_path": "data/archives/tokio-rs/axum/af1345b53a259b0990be1ff853f9b56c05040ef7.tar.gz",
+    "raw_path": "data/raw/tokio-rs/axum/af1345b53a259b0990be1ff853f9b56c05040ef7",
+    "archive_sha256": "33f15f8f979c156d4ab26e0df2d4674a0296c53f73b77ad06339a5326f7ba299",
+    "archive_bytes": 428967,
+    "extracted_bytes": 1911693,
+    "files": 498,
+    "skipped_symlinks": 5,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "ziglang/zig",
+      "branch": "master",
+      "language": "zig",
+      "role": "development",
+      "paths": [
+        "lib/std"
+      ]
+    },
+    "commit": "738d2be9d6b6ef3ff3559130c05159ef53336224",
+    "archive_url": "https://codeload.github.com/ziglang/zig/tar.gz/738d2be9d6b6ef3ff3559130c05159ef53336224",
+    "archive_path": "data/archives/ziglang/zig/738d2be9d6b6ef3ff3559130c05159ef53336224.tar.gz",
+    "raw_path": "data/raw/ziglang/zig/738d2be9d6b6ef3ff3559130c05159ef53336224",
+    "archive_sha256": "da649359228d3ae1ec3dbf388e1593225fea528a6ee2ec5154c696827affcb2f",
+    "archive_bytes": 33289279,
+    "extracted_bytes": 224379606,
+    "files": 20545,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "tigerbeetle/tigerbeetle",
+      "branch": "main",
+      "language": "zig",
+      "role": "development",
+      "paths": [
+        "src"
+      ]
+    },
+    "commit": "47aeb2212a255273dda508288412e537d11e4b7c",
+    "archive_url": "https://codeload.github.com/tigerbeetle/tigerbeetle/tar.gz/47aeb2212a255273dda508288412e537d11e4b7c",
+    "archive_path": "data/archives/tigerbeetle/tigerbeetle/47aeb2212a255273dda508288412e537d11e4b7c.tar.gz",
+    "raw_path": "data/raw/tigerbeetle/tigerbeetle/47aeb2212a255273dda508288412e537d11e4b7c",
+    "archive_sha256": "e75774e0a6aac816cdcca67d57f8fa892801b0eaf491858d932fad97fc605616",
+    "archive_bytes": 2024658,
+    "extracted_bytes": 9169132,
+    "files": 610,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "zigtools/zls",
+      "branch": "master",
+      "language": "zig",
+      "role": "test",
+      "paths": [
+        "src"
+      ]
+    },
+    "commit": "3df042851351abdcfcdab9e133f3e144fe37b783",
+    "archive_url": "https://codeload.github.com/zigtools/zls/tar.gz/3df042851351abdcfcdab9e133f3e144fe37b783",
+    "archive_path": "data/archives/zigtools/zls/3df042851351abdcfcdab9e133f3e144fe37b783.tar.gz",
+    "raw_path": "data/raw/zigtools/zls/3df042851351abdcfcdab9e133f3e144fe37b783",
+    "archive_sha256": "b4de1b4f28dcfdf473dfad1f5ce2e1b106b07bb8d6f4113a7bd91c41d935dde5",
+    "archive_bytes": 431925,
+    "extracted_bytes": 2396324,
+    "files": 110,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  }
+]

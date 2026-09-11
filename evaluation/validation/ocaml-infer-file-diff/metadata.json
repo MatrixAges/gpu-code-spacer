@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "case_id": "ocaml-infer-file-diff",
+  "language": "ocaml",
+  "language_in_archives": false,
+  "generalization_scope": "new repository and language absent from archived corpus language list",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "facebook/infer",
+    "commit": "3d38229b04b649024fee065621f6a4c838f6d029",
+    "path": "infer/src/base/FileDiff.ml",
+    "start_line": 50,
+    "end_line": 76,
+    "symbol": "parse_directives",
+    "url": "https://github.com/facebook/infer/blob/3d38229b04b649024fee065621f6a4c838f6d029/infer/src/base/FileDiff.ml#L50-L76",
+    "local_file": "data/validation/infer/infer/src/base/FileDiff.ml",
+    "file_sha256": "eaf38a9b9ce47735d3509ea297a98e130d1f9577c0f231d74b859034c36db1d7",
+    "excerpt_sha256": "9aac70019c9b41eaf331b15bda884ab41ff32847e9c1886f107cfc5fa58e315f",
+    "upstream_header": "(*\n * Copyright (c) Facebook, Inc. and its affiliates.\n *\n * This source code is licensed under the MIT license found in the\n * LICENSE file in the root directory of this source tree.\n *)\n\nopen! IStd\n\nmodule UnixDiff = struct\n  type t = Unchanged | New | Old [@@deriving compare, equal]\n\n  let directive_of_char c =\n    match c with\n    | 'U' ->\n        Unchanged\n    | 'N' ->\n        New\n    | 'O' ->\n        Old\n    | _ ->\n        Logging.die Logging.UserError \"Unexpected char in input sequence. Failed parsing\"\n\n\n  let process_raw_directives in_str =\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      63,
+      65,
+      75
+    ],
+    "gap_after_wrapper_lines": [],
+    "protected_source_ranges": [],
+    "notes": "The local recursive aux function is complete through its terminating in at line65. Its match arms and pattern alternatives belong to that one match expression; keep branch header/body attached. Separate the lines' binding from the recursive call in the Unchanged arm. The final if/else-if/else forms one expression; no gaps between its condition, then or else. The inner let match RHS ends with in at75, after which the aux call is an outer boundary. Exclude the later VISIBLE_FOR_TESTING module.",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/infer/LICENSE",
+  "input_sha256": {
+    "dense": "9aac70019c9b41eaf331b15bda884ab41ff32847e9c1886f107cfc5fa58e315f",
+    "spaced": "f7eef0847d456a2ccfa35ff43fc93bdc3f8f176da9de62342bd54dd73e9afb7a"
+  },
+  "initial_output_sha256": "8ab1aaaa5bb1608bda9261cca74e11c17e0ced9ef080d15e6dcde0afa17406a8",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

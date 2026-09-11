@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "case_id": "swift-range",
+  "language": "swift",
+  "scenario": "多行数组及注释",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "0240a391efd1fcbf134db6f3e0222304e3ebbeaaccbca3abf00ff465cbaf9452",
+  "initial_output_sha256": "5ab6d83d31792ffd61570d055378ffc1d65567bf198943972fa14d03e6e214f2",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 0,
+      "principle": "comment_attachment",
+      "scope": "structure",
+      "comparison": "exact"
+    }
+  ]
+}

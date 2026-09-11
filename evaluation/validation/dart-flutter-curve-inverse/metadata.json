@@ -1,0 +1,50 @@
+{
+  "schema_version": 3,
+  "case_id": "dart-flutter-curve-inverse",
+  "language": "dart",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "flutter/flutter",
+    "commit": "7232346962d641f84fa8cd085cb335d8203c705a",
+    "path": "packages/flutter/lib/src/animation/curves.dart",
+    "start_line": 645,
+    "end_line": 666,
+    "symbol": "Curve2D.findInverse",
+    "url": "https://github.com/flutter/flutter/blob/7232346962d641f84fa8cd085cb335d8203c705a/packages/flutter/lib/src/animation/curves.dart#L645-L666",
+    "local_file": "data/validation/flutter/packages/flutter/lib/src/animation/curves.dart",
+    "file_sha256": "3ef227a008bc11fd7e8becef48b2e297cdbbabd9df330ca8fcd4e3cac05388b2",
+    "excerpt_sha256": "71574c4e563f8be11448607bc3980a2533a9b89c65a40284db69c12c2e303381",
+    "upstream_header": "// Copyright 2014 The Flutter Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style license that can be\n// found in the LICENSE file.\n\n/// @docImport 'package:flutter/cupertino.dart';\n/// @docImport 'package:flutter/material.dart';\nlibrary;\n\nimport 'dart:math' as math;\nimport 'dart:ui';\n\nimport 'package:flutter/foundation.dart';\n\nexport 'dart:ui' show Offset;\n\n/// An abstract class providing an interface for evaluating a parametric curve.\n///\n/// A parametric curve transforms a parameter (hence the name) `t` along a curve\n/// to the value of the curve at that value of `t`. The curve can be of\n/// arbitrary dimension, but is typically a 1D, 2D, or 3D curve.\n///\n/// See also:\n///\n///  * [Curve], a 1D animation easing curve that starts at 0.0 and ends at 1.0.\n///  * [Curve2D], a parametric curve that transforms the parameter to a 2D point.\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      648,
+      649,
+      654,
+      656,
+      657,
+      662,
+      664
+    ],
+    "protected_source_ranges": [],
+    "notes": "二分搜索，局部函数声明、循环内声明/赋值交替及显式返回。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/flutter/LICENSE",
+  "input_sha256": {
+    "dense": "c71733d7af002f3eaf86c4a5a4817441cf21fc37213697d8eee1e48e3140f1d0",
+    "spaced": "71b97f0ba44a9341a59912c5e5ac5027276b476712bbdea3deb1a79eea91bffe"
+  },
+  "initial_output_sha256": "3bafafe132cd92c2b38028c9c6bf3d5626ba4d50a77319f4de0cdc6bc30b2bb0",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "case_id": "cpp-bounds",
+  "language": "cpp",
+  "scenario": "连续成员赋值和返回",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "cb0b61a2227a42d74237f458baf46b95ee84a90f44fdc6c8c5ec3d23eaa99806",
+  "initial_output_sha256": "a952c901dcb1389003bfc6cf45f201478896a25c0eb4daaf0b480c57131b3444",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 3,
+      "blank_lines": 1,
+      "principle": "declaration_to_assignment",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-rb-tally",
+  "language": "ruby",
+  "scenario": "块调用内分类累积",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "08bf344462027d05b461030434e989158dd492181c8cc1c56705ba57d3b05a31",
+  "initial_output_sha256": "f4f10a1fe3ca99aa9a23173ee98be53f3aa1c8056514cf352b540eed04052ac8",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "control_to_assignment",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 9,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

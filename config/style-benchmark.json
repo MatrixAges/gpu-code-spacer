@@ -1,0 +1,1135 @@
+{
+  "version": 2,
+  "cases": [
+    {
+      "id": "ts-stock",
+      "language": "typescript",
+      "training_language": true,
+      "scenario": "库存阈值检查",
+      "source": "function available(stock: number, reserved: number): boolean {\n  const remaining = stock - reserved;\n  const threshold = 2;\n  if (remaining < threshold) {\n    return false;\n  }\n  return true;\n}\n",
+      "expectations": [
+        {
+          "after_line": 1,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "ts-audit",
+      "language": "typescript",
+      "training_language": true,
+      "scenario": "验证阶段与事务阶段调用分隔",
+      "source": "function audit(validate: () => void, prepare: () => void, commit: (text: string) => void, user: string): void {\n  const entry = `signed in: ${user}`;\n  validate();\n  prepare();\n  commit(entry);\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "ts-label",
+      "language": "typescript",
+      "training_language": true,
+      "scenario": "多行参数与注释归属",
+      "source": "function label(parts: string[]): string {\n  const joined = parts.join(\n    \":\",\n  );\n  // Keep an empty label explicit.\n  return joined || \"untitled\";\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "comment_attachment",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "js-limit",
+      "language": "javascript",
+      "training_language": true,
+      "scenario": "批量统计包含循环与赋值",
+      "source": "function limited(items, maximum) {\n  let total = 0;\n  for (const item of items) {\n    total += Math.min(item, maximum);\n  }\n  return total;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "js-notify",
+      "language": "javascript",
+      "training_language": true,
+      "scenario": "通知参数准备与连续发送",
+      "source": "function notify(send, name) {\n  const title = \"Hello\";\n  const message = `${title}, ${name}`;\n  send(message);\n  send(\"Goodbye\");\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "js-coordinate",
+      "language": "javascript",
+      "training_language": true,
+      "scenario": "对象构造保持完整",
+      "source": "function coordinate(x, y) {\n  const point = {\n    x: x + 1,\n    y: y + 1,\n  };\n  return point;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "py-price",
+      "language": "python",
+      "training_language": true,
+      "scenario": "价格输入验证",
+      "source": "def discounted(price, reduction):\n    adjusted = price - reduction\n    minimum = 0\n    if adjusted < minimum:\n        return minimum\n    return adjusted\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "py-log",
+      "language": "python",
+      "training_language": true,
+      "scenario": "保存诊断文本",
+      "source": "def record(sink, readings):\n    report = \",\".join(str(value) for value in readings)\n    sink.write(report)\n    sink.flush()\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "py-options",
+      "language": "python",
+      "training_language": true,
+      "scenario": "多行字符串中的伪代码",
+      "source": "def diagnostic_template():\n    template = \"\"\"Example commands:\nif ready:\n    return result\nsend(result)\n\"\"\"\n    return template\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "java-timeout",
+      "language": "java",
+      "training_language": true,
+      "scenario": "队列逐项统计",
+      "source": "class Timeout {\n    static int countExpired(int[] timeouts) {\n        int count = 0;\n        for (int timeout : timeouts) {\n            if (timeout <= 0) {\n                count++;\n            }\n        }\n        return count;\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "java-console",
+      "language": "java",
+      "training_language": true,
+      "scenario": "控制台消息写入",
+      "source": "class Console {\n    static void announce(String name) {\n        String text = \"Welcome \" + name;\n        System.out.println(text);\n        System.out.flush();\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "java-pair",
+      "language": "java",
+      "training_language": true,
+      "scenario": "数组初始化与结果返回",
+      "source": "class Pair {\n    static int[] adjacent(int value) {\n        int[] pair = new int[] {\n            value,\n            value + 1\n        };\n        return pair;\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "rust-window",
+      "language": "rust",
+      "training_language": true,
+      "scenario": "窗口尺寸验证",
+      "source": "fn window(size: usize) -> usize {\n    let minimum = 1;\n    let maximum = 32;\n    if size < minimum {\n        return minimum;\n    }\n    return size.min(maximum);\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "rust-queue",
+      "language": "rust",
+      "training_language": true,
+      "scenario": "队列声明与变更调用",
+      "source": "fn enqueue(queue: &mut Vec<String>, value: &str) {\n    let owned = value.to_owned();\n    queue.push(owned);\n    queue.shrink_to_fit();\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "rust-tail",
+      "language": "rust",
+      "training_language": true,
+      "scenario": "链式表达式与隐式尾返回",
+      "source": "fn upper(names: &[&str]) -> Vec<String> {\n    names.iter()\n        .map(|name| name.to_uppercase())\n        .collect()\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "zig-clamp",
+      "language": "zig",
+      "training_language": true,
+      "scenario": "字节扫描与循环后的返回",
+      "source": "fn leadingZeros(bytes: []const u8) usize {\n    var index: usize = 0;\n    while (index < bytes.len and bytes[index] == 0) : (index += 1) {\n    }\n    return index;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "zig-copy",
+      "language": "zig",
+      "training_language": true,
+      "scenario": "内存填充和复制",
+      "source": "fn initialize(destination: []u8, input: []const u8) void {\n    const count = @min(destination.len, input.len);\n    @memset(destination, 0);\n    @memcpy(destination[0..count], input[0..count]);\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "zig-components",
+      "language": "zig",
+      "training_language": true,
+      "scenario": "数组元素连续性",
+      "source": "fn components(base: u8) [3]u8 {\n    const values = [3]u8{\n        base,\n        base +| 1,\n        base +| 2,\n    };\n    return values;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "go-capacity",
+      "language": "go",
+      "training_language": false,
+      "scenario": "容量阈值分支",
+      "source": "package sample\nfunc capacity(requested int) int {\n    minimum := 4\n    maximum := 128\n    if requested < minimum {\n        return minimum\n    }\n    return min(requested, maximum)\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "go-broadcast",
+      "language": "go",
+      "training_language": false,
+      "scenario": "消息回调发送",
+      "source": "package sample\nfunc broadcast(send func(string), channel string) {\n    prefix := \"channel: \" + channel\n    send(prefix)\n    send(\"ready\")\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "go-vector",
+      "language": "go",
+      "training_language": false,
+      "scenario": "匿名函数和多行参数不拆分",
+      "source": "package sample\nfunc vector(x int) []int {\n    duplicate := func(value int) []int {\n        return []int{value, value}\n    }\n    println(x)\n    return duplicate(\n        x,\n    )\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "cpp-score",
+      "language": "cpp",
+      "training_language": false,
+      "scenario": "分数条件裁剪",
+      "source": "int score(int value) {\n    const int floor = 0;\n    const int offset = 10;\n    if (value < floor) {\n        return floor;\n    }\n    return value + offset;\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "cpp-reserve",
+      "language": "cpp",
+      "training_language": false,
+      "scenario": "容器准备及连续调用",
+      "source": "#include <vector>\nvoid reserve(std::vector<int>& values, int extra) {\n    const auto capacity = values.size() + extra;\n    values.reserve(capacity);\n    values.push_back(extra);\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "cpp-bounds",
+      "language": "cpp",
+      "training_language": false,
+      "scenario": "连续成员赋值和返回",
+      "source": "struct Bounds { int low; int high; };\nBounds bounds(int center) {\n    Bounds result{};\n    result.low = center - 1;\n    result.high = center + 1;\n    return result;\n}\n",
+      "expectations": [
+        {
+          "after_line": 3,
+          "principle": "declaration_to_assignment",
+          "blank_lines": 1,
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "cs-page",
+      "language": "csharp",
+      "training_language": false,
+      "scenario": "分页参数验证及Allman风格",
+      "source": "public static class Pages\n{\n    public static int Start(int page, int size)\n    {\n        var offset = page * size;\n        var minimum = 0;\n        if (offset < minimum)\n        {\n            return minimum;\n        }\n        return offset;\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 10,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "cs-tags",
+      "language": "csharp",
+      "training_language": false,
+      "scenario": "泛型集合追加",
+      "source": "using System.Collections.Generic;\npublic static class Tags\n{\n    public static void Append(List<string> tags, string value)\n    {\n        var cleaned = value.Trim();\n        tags.Add(cleaned);\n        tags.Sort();\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "cs-message",
+      "language": "csharp",
+      "training_language": false,
+      "scenario": "多行调用与返回",
+      "source": "public static class Messages\n{\n    public static string Build(string name, int count)\n    {\n        var message = string.Format(\n            \"{0}: {1}\",\n            name,\n            count);\n        return message;\n    }\n}\n",
+      "expectations": [
+        {
+          "after_line": 5,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 7,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 8,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "rb-age",
+      "language": "ruby",
+      "training_language": false,
+      "scenario": "存在性扫描并显式返回",
+      "source": "def contains_negative?(values)\n  predicate = ->(value) { value < 0 }\n  for value in values\n    return true if predicate.call(value)\n  end\n  return false\nend\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "rb-emit",
+      "language": "ruby",
+      "training_language": false,
+      "scenario": "文件写入调用顺序",
+      "source": "def emit(stream, rows)\n  body = rows.join(\"\\n\")\n  stream.write(body)\n  stream.flush\nend\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "rb-settings",
+      "language": "ruby",
+      "training_language": false,
+      "scenario": "哈希初始化",
+      "source": "def settings(path)\n  result = {\n    path: path,\n    mode: :read\n  }\n  return result\nend\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "kt-quota",
+      "language": "kotlin",
+      "training_language": false,
+      "scenario": "额度检查",
+      "source": "fun quota(used: Int, limit: Int): Int {\n    val remaining = limit - used\n    val empty = 0\n    if (remaining < empty) {\n        return empty\n    }\n    return remaining\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "kt-collect",
+      "language": "kotlin",
+      "training_language": false,
+      "scenario": "同组列表变更后发布阶段",
+      "source": "fun collect(items: MutableList<String>, name: String, publish: (List<String>) -> Unit) {\n    val normalized = name.lowercase()\n    items.add(normalized)\n    items.sort()\n    publish(items)\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "kt-lines",
+      "language": "kotlin",
+      "training_language": false,
+      "scenario": "多行调用参数",
+      "source": "fun lines(first: String, last: String): List<String> {\n    val result = listOf(\n        first,\n        last,\n    )\n    return result\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "swift-duration",
+      "language": "swift",
+      "training_language": false,
+      "scenario": "guard提前返回校验",
+      "source": "func duration(start: Int, end: Int) -> Int {\n    let elapsed = end - start\n    guard elapsed >= 0 else {\n        return 0\n    }\n    return elapsed\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_control",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "block_edge",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        }
+      ]
+    },
+    {
+      "id": "swift-events",
+      "language": "swift",
+      "training_language": false,
+      "scenario": "闭包事件发送",
+      "source": "func events(send: (String) -> Void, topic: String) {\n    let message = \"Topic: \" + topic\n    send(message)\n    send(\"done\")\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 1,
+          "principle": "declaration_to_call",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "same_kind_single_line",
+          "scope": "style",
+          "comparison": "exact"
+        }
+      ]
+    },
+    {
+      "id": "swift-range",
+      "language": "swift",
+      "training_language": false,
+      "scenario": "多行数组及注释",
+      "source": "func endpoints(center: Int) -> [Int] {\n    let values = [\n        center - 2,\n        center + 2,\n    ]\n    // Preserve the endpoint order.\n    return values\n}\n",
+      "expectations": [
+        {
+          "after_line": 2,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 3,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 4,
+          "blank_lines": 0,
+          "principle": "multiline_integrity",
+          "scope": "structure",
+          "comparison": "exact"
+        },
+        {
+          "after_line": 5,
+          "blank_lines": 1,
+          "principle": "before_return",
+          "scope": "style",
+          "comparison": "at_least"
+        },
+        {
+          "after_line": 6,
+          "blank_lines": 0,
+          "principle": "comment_attachment",
+          "scope": "structure",
+          "comparison": "exact"
+        }
+      ]
+    }
+  ],
+  "status": "regression",
+  "criteria": {
+    "basis": "完整表达式的类型和跨度决定分组；多行完整表达式优先独立成段",
+    "multiline": "完整表达式跨多行时，与前后相邻完整语句之间至少一个空行",
+    "same_kind_single_line": "相邻表达式均为单行且类型相同，必须连写",
+    "different_kind": "相邻完整表达式类型不同，至少一个空行",
+    "structure": "表达式内部连续、注释贴附、块首尾保护分别检查，不混入风格得分"
+  }
+}

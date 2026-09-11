@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "case_id": "cpp-score",
+  "language": "cpp",
+  "scenario": "分数条件裁剪",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "29868226eb65b7a35be0cec500ffc90beac8f8a4595552bbb078cd2e0d1c6104",
+  "initial_output_sha256": "b28670a44cd2b657fc00d6c157225036fcacc3713f60e622bccc4e1ea07aa7b0",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

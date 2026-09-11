@@ -1,0 +1,130 @@
+[
+  {
+    "source": {
+      "repository": "gin-gonic/gin",
+      "branch": "master",
+      "language": "go",
+      "role": "unseen_language",
+      "paths": [
+        "."
+      ]
+    },
+    "commit": "dcaa4296d111981ffb31ac3eba90bb63e1eb5ab9",
+    "archive_url": "https://codeload.github.com/gin-gonic/gin/tar.gz/dcaa4296d111981ffb31ac3eba90bb63e1eb5ab9",
+    "archive_path": "data/archives/gin-gonic/gin/dcaa4296d111981ffb31ac3eba90bb63e1eb5ab9.tar.gz",
+    "raw_path": "data/raw/gin-gonic/gin/dcaa4296d111981ffb31ac3eba90bb63e1eb5ab9",
+    "archive_sha256": "a3abd4625f6565a660ec49595fc0fabfa3df4f5a529dba38b59375ee84dcb26d",
+    "archive_bytes": 192070,
+    "extracted_bytes": 870626,
+    "files": 130,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "fmtlib/fmt",
+      "branch": "main",
+      "language": "cpp",
+      "role": "unseen_language",
+      "paths": [
+        "src",
+        "include/fmt"
+      ]
+    },
+    "commit": "8dc5d3f69f15417d13c60a4a21f7298ed24db41c",
+    "archive_url": "https://codeload.github.com/fmtlib/fmt/tar.gz/8dc5d3f69f15417d13c60a4a21f7298ed24db41c",
+    "archive_path": "data/archives/fmtlib/fmt/8dc5d3f69f15417d13c60a4a21f7298ed24db41c.tar.gz",
+    "raw_path": "data/raw/fmtlib/fmt/8dc5d3f69f15417d13c60a4a21f7298ed24db41c",
+    "archive_sha256": "1681c5f1b5b9a4e354a62fb8dba3509f38cb49321c7eabac7ab5dd98160bfb37",
+    "archive_bytes": 750561,
+    "extracted_bytes": 3141609,
+    "files": 145,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "DapperLib/Dapper",
+      "branch": "main",
+      "language": "csharp",
+      "role": "unseen_language",
+      "paths": [
+        "Dapper"
+      ]
+    },
+    "commit": "6d48ef664acc7298c649e2d449d903b3360d5a90",
+    "archive_url": "https://codeload.github.com/DapperLib/Dapper/tar.gz/6d48ef664acc7298c649e2d449d903b3360d5a90",
+    "archive_path": "data/archives/DapperLib/Dapper/6d48ef664acc7298c649e2d449d903b3360d5a90.tar.gz",
+    "raw_path": "data/raw/DapperLib/Dapper/6d48ef664acc7298c649e2d449d903b3360d5a90",
+    "archive_sha256": "98f3ce213115d483dccb7d7b3b29e64729421263078cd8a8483bd0c1a24387ee",
+    "archive_bytes": 276916,
+    "extracted_bytes": 1381678,
+    "files": 230,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "sinatra/sinatra",
+      "branch": "main",
+      "language": "ruby",
+      "role": "unseen_language",
+      "paths": [
+        "lib"
+      ]
+    },
+    "commit": "cb22afd7902b566b6eaba6c4ea89739494a65d12",
+    "archive_url": "https://codeload.github.com/sinatra/sinatra/tar.gz/cb22afd7902b566b6eaba6c4ea89739494a65d12",
+    "archive_path": "data/archives/sinatra/sinatra/cb22afd7902b566b6eaba6c4ea89739494a65d12.tar.gz",
+    "raw_path": "data/raw/sinatra/sinatra/cb22afd7902b566b6eaba6c4ea89739494a65d12",
+    "archive_sha256": "e7fce5f41fa199ec04f2c5a065e206379d79579e6d757494366f7517367920b2",
+    "archive_bytes": 277101,
+    "extracted_bytes": 950171,
+    "files": 292,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "square/okhttp",
+      "branch": "main",
+      "language": "kotlin",
+      "role": "unseen_language",
+      "paths": [
+        "okhttp/src/commonJvmAndroid/kotlin",
+        "okhttp/src/jvmMain/kotlin"
+      ]
+    },
+    "commit": "1f04bf8028b0fd9471ba9a77eba0ad913f86705a",
+    "archive_url": "https://codeload.github.com/square/okhttp/tar.gz/1f04bf8028b0fd9471ba9a77eba0ad913f86705a",
+    "archive_path": "data/archives/square/okhttp/1f04bf8028b0fd9471ba9a77eba0ad913f86705a.tar.gz",
+    "raw_path": "data/raw/square/okhttp/1f04bf8028b0fd9471ba9a77eba0ad913f86705a",
+    "archive_sha256": "ea8d14149f664a806adbc03b23bdae212e6e85fba53f05877a50bedc232e736e",
+    "archive_bytes": 2191932,
+    "extracted_bytes": 7913379,
+    "files": 844,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  },
+  {
+    "source": {
+      "repository": "Alamofire/Alamofire",
+      "branch": "master",
+      "language": "swift",
+      "role": "unseen_language",
+      "paths": [
+        "Source"
+      ]
+    },
+    "commit": "bda9ed57d72988a3a2ada33d824583541f86eac6",
+    "archive_url": "https://codeload.github.com/Alamofire/Alamofire/tar.gz/bda9ed57d72988a3a2ada33d824583541f86eac6",
+    "archive_path": "data/archives/Alamofire/Alamofire/bda9ed57d72988a3a2ada33d824583541f86eac6.tar.gz",
+    "raw_path": "data/raw/Alamofire/Alamofire/bda9ed57d72988a3a2ada33d824583541f86eac6",
+    "archive_sha256": "b4e4f7837a9c5a66aeb51f8d487776c29909dead0cf8c99ae6994a5317c1ab07",
+    "archive_bytes": 3090974,
+    "extracted_bytes": 22791271,
+    "files": 571,
+    "skipped_symlinks": 0,
+    "status": "complete"
+  }
+]

@@ -1,0 +1,45 @@
+{
+  "schema_version": 3,
+  "case_id": "php-laravel-rate-attempt",
+  "language": "php",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "laravel/framework",
+    "commit": "41807417bb85908412b67ff7ec4132a026d603c7",
+    "path": "src/Illuminate/Cache/RateLimiter.php",
+    "start_line": 106,
+    "end_line": 119,
+    "symbol": "RateLimiter.attempt",
+    "url": "https://github.com/laravel/framework/blob/41807417bb85908412b67ff7ec4132a026d603c7/src/Illuminate/Cache/RateLimiter.php#L106-L119",
+    "local_file": "data/validation/laravel-framework/src/Illuminate/Cache/RateLimiter.php",
+    "file_sha256": "254712e9339fa17a68d0ffd09af53ffef4bf1c27b02c7f339e32d1afdabddca9",
+    "excerpt_sha256": "1cbf75451a03825e7c823a69b011f781c4f6aa5f5100ce7cbe87e6fbb1e85ed8",
+    "upstream_header": "<?php\n\nnamespace Illuminate\\Cache;\n\nuse Closure;\nuse Illuminate\\Contracts\\Cache\\Repository as Cache;\nuse Illuminate\\Redis\\Connections\\PhpRedisConnection;\nuse Illuminate\\Support\\Collection;\nuse Illuminate\\Support\\InteractsWithTime;\nuse Illuminate\\Support\\Traits\\Macroable;\n\nuse function Illuminate\\Support\\enum_value;\n\nclass RateLimiter\n{\n    use InteractsWithTime, Macroable;\n\n    /**\n     * The cache store implementation.\n     *\n     * @var \\Illuminate\\Contracts\\Cache\\Repository\n     */\n    protected $cache;\n\n    /**\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "<?php\nclass ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      110,
+      114
+    ],
+    "protected_source_ranges": [],
+    "notes": "两个多行if即使同类仍分隔；返回内的闭包是一条完整表达式，内部调用与块边缘保持连续。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/laravel-framework/LICENSE.md",
+  "input_sha256": {
+    "dense": "fb0178090d36d2746f67a7fe1847bb3e7a502be68e954b536477ef3adf738807",
+    "spaced": "4e6a90c7b8145b7e11aefcbb7a89bd371001031539866237436cf51b2332578a"
+  },
+  "initial_output_sha256": "0f6d7f8dafde7a01cbd5c82047ed93d31327377148deaaecee5c30bc9fac8243",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

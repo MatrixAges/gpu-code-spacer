@@ -1,0 +1,1877 @@
+const std = @import("std");
+const assert = std.debug.assert;
+const os = std.os;
+const posix = std.posix;
+const linux = os.linux;
+const IO_Uring = linux.IoUring;
+const io_uring_cqe = linux.io_uring_cqe;
+const io_uring_sqe = linux.io_uring_sqe;
+const log = std.log.scoped(.io);
+
+const constants = @import("../constants.zig");
+const stdx = @import("stdx");
+const TimeOS = @import("../time.zig").TimeOS;
+const common = @import("./common.zig");
+const QueueType = @import("../queue.zig").QueueType;
+const buffer_limit = @import("../io.zig").buffer_limit;
+const DirectIO = @import("../io.zig").DirectIO;
+const maybe = stdx.maybe;
+
+pub const IO = struct {
+    pub const TCPOptions = common.TCPOptions;
+    pub const ListenOptions = common.ListenOptions;
+    pub const Stats = common.Stats;
+    pub const NextTickSource = common.NextTickSource;
+
+    pub const dsync_all = true;
+
+    ring: IO_Uring,
+
+    /// Completions and deferred callbacks that are ready to have their callbacks run.
+    completed: QueueType(Completion) = QueueType(Completion).init(.{ .name = "io_completed" }),
+
+    // TODO Track these as metrics:
+    ios_queued: u32 = 0,
+    ios_in_kernel: u32 = 0,
+
+    stats: common.Stats = .{},
+
+    time: TimeOS = .{},
+
+    run_for_ns_active: bool = false,
+
+    pub fn init(entries: u12, flags: u32) !IO {
+        errdefer |err| switch (err) {
+            error.SystemOutdated => {
+                log.err("io_uring is not available", .{});
+                log.err("likely cause: the syscall is disabled by seccomp", .{});
+            },
+            error.PermissionDenied => {
+                log.err("io_uring is not available", .{});
+                log.err("likely cause: the syscall is disabled by sysctl, " ++
+                    "try 'sysctl -w kernel.io_uring_disabled=0'", .{});
+            },
+            else => {},
+        };
+
+        var ring = try IO_Uring.init(entries, flags);
+        errdefer ring.deinit();
+
+        // IORING_ENTER_EXT_ARG is the newest feature we currently use: it was added in 5.11.
+        if ((ring.features & linux.IORING_FEAT_EXT_ARG) == 0) {
+            @panic("Linux kernel 5.11 or greater is required for IORING_ENTER_EXT_ARG");
+        }
+
+        return IO{ .ring = ring };
+    }
+
+    pub fn deinit(self: *IO) void {
+        self.ring.deinit();
+    }
+
+    /// Pass all queued submissions to the kernel and peek for completions.
+    pub fn run(self: *IO) !void {
+        assert(!self.run_for_ns_active);
+
+        try self.flush_submissions(0);
+        try self.flush_completions(0);
+
+        while (self.completed.count() > 0) {
+            try self.run_callback();
+        }
+
+        // Flush any SQEs that were queued while running completion callbacks in `run_callback()`:
+        // This is an optimization to avoid delaying submissions until the next tick.
+        // At the same time, we do not flush any ready CQEs since SQEs may complete synchronously.
+        try self.flush_submissions(0);
+    }
+
+    /// Pass all queued submissions to the kernel and run for `nanoseconds`.
+    /// The `nanoseconds` argument is a u63 to allow coercion to the i64 used
+    /// in the kernel_timespec struct.
+    pub fn run_for_ns(self: *IO, nanoseconds: u63) !void {
+        assert(!self.run_for_ns_active);
+        self.run_for_ns_active = true;
+        defer {
+            assert(self.run_for_ns_active);
+            self.run_for_ns_active = false;
+        }
+
+        defer self.stats.trace();
+
+        const timer = self.time.monotonic();
+        defer self.stats.window.time_run_for_ns.ns +=
+            timer.elapsed(self.time.monotonic()).ns;
+
+        var now = self.time.monotonic();
+        const deadline = now.add(.{ .ns = nanoseconds });
+
+        while (now.ns < deadline.ns) : (now = self.time.monotonic()) {
+            // If there are callbacks ready to run, don't wait in the kernel: the callbacks may
+            // queue more work, which should be submitted as soon as possible.
+            const block_ns = if (self.completed.count() == 0) deadline.ns -| now.ns else 0;
+
+            try self.flush_submissions(@intCast(block_ns));
+            try self.flush_completions(0);
+
+            try self.run_callback();
+        }
+
+        // Ditto the optimization in `run()`.
+        try self.flush_submissions(0);
+    }
+
+    fn flush_submissions(self: *IO, wait_duration_ns: u63) !void {
+        // We guard against an io_uring_enter() syscall if we know we do not have any queued SQEs.
+        // We cannot use `self.ring.sq_ready()` here since this counts flushed and unflushed SQEs.
+        const queued = self.ring.sq.sqe_tail -% self.ring.sq.sqe_head;
+        if (queued == 0 and wait_duration_ns == 0) {
+            return;
+        }
+
+        const wait_nr: u32 = if (wait_duration_ns > 0) 1 else 0;
+
+        while (true) {
+            const timer = self.time.monotonic();
+            // Doesn't account for flush_completions below; which indicates a bad assumption either
+            // on our sizing of the loop, or a bug in the kernel.
+            defer self.stats.window.time_kernel.ns +=
+                timer.elapsed(self.time.monotonic()).ns;
+
+            const submitted = submit_and_wait_timeout(
+                &self.ring,
+                wait_nr,
+                wait_duration_ns,
+            ) catch |err| switch (err) {
+                error.SignalInterrupt => continue,
+                // Wait for some completions and then try again:
+                // See https://github.com/axboe/liburing/issues/281 re: error.SystemResources.
+                // Be careful also that copy_cqes() will flush before entering to wait (it does):
+                // https://github.com/axboe/liburing/commit/35c199c48dfd54ad46b96e386882e7ac341314c5
+                error.CompletionQueueOvercommitted, error.SystemResources => {
+                    log.err(
+                        "flush_submissions: completion queue overcommitted.",
+                        .{},
+                    );
+
+                    // NB: enforcing timeout here is impossible, so don't even try.
+                    try self.flush_completions(1);
+
+                    continue;
+                },
+                else => return err,
+            };
+
+            self.ios_queued -= submitted;
+            self.ios_in_kernel += submitted;
+
+            break;
+        }
+    }
+
+    /// Copy completions out of the ring and into `self.completed`.
+    fn flush_completions(self: *IO, wait_nr: u32) !void {
+        var cqes: [256]io_uring_cqe = undefined;
+        while (true) {
+            const completed = self.ring.copy_cqes(&cqes, wait_nr) catch |err| switch (err) {
+                error.SignalInterrupt => continue,
+                else => return err,
+            };
+
+            for (cqes[0..completed]) |cqe| {
+                self.ios_in_kernel -= 1;
+
+                const completion: *Completion = @ptrFromInt(cqe.user_data);
+                completion.result = cqe.res;
+
+                // We do not run the completion here (instead appending to a linked list) to avoid:
+                // * recursion through `flush_submissions()` and `flush_completions()`,
+                // * unbounded stack usage, and
+                // * confusing stack traces.
+                self.completed.push(completion);
+            }
+
+            break;
+        }
+    }
+
+    fn run_callback(self: *IO) !void {
+        const completion = self.completed.pop() orelse return;
+
+        const timer = self.time.monotonic();
+        defer self.stats.window.time_callbacks.ns +=
+            timer.elapsed(self.time.monotonic()).ns;
+
+        completion.complete();
+    }
+
+    fn enqueue(self: *IO, completion: *Completion) void {
+        const sqe = self.ring.get_sqe() catch |err| switch (err) {
+            error.SubmissionQueueFull => blk: {
+                log.warn(
+                    "enqueue: submission queue full. flushing. consider resizing IO.init()",
+                    .{},
+                );
+
+                self.flush_submissions(0) catch unreachable;
+                break :blk self.ring.get_sqe() catch |err_inner| switch (err_inner) {
+                    error.SubmissionQueueFull => unreachable,
+                };
+            },
+        };
+        completion.prep(sqe);
+
+        self.ios_queued += 1;
+    }
+
+    /// Like IoUring.submit_and_wait, but uses IORING_ENTER_EXT_ARG to pass a timeout
+    /// directly to io_uring_enter, avoiding the need for separate timeout SQEs.
+    fn submit_and_wait_timeout(ring: *IO_Uring, wait_nr: u32, wait_duration_ns: u63) !u32 {
+        const submitted = ring.flush_sq();
+        var flags: u32 = 0;
+
+        // It only makes sense to have a non-zero wait duration if at least one event is required.
+        // Otherwise, it'll return immediately anyway.
+        if (wait_duration_ns > 0) assert(wait_nr > 0);
+
+        if (ring.sq_ring_needs_enter(&flags) or wait_nr > 0) {
+            if (wait_nr > 0 or (ring.flags & linux.IORING_SETUP_IOPOLL) != 0) {
+                flags |= linux.IORING_ENTER_GETEVENTS;
+            }
+
+            // Use EXT_ARG to pass the timeout directly to io_uring_enter.
+            flags |= linux.IORING_ENTER_EXT_ARG;
+
+            var arg = linux.io_uring_getevents_arg{
+                .sigmask = 0,
+                .sigmask_sz = linux.NSIG / 8,
+                .pad = 0,
+                .ts = 0,
+            };
+
+            var ts: linux.kernel_timespec = .{
+                .sec = wait_duration_ns / std.time.ns_per_s,
+                .nsec = wait_duration_ns % std.time.ns_per_s,
+            };
+
+            // Don't be tempted to move `ts` inside here: it's on the stack, and referenced by arg.
+            if (wait_nr > 0 and wait_duration_ns > 0) {
+                arg.ts = @intFromPtr(&ts);
+            }
+
+            return enter_ext(ring, submitted, wait_nr, flags, &arg) catch |err| switch (err) {
+                // Timeout expired before min_complete CQEs arrived, but the SQEs
+                // were still submitted to the kernel by flush_sq() above.
+                error.TimeoutExpired => submitted,
+                else => err,
+            };
+        }
+        return submitted;
+    }
+
+    /// Tell the kernel we have submitted SQEs and/or want to wait for CQEs, with
+    /// IORING_ENTER_EXT_ARG.
+    /// Returns the number of SQEs submitted.
+    fn enter_ext(
+        ring: *IO_Uring,
+        to_submit: u32,
+        min_complete: u32,
+        flags: u32,
+        arg: *linux.io_uring_getevents_arg,
+    ) !u32 {
+        assert(ring.fd >= 0);
+        assert((flags & linux.IORING_ENTER_EXT_ARG) != 0);
+
+        // Can't use linux.io_uring_enter because it hardcodes the size of the arg parameter as
+        // NSIG / 8.
+        const res = linux.syscall6(
+            .io_uring_enter,
+            @as(usize, @bitCast(@as(isize, ring.fd))),
+            to_submit,
+            min_complete,
+            flags,
+            @intFromPtr(arg),
+            @sizeOf(linux.io_uring_getevents_arg),
+        );
+
+        switch (linux.E.init(res)) {
+            .SUCCESS => {},
+            // The kernel was unable to allocate memory or ran out of resources for the request.
+            // The application should wait for some completions and try again:
+            .AGAIN => return error.SystemResources,
+            // The SQE `fd` is invalid, or IOSQE_FIXED_FILE was set but no files were registered:
+            .BADF => return error.FileDescriptorInvalid,
+            // The file descriptor is valid, but the ring is not in the right state.
+            // See io_uring_register(2) for how to enable the ring.
+            .BADFD => return error.FileDescriptorInBadState,
+            // The application attempted to overcommit the number of requests it can have pending.
+            // The application should wait for some completions and try again:
+            .BUSY => return error.CompletionQueueOvercommitted,
+            // The SQE is invalid, or valid but the ring was setup with IORING_SETUP_IOPOLL:
+            .INVAL => return error.SubmissionQueueEntryInvalid,
+            // The buffer is outside the process' accessible address space, or IORING_OP_READ_FIXED
+            // or IORING_OP_WRITE_FIXED was specified but no buffers were registered, or the range
+            // described by `addr` and `len` is not within the buffer registered at `buf_index`:
+            .FAULT => return error.BufferInvalid,
+            .NXIO => return error.RingShuttingDown,
+            // The kernel believes our `self.fd` does not refer to an io_uring instance,
+            // or the opcode is valid but not supported by this kernel (more likely):
+            .OPNOTSUPP => return error.OpcodeNotSupported,
+            // The operation was interrupted by a delivery of a signal before it could complete.
+            // This can happen while waiting for events with IORING_ENTER_GETEVENTS:
+            .INTR => return error.SignalInterrupt,
+            // A timeout was specified in arg, and it has expired.
+            .TIME => return error.TimeoutExpired,
+            else => |errno| return stdx.unexpected_errno("io_uring_enter", errno),
+        }
+
+        return @as(u32, @intCast(res));
+    }
+
+    pub const NextTickResult = void;
+
+    /// Schedule a deferred callback that doesn't involve kernel IO.
+    pub fn next_tick(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: NextTickResult,
+        ) void,
+        completion: *Completion,
+        source: NextTickSource,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, NextTickResult, callback),
+            .operation = .{ .next_tick = .{ .source = source } },
+        };
+        self.completed.push(completion);
+    }
+
+    /// Remove all next_tick entries with the given source from the completed queue.
+    pub fn reset_next_tick(self: *IO, source: NextTickSource) void {
+        var completed = self.completed;
+        self.completed.reset();
+
+        while (completed.pop()) |completion| {
+            if (completion.operation == .next_tick and
+                completion.operation.next_tick.source == source)
+            {
+                continue;
+            }
+            self.completed.push(completion);
+        }
+    }
+
+    /// This struct holds the data needed for a single io_uring operation.
+    pub const Completion = struct {
+        io: *IO,
+        result: i32 = undefined,
+        link: QueueType(Completion).Link = .{},
+        operation: Operation,
+        context: *anyopaque,
+        callback: *const fn (
+            context: *anyopaque,
+            completion: *Completion,
+            result: *const anyopaque,
+        ) void,
+
+        fn prep(completion: *Completion, sqe: *io_uring_sqe) void {
+            switch (completion.operation) {
+                .accept => |*op| {
+                    sqe.prep_accept(
+                        op.socket,
+                        &op.address,
+                        &op.address_size,
+                        posix.SOCK.CLOEXEC,
+                    );
+                },
+                .close => |op| {
+                    sqe.prep_close(op.fd);
+                },
+                .connect => |*op| {
+                    sqe.prep_connect(
+                        op.socket,
+                        &op.address.any,
+                        op.address.getOsSockLen(),
+                    );
+                },
+                .fsync => |op| {
+                    sqe.prep_fsync(op.fd, op.flags);
+                },
+                .openat => |op| {
+                    sqe.prep_openat(
+                        op.dir_fd,
+                        op.file_path,
+                        op.flags,
+                        op.mode,
+                    );
+                },
+                .read => |op| {
+                    sqe.prep_read(
+                        op.fd,
+                        op.buffer[0..buffer_limit(op.buffer.len)],
+                        op.offset,
+                    );
+                },
+                .recv => |op| {
+                    sqe.prep_recv(op.socket, op.buffer, 0);
+                },
+                .send => |op| {
+                    sqe.prep_send(op.socket, op.buffer, posix.MSG.NOSIGNAL);
+                },
+                .statx => |op| {
+                    sqe.prep_statx(
+                        op.dir_fd,
+                        op.file_path,
+                        op.flags,
+                        op.mask,
+                        op.statxbuf,
+                    );
+                },
+                .timeout => |*op| {
+                    sqe.prep_timeout(&op.timespec, 0, 0);
+                },
+                .write => |op| {
+                    sqe.prep_write(
+                        op.fd,
+                        op.buffer[0..buffer_limit(op.buffer.len)],
+                        op.offset,
+                    );
+                },
+                .next_tick => unreachable, // Never submitted to the kernel.
+            }
+            sqe.user_data = @intFromPtr(completion);
+        }
+
+        fn complete(completion: *Completion) void {
+            switch (completion.operation) {
+                .accept => {
+                    const result: AcceptError!socket_t = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .AGAIN => error.WouldBlock,
+                                .BADF => error.FileDescriptorInvalid,
+                                .CONNABORTED => error.ConnectionAborted,
+                                .FAULT => unreachable,
+                                .INVAL => error.SocketNotListening,
+                                .MFILE => error.ProcessFdQuotaExceeded,
+                                .NFILE => error.SystemFdQuotaExceeded,
+                                .NOBUFS => error.SystemResources,
+                                .NOMEM => error.SystemResources,
+                                .NOTSOCK => error.FileDescriptorNotASocket,
+                                .OPNOTSUPP => error.OperationNotSupported,
+                                .PERM => error.PermissionDenied,
+                                .PROTO => error.ProtocolFailure,
+                                else => |errno| stdx.unexpected_errno("accept", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            break :blk @intCast(completion.result);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .close => {
+                    const result: CloseError!void = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                // A success, see https://github.com/ziglang/zig/issues/2425.
+                                .INTR => {},
+                                .BADF => error.FileDescriptorInvalid,
+                                .DQUOT => error.DiskQuota,
+                                .IO => error.InputOutput,
+                                .NOSPC => error.NoSpaceLeft,
+                                else => |errno| stdx.unexpected_errno("close", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            assert(completion.result == 0);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .connect => {
+                    const result: ConnectError!void = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .ACCES => error.AccessDenied,
+                                .ADDRINUSE => error.AddressInUse,
+                                .ADDRNOTAVAIL => error.AddressNotAvailable,
+                                .AFNOSUPPORT => error.AddressFamilyNotSupported,
+                                .AGAIN, .INPROGRESS => error.WouldBlock,
+                                .ALREADY => error.OpenAlreadyInProgress,
+                                .BADF => error.FileDescriptorInvalid,
+                                .CANCELED => error.Canceled,
+                                .CONNREFUSED => error.ConnectionRefused,
+                                .CONNRESET => error.ConnectionResetByPeer,
+                                .FAULT => unreachable,
+                                .ISCONN => error.AlreadyConnected,
+                                .NETUNREACH => error.NetworkUnreachable,
+                                .HOSTUNREACH => error.HostUnreachable,
+                                .NOENT => error.FileNotFound,
+                                .NOTSOCK => error.FileDescriptorNotASocket,
+                                .PERM => error.PermissionDenied,
+                                .PROTOTYPE => error.ProtocolNotSupported,
+                                .TIMEDOUT => error.ConnectionTimedOut,
+                                else => |errno| stdx.unexpected_errno("connect", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            assert(completion.result == 0);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .fsync => {
+                    const result: anyerror!void = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .BADF => error.FileDescriptorInvalid,
+                                .IO => error.InputOutput,
+                                .INVAL => unreachable,
+                                else => |errno| stdx.unexpected_errno("fsync", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            assert(completion.result == 0);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .openat => {
+                    const result: OpenatError!fd_t = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .FAULT => unreachable,
+                                .INVAL => unreachable,
+                                .BADF => unreachable,
+                                .ACCES => error.AccessDenied,
+                                .FBIG => error.FileTooBig,
+                                .OVERFLOW => error.FileTooBig,
+                                .ISDIR => error.IsDir,
+                                .LOOP => error.SymLinkLoop,
+                                .MFILE => error.ProcessFdQuotaExceeded,
+                                .NAMETOOLONG => error.NameTooLong,
+                                .NFILE => error.SystemFdQuotaExceeded,
+                                .NODEV => error.NoDevice,
+                                .NOENT => error.FileNotFound,
+                                .NOMEM => error.SystemResources,
+                                .NOSPC => error.NoSpaceLeft,
+                                .NOTDIR => error.NotDir,
+                                .PERM => error.AccessDenied,
+                                .EXIST => error.PathAlreadyExists,
+                                .BUSY => error.DeviceBusy,
+                                .OPNOTSUPP => error.FileLocksNotSupported,
+                                .AGAIN => error.WouldBlock,
+                                .TXTBSY => error.FileBusy,
+                                else => |errno| stdx.unexpected_errno("openat", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            break :blk @intCast(completion.result);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .read => {
+                    const result: ReadError!usize = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR, .AGAIN => {
+                                    // Some file systems, like XFS, can return EAGAIN even when
+                                    // reading from a blocking file without flags like RWF_NOWAIT.
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .BADF => error.NotOpenForReading,
+                                .CONNRESET => error.ConnectionResetByPeer,
+                                .FAULT => unreachable,
+                                .INVAL => error.Alignment,
+                                .IO => error.InputOutput,
+                                .ISDIR => error.IsDir,
+                                .NOBUFS => error.SystemResources,
+                                .NOMEM => error.SystemResources,
+                                .NXIO => error.Unseekable,
+                                .OVERFLOW => error.Unseekable,
+                                .SPIPE => error.Unseekable,
+                                .TIMEDOUT => error.ConnectionTimedOut,
+                                else => |errno| stdx.unexpected_errno("read", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            break :blk @intCast(completion.result);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .recv => {
+                    const result: RecvError!usize = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .AGAIN => error.WouldBlock,
+                                .BADF => error.FileDescriptorInvalid,
+                                .CANCELED => error.Canceled,
+                                .CONNREFUSED => error.ConnectionRefused,
+                                .FAULT => unreachable,
+                                .INVAL => unreachable,
+                                .NOMEM => error.SystemResources,
+                                .NOTCONN => error.SocketNotConnected,
+                                .NOTSOCK => error.FileDescriptorNotASocket,
+                                .CONNRESET => error.ConnectionResetByPeer,
+                                .TIMEDOUT => error.ConnectionTimedOut,
+                                .OPNOTSUPP => error.OperationNotSupported,
+                                else => |errno| stdx.unexpected_errno("recv", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            break :blk @intCast(completion.result);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .send => {
+                    const result: SendError!usize = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .ACCES => error.AccessDenied,
+                                .AGAIN => error.WouldBlock,
+                                .ALREADY => error.FastOpenAlreadyInProgress,
+                                .AFNOSUPPORT => error.AddressFamilyNotSupported,
+                                .BADF => error.FileDescriptorInvalid,
+                                // Can happen when send()'ing to a UDP socket.
+                                .CONNREFUSED => error.ConnectionRefused,
+                                .CONNRESET => error.ConnectionResetByPeer,
+                                .DESTADDRREQ => unreachable,
+                                .FAULT => unreachable,
+                                .INVAL => unreachable,
+                                .ISCONN => unreachable,
+                                .MSGSIZE => error.MessageTooBig,
+                                .NOBUFS => error.SystemResources,
+                                .NOMEM => error.SystemResources,
+                                .NOTCONN => error.SocketNotConnected,
+                                .NOTSOCK => error.FileDescriptorNotASocket,
+                                .OPNOTSUPP => error.OperationNotSupported,
+                                .PIPE => error.BrokenPipe,
+                                .TIMEDOUT => error.ConnectionTimedOut,
+                                .CANCELED => error.Canceled,
+                                else => |errno| stdx.unexpected_errno("send", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            break :blk @intCast(completion.result);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .statx => {
+                    const result: StatxError!void = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .FAULT => unreachable,
+                                .INVAL => unreachable,
+                                .BADF => unreachable,
+                                .ACCES => error.AccessDenied,
+                                .LOOP => error.SymLinkLoop,
+                                .NAMETOOLONG => error.NameTooLong,
+                                .NOENT => error.FileNotFound,
+                                .NOMEM => error.SystemResources,
+                                .NOTDIR => error.NotDir,
+                                else => |errno| stdx.unexpected_errno("statx", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            assert(completion.result == 0);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .timeout => {
+                    assert(completion.result < 0);
+                    const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                        .INTR => {
+                            completion.io.enqueue(completion);
+                            return;
+                        },
+                        .CANCELED => error.Canceled,
+                        .TIME => {}, // A success.
+                        else => |errno| stdx.unexpected_errno("timeout", errno),
+                    };
+                    const result: TimeoutError!void = err;
+                    completion.callback(completion.context, completion, &result);
+                },
+                .write => {
+                    const result: WriteError!usize = blk: {
+                        if (completion.result < 0) {
+                            const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
+                                .INTR => {
+                                    completion.io.enqueue(completion);
+                                    return;
+                                },
+                                .AGAIN => error.WouldBlock,
+                                .BADF => error.NotOpenForWriting,
+                                .DESTADDRREQ => error.NotConnected,
+                                .DQUOT => error.DiskQuota,
+                                .FAULT => unreachable,
+                                .FBIG => error.FileTooBig,
+                                .INVAL => error.Alignment,
+                                .IO => error.InputOutput,
+                                .NOSPC => error.NoSpaceLeft,
+                                .NXIO => error.Unseekable,
+                                .OVERFLOW => error.Unseekable,
+                                .PERM => error.AccessDenied,
+                                .PIPE => error.BrokenPipe,
+                                .SPIPE => error.Unseekable,
+                                else => |errno| stdx.unexpected_errno("write", errno),
+                            };
+                            break :blk err;
+                        } else {
+                            break :blk @intCast(completion.result);
+                        }
+                    };
+                    completion.callback(completion.context, completion, &result);
+                },
+                .next_tick => {
+                    const result: NextTickResult = {};
+                    completion.callback(completion.context, completion, &result);
+                },
+            }
+        }
+    };
+
+    /// This union encodes the set of operations supported as well as their arguments.
+    const Operation = union(enum) {
+        accept: struct {
+            socket: socket_t,
+            address: posix.sockaddr = undefined,
+            address_size: posix.socklen_t = @sizeOf(posix.sockaddr),
+        },
+        close: struct {
+            fd: fd_t,
+        },
+        connect: struct {
+            socket: socket_t,
+            address: std.net.Address,
+        },
+        fsync: struct {
+            fd: fd_t,
+            flags: u32,
+        },
+        openat: struct {
+            dir_fd: fd_t,
+            file_path: [*:0]const u8,
+            flags: posix.O,
+            mode: posix.mode_t,
+        },
+        read: struct {
+            fd: fd_t,
+            buffer: []u8,
+            offset: u64,
+        },
+        recv: struct {
+            socket: socket_t,
+            buffer: []u8,
+        },
+        send: struct {
+            socket: socket_t,
+            buffer: []const u8,
+        },
+        statx: struct {
+            dir_fd: fd_t,
+            file_path: [*:0]const u8,
+            flags: u32,
+            mask: u32,
+            statxbuf: *std.os.linux.Statx,
+        },
+        timeout: struct {
+            timespec: os.linux.kernel_timespec,
+        },
+        write: struct {
+            fd: fd_t,
+            buffer: []const u8,
+            offset: u64,
+        },
+        next_tick: struct {
+            source: NextTickSource,
+        },
+    };
+
+    pub const AcceptError = error{
+        WouldBlock,
+        FileDescriptorInvalid,
+        ConnectionAborted,
+        SocketNotListening,
+        ProcessFdQuotaExceeded,
+        SystemFdQuotaExceeded,
+        SystemResources,
+        FileDescriptorNotASocket,
+        OperationNotSupported,
+        PermissionDenied,
+        ProtocolFailure,
+    } || posix.UnexpectedError;
+
+    pub fn accept(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: AcceptError!socket_t,
+        ) void,
+        completion: *Completion,
+        socket: socket_t,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, AcceptError!socket_t, callback),
+            .operation = .{
+                .accept = .{
+                    .socket = socket,
+                    .address = undefined,
+                    .address_size = @sizeOf(posix.sockaddr),
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const CloseError = error{
+        FileDescriptorInvalid,
+        DiskQuota,
+        InputOutput,
+        NoSpaceLeft,
+    } || posix.UnexpectedError;
+
+    pub fn close(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: CloseError!void,
+        ) void,
+        completion: *Completion,
+        fd: fd_t,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, CloseError!void, callback),
+            .operation = .{
+                .close = .{ .fd = fd },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const ConnectError = error{
+        AccessDenied,
+        AddressInUse,
+        AddressNotAvailable,
+        AddressFamilyNotSupported,
+        WouldBlock,
+        OpenAlreadyInProgress,
+        FileDescriptorInvalid,
+        ConnectionRefused,
+        ConnectionResetByPeer,
+        AlreadyConnected,
+        NetworkUnreachable,
+        HostUnreachable,
+        FileNotFound,
+        FileDescriptorNotASocket,
+        PermissionDenied,
+        ProtocolNotSupported,
+        ConnectionTimedOut,
+        SystemResources,
+        Canceled,
+    } || posix.UnexpectedError;
+
+    pub fn connect(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: ConnectError!void,
+        ) void,
+        completion: *Completion,
+        socket: socket_t,
+        address: stdx.SocketAddress,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, ConnectError!void, callback),
+            .operation = .{
+                .connect = .{
+                    .socket = socket,
+                    .address = address.to_std(),
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const FsyncError = error{
+        FileDescriptorInvalid,
+        InputOutput,
+    } || posix.UnexpectedError;
+
+    pub fn fsync(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: FsyncError!void,
+        ) void,
+        completion: *Completion,
+        fd: fd_t,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, FsyncError!void, callback),
+            .operation = .{
+                .fsync = .{
+                    .fd = fd,
+                    .flags = os.linux.IORING_FSYNC_DATASYNC,
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const OpenatError = posix.OpenError || posix.UnexpectedError;
+
+    pub fn openat(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: OpenatError!fd_t,
+        ) void,
+        completion: *Completion,
+        dir_fd: fd_t,
+        file_path: [*:0]const u8,
+        flags: posix.O,
+        mode: posix.mode_t,
+    ) void {
+        var new_flags = flags;
+        new_flags.CLOEXEC = true;
+
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, OpenatError!fd_t, callback),
+            .operation = .{
+                .openat = .{
+                    .dir_fd = dir_fd,
+                    .file_path = file_path,
+                    .flags = new_flags,
+                    .mode = mode,
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const ReadError = error{
+        WouldBlock,
+        NotOpenForReading,
+        ConnectionResetByPeer,
+        Alignment,
+        InputOutput,
+        IsDir,
+        SystemResources,
+        Unseekable,
+        ConnectionTimedOut,
+    } || posix.UnexpectedError;
+
+    pub fn read(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: ReadError!usize,
+        ) void,
+        completion: *Completion,
+        fd: fd_t,
+        buffer: []u8,
+        offset: u64,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, ReadError!usize, callback),
+            .operation = .{
+                .read = .{
+                    .fd = fd,
+                    .buffer = buffer,
+                    .offset = offset,
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const RecvError = error{
+        WouldBlock,
+        FileDescriptorInvalid,
+        ConnectionRefused,
+        SystemResources,
+        SocketNotConnected,
+        FileDescriptorNotASocket,
+        ConnectionResetByPeer,
+        ConnectionTimedOut,
+        OperationNotSupported,
+        Canceled,
+    } || posix.UnexpectedError;
+
+    pub fn recv(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: RecvError!usize,
+        ) void,
+        completion: *Completion,
+        socket: socket_t,
+        buffer: []u8,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, RecvError!usize, callback),
+            .operation = .{
+                .recv = .{
+                    .socket = socket,
+                    .buffer = buffer,
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const SendError = error{
+        AccessDenied,
+        WouldBlock,
+        FastOpenAlreadyInProgress,
+        AddressFamilyNotSupported,
+        FileDescriptorInvalid,
+        ConnectionResetByPeer,
+        MessageTooBig,
+        SystemResources,
+        SocketNotConnected,
+        FileDescriptorNotASocket,
+        OperationNotSupported,
+        BrokenPipe,
+        ConnectionTimedOut,
+        ConnectionRefused,
+        Canceled,
+    } || posix.UnexpectedError;
+
+    pub fn send(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: SendError!usize,
+        ) void,
+        completion: *Completion,
+        socket: socket_t,
+        buffer: []const u8,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, SendError!usize, callback),
+            .operation = .{
+                .send = .{
+                    .socket = socket,
+                    .buffer = buffer,
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    /// Best effort to synchronously transfer bytes to the kernel.
+    pub fn send_now(self: *IO, socket: socket_t, buffer: []const u8) ?usize {
+        _ = self;
+        // posix.send is a thin wrapper around posix.sendto() that assumes the socket is connected
+        // and has an `unreachable` on eg NetworkUnreachable and a few others. Tring to check this
+        // before using the socket is race prone, so rather use sendto() directly to correctly
+        // handle those cases.
+        return posix.sendto(
+            socket,
+            buffer,
+            posix.MSG.DONTWAIT | posix.MSG.NOSIGNAL,
+            null,
+            0,
+        ) catch |err| switch (err) {
+            error.WouldBlock => return null,
+            // To avoid duplicating error handling, force the caller to fallback to normal send.
+            else => return null,
+        };
+    }
+
+    pub const StatxError = error{
+        SymLinkLoop,
+        FileNotFound,
+        NameTooLong,
+        NotDir,
+    } || std.fs.File.StatError || posix.UnexpectedError;
+
+    pub fn statx(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: StatxError!void,
+        ) void,
+        completion: *Completion,
+        dir_fd: fd_t,
+        file_path: [*:0]const u8,
+        flags: u32,
+        mask: u32,
+        statxbuf: *std.os.linux.Statx,
+    ) void {
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, StatxError!void, callback),
+            .operation = .{
+                .statx = .{
+                    .dir_fd = dir_fd,
+                    .file_path = file_path,
+                    .flags = flags,
+                    .mask = mask,
+                    .statxbuf = statxbuf,
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const TimeoutError = error{Canceled} || posix.UnexpectedError;
+
+    pub fn timeout(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: TimeoutError!void,
+        ) void,
+        completion: *Completion,
+        nanoseconds: u63,
+    ) void {
+        // Use `next_tick()` if you're looking for a yield.
+        assert(nanoseconds > 0);
+
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, TimeoutError!void, callback),
+            .operation = .{
+                .timeout = .{
+                    .timespec = .{ .sec = 0, .nsec = nanoseconds },
+                },
+            },
+        };
+
+        self.enqueue(completion);
+    }
+
+    pub const WriteError = error{
+        WouldBlock,
+        NotOpenForWriting,
+        NotConnected,
+        DiskQuota,
+        FileTooBig,
+        Alignment,
+        InputOutput,
+        NoSpaceLeft,
+        Unseekable,
+        AccessDenied,
+        BrokenPipe,
+    } || posix.UnexpectedError;
+
+    pub fn write(
+        self: *IO,
+        comptime Context: type,
+        context: Context,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: WriteError!usize,
+        ) void,
+        completion: *Completion,
+        fd: fd_t,
+        buffer: []const u8,
+        offset: u64,
+        options: struct { dsync: bool },
+    ) void {
+        // Linux dsync is efficient - it's used on every write.
+        assert(dsync_all);
+        _ = options;
+
+        completion.* = .{
+            .io = self,
+            .context = context,
+            .callback = erase_types(Context, WriteError!usize, callback),
+            .operation = .{
+                .write = .{
+                    .fd = fd,
+                    .buffer = buffer,
+                    .offset = offset,
+                },
+            },
+        };
+        self.enqueue(completion);
+    }
+
+    pub const Event = posix.fd_t;
+    pub const INVALID_EVENT: Event = -1;
+
+    pub fn open_event(self: *IO) !Event {
+        _ = self;
+
+        // eventfd initialized with no (zero) previous write value.
+        const event_fd = posix.eventfd(0, linux.EFD.CLOEXEC) catch |err| switch (err) {
+            error.SystemResources,
+            error.SystemFdQuotaExceeded,
+            error.ProcessFdQuotaExceeded,
+            => return error.SystemResources,
+            error.Unexpected => return error.Unexpected,
+        };
+        assert(event_fd != INVALID_EVENT);
+        errdefer os.close(event_fd);
+
+        return event_fd;
+    }
+
+    pub fn event_listen(
+        self: *IO,
+        event: Event,
+        completion: *Completion,
+        comptime on_event: fn (*Completion) void,
+    ) void {
+        assert(event != INVALID_EVENT);
+        const Context = struct {
+            const Context = @This();
+            var buffer: u64 = undefined;
+
+            fn on_read(
+                _: *void,
+                completion_inner: *Completion,
+                result: ReadError!usize,
+            ) void {
+                const bytes = result catch unreachable; // eventfd reads should not fail.
+                assert(bytes == @sizeOf(u64));
+                on_event(completion_inner);
+            }
+        };
+
+        self.read(
+            *void,
+            @constCast(&{}),
+            Context.on_read,
+            completion,
+            event,
+            std.mem.asBytes(&Context.buffer),
+            0, // eventfd reads must always start from 0 offset.
+        );
+    }
+
+    pub fn event_trigger(self: *IO, event: Event, completion: *Completion) void {
+        assert(event != INVALID_EVENT);
+        _ = self;
+        _ = completion;
+
+        const value: u64 = 1;
+        const bytes = posix.write(event, std.mem.asBytes(&value)) catch unreachable;
+        assert(bytes == @sizeOf(u64));
+    }
+
+    pub fn close_event(self: *IO, event: Event) void {
+        assert(event != INVALID_EVENT);
+        _ = self;
+
+        posix.close(event);
+    }
+
+    pub const socket_t = posix.socket_t;
+
+    /// Creates a TCP socket that can be used for async operations with the IO instance.
+    pub fn open_socket_tcp(
+        self: *IO,
+        family: stdx.IPAddress.Family,
+        options: TCPOptions,
+    ) !socket_t {
+        const fd = try posix.socket(
+            family.to_std(),
+            posix.SOCK.STREAM | posix.SOCK.CLOEXEC,
+            posix.IPPROTO.TCP,
+        );
+        errdefer self.close_socket(fd);
+
+        try common.tcp_options(fd, options);
+        return fd;
+    }
+
+    /// Creates a UDP socket that can be used for async operations with the IO instance.
+    pub fn open_socket_udp(self: *IO, family: stdx.IPAddress.Family) !socket_t {
+        _ = self;
+        return try posix.socket(
+            family.to_std(),
+            std.posix.SOCK.DGRAM | posix.SOCK.CLOEXEC,
+            posix.IPPROTO.UDP,
+        );
+    }
+
+    /// Closes a socket opened by the IO instance.
+    pub fn close_socket(self: *IO, socket: socket_t) void {
+        _ = self;
+        posix.close(socket);
+    }
+
+    /// Listen on the given TCP socket.
+    /// Returns socket resolved address, which might be more specific
+    /// than the input address (e.g., listening on port 0).
+    pub fn listen(
+        _: *IO,
+        fd: socket_t,
+        address: stdx.SocketAddress,
+        options: ListenOptions,
+    ) !stdx.SocketAddress {
+        return common.listen(fd, address, options);
+    }
+
+    pub fn shutdown(_: *IO, socket: socket_t, how: posix.ShutdownHow) posix.ShutdownError!void {
+        return posix.shutdown(socket, how);
+    }
+
+    /// Opens a directory with read only access.
+    pub fn open_dir(dir_path: []const u8) !fd_t {
+        return posix.open(dir_path, .{ .CLOEXEC = true, .ACCMODE = .RDONLY }, 0);
+    }
+
+    pub const fd_t = posix.fd_t;
+    pub const INVALID_FILE: fd_t = -1;
+
+    pub const OpenDataFilePurpose = enum { format, open, inspect };
+    /// Opens or creates a journal file:
+    /// - For reading and writing.
+    /// - For Direct I/O (if possible in development mode, but required in production mode).
+    /// - Obtains an advisory exclusive lock to the file descriptor.
+    /// - Allocates the file contiguously on disk if this is supported by the file system.
+    /// - Ensures that the file data (and file inode in the parent directory) is durable on disk.
+    ///   The caller is responsible for ensuring that the parent directory inode is durable.
+    /// - Verifies that the file size matches the expected file size before returning.
+    pub fn open_data_file(
+        self: *IO,
+        dir_fd: fd_t,
+        relative_path: []const u8,
+        size: u64,
+        purpose: OpenDataFilePurpose,
+        direct_io: DirectIO,
+    ) !fd_t {
+        _ = self;
+
+        assert(relative_path.len > 0);
+        assert(size % constants.sector_size == 0);
+        // Be careful with openat(2): "If pathname is absolute, then dirfd is ignored." (man page)
+        assert(!std.fs.path.isAbsolute(relative_path));
+
+        var flags: posix.O = .{
+            .CLOEXEC = true,
+            .ACCMODE = if (purpose == .inspect) .RDONLY else .RDWR,
+            .DSYNC = true,
+        };
+        var mode: posix.mode_t = 0;
+
+        const kind: enum { file, block_device } = blk: {
+            const stat = posix.fstatat(
+                dir_fd,
+                relative_path,
+                0,
+            ) catch |err| switch (err) {
+                error.FileNotFound => {
+                    if (purpose == .format) {
+                        // It's impossible to distinguish creating a new file and opening a new
+                        // block device with the current API. So if it's possible that we should
+                        // create a file we try that instead of failing here.
+                        break :blk .file;
+                    } else {
+                        @panic("Path does not exist.");
+                    }
+                },
+                else => |err_| return err_,
+            };
+            if (posix.S.ISBLK(stat.mode)) {
+                break :blk .block_device;
+            } else {
+                if (!posix.S.ISREG(stat.mode)) {
+                    @panic("file path does not point to block device or regular file.");
+                }
+                break :blk .file;
+            }
+        };
+
+        // This is not strictly necessary on 64bit systems but it's harmless.
+        // This will avoid errors with handling large files on certain configurations
+        // of 32bit kernels. In all other cases, it's a noop.
+        // See: <https://github.com/torvalds/linux/blob/ab27740f76654ed58dd32ac0ba0031c18a6dea3b/fs/open.c#L1602>
+        if (@hasField(posix.O, "LARGEFILE")) flags.LARGEFILE = true;
+
+        switch (kind) {
+            .block_device => {
+                if (direct_io != .direct_io_disabled) {
+                    // Block devices should always support Direct IO.
+                    flags.DIRECT = true;
+                    // Use O_EXCL when opening as a block device to obtain an advisory exclusive
+                    // lock. Normally, you can't do this for files you don't create, but for
+                    // block devices this guarantees:
+                    //     - that there are no mounts using this block device
+                    //     - that no new mounts can use this block device while we have it open
+                    //
+                    // However it doesn't prevent other processes with root from opening without
+                    // O_EXCL and writing (mount is just a special case that always checks O_EXCL).
+                    //
+                    // This should be stronger than flock(2) locks, which work on a separate system.
+                    // The relevant kernel code (as of v6.7) is here:
+                    // <https://github.com/torvalds/linux/blob/7da71072e1d6967c0482abcbb5991ffb5953fdf2/block/bdev.c#L932>
+                    flags.EXCL = true;
+                }
+                log.info("opening block device \"{s}\"...", .{relative_path});
+            },
+            .file => {
+                var direct_io_supported = false;
+                const dir_on_tmpfs = try fs_is_tmpfs(dir_fd);
+
+                if (dir_on_tmpfs) {
+                    log.warn(
+                        "tmpfs is not durable, and your data will be lost on reboot",
+                        .{},
+                    );
+                }
+
+                // Special case. tmpfs doesn't support Direct I/O. Normally we would panic
+                // here (see below) but being able to benchmark production workloads
+                // on tmpfs is very useful for removing disk speed from the equation.
+                if (direct_io != .direct_io_disabled and !dir_on_tmpfs) {
+                    direct_io_supported = try fs_supports_direct_io(dir_fd);
+                    if (direct_io_supported) {
+                        flags.DIRECT = true;
+                    } else if (direct_io == .direct_io_optional) {
+                        log.warn("This file system does not support Direct I/O.", .{});
+                    } else {
+                        assert(direct_io == .direct_io_required);
+                        // We require Direct I/O for safety to handle fsync failure correctly, and
+                        // therefore panic in production if it is not supported.
+                        log.err("This file system does not support Direct I/O.", .{});
+                        log.err("TigerBeetle uses Direct I/O to bypass the kernel page cache, " ++
+                            "to ensure that data is durable when writes complete.", .{});
+                        log.err("If this is a production replica, Direct I/O is required.", .{});
+                        log.err("If this is a development/testing replica, " ++
+                            "re-run with --development set to bypass this error.", .{});
+                        @panic("file system does not support Direct I/O");
+                    }
+                }
+
+                switch (purpose) {
+                    .format => {
+                        flags.CREAT = true;
+                        flags.EXCL = true;
+                        mode = 0o600;
+                        log.info("creating \"{s}\"...", .{relative_path});
+                    },
+                    .open, .inspect => {
+                        log.info("opening \"{s}\"...", .{relative_path});
+                    },
+                }
+            },
+        }
+
+        // This is critical as we rely on O_DSYNC for fsync() whenever we write to the file:
+        assert(flags.DSYNC and dsync_all);
+
+        const fd = try posix.openat(dir_fd, relative_path, flags, mode);
+        // TODO Return a proper error message when the path exists or does not exist (init/start).
+        errdefer posix.close(fd);
+
+        {
+            // Make sure we're getting the type of file descriptor we expect.
+            const stat = try posix.fstat(fd);
+            switch (kind) {
+                .file => assert(posix.S.ISREG(stat.mode)),
+                .block_device => assert(posix.S.ISBLK(stat.mode)),
+            }
+        }
+
+        // Obtain an advisory exclusive lock that works only if all processes actually use flock().
+        // LOCK_NB means that we want to fail the lock without waiting if another process has it.
+        //
+        // This is wrapped inside a retry loop with a sleep because of the interaction between
+        // io_uring semantics and flock: flocks are held per fd, but io_uring will keep a reference
+        // to the fd alive even once a process has been terminated, until all async operations have
+        // been completed.
+        //
+        // This means that when killing and starting a tigerbeetle process in an automated way, you
+        // can see "another process holds the data file lock" errors, even though the process really
+        // has terminated.
+        const lock_acquired = blk: {
+            for (0..5) |_| {
+                posix.flock(fd, posix.LOCK.EX | posix.LOCK.NB) catch |err| switch (err) {
+                    error.WouldBlock => {
+                        std.Thread.sleep(50 * std.time.ns_per_ms);
+                        continue;
+                    },
+                    else => return err,
+                };
+                break :blk true;
+            } else {
+                posix.flock(fd, posix.LOCK.EX | posix.LOCK.NB) catch |err| switch (err) {
+                    error.WouldBlock => break :blk false,
+                    else => return err,
+                };
+                break :blk true;
+            }
+        };
+
+        if (purpose == .inspect) {
+            assert(flags.ACCMODE == .RDONLY);
+            maybe(lock_acquired);
+
+            if (!lock_acquired) {
+                log.warn(
+                    "another process holds the data file lock - results may be inconsistent",
+                    .{},
+                );
+            }
+        } else if (!lock_acquired) {
+            @panic("another process holds the data file lock");
+        }
+
+        assert(flags.ACCMODE == .RDONLY or lock_acquired);
+
+        // Ask the file system to allocate contiguous sectors for the file (if possible):
+        // If the file system does not support `fallocate()`, then this could mean more seeks or a
+        // panic if we run out of disk space (ENOSPC).
+        if (purpose == .format and kind == .file) {
+            log.info("allocating {}...", .{std.fmt.fmtIntSizeBin(size)});
+            fs_allocate(fd, size) catch |err| switch (err) {
+                error.OperationNotSupported => {
+                    log.warn("file system does not support fallocate(), an ENOSPC will panic", .{});
+                    log.info("allocating by writing to the last sector " ++
+                        "of the file instead...", .{});
+
+                    const sector_size = constants.sector_size;
+                    const sector: [sector_size]u8 align(sector_size) = @splat(0);
+
+                    // Handle partial writes where the physical sector is
+                    // less than a logical sector:
+                    const write_offset = size - sector.len;
+                    var written: usize = 0;
+                    while (written < sector.len) {
+                        written += try posix.pwrite(fd, sector[written..], write_offset + written);
+                    }
+                },
+                else => |e| return e,
+            };
+        }
+
+        // The best fsync strategy is always to fsync before reading because this prevents us from
+        // making decisions on data that was never durably written by a previously crashed process.
+        // We therefore always fsync when we open the path, also to wait for any pending O_DSYNC.
+        // Thanks to Alex Miller from FoundationDB for diving into our source and pointing this out.
+        try posix.fsync(fd);
+
+        // We fsync the parent directory to ensure that the file inode is durably written.
+        // The caller is responsible for the parent directory inode stored under the grandparent.
+        // We always do this when opening because we don't know if this was done before crashing.
+        try posix.fsync(dir_fd);
+
+        switch (kind) {
+            .file => {
+                if ((try posix.fstat(fd)).size < size) {
+                    @panic("data file inode size was truncated or corrupted");
+                }
+            },
+            .block_device => {
+                const BLKGETSIZE64 = os.linux.IOCTL.IOR(0x12, 114, usize);
+                var block_device_size: usize = 0;
+
+                switch (os.linux.E.init(os.linux.ioctl(
+                    fd,
+                    BLKGETSIZE64,
+                    @intFromPtr(&block_device_size),
+                ))) {
+                    .SUCCESS => {},
+
+                    // These are the only errors that are supposed to be possible from ioctl(2).
+                    .BADF => return error.InvalidFileDescriptor,
+                    .NOTTY => return error.BadRequest,
+                    .FAULT => return error.InvalidAddress,
+                    else => |err| return stdx.unexpected_errno("open_file:ioctl", err),
+                }
+
+                if (block_device_size < size) {
+                    std.debug.panic(
+                        "The block device used is too small ({} available/{} needed).",
+                        .{
+                            std.fmt.fmtIntSizeBin(block_device_size),
+                            std.fmt.fmtIntSizeBin(size),
+                        },
+                    );
+                }
+
+                if (purpose == .format) {
+                    // Check that the first superblock_zone_size bytes are 0.
+                    // - It'll ensure that the block device is not directly TigerBeetle.
+                    // - It'll be very likely to catch any cases where there's an existing
+                    //   other filesystem.
+                    // - In the case of there being a partition table (eg, two partitions,
+                    //   one starting at 0MiB, one at 1024MiB) and the operator tries to format
+                    //   the raw disk (/dev/sda) while a partition later is
+                    //   TigerBeetle (/dev/sda2) it'll be blocked by the MBR/GPT existing.
+                    const superblock_zone_size =
+                        @import("../vsr/superblock.zig").superblock_zone_size;
+                    var read_buf: [superblock_zone_size]u8 align(constants.sector_size) = undefined;
+
+                    // We can do this without worrying about retrying partial reads because on
+                    // linux, read(2) on block devices can not be interrupted by signals.
+                    // See signal(7).
+                    assert(superblock_zone_size == try posix.read(fd, &read_buf));
+                    if (!std.mem.allEqual(u8, &read_buf, 0)) {
+                        std.debug.panic(
+                            "Superblock on block device not empty. " ++
+                                "If this is the correct block device to use, " ++
+                                "please zero the first {} using a tool like dd.",
+                            .{std.fmt.fmtIntSizeBin(superblock_zone_size)},
+                        );
+                    }
+
+                    // Reset position in the block device to compensate for read(2).
+                    try posix.lseek_CUR(fd, -superblock_zone_size);
+                    assert(try posix.lseek_CUR_get(fd) == 0);
+
+                    // In a similar vein to the fs_allocate for the .file case above, BLKDISCARD
+                    // the entire block device.
+                    assert(std.mem.allEqual(u8, &read_buf, 0));
+
+                    const BLKDISCARD = os.linux.IOCTL.IO(0x12, 119);
+                    const range: extern struct { start: u64, len: u64 } = .{
+                        .start = 0,
+                        .len = block_device_size,
+                    };
+
+                    // Discard normally, but not always, zeros out the sectors involved. This is ok
+                    // since the zero superblock check above is to prevent accidentally overwriting
+                    // a real device. replica_format.zig checks that the format doesn't depend on
+                    // preexisting data.
+                    log.info("discarding {}...", .{std.fmt.fmtIntSizeBin(block_device_size)});
+                    switch (os.linux.E.init(os.linux.ioctl(
+                        fd,
+                        BLKDISCARD,
+                        @intFromPtr(&range),
+                    ))) {
+                        .SUCCESS => {},
+                        else => |e| {
+                            // It's OK if the underlying device doesn't support DISCARD. Warn
+                            // about it.
+                            std.log.warn(
+                                "open_data_file: unable to discard block device: {}",
+                                .{e},
+                            );
+                        },
+                    }
+                }
+            },
+        }
+
+        return fd;
+    }
+
+    /// Detects whether the underlying file system for a given directory fd is tmpfs. This is used
+    /// to relax our Direct I/O check - running on tmpfs for benchmarking is useful.
+    fn fs_is_tmpfs(dir_fd: fd_t) !bool {
+        var statfs: stdx.StatFs = undefined;
+
+        while (true) {
+            const res = stdx.fstatfs(dir_fd, &statfs);
+            switch (os.linux.E.init(res)) {
+                .SUCCESS => {
+                    return statfs.f_type == stdx.TmpfsMagic;
+                },
+                .INTR => continue,
+                else => |err| return stdx.unexpected_errno("fs_is_tmpfs", err),
+            }
+        }
+    }
+
+    /// Detects whether the underlying file system for a given directory fd supports Direct I/O.
+    /// Not all Linux file systems support `O_DIRECT`, e.g. a shared macOS volume.
+    fn fs_supports_direct_io(dir_fd: fd_t) !bool {
+        if (!@hasField(posix.O, "DIRECT")) return false;
+
+        var cookie: [16]u8 = @splat('0');
+        _ = stdx.array_print(16, &cookie, "{0x}", .{std.crypto.random.int(u64)});
+
+        const path: [:0]const u8 = "fs_supports_direct_io-" ++ cookie ++ "";
+        const dir = std.fs.Dir{ .fd = dir_fd };
+        const flags: posix.O = .{ .CLOEXEC = true, .CREAT = true, .TRUNC = true };
+        const fd = try posix.openatZ(dir_fd, path, flags, 0o600);
+        defer posix.close(fd);
+        defer dir.deleteFile(path) catch {};
+
+        while (true) {
+            const dir_flags: posix.O = .{ .CLOEXEC = true, .ACCMODE = .RDONLY, .DIRECT = true };
+            const res = os.linux.openat(dir_fd, path, dir_flags, 0);
+            switch (os.linux.E.init(res)) {
+                .SUCCESS => {
+                    posix.close(@intCast(res));
+                    return true;
+                },
+                .INTR => continue,
+                .INVAL => return false,
+                else => |err| return stdx.unexpected_errno("fs_supports_direct_io", err),
+            }
+        }
+    }
+
+    /// Allocates a file contiguously using fallocate() if supported.
+    /// Alternatively, writes to the last sector so that at least the file size is correct.
+    fn fs_allocate(fd: fd_t, size: u64) !void {
+        const mode: i32 = 0;
+        const offset: i64 = 0;
+        const length: i64 = @intCast(size);
+
+        while (true) {
+            const rc = os.linux.fallocate(fd, mode, offset, length);
+            switch (os.linux.E.init(rc)) {
+                .SUCCESS => return,
+                .BADF => return error.FileDescriptorInvalid,
+                .FBIG => return error.FileTooBig,
+                .INTR => continue,
+                .INVAL => return error.ArgumentsInvalid,
+                .IO => return error.InputOutput,
+                .NODEV => return error.NoDevice,
+                .NOSPC => return error.NoSpaceLeft,
+                .NOSYS => return error.SystemOutdated,
+                .OPNOTSUPP => return error.OperationNotSupported,
+                .PERM => return error.PermissionDenied,
+                .SPIPE => return error.Unseekable,
+                .TXTBSY => return error.FileBusy,
+                else => |errno| return stdx.unexpected_errno("fs_allocate", errno),
+            }
+        }
+    }
+
+    pub const PReadError = posix.PReadError;
+
+    pub fn aof_blocking_write_all(_: *IO, fd: fd_t, buffer: []const u8) posix.WriteError!void {
+        return common.aof_blocking_write_all(fd, buffer);
+    }
+
+    pub fn aof_blocking_pread_all(_: *IO, fd: fd_t, buffer: []u8, offset: u64) PReadError!usize {
+        return common.aof_blocking_pread_all(fd, buffer, offset);
+    }
+
+    pub fn aof_blocking_close(_: *IO, fd: fd_t) void {
+        return common.aof_blocking_close(fd);
+    }
+
+    pub fn aof_blocking_stat(_: *IO, path: []const u8) std.fs.Dir.StatFileError!std.fs.File.Stat {
+        return common.aof_blocking_stat(path);
+    }
+
+    pub fn aof_blocking_fstat(_: *IO, fd: fd_t) std.fs.Dir.StatError!std.fs.File.Stat {
+        return common.aof_blocking_fstat(fd);
+    }
+
+    pub fn aof_blocking_open(io: *IO, path: []const u8) !fd_t {
+        stdx.maybe(std.fs.path.isAbsolute(path));
+
+        const dir_path = std.fs.path.dirname(path) orelse ".";
+        const dir_fd = try IO.open_dir(dir_path);
+        defer io.aof_blocking_close(dir_fd);
+
+        const file_path = std.fs.path.basename(path);
+
+        return common.aof_blocking_open(dir_fd, file_path);
+    }
+
+    fn erase_types(
+        comptime Context: type,
+        comptime Result: type,
+        comptime callback: fn (
+            context: Context,
+            completion: *Completion,
+            result: Result,
+        ) void,
+    ) *const fn (*anyopaque, *Completion, *const anyopaque) void {
+        comptime assert(@typeInfo(Context) == .pointer);
+        return &struct {
+            fn erased(
+                ctx_any: *anyopaque,
+                completion: *Completion,
+                result_any: *const anyopaque,
+            ) void {
+                const ctx: Context = @ptrCast(@alignCast(ctx_any));
+                const result: *const Result = @ptrCast(@alignCast(result_any));
+                callback(ctx, completion, result.*);
+            }
+        }.erased;
+    }
+};

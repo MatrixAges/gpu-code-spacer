@@ -1,0 +1,48 @@
+{
+  "schema_version": 3,
+  "case_id": "dart-flutter-decode-envelope",
+  "language": "dart",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "flutter/flutter",
+    "commit": "7232346962d641f84fa8cd085cb335d8203c705a",
+    "path": "packages/flutter/lib/src/services/message_codecs.dart",
+    "start_line": 638,
+    "end_line": 665,
+    "symbol": "StandardMethodCodec.decodeEnvelope",
+    "url": "https://github.com/flutter/flutter/blob/7232346962d641f84fa8cd085cb335d8203c705a/packages/flutter/lib/src/services/message_codecs.dart#L638-L665",
+    "local_file": "data/validation/flutter/packages/flutter/lib/src/services/message_codecs.dart",
+    "file_sha256": "4022bcf74cdb377dcba037bc9cf5e77d55d7b34f0b84307cf18c210d8c0edecb",
+    "excerpt_sha256": "c8d71df6e50398bb661e0ba4f16ab2e0273644509e70ec2206116d0eb1199d9f",
+    "upstream_header": "// Copyright 2014 The Flutter Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style license that can be\n// found in the LICENSE file.\n\nimport 'dart:convert';\nimport 'dart:typed_data';\n\nimport 'package:flutter/foundation.dart' show ReadBuffer, WriteBuffer;\n\nimport 'message_codec.dart';\n\nexport 'dart:typed_data' show ByteData;\n\nexport 'package:flutter/foundation.dart' show ReadBuffer, WriteBuffer;\n\nexport 'message_codec.dart' show MethodCall;\n\nconst int _writeBufferStartCapacity = 64;\n\n/// [MessageCodec] with unencoded binary messages represented using [ByteData].\n///\n/// On Android, messages will be represented using `java.nio.ByteBuffer`.\n/// On iOS, messages will be represented using `NSData`.\n///\n/// When sending outgoing messages from Android, be sure to use direct `ByteBuffer`\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      642,
+      643,
+      646,
+      649,
+      652
+    ],
+    "protected_source_ranges": [],
+    "notes": "二进制消息解码、连续单行声明、多行三元声明、多行条件和异常构造。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/flutter/LICENSE",
+  "input_sha256": {
+    "dense": "9885accfd5455f68703161b7c49af191307592cf9a6770dfae622c312bc9175f",
+    "spaced": "63bbd645c4e124a1bc6b9d3880e9332e4a45b73b76b61b989b0c64ea8a386d1a"
+  },
+  "initial_output_sha256": "4334c17571b20097328fe94b3c953058996a9d45067f9226ebf12a09cdf90c6a",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

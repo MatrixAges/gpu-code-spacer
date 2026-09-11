@@ -1,0 +1,48 @@
+{
+  "schema_version": 3,
+  "case_id": "dart-flutter-alignment-lerp",
+  "language": "dart",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "flutter/flutter",
+    "commit": "7232346962d641f84fa8cd085cb335d8203c705a",
+    "path": "packages/flutter/lib/src/painting/alignment.dart",
+    "start_line": 221,
+    "end_line": 242,
+    "symbol": "AlignmentGeometry.lerp",
+    "url": "https://github.com/flutter/flutter/blob/7232346962d641f84fa8cd085cb335d8203c705a/packages/flutter/lib/src/painting/alignment.dart#L221-L242",
+    "local_file": "data/validation/flutter/packages/flutter/lib/src/painting/alignment.dart",
+    "file_sha256": "8ae61812b0c970504a51aef58da0d88a21f568e4e7852aea84c7fc4ec28d0355",
+    "excerpt_sha256": "f7e158fc8bdf840b365036e2efea3b0a6811147d99520d89fdce4be95c990ef0",
+    "upstream_header": "// Copyright 2014 The Flutter Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style license that can be\n// found in the LICENSE file.\n\n/// @docImport 'package:flutter/cupertino.dart';\n/// @docImport 'package:flutter/material.dart';\nlibrary;\n\nimport 'dart:ui' as ui show lerpDouble;\n\nimport 'package:flutter/foundation.dart';\n\nimport 'basic_types.dart';\nimport 'debug.dart';\n\n/// Base class for [Alignment] that allows for text-direction aware\n/// resolution.\n///\n/// A property or argument of this type accepts classes created either with\n/// [Alignment] and its variants, or [AlignmentDirectional.new].\n///\n/// To convert an [AlignmentGeometry] object of indeterminate type into an\n/// [Alignment] object, call the [resolve] method.\n@immutable\nabstract class AlignmentGeometry {\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      224,
+      227,
+      230,
+      233,
+      236
+    ],
+    "protected_source_ranges": [],
+    "notes": "空值和子类型分派，连续多行条件块、完整多行构造调用。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/flutter/LICENSE",
+  "input_sha256": {
+    "dense": "e27df062c32e2fba5781df3bac41dd5bb16229bbc1f7539a908504ca95b54fe4",
+    "spaced": "6881527de4a72b649bd961aba716e67fc9e5a234c45c49ac4a7551b4fddcf017"
+  },
+  "initial_output_sha256": "1a839bfd97609a0c119ab6bd414e3b0cf8a87ace5fd71682cb977cf67ab64756",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

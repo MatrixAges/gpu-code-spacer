@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "cs-message",
+  "language": "csharp",
+  "scenario": "多行调用与返回",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "056ecdeb6b4ca673a431223a8f9e905d6ed53f24b451c24c7a370c8cffb61091",
+  "initial_output_sha256": "00555afc66cf14a592d6764d068cf1f5db9e608afdffb0617ca695a68b8320b9",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 5,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

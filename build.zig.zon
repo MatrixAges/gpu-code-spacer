@@ -1,0 +1,8 @@
+.{
+    .name = .gpu_code_spacer,
+    .version = "0.1.0",
+    .fingerprint = 0xb39a4d11337e5126,
+    .minimum_zig_version = "0.16.0",
+    .paths = .{ "build.zig", "build.zig.zon", "src", "tools", "config", "models", "LICENSE", "README.md" },
+    .dependencies = .{},
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "cs-tags",
+  "language": "csharp",
+  "scenario": "泛型集合追加",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "5e709123365a1d68b76b4040b303ce2cc24b64eaf8db9d1b591fce79440adfc1",
+  "initial_output_sha256": "dd2a622201edb8f7ff27a7a9bb52870ca589cb8732011c044d3eb152b48e8237",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    }
+  ]
+}

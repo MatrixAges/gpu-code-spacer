@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "java-console",
+  "language": "java",
+  "scenario": "控制台消息写入",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "6aecc1f68ef5b3f67d1a26f4dafaac3493f1d3cd67d4c39af6dd8970e1be667c",
+  "initial_output_sha256": "4ec5d704978a8fe7193dcea8097e77bd55961e24e6d6de85ddfc102224c2ad53",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 3,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    }
+  ]
+}

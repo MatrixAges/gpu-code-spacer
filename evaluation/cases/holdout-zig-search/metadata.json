@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-zig-search",
+  "language": "zig",
+  "scenario": "循环内局部绑定和提前返回",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "fda7fc3cafd9c20ba73fd288dc45cc830ce7af8081d6696154fdde254882b17f",
+  "initial_output_sha256": "d7bbf9b4400e772bec8edde6389216b2d2e6dd1ebd3475fbeab234204d83a47e",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 9,
+      "blank_lines": 0,
+      "principle": "comment_attachment",
+      "scope": "structure",
+      "comparison": "exact"
+    }
+  ]
+}

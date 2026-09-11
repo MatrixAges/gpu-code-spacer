@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "zig-copy",
+  "language": "zig",
+  "scenario": "内存填充和复制",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "d734bab48d823095548bc919dfc0f19b40cc48d97f55685991cdab591e270197",
+  "initial_output_sha256": "596271b7de3c5a9264bdfeab79755d3668c8e55cfd91c7743439a404d867d2ed",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    }
+  ]
+}

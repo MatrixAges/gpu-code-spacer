@@ -1,0 +1,45 @@
+{
+  "schema_version": 3,
+  "case_id": "php-laravel-collapse",
+  "language": "php",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "laravel/framework",
+    "commit": "41807417bb85908412b67ff7ec4132a026d603c7",
+    "path": "src/Illuminate/Collections/Arr.php",
+    "start_line": 119,
+    "end_line": 132,
+    "symbol": "Arr.collapse",
+    "url": "https://github.com/laravel/framework/blob/41807417bb85908412b67ff7ec4132a026d603c7/src/Illuminate/Collections/Arr.php#L119-L132",
+    "local_file": "data/validation/laravel-framework/src/Illuminate/Collections/Arr.php",
+    "file_sha256": "63a60e931ee3345fe83b2acdad4168ebbc370b99c07696a3bcf997dd662b5ece",
+    "excerpt_sha256": "47f8c2a61bfb98788c6f1f5d90b5a6aeae34be971737fa2adf215f0b78d17479",
+    "upstream_header": "<?php\n\nnamespace Illuminate\\Support;\n\nuse ArgumentCountError;\nuse ArrayAccess;\nuse Closure;\nuse Illuminate\\Contracts\\Support\\Arrayable;\nuse Illuminate\\Contracts\\Support\\Jsonable;\nuse Illuminate\\Support\\Traits\\Macroable;\nuse InvalidArgumentException;\nuse JsonSerializable;\nuse Random\\Randomizer;\nuse SortDirection;\nuse Traversable;\nuse WeakMap;\n\nclass Arr\n{\n    use Macroable;\n\n    /**\n     * Determine whether the given value is array accessible.\n     *\n     * @param  mixed  $value\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "<?php\nclass ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      121,
+      129
+    ],
+    "protected_source_ranges": [],
+    "notes": "声明到循环、完整条件分支和循环后的返回；分支连接属于同一控制语句。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/laravel-framework/LICENSE.md",
+  "input_sha256": {
+    "dense": "88d04fff5705ae546a48c59d4f28809ebb7cd7f9e634e8f773d41fa497bd387e",
+    "spaced": "cea1bfea3ac055205a03a945bb9871d070b7f46c0d7f6968c29ee292bb461fd9"
+  },
+  "initial_output_sha256": "5808db5533d629ccc58eb840b2f9b63a0f9a97726a9fb12ac55dafc1792f26e9",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-js-index",
+  "language": "javascript",
+  "scenario": "映射表构建和结果输出",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "4e1f171492755a1ed8cc2fe2edb054caffb8e80ee4589ac429a124982992a49c",
+  "initial_output_sha256": "ddbbdc851368287663762b0a319a87843cb1e6bdfda86ac48953fa96c3834abd",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "control_to_declaration",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 9,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

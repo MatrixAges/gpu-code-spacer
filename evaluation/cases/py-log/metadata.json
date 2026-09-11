@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "py-log",
+  "language": "python",
+  "scenario": "保存诊断文本",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "8bd48c2317d8f27cb225e94611dd554182d9858abb819bdbc610db9a7a7ebe25",
+  "initial_output_sha256": "ca2be3e68aff692b3e46ccbf7057357730a2f10e3c4d76ca1501b1383b1720c9",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    }
+  ]
+}

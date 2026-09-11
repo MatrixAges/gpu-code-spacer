@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-ts-route",
+  "language": "typescript",
+  "scenario": "解析路由参数并发送查询",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "08803ce3080bde824d90f7fb6d29120ed4075063af18ee3fe71dba9bb16c7d6e",
+  "initial_output_sha256": "25d19410cc3a78491aa2e098b0c2e7c4136b2e1cc01e7ea1b452b368d2ebbb9f",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "control_to_declaration",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 9,
+      "blank_lines": 1,
+      "principle": "control_to_declaration",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 10,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-ts-buffer",
+  "language": "typescript",
+  "scenario": "缓冲区准备和提交阶段",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "8e44b15b36bd0c1daea1dfb1eae2d90520d652fe4da2317a90aa1d4f899a2e87",
+  "initial_output_sha256": "3bfdd3f14485a205ab0098af2b8be957f7ec7164a6afbcf9d9f8f5cd31e825c0",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 0,
+      "principle": "comment_attachment",
+      "scope": "structure",
+      "comparison": "exact"
+    }
+  ]
+}

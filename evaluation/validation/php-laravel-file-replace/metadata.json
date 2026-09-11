@@ -1,0 +1,46 @@
+{
+  "schema_version": 3,
+  "case_id": "php-laravel-file-replace",
+  "language": "php",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "laravel/framework",
+    "commit": "41807417bb85908412b67ff7ec4132a026d603c7",
+    "path": "src/Illuminate/Filesystem/Filesystem.php",
+    "start_line": 215,
+    "end_line": 234,
+    "symbol": "Filesystem.replace",
+    "url": "https://github.com/laravel/framework/blob/41807417bb85908412b67ff7ec4132a026d603c7/src/Illuminate/Filesystem/Filesystem.php#L215-L234",
+    "local_file": "data/validation/laravel-framework/src/Illuminate/Filesystem/Filesystem.php",
+    "file_sha256": "97faef2dd49c5f24f24f9a5c0e416802fa285a9965ddcdbb021e09571fde6596",
+    "excerpt_sha256": "adeb2bc687c5562a5c2213a58ebc5273bedf8ae1736e3bd105ce42da352c2e7c",
+    "upstream_header": "<?php\n\nnamespace Illuminate\\Filesystem;\n\nuse ErrorException;\nuse FilesystemIterator;\nuse Illuminate\\Contracts\\Filesystem\\FileNotFoundException;\nuse Illuminate\\Support\\LazyCollection;\nuse Illuminate\\Support\\Traits\\Conditionable;\nuse Illuminate\\Support\\Traits\\Macroable;\nuse RuntimeException;\nuse SplFileObject;\nuse Symfony\\Component\\Filesystem\\Filesystem as SymfonyFilesystem;\nuse Symfony\\Component\\Finder\\Finder;\nuse Symfony\\Component\\Mime\\MimeTypes;\n\nclass Filesystem\n{\n    use Conditionable, Macroable;\n\n    /**\n     * Determine if a file or directory exists.\n     *\n     * @param  string  $path\n     * @return bool\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "<?php\nclass ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      218,
+      222,
+      229
+    ],
+    "protected_source_ranges": [],
+    "notes": "调用到赋值留白，两个单行赋值连续；权限分支为完整多行块，最后两次单行调用连续；注释贴附被解释语句。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/laravel-framework/LICENSE.md",
+  "input_sha256": {
+    "dense": "25ca7e2d84239d9229014e474b977ef75ab0a3c0cfa0c6f938923a2c3971cc34",
+    "spaced": "8281826322646a960f01669d2a8397661fbee4c5a130a1759dcaa82417a23346"
+  },
+  "initial_output_sha256": "14ec73b80b1032543e355b96ae8762f3c6801081a0406ad8d596344449e6419f",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

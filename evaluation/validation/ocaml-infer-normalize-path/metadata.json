@@ -1,0 +1,61 @@
+{
+  "schema_version": 3,
+  "case_id": "ocaml-infer-normalize-path",
+  "language": "ocaml",
+  "language_in_archives": false,
+  "generalization_scope": "new repository and language absent from archived corpus language list",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "facebook/infer",
+    "commit": "3d38229b04b649024fee065621f6a4c838f6d029",
+    "path": "infer/src/base/Utils.ml",
+    "start_line": 85,
+    "end_line": 127,
+    "symbol": "normalize_path_from",
+    "url": "https://github.com/facebook/infer/blob/3d38229b04b649024fee065621f6a4c838f6d029/infer/src/base/Utils.ml#L85-L127",
+    "local_file": "data/validation/infer/infer/src/base/Utils.ml",
+    "file_sha256": "461864bf0e41c1e876edc90ada2821cb3c6c8928269fea88813579e204a5c19c",
+    "excerpt_sha256": "a8455a40f0e911a521e53be47dc196870ff3b91a584ff5bbdeced7099b6cfb84",
+    "upstream_header": "(*\n * Copyright (c) 2009-2013, Monoidics ltd.\n * Copyright (c) Facebook, Inc. and its affiliates.\n *\n * This source code is licensed under the MIT license found in the\n * LICENSE file in the root directory of this source tree.\n *)\nopen! IStd\nmodule F = Format\nmodule L = Die\n\nlet fold_file_tree ~init ~f_dir ~f_reg ~path =\n  let rec traverse_dir_aux acc dir_path =\n    let aux base_path acc' rel_path =\n      let full_path = base_path ^/ rel_path in\n      match (Unix.stat full_path).st_kind with\n      | S_DIR ->\n          traverse_dir_aux (f_dir acc' full_path) full_path\n      | S_REG ->\n          f_reg acc' full_path\n      | _ ->\n          acc'\n      | exception Unix.Unix_error (ENOENT, _, _) ->\n          acc'\n    in\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      105,
+      112,
+      114,
+      115,
+      122,
+      126
+    ],
+    "gap_after_wrapper_lines": [],
+    "protected_source_ranges": [
+      [
+        107,
+        109
+      ],
+      [
+        116,
+        117
+      ]
+    ],
+    "notes": "Preserve the complete local add_entry function, the nested root_without_leading_dot binding, and filename_of_rev_parts function, including their respective in delimiters. Pattern alternatives and branch comments stay attached. Multi-line bindings separate externally; single-line binding→call or binding→conditional are separate categories. The comment at116–117 attaches to filename_of_rev_parts, so place an external gap before its comment block rather than inside it. The final tuple expression is one result, not two calls to separate.",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/infer/LICENSE",
+  "input_sha256": {
+    "dense": "a8455a40f0e911a521e53be47dc196870ff3b91a584ff5bbdeced7099b6cfb84",
+    "spaced": "83a1f8eb7e8a1642a3b6d42ec2c19d36ce4aec24f5cdf38919e5202e077ce29f"
+  },
+  "initial_output_sha256": "0cae1eb90ac9fd65afdeb35e2e0b27f3dde4bc74cfe1420f16773f81800dcd21",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

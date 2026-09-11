@@ -1,0 +1,63 @@
+/*
+ * Copyright 2015-2026 the original author or authors.
+ *
+ * All rights reserved. This program and the accompanying materials are
+ * made available under the terms of the Eclipse Public License v2.0 which
+ * accompanies this distribution and is available at
+ *
+ * https://www.eclipse.org/legal/epl-v20.html
+ */
+
+package org.junit.jupiter.api;
+
+import static org.junit.jupiter.api.AssertionFailureBuilder.assertionFailure;
+
+import java.util.function.Supplier;
+
+import org.jspecify.annotations.Nullable;
+import org.junit.platform.commons.annotation.Contract;
+
+/**
+ * {@code AssertInstanceOf} is a collection of utility methods that support
+ * asserting that an object is of an expected type &mdash; in other words, if it
+ * can be assigned to the expected type.
+ *
+ * @since 5.8
+ */
+class AssertInstanceOf {
+	private AssertInstanceOf() {
+		/* no-op */
+	}
+
+	@Contract("_, null -> fail")
+	static <T> T assertInstanceOf(Class<T> expectedType, @Nullable Object actualValue) {
+		return assertInstanceOf(expectedType, actualValue, (Object) null);
+	}
+
+	@Contract("_, null, _ -> fail")
+	static <T> T assertInstanceOf(Class<T> expectedType, @Nullable Object actualValue, @Nullable String message) {
+		return assertInstanceOf(expectedType, actualValue, (Object) message);
+	}
+
+	@Contract("_, null, _ -> fail")
+	static <T> T assertInstanceOf(Class<T> expectedType, @Nullable Object actualValue,
+			Supplier<@Nullable String> messageSupplier) {
+		return assertInstanceOf(expectedType, actualValue, (Object) messageSupplier);
+	}
+
+	private static <T> T assertInstanceOf(Class<T> expectedType, @Nullable Object actualValue,
+			@Nullable Object messageOrSupplier) {
+		if (!expectedType.isInstance(actualValue)) {
+			throw assertionFailure() //
+					.message(messageOrSupplier) //
+					.reason(actualValue == null ? "Unexpected null value" : "Unexpected type") //
+					.expected(expectedType) //
+					.actual(actualValue == null ? null : actualValue.getClass()) //
+					.cause(actualValue instanceof Throwable t ? t : null) //
+					.trimStacktrace(Assertions.class) //
+					.build();
+		}
+
+		return expectedType.cast(actualValue);
+	}
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": 3,
+  "case_id": "scala-spark-reservoir-sampling",
+  "language": "scala",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "apache/spark",
+    "commit": "5641a808168c316f71a8be3d920f38a23fef4320",
+    "path": "core/src/main/scala/org/apache/spark/util/random/SamplingUtils.scala",
+    "start_line": 33,
+    "end_line": 70,
+    "symbol": "SamplingUtils.reservoirSampleAndCount",
+    "url": "https://github.com/apache/spark/blob/5641a808168c316f71a8be3d920f38a23fef4320/core/src/main/scala/org/apache/spark/util/random/SamplingUtils.scala#L33-L70",
+    "local_file": "data/validation/spark/core/src/main/scala/org/apache/spark/util/random/SamplingUtils.scala",
+    "file_sha256": "98fe355bfa713fc47e253f383ae8d91bc3175305e5bb43b8b85fa16697338653",
+    "excerpt_sha256": "f8d7cb94614abf4b78c15f72ea900cb911d11e5c5e72155eaf76073fef2a3642",
+    "upstream_header": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements.  See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License.  You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.spark.util.random\n\nimport scala.reflect.ClassTag\nimport scala.util.Random\n\nprivate[spark] object SamplingUtils {\n\n  /**\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample[K, V, T] {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      40,
+      42,
+      45,
+      50,
+      51,
+      56,
+      58,
+      59,
+      63,
+      67
+    ],
+    "protected_source_ranges": [],
+    "notes": "蓄水池随机采样，泛型多行签名、嵌套循环、数组更新、调用及分支尾表达式。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/spark/LICENSE",
+  "input_sha256": {
+    "dense": "37767a1d0c6c8b5abdcacaa66b455f68a1cff0d01be7a7836dc17aaf147453dd",
+    "spaced": "2d9d41b54ecc1fb1d2721e57f1b9bb2028a1bcdec44162208b40851627e25bc1"
+  },
+  "initial_output_sha256": "68a2dbcb612265ee2f8a975fc42c130126d5593f7e2008b21b488976f11f52e5",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

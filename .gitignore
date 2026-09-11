@@ -1,3 +1,10 @@
 .zig-cache/
 zig-out/
+zig-pkg/
 *.o
+.deps/
+data/
+artifacts/
+runs/
+evaluation/artifacts/
+.DS_Store

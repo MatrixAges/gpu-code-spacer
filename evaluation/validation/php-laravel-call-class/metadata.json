@@ -1,0 +1,46 @@
+{
+  "schema_version": 3,
+  "case_id": "php-laravel-call-class",
+  "language": "php",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "laravel/framework",
+    "commit": "41807417bb85908412b67ff7ec4132a026d603c7",
+    "path": "src/Illuminate/Container/BoundMethod.php",
+    "start_line": 51,
+    "end_line": 71,
+    "symbol": "BoundMethod.callClass",
+    "url": "https://github.com/laravel/framework/blob/41807417bb85908412b67ff7ec4132a026d603c7/src/Illuminate/Container/BoundMethod.php#L51-L71",
+    "local_file": "data/validation/laravel-framework/src/Illuminate/Container/BoundMethod.php",
+    "file_sha256": "c724232bb1a549e29bab1c87baaf750b3f04df906e0978459df089d31b5b61d3",
+    "excerpt_sha256": "6dc8a8aaa218256db00f9b677f041d6371946247fa9fe64f2c2069c89903092b",
+    "upstream_header": "<?php\n\nnamespace Illuminate\\Container;\n\nuse Closure;\nuse Illuminate\\Contracts\\Container\\BindingResolutionException;\nuse InvalidArgumentException;\nuse ReflectionFunction;\nuse ReflectionMethod;\n\nclass BoundMethod\n{\n    /**\n     * Call the given Closure / class@method and inject its dependencies.\n     *\n     * @param  \\Illuminate\\Container\\Container  $container\n     * @param  callable|string  $callback\n     * @param  array  $parameters\n     * @param  string|null  $defaultMethod\n     * @return mixed\n     *\n     * @throws \\ReflectionException\n     * @throws \\InvalidArgumentException\n     */\n    public static function call($container, $callback, array $parameters = [], $defaultMethod = null)\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "<?php\nclass ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      53,
+      60,
+      64
+    ],
+    "protected_source_ranges": [],
+    "notes": "多行三元赋值两侧留白；说明注释随该赋值；多行返回调用参数内部不分段。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/laravel-framework/LICENSE.md",
+  "input_sha256": {
+    "dense": "1afa47b9daead6ed056f3c01bf659b4f2f3031e19dfa99b562a88bc6c9531ff6",
+    "spaced": "023d26a57eae11b6e7466b5923d3bf646bf11b266a1cfd3e0a1653e9d81537cc"
+  },
+  "initial_output_sha256": "f43c153fd65915f2ef203d6ab6a29d7eafd652589e29e7e07a5184acf794ddb7",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

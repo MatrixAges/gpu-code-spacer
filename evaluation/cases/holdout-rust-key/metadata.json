@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-rust-key",
+  "language": "rust",
+  "scenario": "可选值解构与消息输出",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "b78f2126480c18bf32c855fdbf19c764776f0d564fc0773a85c423cdc74fe5bf",
+  "initial_output_sha256": "3485fa3b9043b4b4bbddc36cade7d83c8c8bcda96d283f1a647425a8b7d201bf",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "block_edge",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 9,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

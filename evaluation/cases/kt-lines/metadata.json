@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "kt-lines",
+  "language": "kotlin",
+  "scenario": "多行调用参数",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "026ed051779e20e883d74898036f0630345eca96d9be5a5b1c7730037a7da830",
+  "initial_output_sha256": "cf3c0f28c284a7790219152c5609158c6d465ff694772066632db07d399908e0",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

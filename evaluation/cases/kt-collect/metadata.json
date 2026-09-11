@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "case_id": "kt-collect",
+  "language": "kotlin",
+  "scenario": "同组列表变更后发布阶段",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "e6f6fa6743067efc43685be70f918d496b13dc98e1cd6ae46f8396cb0ca435e6",
+  "initial_output_sha256": "a7d83b5f4ab8984ffc549cf90c5f5a4dd040da6bb8120357cc41e2ca3df7cb23",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    }
+  ]
+}

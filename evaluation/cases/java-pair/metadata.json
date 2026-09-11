@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "java-pair",
+  "language": "java",
+  "scenario": "数组初始化与结果返回",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "a350862aad6744c0e32cd5cbd9ca890ca6fa9facc863be55dc2ad95deacde1cd",
+  "initial_output_sha256": "33ec7fe0927d5bb73d4761d87499977a37e26062bf2ab756ac9f50a7e6733b0a",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# Parser-only dependency for the independent validation dataset.
+# tree-sitter/tree-sitter-ocaml @ a4ce49a6c17e88e7ca8350cfb666749d9a5c6630
+ruleDirs: []
+customLanguages:
+  ocaml:
+    libraryPath: ../.deps/validation-ocaml-parser/ocaml.dylib
+    languageSymbol: tree_sitter_ocaml
+    extensions: [ml]

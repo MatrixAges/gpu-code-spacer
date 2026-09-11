@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "case_id": "swift-duration",
+  "language": "swift",
+  "scenario": "guard提前返回校验",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "430f40b283a88f884efcd65bfb5db20a50903a203fc72872da41cfd2f19a1cef",
+  "initial_output_sha256": "3b63429708cecc5e4c2ff1a15d3640c3850e900ece9899cd5e1a2d86b9b2d45c",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "block_edge",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": 3,
+  "case_id": "scala-spark-grow-buffer",
+  "language": "scala",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "apache/spark",
+    "commit": "5641a808168c316f71a8be3d920f38a23fef4320",
+    "path": "core/src/main/scala/org/apache/spark/util/collection/CompactBuffer.scala",
+    "start_line": 128,
+    "end_line": 151,
+    "symbol": "CompactBuffer.growToSize",
+    "url": "https://github.com/apache/spark/blob/5641a808168c316f71a8be3d920f38a23fef4320/core/src/main/scala/org/apache/spark/util/collection/CompactBuffer.scala#L128-L151",
+    "local_file": "data/validation/spark/core/src/main/scala/org/apache/spark/util/collection/CompactBuffer.scala",
+    "file_sha256": "e60d6dd1a94bb5ca58156364420a63062a288d28cfe6e3c42b2a1831a61196e1",
+    "excerpt_sha256": "7b2b312c6dd29d9a32804f081e16b1adf109a8963624a87b310777505d184c7c",
+    "upstream_header": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements.  See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License.  You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.spark.util.collection\n\nimport scala.reflect.ClassTag\n\nimport org.apache.spark.unsafe.array.ByteArrayMethods\n\n/**\n * An append-only buffer similar to ArrayBuffer, but more memory-efficient for small buffers.\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample[K, V, T] {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      131,
+      134,
+      135,
+      137,
+      140,
+      143,
+      144,
+      147,
+      149
+    ],
+    "protected_source_ranges": [],
+    "notes": "容量扩展、边界校验、倍增循环、分配/拷贝/状态更新。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/spark/LICENSE",
+  "input_sha256": {
+    "dense": "69193ec2dc2eb9c407ce0b901ef9579560da0ac1f30bdaaabb6e0b5af49959d2",
+    "spaced": "5dbb18b96f0a08ff305c0cea22c5f9ae289edaca75eec5a648571ccb5cc8a2fb"
+  },
+  "initial_output_sha256": "0451ca5e35097771442015961f732330ad35e71f70c2356fdec373d6ad707265",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-zig-slice",
+  "language": "zig",
+  "scenario": "可选索引检查和切片输出",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "486c603fa0eee07dba7bde8538d051af5405e2b30e159f80b0a156d3894c4230",
+  "initial_output_sha256": "4cc4cdfbddbbedd84c4c335827788fd3020f5c7aac39cd458b182337f0cdfc7e",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

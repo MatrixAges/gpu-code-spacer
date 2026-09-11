@@ -1,0 +1,51 @@
+{
+  "schema_version": 3,
+  "case_id": "scala-spark-next-set-bit",
+  "language": "scala",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "apache/spark",
+    "commit": "5641a808168c316f71a8be3d920f38a23fef4320",
+    "path": "core/src/main/scala/org/apache/spark/util/collection/BitSet.scala",
+    "start_line": 213,
+    "end_line": 237,
+    "symbol": "BitSet.nextSetBit",
+    "url": "https://github.com/apache/spark/blob/5641a808168c316f71a8be3d920f38a23fef4320/core/src/main/scala/org/apache/spark/util/collection/BitSet.scala#L213-L237",
+    "local_file": "data/validation/spark/core/src/main/scala/org/apache/spark/util/collection/BitSet.scala",
+    "file_sha256": "1dabadf3abf60d036c0ac041788153dcc613ca1683426f5fc5f6f1be266a95c4",
+    "excerpt_sha256": "0e557940ed086e17c6cdf2d0c0b8cc084995a2bdcb651314b457a49b56601261",
+    "upstream_header": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements.  See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License.  You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.spark.util.collection\n\nimport java.util.Arrays\n\n/**\n * A simple, fixed-size bit set implementation. This implementation is fast because it avoids\n * safety/bound checking.\n */\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "class ValidationSample[K, V, T] {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      214,
+      217,
+      221,
+      224,
+      227,
+      229,
+      232,
+      234
+    ],
+    "protected_source_ranges": [],
+    "notes": "位运算索引、早返回、跨字扫描和未找到尾值。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/spark/LICENSE",
+  "input_sha256": {
+    "dense": "ac0953e641738bdcfd1b752611751a819c580e531e6a2a7ff9c7a9f72db14b62",
+    "spaced": "c0593c327b4b60c616186c60b5039eae1e6d7ce94d293aec6ae08ee561f14920"
+  },
+  "initial_output_sha256": "752c6497096e5afdc12cc9062c825f1b5e03d0aa9119fdf3d1884c81a2c7b602",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

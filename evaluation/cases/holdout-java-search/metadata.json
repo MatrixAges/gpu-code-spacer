@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-java-search",
+  "language": "java",
+  "scenario": "嵌套循环与提前结束",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "232cc074a038efb7f889c2fd649662f77028e3bbc97d48b3452c9853dab8229b",
+  "initial_output_sha256": "9dea1c46940b960dc0fb43e2a462ca77926eba38eddd2fa4443f112b7f9753e5",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 3,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "assignment_to_control_transfer",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 10,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

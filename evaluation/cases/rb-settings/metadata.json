@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "rb-settings",
+  "language": "ruby",
+  "scenario": "哈希初始化",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "6865c077ea46c540ca400f6804366511ce5eebf95760442fc2b9d9de89e2cded",
+  "initial_output_sha256": "79d3f1a0b9008c17b6fe5f6a2a38a9595b822e826b5b60e96cf6d063b46cf164",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 4,
+      "blank_lines": 0,
+      "principle": "multiline_integrity",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

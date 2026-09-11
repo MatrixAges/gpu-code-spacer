@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "case_id": "kt-quota",
+  "language": "kotlin",
+  "scenario": "额度检查",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "3ce032231edbc50ff0c6cdaadc681cbcabb6a2e7de56b18b2a147be6a37d7249",
+  "initial_output_sha256": "ced4c75f9b1f42d80f31badbddacad5e7180b7f3a2750f66f9356ce0d706694a",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

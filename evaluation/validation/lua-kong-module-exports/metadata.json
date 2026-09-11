@@ -1,0 +1,45 @@
+{
+  "schema_version": 3,
+  "case_id": "lua-kong-module-exports",
+  "language": "lua",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "Kong/kong",
+    "commit": "3091de006da341d5f289d446a3d73875a14560e0",
+    "path": "kong/tools/utils.lua",
+    "start_line": 19,
+    "end_line": 38,
+    "symbol": "compatibility module export block",
+    "url": "https://github.com/Kong/kong/blob/3091de006da341d5f289d446a3d73875a14560e0/kong/tools/utils.lua#L19-L38",
+    "local_file": "data/validation/kong/kong/tools/utils.lua",
+    "file_sha256": "32d45b7f9aefc3a20fe76eaa2547be95155f191057d82dbd432107fb0dc9c4c5",
+    "excerpt_sha256": "175fb62c500a65d026ff95310eac8b04fe6b4143184f04c83894c52e3f904a34",
+    "upstream_header": "---\n-- Module containing some general utility functions used in many places in Kong.\n--\n-- NOTE: Before implementing a function here, consider if it will be used in many places\n-- across Kong. If not, a local function in the appropriate module is preferred.\n--\n-- @copyright Copyright 2016-2022 Kong Inc. All rights reserved.\n-- @license [Apache 2.0](https://opensource.org/licenses/Apache-2.0)\n-- @module kong.tools.utils\n\nlocal pairs    = pairs\nlocal ipairs   = ipairs\nlocal require  = require\n\n\nlocal _M = {}\n\n\ndo\n  local modules = {\n    -- [[ keep it here for compatibility\n    \"kong.tools.table\",\n    \"kong.tools.uuid\",\n    \"kong.tools.rand\",\n    \"kong.tools.time\",\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      30,
+      33
+    ],
+    "protected_source_ranges": [],
+    "notes": "完整生产do块；多行模块表声明外侧留白，字符串元素和注释内部连续；局部声明到嵌套循环分段。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/kong/LICENSE",
+  "input_sha256": {
+    "dense": "1b278efbe55f14257ad152df72ff7708ad5c81e552f731f9e67417f3af9e33df",
+    "spaced": "f53cc9caa4fd28a2ecd2faf05a6321e88c14b1db9997d201f7bb6f4fd7057b80"
+  },
+  "initial_output_sha256": "8cbd0b63ee74f7e1f41de1b1a20b1433f16614fac9e87412f6fcfe759be54bbd",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

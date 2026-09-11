@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "case_id": "cs-page",
+  "language": "csharp",
+  "scenario": "分页参数验证及Allman风格",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "77b27d5ca14e3b1430cad4ae950706b3a9875183febf381e28a4df0ae7d12a07",
+  "initial_output_sha256": "f24bf93c62186645f4fb2a1fd06fb274beb8d61b6a11817bf6a5eb67a066d783",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 5,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 0,
+      "principle": "block_edge",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 0,
+      "principle": "block_edge",
+      "scope": "structure",
+      "comparison": "exact"
+    },
+    {
+      "after_line": 10,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

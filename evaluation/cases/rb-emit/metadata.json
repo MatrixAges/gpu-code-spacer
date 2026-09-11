@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "rb-emit",
+  "language": "ruby",
+  "scenario": "文件写入调用顺序",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "8de9327c9e9cbc1699b1029490f6cca529b1e7d99f0a845669bc86c0743a1175",
+  "initial_output_sha256": "992c98551e97f9210a069ee2090dccdf7d9a7d29490e43aa41dfdefed0ea4d10",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 3,
+      "blank_lines": 0,
+      "principle": "same_kind_single_line",
+      "scope": "style",
+      "comparison": "exact"
+    }
+  ]
+}

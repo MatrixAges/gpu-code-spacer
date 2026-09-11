@@ -1,0 +1,39 @@
+{
+  "model": "spacer-poetic-v3",
+  "style": "代码如诗，不仅要好读，还要好看；疏朗、有语义分组的留白",
+  "format": "GCSPMLP2",
+  "feature_version": 5,
+  "parameters": 12547,
+  "bytes": 50244,
+  "sha256": "97c8f4eb4a716d9c3345d47d989d937416a5cdadf5df878e6a1873e007d8c3ab",
+  "confidence": 0,
+  "selected_report": "artifacts/v5-2026-standard.json",
+  "selection_score": 0.9935264129383845,
+  "selection_rule": "highest standard-annotated style validation macro-F1 among models with dense-input precision >= 0.95 and recall >= 0.60; lowest eligible confidence threshold",
+  "calibration_input_policy": "dense input: low-confidence predictions preserve zero blank lines; not a guarantee for arbitrary input layouts",
+  "candidates": [
+    {
+      "report": "artifacts/v5-73-standard.json",
+      "score": 0.9932870420880859,
+      "threshold": 0
+    },
+    {
+      "report": "artifacts/v5-111-standard.json",
+      "score": 0.9922047325523613,
+      "threshold": 0
+    },
+    {
+      "report": "artifacts/v5-2026-standard.json",
+      "score": 0.9935264129383845,
+      "threshold": 0
+    }
+  ],
+  "external_tests_used_by_selector": false,
+  "automatic_selection_data": "standard-annotated personal-style validation only; benchmark development-feedback history is recorded in evaluation reports",
+  "language_whitelist": false,
+  "source_locks": [
+    "config/sources.lock.json",
+    "config/style-sources.lock.json"
+  ],
+  "limits": "blank-line placement only; generic lexical guards are not a universal semantic proof"
+}

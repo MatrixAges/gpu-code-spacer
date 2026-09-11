@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "case_id": "rb-age",
+  "language": "ruby",
+  "scenario": "存在性扫描并显式返回",
+  "source_benchmark": "config/style-benchmark.json",
+  "source_sha256": "85e5674ccc64148249ccd6eef0fa0c54172ab8bc3c1379f03436a915d9b3492f",
+  "initial_output_sha256": "9e4aec191a1dc2e38e5d8ec69fd5bc46b66ee392b217720cf157d49d043f4948",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 2,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 5,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

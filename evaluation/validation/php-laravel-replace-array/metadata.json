@@ -1,0 +1,46 @@
+{
+  "schema_version": 3,
+  "case_id": "php-laravel-replace-array",
+  "language": "php",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "laravel/framework",
+    "commit": "41807417bb85908412b67ff7ec4132a026d603c7",
+    "path": "src/Illuminate/Support/Str.php",
+    "start_line": 1231,
+    "end_line": 1246,
+    "symbol": "Str.replaceArray",
+    "url": "https://github.com/laravel/framework/blob/41807417bb85908412b67ff7ec4132a026d603c7/src/Illuminate/Support/Str.php#L1231-L1246",
+    "local_file": "data/validation/laravel-framework/src/Illuminate/Support/Str.php",
+    "file_sha256": "14a4be5b420ed2fed14855cc622067ecfe9d73b038d2cdb683e47c5d38196183",
+    "excerpt_sha256": "9420f6f03da83d91e14ebc217ac28d253408e0775bd9e7ef71beacc457b5f077",
+    "upstream_header": "<?php\n\nnamespace Illuminate\\Support;\n\nuse Closure;\nuse Illuminate\\Support\\Traits\\Macroable;\nuse League\\CommonMark\\Environment\\Environment;\nuse League\\CommonMark\\Extension\\GithubFlavoredMarkdownExtension;\nuse League\\CommonMark\\Extension\\InlinesOnly\\InlinesOnlyExtension;\nuse League\\CommonMark\\GithubFlavoredMarkdownConverter;\nuse League\\CommonMark\\MarkdownConverter;\nuse Ramsey\\Uuid\\Codec\\TimestampFirstCombCodec;\nuse Ramsey\\Uuid\\Exception\\InvalidUuidStringException;\nuse Ramsey\\Uuid\\Generator\\CombGenerator;\nuse Ramsey\\Uuid\\Rfc4122\\FieldsInterface;\nuse Ramsey\\Uuid\\Uuid;\nuse Ramsey\\Uuid\\UuidFactory;\nuse Symfony\\Component\\Uid\\Ulid;\nuse Throwable;\nuse Traversable;\nuse voku\\helper\\ASCII;\n\nclass Str\n{\n    use Macroable;\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "<?php\nclass ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      1235,
+      1239,
+      1243
+    ],
+    "protected_source_ranges": [],
+    "notes": "两个相邻单行赋值必须连写；多行条件块和循环外侧分隔；返回前留白。",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/laravel-framework/LICENSE.md",
+  "input_sha256": {
+    "dense": "7ba1f4b0fbfab0b7bf478c11286ceb05669e2b5ddd97cfb1336fd93640341e0c",
+    "spaced": "a90227a41bccd27f72ee3a92426c34a08653d369c620aaae840566aa614021d1"
+  },
+  "initial_output_sha256": "903e19b0fb733117d9e5990dfe101ae8f0ef4f5979a8c6702bb2619a25707799",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}

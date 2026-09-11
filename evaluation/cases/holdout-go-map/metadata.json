@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "case_id": "holdout-go-map",
+  "language": "go",
+  "scenario": "字典查找和回调保存",
+  "source_benchmark": "config/style-benchmark-holdout.json",
+  "source_sha256": "d75772342e3d9a197dde18a3aeae85284c7bb245e1bdfb5213f2938c3100e5d7",
+  "initial_output_sha256": "f49acf9e3531db226da17d41e5d6dedc95d1727a2f81d0f5a6b36cd7fe90859c",
+  "reference_status": "migrated_partial_annotations",
+  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
+  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "expectations": [
+    {
+      "after_line": 3,
+      "blank_lines": 1,
+      "principle": "declaration_to_control",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 6,
+      "blank_lines": 1,
+      "principle": "multiline_expression_boundary",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 7,
+      "blank_lines": 1,
+      "principle": "declaration_to_call",
+      "scope": "style",
+      "comparison": "at_least"
+    },
+    {
+      "after_line": 8,
+      "blank_lines": 1,
+      "principle": "before_return",
+      "scope": "style",
+      "comparison": "at_least"
+    }
+  ]
+}

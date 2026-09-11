@@ -1,0 +1,47 @@
+{
+  "schema_version": 3,
+  "case_id": "ocaml-infer-stats-event",
+  "language": "ocaml",
+  "language_in_archives": false,
+  "generalization_scope": "new repository and language absent from archived corpus language list",
+  "purpose": "independent_generalization",
+  "reference_status": "assistant_annotated_pending_user_review",
+  "source": {
+    "repository": "facebook/infer",
+    "commit": "3d38229b04b649024fee065621f6a4c838f6d029",
+    "path": "infer/src/base/StatsLogging.ml",
+    "start_line": 44,
+    "end_line": 61,
+    "symbol": "sample_from_event",
+    "url": "https://github.com/facebook/infer/blob/3d38229b04b649024fee065621f6a4c838f6d029/infer/src/base/StatsLogging.ml#L44-L61",
+    "local_file": "data/validation/infer/infer/src/base/StatsLogging.ml",
+    "file_sha256": "4d43d83c48e48690946e51715b0e54f29a5b49130cf358cb6deb244a5cf392ad",
+    "excerpt_sha256": "6a327c09bb5abb4a7d5436de00884d31626807fe27ae97005a600c7494498afa",
+    "upstream_header": "(*\n * Copyright (c) Facebook, Inc. and its affiliates.\n *\n * This source code is licensed under the MIT license found in the\n * LICENSE file in the root directory of this source tree.\n *)\n\nopen! IStd\n\nlet hostname = Unix.gethostname ()\n\nlet get_stats_dir () =\n  (* cannot use [ResultsDir.get_path], it would introduce a circular dependency *)\n  ResultsDirEntryName.get_path ~results_dir:Config.results_dir Stats\n\n\nlet get_stats_log_file () =\n  let dir_name = get_stats_dir () in\n  let file_name =\n    match WorkerPoolState.get_in_child () with\n    | None ->\n        \"stats.jsonl\"\n    | Some rank ->\n        Printf.sprintf \"stats-%d.jsonl\" rank\n  in\n"
+  },
+  "extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
+  },
+  "annotation": {
+    "method": "individual source review; no product formatter or model prediction used",
+    "gap_after_source_lines": [
+      51
+    ],
+    "gap_after_wrapper_lines": [],
+    "protected_source_ranges": [],
+    "notes": "The local let open StatsSample in scopes the function body; keep it attached to that lexical scope. The local create_sample_with_label definition includes its pipeline and terminating in; only its outside boundary before match needs separation. Each branch pipeline is one application expression; |> lines are internal continuations, never distinct calls or assignments. Match alternatives remain inside match, and the destructured typed parameter is kept whole.",
+    "comparison": "shared output is the editable expected result"
+  },
+  "license_file": "../../../data/validation/infer/LICENSE",
+  "input_sha256": {
+    "dense": "6a327c09bb5abb4a7d5436de00884d31626807fe27ae97005a600c7494498afa",
+    "spaced": "c493ec7e3d947dd053c96a2f121b966b65d5adbee1eae780c74ca5761e3c3c5a"
+  },
+  "initial_output_sha256": "25a77730a07909a6dd7ef2723d08f51106127e414caeab9432906f9ba24ba219",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": false
+}
