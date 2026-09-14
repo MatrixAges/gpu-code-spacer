@@ -6,6 +6,7 @@ import {
 	$isRangeSelection,
 	COMMAND_PRIORITY_HIGH
 } from 'lexical'
+
 import { groupBy } from 'lodash-es'
 import { makeAutoObservable } from 'mobx'
 import { injectable } from 'tsyringe'
@@ -16,6 +17,7 @@ import Utils from '@/models/utils'
 import { useInstanceWatch, Watch } from '@openages/stk/mobx'
 
 import TableSelection from '../TableSelection'
+
 import {
 	$cellContainsEmptyParagraph,
 	$getTableCellNodeRect,
@@ -32,11 +34,14 @@ import type TableRowNode from '../TableRowNode'
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
 	selection = null as unknown as RangeSelection
 
 	type = '' as 'merge' | 'unmerge'
+
 	style = { left: 0, top: 0 }
+
 	visible = false
 
 	watch = {
@@ -79,7 +84,9 @@ export default class Index {
 		if (!this.visible) return
 
 		this.type = '' as Index['type']
+
 		this.style = { left: 0, top: 0 }
+
 		this.visible = false
 
 		return false
@@ -106,13 +113,16 @@ export default class Index {
 
 			const x_values = [rect_anchor.left, rect_anchor.right, rect_focus.left, rect_focus.right]
 			const y_values = [rect_anchor.top, rect_anchor.bottom, rect_focus.top, rect_focus.bottom]
+
 			const x_min = Math.min(...x_values)
 			const y_min = Math.min(...y_values)
 			const width = Math.max(...x_values) - x_min
 			const height = Math.max(...y_values) - y_min
 
 			this.type = 'merge'
+
 			this.style = { left: x_min + width / 2 - 10.5, top: y_min + height / 2 - 10.5 }
+
 			this.visible = true
 		})
 
@@ -123,19 +133,25 @@ export default class Index {
 		this.editor.update(() => {
 			const cell_node = this.getLargeCell()
 			const cell_el = this.editor.getElementByKey(cell_node.getKey())!
+
 			const { right, top } = cell_el.getBoundingClientRect()
 
 			this.type = 'unmerge'
+
 			this.style = { left: right - 18, top: top + 3 }
+
 			this.visible = true
 		})
 	}
 
 	mergeCells() {
 		const selection = $getSelection() as TableSelection
+
 		const { anchor, focus } = selection
 		const { merge_node_type } = selection.getShape()
+
 		const target_node = (merge_node_type === 'anchor' ? anchor : focus).getNode() as TableCellNode
+
 		const rowspan_values = [] as Array<number>
 		const colspan_values = [] as Array<number>
 
@@ -193,7 +209,9 @@ export default class Index {
 	unmergeCells() {
 		const cell_node = this.getLargeCell()
 		const table_node = $getMatchingParent(cell_node, $isTableNode) as TableNode
+
 		const { row_index, column_index, row_span, col_span } = $getTableCellNodeRect(cell_node)!
+
 		const rows_arr = Array.from({ length: row_span })
 		const cols_arr = Array.from({ length: col_span })
 		const rows = table_node.getChildren() as Array<TableRowNode>
@@ -224,7 +242,6 @@ export default class Index {
 		rows[row_index].getChildren()[column_index].selectEnd()
 
 		cell_node.remove()
-
 		this.reset()
 	}
 

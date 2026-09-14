@@ -39,6 +39,7 @@ pub fn main() !void {
         // Vortex is not currently supported on Windows because of child process management.
         // e.g. waitpid, pause/unpause.
         log.err("vortex is not supported for Windows", .{});
+
         return error.NotSupported;
     }
 
@@ -46,11 +47,14 @@ pub fn main() !void {
         // Vortex is not currently supported on MacOS because io.write() is implemented with
         // pwrite(), which doesn't work on non-seekable streams like child process input/output.
         log.err("vortex is not supported for MacOS", .{});
+
         return error.NotSupported;
     }
+
     assert(builtin.os.tag == .linux);
 
     var gpa_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+
     defer switch (gpa_allocator.deinit()) {
         .ok => {},
         .leak => @panic("memory leak"),
@@ -59,12 +63,14 @@ pub fn main() !void {
     const allocator = gpa_allocator.allocator();
 
     var flags = stdx.Flags.init(allocator);
+
     defer flags.deinit(allocator);
 
     const args = flags.parse(CLIArgs);
 
     if (args.log) |log_path| {
         const log_file = try std.fs.cwd().createFile(log_path, .{});
+
         defer log_file.close();
 
         // Redirect stderr to the file.
@@ -102,6 +108,7 @@ pub fn main() !void {
         .faulty = !args.disable_faults,
         .log_debug = args.log_debug,
     });
+
     defer supervisor.destroy();
 
     log.info("seed={}", .{seed});
@@ -114,6 +121,7 @@ pub fn main() !void {
         try supervisor.replica_format(@intCast(replica_index));
         try supervisor.replica_start(@intCast(replica_index));
     }
+
     try supervisor.workload_start(
         if (args.driver_command) |driver_command|
             .{ .command = driver_command }
@@ -123,6 +131,7 @@ pub fn main() !void {
     );
 
     var timer = try std.time.Timer.start();
+
     while (timer.read() < args.test_duration.ns) {
         try supervisor.tick();
     }
@@ -130,12 +139,14 @@ pub fn main() !void {
     log.info("workload: terminating due to max duration", .{});
     log.info("workload: created accounts={}", .{supervisor.workload.?.model.accounts.count()});
     log.info("workload: created transfers={}", .{supervisor.workload.?.model.transfers_created});
+
     for (std.enums.values(Command)) |command| {
         log.info("workload: completed command={s} count={}", .{
             @tagName(command),
             supervisor.workload.?.requests_finished_count.getAssertContains(command),
         });
     }
+
     supervisor.workload_terminate();
     log.info("done", .{});
 }

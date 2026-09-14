@@ -28,6 +28,7 @@ pub const Node = struct {
 
 pub fn insertAfter(list: *DoublyLinkedList, existing_node: *Node, new_node: *Node) void {
     new_node.prev = existing_node;
+
     if (existing_node.next) |next_node| {
         // Intermediate node.
         new_node.next = next_node;
@@ -37,11 +38,13 @@ pub fn insertAfter(list: *DoublyLinkedList, existing_node: *Node, new_node: *Nod
         new_node.next = null;
         list.last = new_node;
     }
+
     existing_node.next = new_node;
 }
 
 pub fn insertBefore(list: *DoublyLinkedList, existing_node: *Node, new_node: *Node) void {
     new_node.next = existing_node;
+
     if (existing_node.prev) |prev_node| {
         // Intermediate node.
         new_node.prev = prev_node;
@@ -51,6 +54,7 @@ pub fn insertBefore(list: *DoublyLinkedList, existing_node: *Node, new_node: *No
         new_node.prev = null;
         list.first = new_node;
     }
+
     existing_node.prev = new_node;
 }
 
@@ -61,6 +65,7 @@ pub fn insertBefore(list: *DoublyLinkedList, existing_node: *Node, new_node: *No
 ///     list2: the list to be concatenated
 pub fn concatByMoving(list1: *DoublyLinkedList, list2: *DoublyLinkedList) void {
     const l2_first = list2.first orelse return;
+
     if (list1.last) |l1_last| {
         l1_last.next = list2.first;
         l2_first.prev = list1.last;
@@ -68,6 +73,7 @@ pub fn concatByMoving(list1: *DoublyLinkedList, list2: *DoublyLinkedList) void {
         // list1 was empty
         list1.first = list2.first;
     }
+
     list1.last = list2.last;
     list2.first = null;
     list2.last = null;
@@ -133,7 +139,9 @@ pub fn remove(list: *DoublyLinkedList, node: *Node) void {
 ///     A pointer to the last node in the list.
 pub fn pop(list: *DoublyLinkedList) ?*Node {
     const last = list.last orelse return null;
+
     list.remove(last);
+
     return last;
 }
 
@@ -143,7 +151,9 @@ pub fn pop(list: *DoublyLinkedList) ?*Node {
 ///     A pointer to the first node in the list.
 pub fn popFirst(list: *DoublyLinkedList) ?*Node {
     const first = list.first orelse return null;
+
     list.remove(first);
+
     return first;
 }
 
@@ -154,7 +164,9 @@ pub fn popFirst(list: *DoublyLinkedList) ?*Node {
 pub fn len(list: DoublyLinkedList) usize {
     var count: usize = 0;
     var it: ?*const Node = list.first;
+
     while (it) |n| : (it = n.next) count += 1;
+
     return count;
 }
 
@@ -163,6 +175,7 @@ test "basics" {
         data: u32,
         node: DoublyLinkedList.Node = .{},
     };
+
     var list: DoublyLinkedList = .{};
 
     var one: L = .{ .data = 1 };
@@ -181,9 +194,12 @@ test "basics" {
     {
         var it = list.first;
         var index: u32 = 1;
+
         while (it) |node| : (it = node.next) {
             const l: *L = @fieldParentPtr("node", node);
+
             try testing.expect(l.data == index);
+
             index += 1;
         }
     }
@@ -192,15 +208,19 @@ test "basics" {
     {
         var it = list.last;
         var index: u32 = 1;
+
         while (it) |node| : (it = node.prev) {
             const l: *L = @fieldParentPtr("node", node);
+
             try testing.expect(l.data == (6 - index));
+
             index += 1;
         }
     }
 
     _ = list.popFirst(); // {2, 3, 4, 5}
     _ = list.pop(); // {2, 3, 4}
+
     list.remove(&three.node); // {2, 4}
 
     try testing.expect(@as(*L, @fieldParentPtr("node", list.first.?)).data == 2);
@@ -213,6 +233,7 @@ test "concatenation" {
         data: u32,
         node: DoublyLinkedList.Node = .{},
     };
+
     var list1: DoublyLinkedList = .{};
     var list2: DoublyLinkedList = .{};
 
@@ -227,7 +248,6 @@ test "concatenation" {
     list2.append(&three.node);
     list2.append(&four.node);
     list2.append(&five.node);
-
     list1.concatByMoving(&list2);
 
     try testing.expect(list1.last == &five.node);
@@ -240,9 +260,12 @@ test "concatenation" {
     {
         var it = list1.first;
         var index: u32 = 1;
+
         while (it) |node| : (it = node.next) {
             const l: *L = @fieldParentPtr("node", node);
+
             try testing.expect(l.data == index);
+
             index += 1;
         }
     }
@@ -251,9 +274,12 @@ test "concatenation" {
     {
         var it = list1.last;
         var index: u32 = 1;
+
         while (it) |node| : (it = node.prev) {
             const l: *L = @fieldParentPtr("node", node);
+
             try testing.expect(l.data == (6 - index));
+
             index += 1;
         }
     }
@@ -265,9 +291,12 @@ test "concatenation" {
     {
         var it = list2.first;
         var index: u32 = 1;
+
         while (it) |node| : (it = node.next) {
             const l: *L = @fieldParentPtr("node", node);
+
             try testing.expect(l.data == index);
+
             index += 1;
         }
     }
@@ -276,9 +305,12 @@ test "concatenation" {
     {
         var it = list2.last;
         var index: u32 = 1;
+
         while (it) |node| : (it = node.prev) {
             const l: *L = @fieldParentPtr("node", node);
+
             try testing.expect(l.data == (6 - index));
+
             index += 1;
         }
     }

@@ -12,7 +12,6 @@ const Ratio = stdx.PRNG.Ratio;
 pub const RepairBudgetJournal = struct {
     capacity: u32,
     available: u32,
-
     replica_index: u8,
 
     // Tracks the prepare ops requested from each remote replica.
@@ -68,19 +67,23 @@ pub const RepairBudgetJournal = struct {
             options.replica_count - @intFromBool(options.replica_index < options.replica_count);
 
         var replicas_requested_prepares = try gpa.alloc(RequestedPrepares, options.replica_count);
+
         errdefer gpa.free(replicas_requested_prepares);
 
         for (replicas_requested_prepares, 0..) |*requested_prepares, replica| {
             errdefer for (replicas_requested_prepares[0..replica]) |*m| m.deinit(gpa);
+
             requested_prepares.* = .{};
 
             try requested_prepares.ensureTotalCapacity(gpa, repair_messages_inflight_count_max);
+
             errdefer requested_prepares.deinit(gpa);
         }
 
         errdefer for (replicas_requested_prepares) |*m| m.deinit(gpa);
 
         const replicas_repair_latency = try gpa.alloc(stdx.Duration, options.replica_count);
+
         errdefer gpa.free(replicas_repair_latency);
 
         // Initialize repair latency to 1 ms for all replicas, this gets refined as we start
@@ -101,6 +104,7 @@ pub const RepairBudgetJournal = struct {
         for (budget.replicas_requested_prepares) |*requested_prepares| {
             requested_prepares.deinit(gpa);
         }
+
         gpa.free(budget.replicas_requested_prepares);
         gpa.free(budget.replicas_repair_latency);
     }
@@ -119,10 +123,13 @@ pub const RepairBudgetJournal = struct {
         maybe(budget.available == 0);
 
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         const experiment = prng.chance(budget.experiment_chance);
+
         var experiment_replica_index: ?u8 = null;
+
         var reservoir = stdx.PRNG.Reservoir.init();
 
         var repair_latency_min: ?stdx.Duration = null;
@@ -149,6 +156,7 @@ pub const RepairBudgetJournal = struct {
                 experiment_replica_index = @intCast(replica_index);
             }
         }
+
         assert((repair_latency_min == null) == (repair_latency_min_replica_index == null));
         assert((repair_latency_min_replica_index == null) == (experiment_replica_index == null));
 
@@ -159,7 +167,9 @@ pub const RepairBudgetJournal = struct {
 
         if (replica_index_maybe) |replica_index| {
             assert(replica_index != budget.replica_index);
+
             budget.replicas_requested_prepares[replica_index].putAssumeCapacityNoClobber(op, now);
+
             budget.available -= 1;
         }
 
@@ -170,6 +180,7 @@ pub const RepairBudgetJournal = struct {
     /// Also refines the repair latency for each of these replicas.
     pub fn increment(budget: *RepairBudgetJournal, op: u64, now: stdx.Instant) void {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         for (budget.replicas_requested_prepares, 0..) |*requested_prepares, replica_index| {
@@ -194,11 +205,13 @@ pub const RepairBudgetJournal = struct {
 
     pub fn refill(budget: *RepairBudgetJournal) void {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         for (budget.replicas_requested_prepares) |*requested_prepares| {
             requested_prepares.clearRetainingCapacity();
         }
+
         budget.available = budget.capacity;
     }
 
@@ -212,6 +225,7 @@ pub const RepairBudgetJournal = struct {
     /// for twice the measured repair latency.
     pub fn reap_expired_requests(budget: *RepairBudgetJournal, now: stdx.Instant) void {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         for (budget.replicas_requested_prepares, 0..) |*requested_prepares, replica_index| {
@@ -220,17 +234,21 @@ pub const RepairBudgetJournal = struct {
             while (requested_prepares_index < requested_prepares.entries.len) {
                 const requested_at = requested_prepares.values()[requested_prepares_index];
                 const duration_since_requested_at = requested_at.elapsed(now);
+
                 const duration_expiry_ns = @min(
                     budget.repair_latency_multiple_expiry *
                         budget.replicas_repair_latency[replica_index].ns,
                     budget.duration_expiry_max.ns,
                 );
+
                 if (duration_since_requested_at.ns > duration_expiry_ns) {
                     requested_prepares.swapRemoveAt(requested_prepares_index);
+
                     budget.replicas_repair_latency[replica_index] = ewma_add_duration(
                         budget.replicas_repair_latency[replica_index],
                         duration_since_requested_at,
                     );
+
                     budget.available += 1;
                 } else {
                     requested_prepares_index += 1;
@@ -241,14 +259,17 @@ pub const RepairBudgetJournal = struct {
 
     fn assert_invariants(budget: *const RepairBudgetJournal) void {
         assert(budget.available <= budget.capacity);
+
         if (budget.replica_index < budget.replicas_requested_prepares.len) {
             assert(budget.replicas_requested_prepares[budget.replica_index].count() == 0);
         }
 
         var requested_prepares_count: u32 = 0;
+
         for (budget.replicas_requested_prepares) |*requested_prepares| {
             requested_prepares_count += @intCast(requested_prepares.count());
         }
+
         assert(budget.capacity - budget.available == requested_prepares_count);
     }
 
@@ -297,15 +318,19 @@ pub const RepairBudgetGrid = struct {
             options.replica_count - @intFromBool(options.replica_index < options.replica_count);
 
         var replicas_requested_blocks = try gpa.alloc(RequestedBlocks, options.replica_count);
+
         errdefer gpa.free(replicas_requested_blocks);
 
         for (replicas_requested_blocks, 0..) |*requested_blocks, replica| {
             errdefer for (replicas_requested_blocks[0..replica]) |*m| m.deinit(gpa);
+
             requested_blocks.* = .{};
 
             try requested_blocks.ensureTotalCapacity(gpa, replica_blocks_requested_max);
+
             errdefer requested_blocks.deinit(gpa);
         }
+
         errdefer for (replicas_requested_blocks) |*m| m.deinit(gpa);
 
         return RepairBudgetGrid{
@@ -320,6 +345,7 @@ pub const RepairBudgetGrid = struct {
         for (budget.replicas_requested_blocks) |*requested_blocks| {
             requested_blocks.deinit(gpa);
         }
+
         gpa.free(budget.replicas_requested_blocks);
     }
 
@@ -331,6 +357,7 @@ pub const RepairBudgetGrid = struct {
         }
 
         var requested_blocks_count: u32 = 0;
+
         for (budget.replicas_requested_blocks) |*requested_blocks| {
             requested_blocks_count += @intCast(requested_blocks.count());
         }
@@ -340,11 +367,14 @@ pub const RepairBudgetGrid = struct {
 
     pub fn next_destination(budget: *RepairBudgetGrid, prng: *stdx.PRNG) ?u8 {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         const replica_count = budget.replicas_requested_blocks.len;
         var replica_indexes: [constants.replicas_max]u8 = undefined;
+
         for (replica_indexes[0..replica_count], 0..) |*replica, i| replica.* = @intCast(i);
+
         prng.shuffle(u8, replica_indexes[0..replica_count]);
 
         for (replica_indexes[0..replica_count]) |replica_index| {
@@ -354,6 +384,7 @@ pub const RepairBudgetGrid = struct {
                 return replica_index;
             }
         }
+
         return null;
     }
 
@@ -374,6 +405,7 @@ pub const RepairBudgetGrid = struct {
         now: stdx.Instant,
     ) bool {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         assert(budget.available > 0);
@@ -385,7 +417,9 @@ pub const RepairBudgetGrid = struct {
         for (budget.replicas_requested_blocks, 0..) |requested_blocks, index| {
             if (requested_blocks.get(block_identifier)) |requested_at| {
                 assert(index != budget.replica_index);
+
                 const duration_since_requested = requested_at.elapsed(now);
+
                 if (duration_since_requested_min == null or
                     duration_since_requested.ns < duration_since_requested_min.?.ns)
                 {
@@ -404,6 +438,7 @@ pub const RepairBudgetGrid = struct {
         assert(replica_requested_blocks.count() < replica_blocks_requested_max);
 
         const gop = replica_requested_blocks.getOrPutAssumeCapacity(block_identifier);
+
         gop.value_ptr.* = now;
 
         if (!gop.found_existing) budget.available -= 1;
@@ -413,6 +448,7 @@ pub const RepairBudgetGrid = struct {
 
     pub fn increment(budget: *RepairBudgetGrid, block_identifier: vsr.BlockReference) void {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         // We have no information about the replica that sent
@@ -432,6 +468,7 @@ pub const RepairBudgetGrid = struct {
 
     pub fn refill(budget: *RepairBudgetGrid) void {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         budget.available = budget.capacity;
@@ -443,6 +480,7 @@ pub const RepairBudgetGrid = struct {
 
     pub fn reap_expired_requests(budget: *RepairBudgetGrid, now: stdx.Instant) void {
         budget.assert_invariants();
+
         defer budget.assert_invariants();
 
         for (budget.replicas_requested_blocks) |*requested_blocks| {
@@ -454,6 +492,7 @@ pub const RepairBudgetGrid = struct {
 
                 if (duration_since_requested_at.ns > duration_expiry.ns) {
                     requested_blocks.swapRemoveAt(requested_blocks_index);
+
                     budget.available += 1;
                 } else {
                     requested_blocks_index += 1;

@@ -124,6 +124,7 @@ buffer: []u8,
 statsd: StatsD,
 
 events_started: [EventTracing.stack_count]?stdx.Instant = @splat(null),
+
 events_metric: []?EventMetricAggregate,
 events_timing: []?EventTimingAggregate,
 
@@ -133,6 +134,7 @@ log_trace: bool,
 
 pub const ProcessID = union(enum) {
     unknown,
+
     replica: struct {
         cluster: u128,
         replica: u8,
@@ -146,6 +148,7 @@ pub const ProcessID = union(enum) {
     ) !void {
         _ = fmt;
         _ = options;
+
         try switch (self) {
             .unknown => writer.writeByte('_'),
             .replica => |replica| try writer.print("{d}", .{replica.replica}),
@@ -163,6 +166,7 @@ pub const ProcessID = union(enum) {
 pub const Options = struct {
     /// The tracer still validates start/stop state even when writer=null.
     writer: ?std.io.AnyWriter = null,
+
     statsd_options: union(enum) {
         log,
         udp: struct {
@@ -170,6 +174,7 @@ pub const Options = struct {
             address: stdx.SocketAddress,
         },
     } = .log,
+
     log_trace: bool = true,
 };
 
@@ -184,6 +189,7 @@ pub fn init(
     }
 
     const buffer = try allocator.alloc(u8, trace_span_size_max);
+
     errdefer allocator.free(buffer);
 
     var statsd = try switch (options.statsd_options) {
@@ -195,16 +201,21 @@ pub fn init(
             statsd_options.address,
         ),
     };
+
     errdefer statsd.deinit(allocator);
 
     const events_metric =
         try allocator.alloc(?EventMetricAggregate, EventMetric.slot_count);
+
     errdefer allocator.free(events_metric);
+
     @memset(events_metric, null);
 
     const events_timing =
         try allocator.alloc(?EventTimingAggregate, EventTiming.slot_count);
+
     errdefer allocator.free(events_timing);
+
     @memset(events_timing, null);
 
     return .{
@@ -228,6 +239,7 @@ pub fn deinit(tracer: *Tracer, allocator: std.mem.Allocator) void {
     allocator.free(tracer.events_metric);
     tracer.statsd.deinit(allocator);
     allocator.free(tracer.buffer);
+
     tracer.* = undefined;
 }
 
@@ -237,6 +249,7 @@ pub fn set_replica(tracer: *Tracer, options: struct { cluster: u128, replica: u8
         .cluster = options.cluster,
         .replica = options.replica,
     } };
+
     tracer.process_id = process_id;
     tracer.statsd.process_id = process_id;
 }
@@ -247,6 +260,7 @@ pub fn set_replica(tracer: *Tracer, options: struct { cluster: u128, replica: u8
 // requiring an @intCast and checks at every call site is cumbersome.
 pub fn gauge(tracer: *Tracer, event: EventMetric, value: i65) void {
     const timing_slot = event.slot();
+
     tracer.events_metric[timing_slot] = .{
         .event = event,
         .value = value,
@@ -256,6 +270,7 @@ pub fn gauge(tracer: *Tracer, event: EventMetric, value: i65) void {
 /// Counters are cumulative values that only increase.
 pub fn count(tracer: *Tracer, event: EventMetric, value: u64) void {
     const timing_slot = event.slot();
+
     if (tracer.events_metric[timing_slot]) |*metric| {
         metric.value +|= value;
     } else {
@@ -270,10 +285,10 @@ pub fn start(tracer: *Tracer, event: Event) void {
     const event_tracing = event.as(EventTracing);
     const event_timing = event.as(EventTiming);
     const stack = event_tracing.stack();
-
     const time_now = tracer.time.monotonic();
 
     assert(tracer.events_started[stack] == null);
+
     tracer.events_started[stack] = time_now;
 
     if (event_tracing.aggregate_only()) {
@@ -318,6 +333,7 @@ pub fn start(tracer: *Tracer, event: Event) void {
             event_tracing,
             event_timing,
         });
+
         return;
     };
 
@@ -338,6 +354,7 @@ pub fn stop(tracer: *Tracer, event: Event) void {
     const event_duration = event_start.elapsed(event_end);
 
     assert(tracer.events_started[stack] != null);
+
     tracer.events_started[stack] = null;
 
     tracer.timing(event_timing, event_duration);
@@ -368,6 +385,7 @@ pub fn cancel(tracer: *Tracer, event_tag: Event.Tag) void {
     const stack_base = EventTracing.stack_bases.get(event_tag);
     const cardinality = EventTracing.stack_limits.get(event_tag);
     const event_end = tracer.time.monotonic();
+
     for (stack_base..stack_base + cardinality) |stack| {
         if (tracer.events_started[stack]) |_| {
             if (tracer.log_trace) {
@@ -377,6 +395,7 @@ pub fn cancel(tracer: *Tracer, event_tag: Event.Tag) void {
             const event_duration = tracer.time_start.elapsed(event_end);
 
             tracer.events_started[stack] = null;
+
             tracer.write_stop(@intCast(stack), event_duration);
         }
     }
@@ -408,6 +427,7 @@ fn write_stop(tracer: *Tracer, stack: u32, time_elapsed: stdx.Duration) void {
 
 pub fn emit_metrics(tracer: *Tracer) void {
     tracer.start(.metrics_emit);
+
     defer tracer.stop(.metrics_emit);
 
     const metrics_statsd_packets = tracer.statsd.emit(
@@ -443,6 +463,7 @@ pub fn timing(tracer: *Tracer, event_timing: EventTiming, duration: Duration) vo
         assert(std.meta.eql(event_timing_existing.event, event_timing));
 
         const timing_existing = event_timing_existing.values;
+
         event_timing_existing.values = .{
             .duration_min = timing_existing.duration_min.min(duration),
             .duration_max = timing_existing.duration_max.max(duration),
@@ -466,10 +487,12 @@ pub fn timing(tracer: *Tracer, event_timing: EventTiming, duration: Duration) vo
 /// Perhaps thresholds should be runtime-configurable in main, but let's simply hard-code for now.
 pub fn timing_warn(tracer: *Tracer, event_timing: EventTiming, duration: Duration) void {
     const fast = comptime builtin.target.os.tag == .linux and builtin.mode != .Debug;
+
     const threshold: Duration = switch (event_timing) {
         .loop_run_for_ns => if (fast) .ms(50) else .ms(500),
         else => return,
     };
+
     if (duration.ns >= threshold.ns) {
         log.warn("{}: timing: {s} too slow ({} > {})", .{
             tracer.process_id,
@@ -488,6 +511,7 @@ test "trace json and statsd" {
     const gpa = std.testing.allocator;
 
     var trace_buffer: std.ArrayListUnmanaged(u8) = .empty;
+
     defer trace_buffer.deinit(gpa);
 
     var time_sim = fixtures.init_time(.{});
@@ -496,21 +520,28 @@ test "trace json and statsd" {
         .writer = trace_buffer.writer(gpa).any(),
         .process_id = .unknown,
     });
+
     defer trace.deinit(gpa);
 
     // Check that JSON is valid even while process id not known.
     trace.start(.metrics_emit);
+
     time_sim.ticks += 10;
+
     trace.stop(.metrics_emit);
-
     trace.set_replica(.{ .cluster = 1, .replica = 1 });
-
     trace.start(.{ .replica_commit = .{ .stage = .idle, .op = 123 } });
+
     time_sim.ticks += 1;
+
     trace.start(.{ .compact_beat = .{ .tree = @enumFromInt(1), .level_b = 1 } });
+
     time_sim.ticks += 2;
+
     trace.stop(.{ .compact_beat = .{ .tree = @enumFromInt(1), .level_b = 1 } });
+
     time_sim.ticks += 3;
+
     trace.stop(.{ .replica_commit = .{ .stage = .idle, .op = 456 } });
 
     try snap(@src(),
@@ -525,13 +556,15 @@ test "trace json and statsd" {
     ).diff(trace_buffer.items);
 
     trace.start(.metrics_emit);
+
     time_sim.ticks += 1;
-    trace.stop(.metrics_emit);
 
+    trace.stop(.metrics_emit);
     trace.start(.metrics_emit);
-    time_sim.ticks += 5;
-    trace.stop(.metrics_emit);
 
+    time_sim.ticks += 5;
+
+    trace.stop(.metrics_emit);
     trace.emit_metrics();
 
     try snap(@src(),
@@ -559,12 +592,14 @@ test "timing overflow" {
 
     var time_sim = fixtures.init_time(.{});
     var trace = try fixtures.init_tracer(gpa, time_sim.time(), .{});
+
     defer trace.deinit(gpa);
 
     trace.set_replica(.{ .cluster = 0, .replica = 0 });
 
     const event: EventTiming = .replica_aof_write;
     const value: Duration = .{ .ns = std.math.maxInt(u64) - 1 };
+
     trace.timing(event, value);
     trace.timing(event, value);
 

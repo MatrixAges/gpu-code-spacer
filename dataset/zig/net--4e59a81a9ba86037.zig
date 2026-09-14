@@ -71,24 +71,32 @@ pub const IpAddress = union(enum) {
     /// mandatory.
     pub fn parseLiteral(text: []const u8) ParseLiteralError!IpAddress {
         if (text.len == 0) return error.InvalidAddress;
+
         if (text[0] == '[') {
             const addr_end = std.mem.findScalar(u8, text, ']') orelse
                 return error.InvalidAddress;
+
             const addr_text = text[1..addr_end];
+
             const port: u16 = p: {
                 if (addr_end == text.len - 1) break :p 0;
                 if (text[addr_end + 1] != ':') return error.InvalidAddress;
+
                 break :p std.fmt.parseInt(u16, text[addr_end + 2 ..], 10) catch return error.InvalidPort;
             };
+
             return parseIp6(addr_text, port) catch error.InvalidAddress;
         }
+
         if (std.mem.findScalar(u8, text, ':')) |i| {
             const addr = Ip4Address.parse(text[0..i], 0) catch return error.InvalidAddress;
+
             return .{ .ip4 = .{
                 .bytes = addr.bytes,
                 .port = std.fmt.parseInt(u16, text[i + 1 ..], 10) catch return error.InvalidPort,
             } };
         }
+
         return parseIp4(text, 0) catch error.InvalidAddress;
     }
 
@@ -222,6 +230,7 @@ pub const IpAddress = union(enum) {
         /// Sets SO_REUSEADDR and SO_REUSEPORT on POSIX.
         /// Sets SO_REUSEADDR on Windows, which is roughly equivalent.
         reuse_address: bool = false,
+
         /// Only connection-oriented modes may be used here, which includes:
         /// * `Socket.Mode.stream`
         /// * `Socket.Mode.seqpacket`
@@ -269,6 +278,7 @@ pub const IpAddress = union(enum) {
         /// In this case, an IPv4 and an IPv6 application can bind to a single port
         /// at the same time.
         ip6_only: bool = false,
+
         mode: Socket.Mode,
         protocol: ?Protocol = null,
     };
@@ -327,6 +337,7 @@ pub const IpAddress = union(enum) {
 /// An IPv4 address in binary memory layout.
 pub const Ip4Address = struct {
     bytes: [4]u8,
+
     port: u16,
 
     pub fn loopback(port: u16) Ip4Address {
@@ -356,10 +367,12 @@ pub const Ip4Address = struct {
         var index: u8 = 0;
         var saw_any_digits = false;
         var has_zero_prefix = false;
+
         for (buffer) |c| switch (c) {
             '.' => {
                 if (!saw_any_digits) return error.InvalidCharacter;
                 if (index == 3) return error.InvalidEnd;
+
                 index += 1;
                 saw_any_digits = false;
                 has_zero_prefix = false;
@@ -370,27 +383,33 @@ pub const Ip4Address = struct {
                 } else if (has_zero_prefix) {
                     return error.NonCanonical;
                 }
+
                 saw_any_digits = true;
+
                 bytes[index] = try std.math.mul(u8, bytes[index], 10);
                 bytes[index] = try std.math.add(u8, bytes[index], c - '0');
             },
             else => return error.InvalidCharacter,
         };
+
         if (index == 3 and saw_any_digits) return .{
             .bytes = bytes,
             .port = port,
         };
+
         return error.Incomplete;
     }
 
     pub fn format(a: Ip4Address, w: *Io.Writer) Io.Writer.Error!void {
         const bytes = &a.bytes;
+
         try w.print("{d}.{d}.{d}.{d}:{d}", .{ bytes[0], bytes[1], bytes[2], bytes[3], a.port });
     }
 
     pub fn eql(a: Ip4Address, b: Ip4Address) bool {
         const a_int: u32 = @bitCast(a.bytes);
         const b_int: u32 = @bitCast(b.bytes);
+
         return a.port == b.port and a_int == b_int;
     }
 };
@@ -399,13 +418,16 @@ pub const Ip4Address = struct {
 pub const Ip6Address = struct {
     /// Native endian
     port: u16,
+
     /// Big endian
     bytes: [16]u8,
+
     flow: u32 = 0,
     interface: Interface = .none,
 
     pub const Policy = struct {
         addr: [16]u8,
+
         len: u8,
         mask: u8,
         prec: u8,
@@ -429,6 +451,7 @@ pub const Ip6Address = struct {
     /// Constructs an IPv4-mapped IPv6 address.
     pub fn fromIp4(ip4: Ip4Address) Ip6Address {
         const b = &ip4.bytes;
+
         return .{
             .bytes = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, b[0], b[1], b[2], b[3] },
             .port = ip4.port,
@@ -464,16 +487,21 @@ pub const Ip6Address = struct {
 
         pub fn parse(text: []const u8) Parsed {
             if (text.len < 2) return .incomplete;
+
             const ip4_prefix = "::ffff:";
+
             if (std.ascii.startsWithIgnoreCase(text, ip4_prefix)) {
                 const parsed = Ip4Address.parse(text[ip4_prefix.len..], 0) catch
                     return .{ .invalid_ip4_mapping = ip4_prefix.len };
+
                 const b = parsed.bytes;
+
                 return .{ .success = .{
                     .bytes = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, b[0], b[1], b[2], b[3] },
                     .interface_name = null,
                 } };
             }
+
             // Has to be u16 elements to handle 3-digit hex numbers from compression.
             var parts: [8]u16 = @splat(0);
             var parts_i: u8 = 0;
@@ -481,76 +509,108 @@ pub const Ip6Address = struct {
             var digit_i: u8 = 0;
             var compress_start: ?u8 = null;
             var interface_name_text: ?[]const u8 = null;
+
             const State = union(enum) { digit, end };
+
             state: switch (State.digit) {
                 .digit => c: switch (text[text_i]) {
                     'a'...'f' => |c| {
                         const digit = c - 'a' + 10;
+
                         parts[parts_i] = (std.math.mul(u16, parts[parts_i], 16) catch return .{
                             .overflow = text_i,
                         }) + digit;
+
                         if (digit_i == 4) return .{ .invalid_byte = text_i };
+
                         digit_i += 1;
                         text_i += 1;
+
                         if (text.len - text_i == 0) {
                             parts_i += 1;
+
                             continue :state .end;
                         }
+
                         continue :c text[text_i];
                     },
                     'A'...'F' => |c| continue :c c - 'A' + 'a',
                     '0'...'9' => |c| {
                         const digit = c - '0';
+
                         parts[parts_i] = (std.math.mul(u16, parts[parts_i], 16) catch return .{
                             .overflow = text_i,
                         }) + digit;
+
                         if (digit_i == 4) return .{ .invalid_byte = text_i };
+
                         digit_i += 1;
                         text_i += 1;
+
                         if (text.len - text_i == 0) {
                             parts_i += 1;
+
                             continue :state .end;
                         }
+
                         continue :c text[text_i];
                     },
                     ':' => {
                         if (digit_i == 0) {
                             if (compress_start != null) return .{ .invalid_byte = text_i };
+
                             if (text_i == 0) {
                                 text_i += 1;
+
                                 if (text[text_i] != ':') return .{ .invalid_byte = text_i };
+
                                 assert(parts_i == 0);
                             }
+
                             compress_start = parts_i;
                             text_i += 1;
+
                             if (text.len - text_i == 0) continue :state .end;
+
                             continue :c text[text_i];
                         } else {
                             parts_i += 1;
+
                             if (parts.len - parts_i == 0) continue :state .end;
+
                             digit_i = 0;
                             text_i += 1;
+
                             if (text.len - text_i == 0) return .incomplete;
+
                             continue :c text[text_i];
                         }
                     },
                     '%' => {
                         if (digit_i == 0) return .{ .invalid_byte = text_i };
+
                         parts_i += 1;
                         text_i += 1;
+
                         const name = text[text_i..];
+
                         if (name.len == 0) return .incomplete;
+
                         interface_name_text = name;
                         text_i = @intCast(text.len);
+
                         continue :state .end;
                     },
                     else => return .{ .invalid_byte = text_i },
                 },
                 .end => {
                     if (text.len - text_i != 0) return .{ .junk_after_end = text_i };
+
                     const remaining = parts.len - parts_i;
+
                     if (compress_start) |s| {
                         const src = parts[s..parts_i];
+
                         @memmove(parts[parts.len - src.len ..], src);
                         @memset(parts[s..][0..remaining], 0);
                     } else {
@@ -578,6 +638,7 @@ pub const Ip6Address = struct {
                 .bytes = a.bytes,
                 .interface_name = null,
             };
+
             return .{
                 .bytes = a.bytes,
                 .interface_name = try a.interface.name(io),
@@ -586,6 +647,7 @@ pub const Ip6Address = struct {
 
         pub fn format(u: *const Unresolved, w: *Io.Writer) Io.Writer.Error!void {
             const bytes = &u.bytes;
+
             if (std.mem.eql(u8, bytes[0..12], &[_]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff })) {
                 try w.print("::ffff:{d}.{d}.{d}.{d}", .{ bytes[12], bytes[13], bytes[14], bytes[15] });
             } else {
@@ -611,7 +673,9 @@ pub const Ip6Address = struct {
                         if (current_len == 0) {
                             current_start = i;
                         }
+
                         current_len += 1;
+
                         if (current_len > longest_len) {
                             longest_start = current_start;
                             longest_len = current_len;
@@ -629,25 +693,33 @@ pub const Ip6Address = struct {
 
                 var i: usize = 0;
                 var abbrv = false;
+
                 while (i < parts.len) : (i += 1) {
                     if (i == longest_start) {
                         // Emit "::" for the longest zero run
                         if (!abbrv) {
                             try w.writeAll(if (i == 0) "::" else ":");
+
                             abbrv = true;
                         }
+
                         i += longest_len - 1; // Skip the compressed range
+
                         continue;
                     }
+
                     if (abbrv) {
                         abbrv = false;
                     }
+
                     try w.print("{x}", .{parts[i]});
+
                     if (i != parts.len - 1) {
                         try w.writeAll(":");
                     }
                 }
             }
+
             if (u.interface_name) |n| try w.print("%{s}", .{n});
         }
     };
@@ -673,6 +745,7 @@ pub const Ip6Address = struct {
             },
             else => return error.ParseFailed,
         }
+
         return .{ .ip6 = try Ip6Address.parse(buffer, port) };
     }
 
@@ -696,6 +769,7 @@ pub const Ip6Address = struct {
                 .interface = i: {
                     const text = p.interface_name orelse break :i .none;
                     const name: Interface.Name = try .fromSlice(text);
+
                     break :i try name.resolve(io);
                 },
             },
@@ -711,6 +785,7 @@ pub const Ip6Address = struct {
     /// not require an `Io` parameter.
     pub fn formatResolved(a: Ip6Address, io: Io, w: *Io.Writer) FormatError!void {
         const u: Unresolved = try .fromAddress(io);
+
         try w.print("[{f}]:{d}", .{ u, a.port });
     }
 
@@ -721,6 +796,7 @@ pub const Ip6Address = struct {
             .bytes = a.bytes,
             .interface_name = null,
         };
+
         try w.print("[{f}]:{d}", .{ u, a.port });
     }
 
@@ -734,11 +810,13 @@ pub const Ip6Address = struct {
 
     pub fn isLinkLocal(a: Ip6Address) bool {
         const b = &a.bytes;
+
         return b[0] == 0xfe and (b[1] & 0xc0) == 0x80;
     }
 
     pub fn isLoopBack(a: Ip6Address) bool {
         const b = &a.bytes;
+
         return b[0] == 0 and b[1] == 0 and
             b[2] == 0 and
             b[12] == 0 and b[13] == 0 and
@@ -747,16 +825,20 @@ pub const Ip6Address = struct {
 
     pub fn isSiteLocal(a: Ip6Address) bool {
         const b = &a.bytes;
+
         return b[0] == 0xfe and (b[1] & 0xc0) == 0xc0;
     }
 
     pub fn policy(a: Ip6Address) *const Policy {
         const b = &a.bytes;
+
         for (&defined_policies) |*p| {
             if (!std.mem.eql(u8, b[0..p.len], p.addr[0..p.len])) continue;
             if ((b[p.len] & p.mask) != p.addr[p.len]) continue;
+
             return p;
         }
+
         unreachable;
     }
 
@@ -765,6 +847,7 @@ pub const Ip6Address = struct {
         if (isLinkLocal(a)) return 2;
         if (isLoopBack(a)) return 2;
         if (isSiteLocal(a)) return 5;
+
         return 14;
     }
 
@@ -830,6 +913,7 @@ pub const UnixAddress = struct {
 
     pub fn init(p: []const u8) InitError!UnixAddress {
         if (p.len > max_len) return error.NameTooLong;
+
         return .{ .path = p };
     }
 
@@ -858,6 +942,7 @@ pub const UnixAddress = struct {
 
     pub fn listen(ua: *const UnixAddress, io: Io, options: ListenOptions) ListenError!Server {
         assert(ua.path.len <= max_len);
+
         return .{ .socket = .{
             .handle = try io.vtable.netListenUnix(io.userdata, ua, options),
             .address = .{ .ip4 = .loopback(0) },
@@ -884,6 +969,7 @@ pub const UnixAddress = struct {
 
     pub fn connect(ua: *const UnixAddress, io: Io) ConnectError!Stream {
         assert(ua.path.len <= max_len);
+
         return .{ .socket = .{
             .handle = try io.vtable.netConnectUnix(io.userdata, ua),
             .address = .{ .ip4 = .loopback(0) },
@@ -901,11 +987,13 @@ pub const ReceiveFlags = packed struct(u8) {
 pub const IncomingMessage = struct {
     /// Populated by receive functions.
     from: IpAddress,
+
     /// Populated by receive functions, points into the caller-supplied buffer.
     data: []u8,
     /// Supplied by caller before calling receive functions; mutated by receive
     /// functions.
     control: []u8,
+
     /// Populated by receive functions.
     flags: Flags,
 
@@ -939,9 +1027,11 @@ pub const IncomingMessage = struct {
 pub const OutgoingMessage = struct {
     address: *const IpAddress,
     data_ptr: [*]const u8,
+
     /// Initialized with how many bytes of `data_ptr` to send. After sending
     /// succeeds, replaced with how many bytes were actually sent.
     data_len: usize,
+
     control: []const u8 = &.{},
 };
 
@@ -971,15 +1061,20 @@ pub const Interface = struct {
 
         pub fn fromSlice(bytes: []const u8) error{NameTooLong}!Name {
             if (bytes.len > max_len) return error.NameTooLong;
+
             return .fromSliceUnchecked(bytes);
         }
 
         /// Asserts bytes.len fits in `max_len`.
         pub fn fromSliceUnchecked(bytes: []const u8) Name {
             assert(bytes.len <= max_len);
+
             var result: Name = undefined;
+
             @memcpy(result.bytes[0..bytes.len], bytes);
+
             result.bytes[bytes.len] = 0;
+
             return result;
         }
 
@@ -1002,6 +1097,7 @@ pub const Interface = struct {
     /// Corresponds to "if_indextoname" in libc.
     pub fn name(i: Interface, io: Io) NameError!Name {
         assert(i.index != 0);
+
         return io.vtable.netInterfaceName(io.userdata, i);
     }
 
@@ -1085,6 +1181,7 @@ pub const Socket = struct {
     pub fn send(s: *const Socket, io: Io, dest: *const IpAddress, data: []const u8) SendError!void {
         var message: OutgoingMessage = .{ .address = dest, .data_ptr = data.ptr, .data_len = data.len };
         const err, const n = io.vtable.netSend(io.userdata, s.handle, (&message)[0..1], .{});
+
         if (n != 1) return err.?;
         if (message.data_len != data.len) return error.MessageOversize;
     }
@@ -1120,12 +1217,15 @@ pub const Socket = struct {
     pub fn receive(s: *const Socket, io: Io, buffer: []u8) ReceiveError!IncomingMessage {
         var message: IncomingMessage = .init;
         const maybe_err, const count = io.vtable.netReceive(io.userdata, s.handle, (&message)[0..1], buffer, .{}, .none);
+
         if (maybe_err) |err| switch (err) {
             // No timeout is passed to `netReceieve`, so it must not return timeout related errors.
             error.Timeout, error.UnsupportedClock => unreachable,
             else => |e| return e,
         };
+
         assert(1 == count);
+
         return message;
     }
 
@@ -1146,8 +1246,11 @@ pub const Socket = struct {
     ) ReceiveTimeoutError!IncomingMessage {
         var message: IncomingMessage = .init;
         const maybe_err, const count = io.vtable.netReceive(io.userdata, s.handle, (&message)[0..1], buffer, .{}, timeout);
+
         if (maybe_err) |err| return err;
+
         assert(1 == count);
+
         return message;
     }
 
@@ -1224,7 +1327,9 @@ pub const Stream = struct {
             const dest = limit.slice(try io_w.writableSliceGreedy(1));
             var data: [1][]u8 = .{dest};
             const n = try readVec(io_r, &data);
+
             io_w.advance(n);
+
             return n;
         }
 
@@ -1234,18 +1339,25 @@ pub const Stream = struct {
             var iovecs_buffer: [max_iovecs_len][]u8 = undefined;
             const dest_n, const data_size = try io_r.writableVector(&iovecs_buffer, data);
             const dest = iovecs_buffer[0..dest_n];
+
             assert(dest[0].len > 0);
+
             const n = io.vtable.netRead(io.userdata, r.stream.socket.handle, dest) catch |err| {
                 r.err = err;
+
                 return error.ReadFailed;
             };
+
             if (n == 0) {
                 return error.EndOfStream;
             }
+
             if (n > data_size) {
                 r.interface.end += n - data_size;
+
                 return data_size;
             }
+
             return n;
         }
     };
@@ -1300,10 +1412,13 @@ pub const Stream = struct {
             const io = w.io;
             const buffered = io_w.buffered();
             const handle = w.stream.socket.handle;
+
             const n = io.vtable.netWrite(io.userdata, handle, buffered, data, splat) catch |err| {
                 w.err = err;
+
                 return error.WriteFailed;
             };
+
             return io_w.consume(n);
         }
     };
@@ -1322,6 +1437,7 @@ pub const Server = struct {
 
     pub fn deinit(s: *Server, io: Io) void {
         s.socket.close(io);
+
         s.* = undefined;
     }
 
@@ -1373,11 +1489,14 @@ fn testIp6ParseTransform(expected: []const u8, input: []const u8) !void {
         .success => |p| p,
         else => |x| {
             std.debug.print("failed to parse \"{s}\": {any}\n", .{ input, x });
+
             return error.TestFailed;
         },
     };
+
     var buffer: [100]u8 = undefined;
     const result = try std.fmt.bufPrint(&buffer, "{f}", .{ua});
+
     try std.testing.expectEqualStrings(expected, result);
 }
 

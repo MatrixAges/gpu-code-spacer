@@ -22,22 +22,28 @@ test "tidy" {
     var errors: Errors = .{};
 
     const shell = try Shell.create(gpa);
+
     defer shell.destroy();
 
     var counter: IdentifierCounter = try .init(gpa);
+
     defer counter.deinit(gpa);
 
     var dead_files_detector = DeadFilesDetector.init(gpa);
+
     defer dead_files_detector.deinit(gpa);
 
     // NB: all checks are intentionally implemented in a streaming fashion,
     // such that we only need to read the files once.
     const file_buffer = try gpa.alloc(u8, 1 * MiB);
+
     defer gpa.free(file_buffer);
 
     const paths = try list_file_paths(shell);
+
     for (paths) |file_path| {
         const source_file = try SourceFile.read(file_path, file_buffer);
+
         try tidy_file(gpa, &counter, source_file, &errors);
 
         if (source_file.has_extension(".zig")) {
@@ -48,6 +54,7 @@ test "tidy" {
     dead_files_detector.finish(&errors);
 
     if (errors.count > 0) return error.Untidy;
+
     assert(errors.count == 0);
 }
 
@@ -94,6 +101,7 @@ const Errors = struct {
 
     pub fn add_long_line(errors: *Errors, file: SourceFile, line_index: usize) void {
         const line_number = line_index + 1;
+
         errors.emit(
             "{s}:{d}: error: line exceeds 100 columns\n",
             .{ file.path, line_number },
@@ -114,6 +122,7 @@ const Errors = struct {
         function_name: []const u8,
     ) void {
         const line_number = line_index + 1;
+
         errors.emit(
             "{s}:{d}: error: type function name '{s}' should end in 'Type'\n",
             .{ file.path, line_number, function_name },
@@ -122,6 +131,7 @@ const Errors = struct {
 
     pub fn add_long_function(errors: *Errors, file: SourceFile, line_index: usize) void {
         const line_number = line_index + 1;
+
         errors.emit(
             "{s}:{d}: error: functions exceeds 70 lines\n",
             .{ file.path, line_number },
@@ -130,6 +140,7 @@ const Errors = struct {
 
     pub fn add_ambiguous_precedence(errors: *Errors, file: SourceFile, line_index: usize) void {
         const line_number = line_index + 1;
+
         errors.emit(
             "{s}:{d}: error: ambiguous operator precedence, add parenthesis\n",
             .{ file.path, line_number },
@@ -142,6 +153,7 @@ const Errors = struct {
 
     pub fn add_defer_newline(errors: *Errors, file: SourceFile, line_index: usize) void {
         const line_number = line_index + 1;
+
         errors.emit(
             "{s}:{d}: error: defer must be followed by a blank line\n",
             .{ file.path, line_number },
@@ -178,7 +190,9 @@ const Errors = struct {
 
     fn emit(errors: *Errors, comptime fmt: []const u8, args: anytype) void {
         comptime assert(fmt[fmt.len - 1] == '\n');
+
         errors.count += 1;
+
         if (errors.captured) |*captured| {
             captured.writer(std.testing.allocator).print(fmt, args) catch @panic("OOM");
         } else {
@@ -194,8 +208,11 @@ const SourceFile = struct {
     // NB: The return value borrows both path and buffer.
     fn read(path: []const u8, buffer: []u8) !SourceFile {
         const bytes_read = (try std.fs.cwd().readFile(path, buffer)).len;
+
         if (bytes_read >= buffer.len - 1) return error.FileTooLong;
+
         buffer[bytes_read] = 0;
+
         return .{
             .path = path,
             .text = buffer[0..bytes_read :0],
@@ -205,12 +222,14 @@ const SourceFile = struct {
     fn has_extension(file: SourceFile, extension: []const u8) bool {
         assert(extension.len > 0);
         assert(extension[0] == '.');
+
         return std.mem.endsWith(u8, file.path, extension);
     }
 
     // O(N), but only invoked on the cold path (when there are errors).
     fn line_number(file: SourceFile, offset: usize) usize {
         assert(offset <= file.text.len);
+
         // +1: Line _index_ is zero-based, line _number_ is one-based.
         return std.mem.count(u8, file.text[0..offset], "\n") + 1;
     }
@@ -223,17 +242,20 @@ fn tidy_file(
     errors: *Errors,
 ) Allocator.Error!void {
     tidy_control_characters(file, errors);
+
     if (file.has_extension(".zig")) {
         tidy_banned(file, errors);
         tidy_lines(file, errors);
         tidy_type_functions(file, errors);
 
         var tree = try std.zig.Ast.parse(gpa, file.text, .zig);
+
         defer tree.deinit(gpa);
 
         tidy_dead_declarations(file, &tree, counter, errors);
         tidy_ast(file, &tree, errors);
     }
+
     if (file.has_extension(".md")) {
         tidy_markdown_title(file, errors);
     }
@@ -243,20 +265,25 @@ fn check_tidy_file(file_path: []const u8, file_text: [:0]const u8, want: Snap) !
     const gpa = std.testing.allocator;
 
     var counter: IdentifierCounter = try .init(gpa);
+
     defer counter.deinit(gpa);
 
     var errors: Errors = .{ .captured = .{} };
+
     defer errors.captured.?.deinit(std.testing.allocator);
 
     try tidy_file(gpa, &counter, .{ .path = file_path, .text = file_text }, &errors);
+
     const got = errors.captured.?.items;
 
     try want.diff(got);
+
     assert(errors.count == std.mem.count(u8, got, "\n"));
 }
 
 fn tidy_control_characters(file: SourceFile, errors: *Errors) void {
     const binary_file_extensions: []const []const u8 = &.{ ".ico", ".png", ".webp" };
+
     for (binary_file_extensions) |extension| {
         if (file.has_extension(extension)) return;
     }
@@ -272,13 +299,16 @@ fn tidy_control_characters(file: SourceFile, errors: *Errors) void {
     };
 
     var remaining = file.text;
+
     while (mem.indexOfAny(u8, remaining, "\r\t")) |index| {
         const offset = index + (file.text.len - remaining.len);
+
         inline for (comptime std.meta.fieldNames(@TypeOf(allowed))) |field| {
             if (remaining[index] == field[0]) {
                 if (!@field(allowed, field)) {
                     errors.add_control_character(file, offset, field[0]);
                 }
+
                 break;
             }
         } else unreachable;
@@ -339,6 +369,7 @@ fn tidy_banned(file: SourceFile, errors: *Errors) void {
 
     for (ban_list) |ban_item| {
         const banned, const replacement = ban_item;
+
         if (std.mem.indexOf(u8, file.text, banned)) |offset| {
             errors.add_banned(file, offset, banned, replacement);
         }
@@ -351,7 +382,6 @@ fn tidy_banned(file: SourceFile, errors: *Errors) void {
         if (std.mem.indexOf(u8, file.text, banned)) |offset| {
             if (std.mem.startsWith(u8, file.text[offset..], "dbg(prefix: []const u8")) {
                 // Allow fn dbg( function definition.
-
             } else {
                 errors.add_banned_reminder(file, offset, banned);
             }
@@ -379,6 +409,7 @@ fn tidy_lines(file: SourceFile, errors: *Errors) void {
 
     var line_iterator = mem.splitScalar(u8, file.text, '\n');
     var line_index: u32 = 0;
+
     while (line_iterator.next()) |line| : (line_index += 1) {
         tidy_line(file, line, line_index, errors);
     }
@@ -386,6 +417,7 @@ fn tidy_lines(file: SourceFile, errors: *Errors) void {
 
 fn tidy_line(file: SourceFile, line: []const u8, line_index: usize, errors: *Errors) void {
     const line_length = tidy_line_length(line);
+
     if (line_length <= 100) return;
 
     if (tidy_line_link(line)) return;
@@ -397,6 +429,7 @@ fn tidy_line(file: SourceFile, line: []const u8, line_index: usize, errors: *Err
     // but we don't mind indentation in the source.
     if (tidy_line_raw_literal(line)) |string_value| {
         const string_value_length = tidy_line_length(string_value);
+
         if (string_value_length <= 100) return;
 
         if (std.mem.endsWith(u8, file.path, "state_machine_tests.zig") and
@@ -451,7 +484,9 @@ fn tidy_line_link(line: []const u8) bool {
 /// If a line is a `\\` string literal, extract its value.
 fn tidy_line_raw_literal(line: []const u8) ?[]const u8 {
     const indentation, const value = stdx.cut(line, "\\\\") orelse return null;
+
     for (indentation) |c| if (c != ' ') return null;
+
     return value;
 }
 
@@ -478,15 +513,20 @@ test tidy_lines {
 fn tidy_type_functions(file: SourceFile, errors: *Errors) void {
     var line_index: u32 = 0;
     var it = std.mem.splitScalar(u8, file.text, '\n');
+
     while (it.next()) |line| : (line_index += 1) {
         // Zig fmt enforces that the pattern `fn Foo(` is not split across multiple lines.
 
         const prefix, const suffix = stdx.cut(line, "fn ") orelse continue;
+
         // Not all `fn ` tokens are functions, some may be `callback_fn` for example.
         // Functions appear at the beginning of a line or after a whitespace.
         if (prefix.len > 0 and prefix[prefix.len - 1] != ' ') continue;
+
         const function_name, _ = stdx.cut(suffix, "(") orelse continue;
+
         if (function_name.len == 0) continue; // E.g: `*const fn (*anyopaque) void`.
+
         assert(function_name.len > 0);
 
         // Skipping naming convention that requires upper-case functions.
@@ -524,12 +564,15 @@ const IdentifierCounter = struct {
 
     pub fn init(gpa: Allocator) !IdentifierCounter {
         var counter: IdentifierCounter = .{};
+
         try counter.map.ensureTotalCapacity(gpa, file_identifier_count_max + 1);
+
         return counter;
     }
 
     pub fn deinit(counter: *IdentifierCounter, gpa: Allocator) void {
         counter.map.deinit(gpa);
+
         counter.* = undefined;
     }
 
@@ -548,6 +591,7 @@ const IdentifierCounter = struct {
         token_offset: u32,
     ) void {
         const gop = counter.map.getOrPutAssumeCapacity(token_text);
+
         if (counter.map.count() > file_identifier_count_max) @panic("file too large");
 
         if (gop.found_existing) {
@@ -555,10 +599,12 @@ const IdentifierCounter = struct {
             // const foo = std.foo;
             const between_tokens_text = tree.source[gop.value_ptr.offset..token_offset];
             const same_line_occurrence = mem.indexOfScalar(u8, between_tokens_text, '\n') == null;
+
             if (same_line_occurrence) return;
         }
 
         if (!gop.found_existing) gop.value_ptr.* = .{ .count = 0, .offset = 0 };
+
         gop.value_ptr.count += 1;
         gop.value_ptr.offset = token_offset;
     }
@@ -586,9 +632,11 @@ fn tidy_dead_declarations(
     errors: *Errors,
 ) void {
     assert(counter.empty());
+
     defer counter.clear();
 
     var identifier_start: ?Ast.ByteOffset = 0;
+
     inline for (.{ .fill, .check }) |phase| {
         next_token: for (
             tree.tokens.items(.tag),
@@ -597,12 +645,14 @@ fn tidy_dead_declarations(
         ) |tag, start, index_usize| {
             const index: Ast.TokenIndex = @intCast(index_usize);
             const identifier_start_previous = identifier_start;
+
             identifier_start = switch (tag) {
                 .identifier => start,
                 else => null,
             };
 
             const start_previous = identifier_start_previous orelse continue :next_token;
+
             const token_text = std.mem.trim(
                 u8,
                 tree.source[start_previous..start],
@@ -613,7 +663,9 @@ fn tidy_dead_declarations(
                 .fill => counter.record(tree, token_text, start),
                 .check => {
                     const usages = counter.get(token_text);
+
                     assert(usages >= 1);
+
                     if (usages == 1) {
                         if (tidy_dead_declarations_is_private_declaration(tree, index - 1)) {
                             errors.add_dead_declaration(file, token_text);
@@ -632,7 +684,9 @@ fn tidy_dead_declarations_is_private_declaration(
     token_index: Ast.TokenIndex,
 ) bool {
     assert(tree.tokens.items(.tag)[token_index] == .identifier);
+
     var declaration_keyword = false;
+
     for (0..4) |context_offset| {
         const context_tag = if (token_index - context_offset < 1)
             .eof
@@ -688,12 +742,14 @@ fn tidy_ast(
 
     const tags = tree.nodes.items(.tag);
     const datas = tree.nodes.items(.data);
+
     // We can implement this in a streaming fashion, but its more convenient to materialize all
     // functions. 1k functions per file should be enough even for TigerBeetle!
     var functions: [1024]struct {
         line_opening: usize,
         line_closing: usize,
     } = undefined;
+
     var functions_count: u32 = 0;
 
     for (tags, datas, 0..) |tag, data, node| {
@@ -710,16 +766,20 @@ fn tidy_ast(
                 .line_opening = line_opening,
                 .line_closing = line_closing,
             };
+
             functions_count += 1;
         }
+
         if (is_bin_op(tag)) { // Forbid mixing bitops and arithmetics without parentheses.
             inline for (.{ data.lhs, data.rhs }) |child| {
                 const tag_child = tags[child];
+
                 if ((is_bin_op_bitwise(tag) and is_bin_op_arithmetic(tag_child)) or
                     (is_bin_op_arithmetic(tag) and is_bin_op_bitwise(tag_child)))
                 {
                     const token_opening = tree.firstToken(@intCast(node));
                     const line_opening = tree.tokenLocation(0, token_opening).line;
+
                     errors.add_ambiguous_precedence(file, line_opening);
                 }
             }
@@ -744,6 +804,7 @@ fn tidy_ast(
             functions[index + 1].line_opening > f.line_closing)
         {
             const function_length = f.line_closing - f.line_opening + 1;
+
             if (function_length_red_zone.min < function_length and
                 function_length < function_length_red_zone.max)
             {
@@ -757,14 +818,17 @@ fn tidy_defer_newlines(file: SourceFile, tree: *const Ast, errors: *Errors) void
     const tags = tree.tokens.items(.tag);
 
     var index: usize = 0;
+
     while (index < tags.len) : (index += 1) {
         const tag = tags[index];
+
         if (tag != .keyword_defer) continue;
 
         const semicolon_index = tidy_defer_statement_end(tags, index) orelse continue;
         const semicolon_line = tree.tokenLocation(0, @intCast(semicolon_index)).line;
 
         var next_index = semicolon_index + 1;
+
         while (next_index < tags.len and
             tidy_is_comment_token(tags[next_index])) : (next_index += 1)
         {}
@@ -774,6 +838,7 @@ fn tidy_defer_newlines(file: SourceFile, tree: *const Ast, errors: *Errors) void
 
         const next_line = tree.tokenLocation(0, @intCast(next_index)).line;
         const next_tag = tags[next_index];
+
         if (next_tag == .r_brace or next_tag == .keyword_errdefer or next_tag == .keyword_defer) {
             continue;
         }
@@ -788,6 +853,7 @@ fn tidy_defer_statement_end(tags: []const std.zig.Token.Tag, defer_index: usize)
     var depth: i32 = 0;
 
     var index: usize = defer_index + 1;
+
     while (index < tags.len) : (index += 1) {
         switch (tags[index]) {
             .l_paren, .l_brace, .l_bracket => depth += 1,
@@ -803,6 +869,7 @@ fn tidy_defer_statement_end(tags: []const std.zig.Token.Tag, defer_index: usize)
                         if (tags[index + 1] == .semicolon) return index + 1;
                         if (tags[index + 1] == .keyword_else) continue;
                     }
+
                     return index; // defer { ... } without trailing semicolon.
                 },
                 else => {},
@@ -1110,12 +1177,16 @@ fn tidy_markdown_title(file: SourceFile, errors: *Errors) void {
     var heading_count: u32 = 0;
     var line_count: u32 = 0;
     var it = std.mem.splitScalar(u8, file.text, '\n');
+
     while (it.next()) |line| {
         line_count += 1;
+
         if (mem.startsWith(u8, line, "```")) fenced_block = !fenced_block;
         if (!fenced_block and mem.startsWith(u8, line, "# ")) heading_count += 1;
     }
+
     assert(!fenced_block);
+
     switch (heading_count) {
         // No need for a title for a short note.
         0 => if (line_count > 2) errors.add_invalid_markdown_title(file),
@@ -1141,6 +1212,7 @@ test tidy_markdown_title {
             \\
         ),
     );
+
     try check_tidy_file(
         \\bad.md
     ,
@@ -1181,12 +1253,16 @@ const DeadFilesDetector = struct {
 
     fn visit(detector: *DeadFilesDetector, file: SourceFile) Allocator.Error!void {
         assert(file.has_extension(".zig"));
+
         (try detector.file_state(file.path)).definition_count += 1;
 
         var rest: []const u8 = file.text;
+
         for (0..1024) |_| {
             _, rest = stdx.cut(rest, "@import(\"") orelse break;
+
             const import_path, rest = stdx.cut(rest, "\")").?;
+
             if (std.mem.endsWith(u8, import_path, ".zig")) {
                 (try detector.file_state(import_path)).import_count += 1;
             }
@@ -1202,6 +1278,7 @@ const DeadFilesDetector = struct {
             if (state.definition_count == 0) {
                 errors.add_file_untracked(&name);
             }
+
             if (state.import_count == 0 and !is_entry_point(name)) {
                 errors.add_file_dead(&name);
             }
@@ -1210,16 +1287,22 @@ const DeadFilesDetector = struct {
 
     fn file_state(detector: *DeadFilesDetector, path: []const u8) !*FileState {
         const gop = try detector.files.getOrPut(path_to_name(path));
+
         if (!gop.found_existing) gop.value_ptr.* = .{ .import_count = 0, .definition_count = 0 };
+
         return gop.value_ptr;
     }
 
     fn path_to_name(path: []const u8) FileName {
         assert(std.mem.endsWith(u8, path, ".zig"));
+
         const basename = std.fs.path.basename(path);
         var file_name: FileName = @splat(0);
+
         assert(basename.len <= file_name.len);
+
         stdx.copy_disjoint(.inexact, u8, &file_name, basename);
+
         return file_name;
     }
 
@@ -1255,9 +1338,11 @@ const DeadFilesDetector = struct {
             "vortex.zig",
             "zig_driver.zig",
         };
+
         for (entry_points) |entry_point| {
             if (std.mem.startsWith(u8, &file, entry_point)) return true;
         }
+
         return false;
     }
 };
@@ -1268,17 +1353,21 @@ test "tidy changelog" {
     var errors: Errors = .{};
 
     const changelog_buffer = try gpa.alloc(u8, 1 * MiB);
+
     defer gpa.free(changelog_buffer);
 
     const changelog = try SourceFile.read("CHANGELOG.md", changelog_buffer);
 
     var line_iterator = mem.splitScalar(u8, changelog.text, '\n');
     var line_index: usize = 0;
+
     while (line_iterator.next()) |line| : (line_index += 1) {
         if (std.mem.endsWith(u8, line, " ")) {
             errors.add_trailing_whitespace(changelog, line_index);
         }
+
         const line_length = tidy_line_length(line);
+
         if (line_length > 100 and !tidy_line_link(line)) {
             errors.add_long_line(changelog, line_index);
         }
@@ -1287,13 +1376,16 @@ test "tidy changelog" {
             errors.add_tracking(changelog, line_index);
         }
     }
+
     if (errors.count > 0) return error.Untidy;
+
     assert(errors.count == 0);
 }
 
 test "tidy no large blobs" {
     const allocator = std.testing.allocator;
     const shell = try Shell.create(allocator);
+
     defer shell.destroy();
 
     // Run `git rev-list | git cat-file` to find large blobs. This is better than looking at the
@@ -1303,11 +1395,13 @@ test "tidy no large blobs" {
     // Zig's std doesn't provide a cross platform abstraction for piping two commands together, so
     // we begrudgingly pass the data through this intermediary process.
     const shallow = try shell.exec_stdout("git rev-parse --is-shallow-repository", .{});
+
     if (!std.mem.eql(u8, shallow, "false")) {
         return error.ShallowRepository;
     }
 
     const rev_list = try shell.exec_stdout("git rev-list --objects HEAD", .{});
+
     const objects = try shell.exec_stdout_options(
         .{ .stdin_slice = rev_list },
         "git cat-file --batch-check={format}",
@@ -1316,6 +1410,7 @@ test "tidy no large blobs" {
 
     var has_large_blobs = false;
     var lines = std.mem.splitScalar(u8, objects, '\n');
+
     while (lines.next()) |line| {
         // Parsing lines like
         //     blob 1032 client/package.json
@@ -1327,16 +1422,21 @@ test "tidy no large blobs" {
         if (std.mem.eql(u8, path, "src/vsr/replica.zig")) continue; // :-)
         if (std.mem.eql(u8, path, "src/state_machine.zig")) continue; // :-|
         if (std.mem.eql(u8, path, "src/docs_website/package-lock.json")) continue; // :-(
+
         if (size > @divExact(MiB, 4)) {
             has_large_blobs = true;
+
             std.debug.print("{s}\n", .{line});
         }
     }
+
     if (has_large_blobs) return error.HasLargeBlobs;
 }
+
 test "tidy commits" {
     const allocator = std.testing.allocator;
     const shell = try Shell.create(allocator);
+
     defer shell.destroy();
 
     const commits = try shell.exec_stdout(
@@ -1346,25 +1446,32 @@ test "tidy commits" {
 
     const agent_hashes = try tidy_commit_agent_hashes(commits);
     var untidy = false;
+
     for (agent_hashes, tidy_commit_agents) |hash_optional, agent| {
         const hash = hash_optional orelse continue;
+
         std.debug.print(
             "{s} {s}: TigerBeetle does not allow LLM contributions.\n",
             .{ hash, agent },
         );
+
         untidy = true;
     }
+
     if (untidy) return error.Untidy;
 }
 
 fn tidy_commit_agent_hashes(history: []const u8) !TidyCommitAgentHashes {
     var agent_hashes: TidyCommitAgentHashes = @splat(null);
     var remaining = history;
+
     while (remaining.len > 0) {
         const commit, remaining =
             stdx.cut(remaining, "\x00\n") orelse return error.InvalidGitLog;
+
         const hash, const metadata =
             stdx.cut(commit, "\x00") orelse return error.InvalidGitLog;
+
         for (tidy_commit_agents, &agent_hashes) |agent, *agent_hash| {
             if (agent_hash.* == null and
                 std.ascii.indexOfIgnoreCase(metadata, agent) != null)
@@ -1373,6 +1480,7 @@ fn tidy_commit_agent_hashes(history: []const u8) !TidyCommitAgentHashes {
             }
         }
     }
+
     return agent_hashes;
 }
 
@@ -1410,6 +1518,7 @@ test tidy_commit_agent_hashes {
     const expected: TidyCommitAgentHashes = .{
         null, null, "ef30ac10ae0b8c7f5fcb22470139f981444b4e85", null, null, null,
     };
+
     try std.testing.expectEqualDeep(expected, try tidy_commit_agent_hashes(commits));
 }
 
@@ -1422,15 +1531,20 @@ test "tidy unix permissions" {
 
     const allocator = std.testing.allocator;
     const shell = try Shell.create(allocator);
+
     defer shell.destroy();
 
     const files = try shell.exec_stdout("git ls-files -z --format {format}", .{
         .format = "%(objectmode) %(path)",
     });
+
     assert(files[files.len - 1] == 0);
+
     var lines = std.mem.splitScalar(u8, files[0 .. files.len - 1], 0);
+
     while (lines.next()) |line| {
         const mode, const path = stdx.cut(line, " ").?;
+
         errdefer std.debug.print("{s}: error: unexpected mode={s}\n", .{ path, mode });
 
         if (std.mem.eql(u8, mode, "100644")) {
@@ -1490,6 +1604,7 @@ test "tidy extensions" {
 
     const allocator = std.testing.allocator;
     const shell = try Shell.create(allocator);
+
     defer shell.destroy();
 
     const paths = try list_file_paths(shell);
@@ -1497,6 +1612,7 @@ test "tidy extensions" {
     for (exceptions.keys()) |exception| {
         for (paths) |path| {
             const basename = std.fs.path.basename(path);
+
             if (std.mem.eql(u8, exception, basename) or std.mem.eql(u8, exception, path)) {
                 break;
             }
@@ -1509,17 +1625,23 @@ test "tidy extensions" {
     }
 
     var bad_extension = false;
+
     for (paths) |path| {
         if (path.len == 0) continue;
+
         const extension = std.fs.path.extension(path);
+
         if (!allowed_extensions.has(extension)) {
             const basename = std.fs.path.basename(path);
+
             if (!exceptions.has(basename) and !exceptions.has(path)) {
                 std.debug.print("bad extension: {s}\n", .{path});
+
                 bad_extension = true;
             }
         }
     }
+
     if (bad_extension) return error.BadExtension;
 }
 
@@ -1528,11 +1650,15 @@ fn list_file_paths(shell: *Shell) ![]const []const u8 {
     var result = std.ArrayList([]const u8).init(shell.arena.allocator());
 
     const files = try shell.exec_stdout("git ls-files -z", .{});
+
     assert(files.len > 0);
     assert(files[files.len - 1] == 0);
+
     var lines = std.mem.splitScalar(u8, files[0 .. files.len - 1], 0);
+
     while (lines.next()) |line| {
         assert(line.len > 0);
+
         try result.append(line);
     }
 

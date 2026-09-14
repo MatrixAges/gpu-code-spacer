@@ -184,6 +184,7 @@ fn java_type(
             // we expose 16-bit unsigned integers in Java as "int" instead of "short".
             // Even though, the backing fields are always stored as "short".
             assert(info.signedness == .unsigned);
+
             return switch (info.bits) {
                 1 => "byte",
                 8 => "byte",
@@ -226,11 +227,14 @@ fn emit_enum(
         const EnumField = std.builtin.Type.EnumField;
         const type_info = @typeInfo(Type).@"enum";
         var fields: []const EnumField = &[_]EnumField{};
+
         for (type_info.fields) |field| {
             if (mapping.is_private(field.name)) continue;
             if (std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
             fields = fields ++ [_]EnumField{field};
         }
+
         break :fields fields;
     };
 
@@ -249,6 +253,7 @@ fn emit_enum(
         }
 
         const int_value = @intFromEnum(@field(Type, field.name));
+
         try buffer.writer().print(
             \\    {[enum_name]s}(({[int_type]s}) {[value]s}){[separator]c}
             \\
@@ -281,6 +286,7 @@ fn emit_enum(
 
     inline for (fields) |field| {
         const int_value = @intFromEnum(@field(Type, field.name));
+
         try buffer.writer().print(
             \\            case {[int_cast]s}{[value]s}: return {[enum_name]s};
             \\
@@ -382,6 +388,7 @@ fn batch_type(comptime Type: type) []const u8 {
     switch (@typeInfo(Type)) {
         .int => |info| {
             assert(info.signedness == .unsigned);
+
             switch (info.bits) {
                 16 => return "UInt16",
                 32 => return "UInt32",
@@ -434,6 +441,7 @@ fn emit_batch(
 
     // Fields offset:
     var offset: usize = 0;
+
     inline for (type_info.fields) |field| {
         try buffer.writer().print(
             \\        int {[field_name]s} = {[offset]d};
@@ -494,6 +502,7 @@ fn emit_batch_accessors(
     comptime field: anytype,
 ) !void {
     comptime assert(field.type != u128);
+
     const is_private = comptime mapping.is_private(field.name);
     const is_read_only = comptime mapping.is_read_only(field.name);
 
@@ -627,6 +636,7 @@ fn emit_u128_batch_accessors(
     comptime field: anytype,
 ) !void {
     comptime assert(field.type == u128);
+
     const is_private = comptime mapping.is_private(field.name);
     const is_read_only = comptime mapping.is_read_only(field.name);
 
@@ -936,17 +946,23 @@ pub fn generate_bindings(
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
 
     const allocator = arena.allocator();
 
     var args = try std.process.argsWithAllocator(allocator);
+
     defer args.deinit();
+
     assert(args.skip());
+
     const target_dir_path = args.next().?;
+
     assert(args.next() == null);
 
     var target_dir = try std.fs.cwd().openDir(target_dir_path, .{});
+
     defer target_dir.close();
 
     // Emit Java declarations.
@@ -955,6 +971,7 @@ pub fn main() !void {
         const mapping = type_mapping[1];
 
         var buffer = std.ArrayList(u8).init(allocator);
+
         try generate_bindings(ZigType, mapping, &buffer);
 
         try target_dir.writeFile(.{
@@ -965,6 +982,7 @@ pub fn main() !void {
 
     {
         var buffer = std.ArrayList(u8).init(allocator);
+
         try buffer.writer().print(
             \\package com.tigerbeetle;
             \\
@@ -977,6 +995,7 @@ pub fn main() !void {
             @sizeOf(exports.tb_client_t),
             @alignOf(exports.tb_client_t),
         });
+
         try target_dir.writeFile(.{
             .sub_path = "TBClient.java",
             .data = buffer.items,

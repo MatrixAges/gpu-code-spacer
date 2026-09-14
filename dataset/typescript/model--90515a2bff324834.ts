@@ -15,11 +15,13 @@ import type { LexicalEditor } from 'lexical'
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
 	container = null as unknown as HTMLElement
 	observer = null as unknown as ResizeObserver
 
 	style = {} as CSSProperties
+
 	visible_options = false
 
 	unregister = null as unknown as () => void
@@ -42,10 +44,10 @@ export default class Index {
 	init(id: Index['id'], editor: Index['editor']) {
 		this.id = id
 		this.editor = editor
+
 		this.container = document.getElementById(this.id)!
 
 		this.file.init(id)
-
 		this.getPosition()
 		this.on()
 	}

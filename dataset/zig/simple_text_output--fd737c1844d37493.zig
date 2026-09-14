@@ -16,30 +16,38 @@ pub const SimpleTextOutput = extern struct {
     _clear_screen: *const fn (*SimpleTextOutput) callconv(cc) Status,
     _set_cursor_position: *const fn (*SimpleTextOutput, usize, usize) callconv(cc) Status,
     _enable_cursor: *const fn (*SimpleTextOutput, bool) callconv(cc) Status,
+
     mode: *Mode,
 
     pub const ResetError = uefi.UnexpectedError || error{DeviceError};
+
     pub const OutputStringError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
     };
+
     pub const QueryModeError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
     };
+
     pub const SetModeError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
     };
+
     pub const SetAttributeError = uefi.UnexpectedError || error{DeviceError};
+
     pub const ClearScreenError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
     };
+
     pub const SetCursorPositionError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
     };
+
     pub const EnableCursorError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
@@ -79,6 +87,7 @@ pub const SimpleTextOutput = extern struct {
     /// Returns information for an available text mode that the output device(s) supports.
     pub fn queryMode(self: *const SimpleTextOutput, mode_number: usize) QueryModeError!Geometry {
         var geo: Geometry = undefined;
+
         switch (self._query_mode(self, mode_number, &geo.columns, &geo.rows)) {
             .success => return geo,
             .device_error => return Error.DeviceError,
@@ -100,6 +109,7 @@ pub const SimpleTextOutput = extern struct {
     /// Sets the background and foreground colors for the outputString() and clearScreen() functions.
     pub fn setAttribute(self: *SimpleTextOutput, attribute: Attribute) SetAttributeError!void {
         const attr_as_num: u8 = @bitCast(attribute);
+
         switch (self._set_attribute(self, @intCast(attr_as_num))) {
             .success => {},
             .device_error => return Error.DeviceError,
@@ -149,6 +159,7 @@ pub const SimpleTextOutput = extern struct {
         .clock_seq_low = 0x39,
         .node = [_]u8{ 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b },
     };
+
     pub const boxdraw_horizontal: u16 = 0x2500;
     pub const boxdraw_vertical: u16 = 0x2502;
     pub const boxdraw_down_right: u16 = 0x250c;

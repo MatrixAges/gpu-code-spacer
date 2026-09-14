@@ -13,14 +13,17 @@ import type {
   TransformPluginContext,
   TransformResult,
 } from 'rolldown'
+
 import type { PartialEnvironment } from './baseEnvironment'
 import type { BuildAppHook } from './build'
+
 import type {
   ConfigEnv,
   EnvironmentOptions,
   ResolvedConfig,
   UserConfig,
 } from './config'
+
 import type { Environment } from './environment'
 import type { IndexHtmlTransform } from './plugins/html'
 import type { StringFilter } from './plugins/pluginFilter'
@@ -145,6 +148,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
     ) => Promise<ResolveIdResult> | ResolveIdResult,
     { filter?: { id?: StringFilter<RegExp> } }
   >
+
   load?: ObjectHook<
     (
       this: PluginContext,
@@ -155,6 +159,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
     ) => Promise<LoadResult> | LoadResult,
     { filter?: { id?: StringFilter } }
   >
+
   transform?: ObjectHook<
     (
       this: TransformPluginContext,
@@ -173,6 +178,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
       }
     }
   >
+
   /**
    * Opt-in this plugin into the shared plugins pipeline.
    * For backward-compatibility, plugins are re-recreated for each environment
@@ -219,6 +225,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
     | 'serve'
     | 'build'
     | ((this: void, config: UserConfig, env: ConfigEnv) => boolean)
+
   /**
    * Define environments where this plugin should be active
    * By default, the plugin is active in all environments
@@ -227,6 +234,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
   applyToEnvironment?: (
     environment: PartialEnvironment,
   ) => boolean | Promise<boolean> | PluginOption
+
   /**
    * Modify vite config before it's resolved. The hook can either mutate the
    * passed-in config directly, or return a partial config object that will be
@@ -246,6 +254,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
       | void
       | Promise<Omit<UserConfig, 'plugins'> | null | void>
   >
+
   /**
    * Modify environment configs before it's resolved. The hook can either mutate the
    * passed-in environment config directly, or return a partial config object that will be
@@ -274,6 +283,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
       | void
       | Promise<EnvironmentOptions | null | void>
   >
+
   /**
    * Use this hook to read and store the final resolved vite config.
    */
@@ -283,6 +293,7 @@ export interface Plugin<A = any> extends RolldownPlugin<A> {
       config: ResolvedConfig,
     ) => void | Promise<void>
   >
+
   /**
    * Configure the vite server. The hook receives the {@link ViteDevServer}
    * instance. This can also be used to store a reference to the server
@@ -412,32 +423,41 @@ export async function resolveEnvironmentPlugins(
   environment: PartialEnvironment,
 ): Promise<Plugin[]> {
   const environmentPlugins: Plugin[] = []
+
   for (const plugin of environment.getTopLevelConfig().plugins) {
     if (plugin.applyToEnvironment) {
       const applied = await plugin.applyToEnvironment(environment)
+
       if (!applied) {
         continue
       }
+
       if (applied !== true) {
         const appliedPlugins = (await asyncFlatten(arraify(applied))).filter(
           Boolean,
         ) as Plugin[]
+
         for (const appliedPlugin of appliedPlugins) {
           const ignoredHooks = ignoredEnvironmentPluginHooks.filter(
             (hook) => appliedPlugin[hook],
           )
+
           if (ignoredHooks.length > 0) {
             environment.logger.warnOnce(
               `Plugin "${appliedPlugin.name}" defines Vite-specific hooks (${ignoredHooks.join(', ')}) in a plugin returned from applyToEnvironment. These hooks will be ignored.`,
             )
           }
         }
+
         environmentPlugins.push(...appliedPlugins)
+
         continue
       }
     }
+
     environmentPlugins.push(plugin)
   }
+
   return environmentPlugins
 }
 

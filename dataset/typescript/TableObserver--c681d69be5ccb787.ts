@@ -24,26 +24,35 @@ import type TableNode from './TableNode'
 export default class TableObserver {
 	editor: LexicalEditor
 	table: Table
+
 	focus_x: number
 	focus_y: number
 	anchor_x: number
 	anchor_y: number
+
 	table_node_key: NodeKey
 	anchor_cell_node_key: NodeKey
 	focus_cell_node_key: NodeKey
+
 	anchor_cell: Cell
 	focus_cell: Cell
+
 	table_selection: TableSelection
+
 	selecting: boolean
+
 	listeners: Set<() => void>
 
 	constructor(editor: LexicalEditor, table_node_key: string) {
 		this.editor = editor
+
 		this.table = { rows: [], row_counts: 0, col_counts: 0 }
+
 		this.anchor_x = -1
 		this.anchor_y = -1
 		this.focus_x = -1
 		this.focus_y = -1
+
 		this.table_node_key = table_node_key
 		this.anchor_cell_node_key = null!
 		this.focus_cell_node_key = null!
@@ -51,6 +60,7 @@ export default class TableObserver {
 		this.focus_cell = null!
 		this.table_selection = null!
 		this.selecting = false
+
 		this.listeners = new Set()
 
 		this.observe()
@@ -173,6 +183,7 @@ export default class TableObserver {
 
 			this.focus_x = cell_x
 			this.focus_y = cell_y
+
 			this.focus_cell_node_key = focus_node.getKey()
 			this.table_selection = this.table_selection.clone() || $createTableSelection()
 
@@ -215,6 +226,7 @@ export default class TableObserver {
 		this.editor.update(() => {
 			const selection = $getSelection()!
 			const format_selection = $createRangeSelection()
+
 			const anchor = format_selection.anchor
 			const focus = format_selection.focus
 

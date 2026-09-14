@@ -23,6 +23,7 @@ interface HookArgs {
 export default (args: HookArgs) => {
 	const { item, index, mode, dimension_id, update, moveTo, insert, tab, remove, showDetailModal, insertChildren } =
 		args
+
 	const { id, tag_ids } = item
 
 	const onContextMenu = useMemoizedFn(({ key, keyPath }) => {
@@ -38,6 +39,7 @@ export default (args: HookArgs) => {
 						dimension_id,
 						value: { level: target_key === '0' ? undefined : Number(target_key) } as Todo.Todo
 					})
+
 					break
 				case 'add_tags':
 					let target = [] as Array<string>
@@ -62,6 +64,7 @@ export default (args: HookArgs) => {
 					break
 				case 'move':
 					moveTo(id, target_key)
+
 					break
 			}
 		} else {
@@ -74,9 +77,11 @@ export default (args: HookArgs) => {
 							? { dimension_id }
 							: {})
 					})
+
 					break
 				case 'insert':
 					insert({ index, dimension_id })
+
 					break
 				case 'clone':
 					insert({
@@ -88,15 +93,19 @@ export default (args: HookArgs) => {
 							status: 'unchecked'
 						} as Todo.Todo
 					})
+
 					break
 				case 'insert_children':
 					insertChildren()
+
 					break
 				case 'move_into':
 					tab({ type: 'in', index, dimension_id })
+
 					break
 				case 'remove':
 					remove({ index, dimension_id, id })
+
 					break
 			}
 		}

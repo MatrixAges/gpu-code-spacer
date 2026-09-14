@@ -11,12 +11,16 @@ const testing = std.testing;
 fn RtlDosPathNameToNtPathName_U(path: [:0]const u16) !windows.PathSpace {
     var out: windows.UNICODE_STRING = undefined;
     const rc = windows.ntdll.RtlDosPathNameToNtPathName_U(path, &out, null, null);
+
     if (rc != windows.TRUE) return error.BadPathName;
+
     defer windows.ntdll.RtlFreeUnicodeString(&out);
 
     var path_space: windows.PathSpace = undefined;
     const out_path = out.Buffer.?[0 .. out.Length / 2];
+
     @memcpy(path_space.data[0..out_path.len], out_path);
+
     path_space.len = out.Length / 2;
     path_space.data[path_space.len] = 0;
 
@@ -29,8 +33,10 @@ fn testToPrefixedFileNoOracle(comptime path: []const u8, comptime expected_path:
     const path_utf16 = std.unicode.utf8ToUtf16LeStringLiteral(path);
     const expected_path_utf16 = std.unicode.utf8ToUtf16LeStringLiteral(expected_path);
     const actual_path = try windows.wToPrefixedFileW(null, path_utf16);
+
     std.testing.expectEqualSlices(u16, expected_path_utf16, actual_path.span()) catch |e| {
         std.debug.print("got '{f}', expected '{f}'\n", .{ std.unicode.fmtUtf16Le(actual_path.span()), std.unicode.fmtUtf16Le(expected_path_utf16) });
+
         return e;
     };
 }
@@ -47,8 +53,10 @@ fn testToPrefixedFileOnlyOracle(comptime path: []const u8) !void {
     const path_utf16 = std.unicode.utf8ToUtf16LeStringLiteral(path);
     const zig_result = try windows.wToPrefixedFileW(null, path_utf16);
     const win32_api_result = try RtlDosPathNameToNtPathName_U(path_utf16);
+
     std.testing.expectEqualSlices(u16, win32_api_result.span(), zig_result.span()) catch |e| {
         std.debug.print("got '{f}', expected '{f}'\n", .{ std.unicode.fmtUtf16Le(zig_result.span()), std.unicode.fmtUtf16Le(win32_api_result.span()) });
+
         return e;
     };
 }
@@ -180,15 +188,22 @@ test "toPrefixedFileW" {
 
 fn testRemoveDotDirs(str: []const u8, expected: []const u8) !void {
     const mutable = try testing.allocator.dupe(u8, str);
+
     defer testing.allocator.free(mutable);
+
     const actual = mutable[0..try windows.removeDotDirsSanitized(u8, mutable)];
+
     try testing.expect(mem.eql(u8, actual, expected));
 }
+
 fn testRemoveDotDirsError(err: anyerror, str: []const u8) !void {
     const mutable = try testing.allocator.dupe(u8, str);
+
     defer testing.allocator.free(mutable);
+
     try testing.expectError(err, windows.removeDotDirsSanitized(u8, mutable));
 }
+
 test "removeDotDirs" {
     try testRemoveDotDirs("", "");
     try testRemoveDotDirs(".", "");
@@ -196,14 +211,12 @@ test "removeDotDirs" {
     try testRemoveDotDirs(".\\.", "");
     try testRemoveDotDirs(".\\.\\", "");
     try testRemoveDotDirs(".\\.\\.", "");
-
     try testRemoveDotDirs("a", "a");
     try testRemoveDotDirs("a\\", "a\\");
     try testRemoveDotDirs("a\\b", "a\\b");
     try testRemoveDotDirs("a\\.", "a\\");
     try testRemoveDotDirs("a\\b\\.", "a\\b\\");
     try testRemoveDotDirs("a\\.\\b", "a\\b");
-
     try testRemoveDotDirs(".a", ".a");
     try testRemoveDotDirs(".a\\", ".a\\");
     try testRemoveDotDirs(".a\\.b", ".a\\.b");
@@ -211,19 +224,16 @@ test "removeDotDirs" {
     try testRemoveDotDirs(".a\\.\\.", ".a\\");
     try testRemoveDotDirs(".a\\.\\.\\.b", ".a\\.b");
     try testRemoveDotDirs(".a\\.\\.\\.b\\", ".a\\.b\\");
-
     try testRemoveDotDirsError(error.TooManyParentDirs, "..");
     try testRemoveDotDirsError(error.TooManyParentDirs, "..\\");
     try testRemoveDotDirsError(error.TooManyParentDirs, ".\\..\\");
     try testRemoveDotDirsError(error.TooManyParentDirs, ".\\.\\..\\");
-
     try testRemoveDotDirs("a\\..", "");
     try testRemoveDotDirs("a\\..\\", "");
     try testRemoveDotDirs("a\\..\\.", "");
     try testRemoveDotDirs("a\\..\\.\\", "");
     try testRemoveDotDirs("a\\..\\.\\.", "");
     try testRemoveDotDirsError(error.TooManyParentDirs, "a\\..\\.\\.\\..");
-
     try testRemoveDotDirs("a\\..\\.\\.\\b", "b");
     try testRemoveDotDirs("a\\..\\.\\.\\b\\", "b\\");
     try testRemoveDotDirs("a\\..\\.\\.\\b\\.", "b\\");
@@ -232,7 +242,6 @@ test "removeDotDirs" {
     try testRemoveDotDirs("a\\..\\.\\.\\b\\.\\..\\", "");
     try testRemoveDotDirs("a\\..\\.\\.\\b\\.\\..\\.", "");
     try testRemoveDotDirsError(error.TooManyParentDirs, "a\\..\\.\\.\\b\\.\\..\\.\\..");
-
     try testRemoveDotDirs("a\\b\\..\\", "a\\");
     try testRemoveDotDirs("a\\b\\..\\c", "a\\c");
 }
@@ -256,9 +265,11 @@ test "getWin32PathType vs RtlDetermineDosPathNameType_U" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     var buf: std.ArrayList(u16) = .empty;
+
     defer buf.deinit(std.testing.allocator);
 
     var wtf8_buf: std.ArrayList(u8) = .empty;
+
     defer wtf8_buf.deinit(std.testing.allocator);
 
     var random = std.Random.DefaultPrng.init(std.testing.random_seed);
@@ -266,11 +277,17 @@ test "getWin32PathType vs RtlDetermineDosPathNameType_U" {
 
     for (0..1000) |_| {
         buf.clearRetainingCapacity();
+
         const path = try getRandomWtf16Path(std.testing.allocator, &buf, rand);
+
         wtf8_buf.clearRetainingCapacity();
+
         const wtf8_len = std.unicode.calcWtf8Len(path);
+
         try wtf8_buf.ensureTotalCapacity(std.testing.allocator, wtf8_len);
+
         wtf8_buf.items.len = wtf8_len;
+
         std.debug.assert(std.unicode.wtf16LeToWtf8(wtf8_buf.items, path) == wtf8_len);
 
         const windows_type = RtlDetermineDosPathNameType_U(path);
@@ -281,6 +298,7 @@ test "getWin32PathType vs RtlDetermineDosPathNameType_U" {
             std.debug.print("expected type {}, got {} for path: {f}\n", .{ windows_type, wtf16_type, std.unicode.fmtUtf16Le(path) });
             std.debug.print("path bytes:\n", .{});
             std.debug.dumpHex(std.mem.sliceAsBytes(path));
+
             return err;
         };
 
@@ -290,6 +308,7 @@ test "getWin32PathType vs RtlDetermineDosPathNameType_U" {
             std.debug.dumpHex(std.mem.sliceAsBytes(path));
             std.debug.print("wtf-8 path bytes:\n", .{});
             std.debug.dumpHex(std.mem.sliceAsBytes(wtf8_buf.items));
+
             return error.Wtf8Wtf16Mismatch;
         }
     }
@@ -305,6 +324,7 @@ fn checkPathType(windows_type: RTL_PATH_TYPE, zig_type: windows.Win32PathType) !
         .local_device => .LocalDevice,
         .root_local_device => .RootLocalDevice,
     };
+
     if (windows_type != expected_windows_type) return error.PathTypeMismatch;
 }
 
@@ -321,6 +341,7 @@ fn getRandomWtf16Path(allocator: std.mem.Allocator, buf: *std.ArrayList(u16), ra
 
     for (0..choices) |_| {
         const choice = rand.enumValue(Choice);
+
         const code_unit = switch (choice) {
             .backslash => '\\',
             .slash => '/',
@@ -331,9 +352,11 @@ fn getRandomWtf16Path(allocator: std.mem.Allocator, buf: *std.ArrayList(u16), ra
             .printable => '!' + rand.uintAtMostBiased(u8, '~' - '!'),
             .non_ascii => rand.intRangeAtMostBiased(u16, 0x80, 0xFFFF),
         };
+
         try buf.append(allocator, std.mem.nativeToLittle(u16, code_unit));
     }
 
     try buf.append(allocator, 0);
+
     return buf.items[0 .. buf.items.len - 1 :0];
 }

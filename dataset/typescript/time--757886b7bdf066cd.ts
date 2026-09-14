@@ -9,10 +9,13 @@ export function timeMiddleware(root: string): Connect.NextHandleFunction {
   return function viteTimeMiddleware(req, res, next) {
     const start = performance.now()
     const end = res.end
+
     res.end = (...args: readonly [any, any?, any?]) => {
       logTime?.(`${timeFrom(start)} ${prettifyUrl(req.url!, root)}`)
+
       return end.call(res, ...args)
     }
+
     next()
   }
 }

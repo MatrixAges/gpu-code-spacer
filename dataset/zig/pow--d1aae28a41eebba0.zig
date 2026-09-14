@@ -49,6 +49,7 @@ pub fn pow(comptime T: type, x: T, y: T) T {
     // pow(x, nan) = nan    for all x
     if (math.isNan(x) or math.isNan(y)) {
         @branchHint(.unlikely);
+
         return math.nan(T);
     }
 
@@ -123,6 +124,7 @@ pub fn pow(comptime T: type, x: T, y: T) T {
     if (yf != 0 and x < 0) {
         return math.nan(T);
     }
+
     if (yi >= 1 << (@typeInfo(T).float.bits - 1)) {
         return @exp(y * @log(x));
     }
@@ -137,6 +139,7 @@ pub fn pow(comptime T: type, x: T, y: T) T {
             yf -= 1;
             yi += 1;
         }
+
         a1 = @exp(yf * @log(x));
     }
 
@@ -144,10 +147,11 @@ pub fn pow(comptime T: type, x: T, y: T) T {
     const r2 = math.frexp(x);
     var xe = r2.exponent;
     var x1 = r2.significand;
-
     var i = @as(std.meta.Int(.signed, @typeInfo(T).float.bits), @intFromFloat(yi));
+
     while (i != 0) : (i >>= 1) {
         const overflow_shift = math.floatExponentBits(T) + 1;
+
         if (xe < -(1 << overflow_shift) or (1 << overflow_shift) < xe) {
             // catch xe before it overflows the left shift below
             // Since i != 0 it has at least one bit still set, so ae will accumulate xe
@@ -155,14 +159,18 @@ pub fn pow(comptime T: type, x: T, y: T) T {
             // the lower bound on ae exceeds the size of a float exp
             // so the final call to Ldexp will produce under/overflow (0/Inf)
             ae += xe;
+
             break;
         }
+
         if (i & 1 == 1) {
             a1 *= x1;
             ae += xe;
         }
+
         x1 *= x1;
         xe <<= 1;
+
         if (x1 < 0.5) {
             x1 += x1;
             xe -= 1;
@@ -187,7 +195,9 @@ fn isOddInteger(x: f64) bool {
         // Without this check and if x overflows i64 the @intFromFloat(r.ipart) conversion below will panic
         return false;
     }
+
     const r = math.modf(x);
+
     return r.fpart == 0.0 and @as(i64, @intFromFloat(r.ipart)) & 1 == 1;
 }
 
@@ -208,7 +218,6 @@ test pow {
     try expect(math.approxEqAbs(f32, pow(f32, 1.5, 3.3), 3.811546, epsilon));
     try expect(math.approxEqAbs(f32, pow(f32, 37.45, 3.3), 155736.703125, epsilon));
     try expect(math.approxEqAbs(f32, pow(f32, 89.123, 3.3), 2722489.5, epsilon));
-
     try expect(math.approxEqAbs(f64, pow(f64, 0.0, 3.3), 0.0, epsilon));
     try expect(math.approxEqAbs(f64, pow(f64, 0.8923, 3.3), 0.686572, epsilon));
     try expect(math.approxEqAbs(f64, pow(f64, 0.2, 3.3), 0.004936, epsilon));

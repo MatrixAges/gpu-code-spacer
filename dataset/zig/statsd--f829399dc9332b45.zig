@@ -28,6 +28,7 @@ const statsd_line_size_max = line_size_max: {
     // event. This is essentially maxInt for unsigned integer payloads, minInt for signed integer
     // payloads, and the longest enum tag name for enum payloads.
     var events_metric: [std.meta.fieldNames(EventMetric).len]EventMetricAggregate = undefined;
+
     for (&events_metric, std.meta.fields(EventMetric)) |*event_metric, EventMetricInner| {
         event_metric.* = .{
             .event = @unionInit(
@@ -43,6 +44,7 @@ const statsd_line_size_max = line_size_max: {
     }
 
     var events_timing: [std.meta.fieldNames(EventTiming).len]EventTimingAggregate = undefined;
+
     for (&events_timing, std.meta.fields(EventTiming)) |*event_timing, EventTimingInner| {
         event_timing.* = .{
             .event = @unionInit(
@@ -60,30 +62,38 @@ const statsd_line_size_max = line_size_max: {
     }
 
     var buffer: [packet_size_max]u8 = undefined;
+
     var buffer_stream = std.io.fixedBufferStream(&buffer);
     const buffer_writer = buffer_stream.writer();
 
     var line_size_max: u32 = 0;
+
     for (events_metric) |event| {
         buffer_stream.reset();
+
         format_metric(
             buffer_writer,
             .{ .metric = .{ .aggregate = event } },
             .{ .cluster = std.math.maxInt(u128), .replica = constants.members_max - 1 },
         ) catch unreachable;
+
         line_size_max = @max(line_size_max, buffer_stream.getPos() catch unreachable);
     }
+
     for (events_timing) |event| {
         for (std.enums.values(TimingStat)) |stat| {
             buffer_stream.reset();
+
             format_metric(
                 buffer_writer,
                 .{ .timing = .{ .aggregate = event, .stat = stat } },
                 .{ .cluster = std.math.maxInt(u128), .replica = constants.members_max - 1 },
             ) catch unreachable;
+
             line_size_max = @max(line_size_max, buffer_stream.getPos() catch unreachable);
         }
     }
+
     break :line_size_max line_size_max;
 };
 
@@ -112,6 +122,7 @@ comptime {
 
 pub const StatsD = struct {
     process_id: ProcessID,
+
     implementation: union(enum) {
         udp: struct {
             socket: std.posix.socket_t,
@@ -123,6 +134,7 @@ pub const StatsD = struct {
 
     send_buffer: *[packet_count_max * packet_size_max]u8,
     send_completions: [packet_count_max]IO.Completion = undefined,
+
     send_in_flight_count: u32 = 0,
 
     log_buffer: ?std.ArrayListUnmanaged(u8) = null,
@@ -135,12 +147,15 @@ pub const StatsD = struct {
         address: stdx.SocketAddress,
     ) !StatsD {
         const socket = try io.open_socket_udp(address.ip.family());
+
         errdefer io.close_socket(socket);
 
         const send_buffer = try allocator.create([packet_count_max * packet_size_max]u8);
+
         errdefer allocator.destroy(send_buffer);
 
         const address_std = address.to_std();
+
         // 'Connect' the UDP socket, so we can just send() to it normally.
         try std.posix.connect(socket, &address_std.any, address_std.getOsSockLen());
 
@@ -165,12 +180,14 @@ pub const StatsD = struct {
         process_id: ProcessID,
     ) !StatsD {
         const send_buffer = try allocator.create([packet_count_max * packet_size_max]u8);
+
         errdefer allocator.destroy(send_buffer);
 
         const log_buffer = try std.ArrayListUnmanaged(u8).initCapacity(
             allocator,
             packet_count_max * packet_size_max,
         );
+
         errdefer log_buffer.deinit(allocator);
 
         return .{
@@ -203,6 +220,7 @@ pub const StatsD = struct {
         const cluster, const replica = switch (self.process_id) {
             .unknown => {
                 log.err("{}: process id unknown; skipping emit", .{self.process_id});
+
                 return error.UnknownProcess;
             },
             .replica => |replica| .{ replica.cluster, replica.replica },
@@ -222,6 +240,7 @@ pub const StatsD = struct {
                 self.send_in_flight_count,
                 packet_count_max,
             });
+
             return error.Busy;
         }
 
@@ -235,16 +254,21 @@ pub const StatsD = struct {
                 "{}: failed to send {} packets",
                 .{ self.process_id, self.implementation.udp.send_callback_error_count },
             );
+
             self.implementation.udp.send_callback_error_count = 0;
         }
 
         var send_ready: u32 = 0;
+
         var send_sizes = stdx.BoundedArrayType(u32, packet_count_max){};
+
         var send_stream = std.io.fixedBufferStream(self.send_buffer);
         const send_writer = send_stream.writer();
+
         inline for (.{ events_metric, events_timing }) |events| {
             for (events) |event_new_maybe| {
                 const event_new = event_new_maybe orelse continue;
+
                 const stats = switch (@TypeOf(event_new)) {
                     EventMetricAggregate => [_]Stat{.{ .metric = .{ .aggregate = event_new } }},
                     EventTimingAggregate => [_]Stat{
@@ -259,6 +283,7 @@ pub const StatsD = struct {
 
                 for (stats) |stat| {
                     const send_position_before = send_stream.getPos() catch unreachable;
+
                     format_metric(send_writer, stat, .{
                         .cluster = cluster,
                         .replica = replica,
@@ -266,21 +291,27 @@ pub const StatsD = struct {
                         // This shouldn't ever happen, but don't allow metrics to kill the system.
                         error.NoSpaceLeft => {
                             log.err("{}: insufficient buffer space", .{self.process_id});
+
                             break;
                         },
                     };
 
                     const send_position_after = send_stream.getPos() catch unreachable;
                     const send_size: u32 = @intCast(send_position_after - send_position_before);
+
                     assert(send_size > 0);
+
                     if (send_ready + send_size > packet_size_max) {
                         assert(send_ready > 0);
+
                         if (send_sizes.full()) {
                             log.err("{}: insufficient packet count", .{self.process_id});
+
                             break;
                         } else {
                             send_sizes.push(send_ready);
                         }
+
                         send_ready = send_size;
                     } else {
                         send_ready += send_size;
@@ -288,6 +319,7 @@ pub const StatsD = struct {
                 }
             }
         }
+
         if (send_ready > 0) {
             if (send_sizes.full()) {
                 log.err("{}: insufficient packet count", .{self.process_id});
@@ -297,15 +329,21 @@ pub const StatsD = struct {
         }
 
         var send_offset: u32 = 0;
+
         for (send_sizes.const_slice()) |send_size| {
             if (self.send_in_flight_count >= self.send_completions.len) {
                 // This shouldn't ever happen, but don't allow metrics to kill the system.
                 log.err("{}: insufficient packets to emit any metrics", .{self.process_id});
+
                 return 0;
             }
+
             const completion = &self.send_completions[self.send_in_flight_count];
+
             self.send_in_flight_count += 1;
+
             self.emit_buffer(completion, self.send_buffer[send_offset..][0..send_size]);
+
             send_offset += send_size;
         }
 
@@ -336,6 +374,7 @@ pub const StatsD = struct {
         _ = result catch {
             // Errors are only supported when using UDP; not if calling this loopback.
             assert(self.implementation == .udp);
+
             self.implementation.udp.send_callback_error_count += 1;
         };
 
@@ -347,6 +386,7 @@ pub const StatsD = struct {
 };
 
 const TimingStat = enum { min, max, avg, sum, count };
+
 const Stat = union(enum) {
     metric: struct { aggregate: EventMetricAggregate },
     timing: struct { aggregate: EventTimingAggregate, stat: TimingStat },
@@ -390,16 +430,20 @@ fn format_metric(
             switch (stat_data.aggregate.event) {
                 inline else => |data| {
                     const Tags = @TypeOf(data);
+
                     if (@typeInfo(Tags) == .@"struct") {
                         const fields = std.meta.fields(@TypeOf(data));
+
                         inline for (fields) |data_field| {
                             comptime assert(!std.mem.eql(u8, data_field.name, "cluster"));
                             comptime assert(!std.mem.eql(u8, data_field.name, "replica"));
+
                             comptime assert(@typeInfo(data_field.type) == .int or
                                 @typeInfo(data_field.type) == .@"enum" or
                                 @typeInfo(data_field.type) == .@"union");
 
                             const data_field_value = @field(data, data_field.name);
+
                             try writer.writeByte(',');
                             try writer.writeAll(data_field.name);
                             try writer.writeByte(':');
@@ -419,6 +463,7 @@ fn format_metric(
             }
         },
     }
+
     try writer.writeByte('\n');
 }
 
@@ -430,14 +475,17 @@ fn struct_size_max(StructOrVoid: type) StructOrVoid {
     if (@typeInfo(StructOrVoid) == .void) return {};
 
     assert(@typeInfo(StructOrVoid) == .@"struct");
+
     const Struct = StructOrVoid;
 
     var output: Struct = undefined;
 
     for (std.meta.fields(Struct)) |field| {
         const type_info = @typeInfo(field.type);
+
         assert(type_info == .int or type_info == .@"enum");
         assert(type_info != .int or type_info.int.signedness == .unsigned);
+
         switch (type_info) {
             .int => @field(output, field.name) = std.math.maxInt(field.type),
             .@"enum" => @field(output, field.name) =
@@ -452,11 +500,14 @@ fn struct_size_max(StructOrVoid: type) StructOrVoid {
 /// Returns the longest @tagName for a given Enum.
 fn enum_size_max(Enum: type) []const u8 {
     @setEvalBranchQuota(10_000);
+
     var tag_longest: []const u8 = "";
+
     for (std.meta.fieldNames(Enum)) |field_name| {
         if (tag_longest.len < field_name.len) {
             tag_longest = field_name;
         }
     }
+
     return tag_longest;
 }

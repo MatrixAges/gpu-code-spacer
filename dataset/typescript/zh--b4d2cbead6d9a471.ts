@@ -3,6 +3,7 @@ import DatePicker from 'antd/es/date-picker/locale/zh_CN'
 import TimePicker from 'antd/es/time-picker/locale/zh_CN'
 
 const typeTemplate = '${label}不是一个有效的${type}'
+
 const localeValues = {
 	locale: 'zh-cn',
 	Pagination: {
@@ -155,4 +156,5 @@ const localeValues = {
 		presetEmpty: '暂无'
 	}
 }
+
 export default localeValues

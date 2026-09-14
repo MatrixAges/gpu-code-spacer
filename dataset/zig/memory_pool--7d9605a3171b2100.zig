@@ -40,10 +40,13 @@ pub fn Extra(comptime Item: type, comptime pool_options: Options) type {
     if (pool_options.alignment) |a| {
         if (a.compare(.eq, .of(Item))) {
             var new_options = pool_options;
+
             new_options.alignment = null;
+
             return Extra(Item, new_options);
         }
     }
+
     return struct {
         const Pool = @This();
 
@@ -72,14 +75,18 @@ pub fn Extra(comptime Item: type, comptime pool_options: Options) type {
         /// `OutOfMemory` error might happen when calling `create()`.
         pub fn initCapacity(allocator: Allocator, num: usize) Allocator.Error!Pool {
             var pool: Pool = .empty;
+
             errdefer pool.deinit(allocator);
+
             try pool.addCapacity(allocator, num);
+
             return pool;
         }
 
         /// Destroys the memory pool and frees all allocated memory.
         pub fn deinit(pool: *Pool, allocator: Allocator) void {
             pool.arena_state.promote(allocator).deinit();
+
             pool.* = undefined;
         }
 
@@ -95,8 +102,10 @@ pub fn Extra(comptime Item: type, comptime pool_options: Options) type {
         /// `OutOfMemory` error might happen when calling `create()`.
         pub fn addCapacity(pool: *Pool, allocator: Allocator, num: usize) Allocator.Error!void {
             var i: usize = 0;
+
             while (i < num) : (i += 1) {
                 const memory = try pool.allocNew(allocator);
+
                 pool.free_list.prepend(@ptrCast(memory));
             }
         }
@@ -117,9 +126,11 @@ pub fn Extra(comptime Item: type, comptime pool_options: Options) type {
             //       just move them into the free list instead of actually releasing the memory.
 
             var arena = pool.arena_state.promote(allocator);
+
             defer pool.arena_state = arena.state;
 
             const reset_successful = arena.reset(mode);
+
             pool.free_list = .{};
 
             return reset_successful;
@@ -136,6 +147,7 @@ pub fn Extra(comptime Item: type, comptime pool_options: Options) type {
                 return error.OutOfMemory;
 
             ptr.* = undefined;
+
             return ptr;
         }
 
@@ -143,13 +155,17 @@ pub fn Extra(comptime Item: type, comptime pool_options: Options) type {
         /// Only pass items to `ptr` that were previously created with `create()` of the same memory pool!
         pub fn destroy(pool: *Pool, ptr: ItemPtr) void {
             ptr.* = undefined;
+
             pool.free_list.prepend(@ptrCast(ptr));
         }
 
         fn allocNew(pool: *Pool, allocator: Allocator) Allocator.Error!*align(item_alignment.toByteUnits()) [item_size]u8 {
             var arena = pool.arena_state.promote(allocator);
+
             defer pool.arena_state = arena.state;
+
             const memory = try arena.allocator().alignedAlloc(u8, item_alignment, item_size);
+
             return memory[0..item_size];
         }
     };
@@ -160,10 +176,13 @@ pub fn ExtraManaged(comptime Item: type, comptime pool_options: Options) type {
     if (pool_options.alignment) |a| {
         if (a.compare(.eq, .of(Item))) {
             var new_options = pool_options;
+
             new_options.alignment = null;
+
             return ExtraManaged(Item, new_options);
         }
     }
+
     return struct {
         const Pool = @This();
 
@@ -191,6 +210,7 @@ pub fn ExtraManaged(comptime Item: type, comptime pool_options: Options) type {
         /// Destroys the memory pool and frees all allocated memory.
         pub fn deinit(pool: *Pool) void {
             pool.unmanaged.deinit(pool.allocator);
+
             pool.* = undefined;
         }
 
@@ -238,6 +258,7 @@ test "basic" {
 
     {
         var pool: MemoryPool(u32) = .empty;
+
         defer pool.deinit(a);
 
         const p1 = try pool.create(a);
@@ -250,6 +271,7 @@ test "basic" {
         try std.testing.expect(p2 != p3);
 
         pool.destroy(p2);
+
         const p4 = try pool.create(a);
 
         // Assert memory reuse
@@ -258,6 +280,7 @@ test "basic" {
 
     {
         var pool: Managed(u32) = .init(std.testing.allocator);
+
         defer pool.deinit();
 
         const p1 = try pool.create();
@@ -270,6 +293,7 @@ test "basic" {
         try std.testing.expect(p2 != p3);
 
         pool.destroy(p2);
+
         const p4 = try pool.create();
 
         // Assert memory reuse
@@ -282,6 +306,7 @@ test "initCapacity (success)" {
 
     {
         var pool: MemoryPool(u32) = try .initCapacity(a, 4);
+
         defer pool.deinit(a);
 
         _ = try pool.create(a);
@@ -291,6 +316,7 @@ test "initCapacity (success)" {
 
     {
         var pool: Managed(u32) = try .initCapacity(a, 4);
+
         defer pool.deinit();
 
         _ = try pool.create();
@@ -301,6 +327,7 @@ test "initCapacity (success)" {
 
 test "initCapacity (failure)" {
     const failer = std.testing.failing_allocator;
+
     try std.testing.expectError(error.OutOfMemory, MemoryPool(u32).initCapacity(failer, 5));
     try std.testing.expectError(error.OutOfMemory, Managed(u32).initCapacity(failer, 5));
 }
@@ -310,6 +337,7 @@ test "growable" {
 
     {
         var pool: Extra(u32, .{ .growable = false }) = try .initCapacity(a, 4);
+
         defer pool.deinit(a);
 
         _ = try pool.create(a);
@@ -322,6 +350,7 @@ test "growable" {
 
     {
         var pool: ExtraManaged(u32, .{ .growable = false }) = try .initCapacity(a, 4);
+
         defer pool.deinit();
 
         _ = try pool.create();
@@ -337,21 +366,26 @@ test "greater than pointer default alignment" {
     const Foo = struct {
         data: u64 align(16),
     };
+
     const a = std.testing.allocator;
 
     {
         var pool: MemoryPool(Foo) = .empty;
+
         defer pool.deinit(a);
 
         const foo: *Foo = try pool.create(a);
+
         pool.destroy(foo);
     }
 
     {
         var pool: Managed(Foo) = .init(a);
+
         defer pool.deinit();
 
         const foo: *Foo = try pool.create();
+
         pool.destroy(foo);
     }
 }
@@ -360,21 +394,26 @@ test "greater than pointer manual alignment" {
     const Foo = struct {
         data: u64,
     };
+
     const a = std.testing.allocator;
 
     {
         var pool: Aligned(Foo, .@"16") = .empty;
+
         defer pool.deinit(a);
 
         const foo: *align(16) Foo = try pool.create(a);
+
         pool.destroy(foo);
     }
 
     {
         var pool: AlignedManaged(Foo, .@"16") = .init(a);
+
         defer pool.deinit();
 
         const foo: *align(16) Foo = try pool.create();
+
         pool.destroy(foo);
     }
 }

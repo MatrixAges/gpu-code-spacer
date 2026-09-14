@@ -27,6 +27,7 @@ pub fn create(
     options: Options,
 ) *CheckFile {
     const check_file = owner.allocator.create(CheckFile) catch @panic("OOM");
+
     check_file.* = .{
         .step = Step.init(.{
             .id = base_id,
@@ -38,7 +39,9 @@ pub fn create(
         .expected_matches = owner.dupeStrings(options.expected_matches),
         .expected_exact = options.expected_exact,
     };
+
     check_file.source.addStepDependencies(&check_file.step);
+
     return check_file;
 }
 
@@ -48,11 +51,14 @@ pub fn setName(check_file: *CheckFile, name: []const u8) void {
 
 fn make(step: *Step, options: Step.MakeOptions) !void {
     _ = options;
+
     const b = step.owner;
     const check_file: *CheckFile = @fieldParentPtr("step", step);
+
     try step.singleUnchangingWatchInput(check_file.source);
 
     const src_path = check_file.source.getPath2(b, step);
+
     const contents = fs.cwd().readFileAlloc(src_path, b.allocator, .limited(check_file.max_bytes)) catch |err| {
         return step.fail("unable to read '{s}': {s}", .{
             src_path, @errorName(err),

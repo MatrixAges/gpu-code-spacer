@@ -24,15 +24,19 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
         log.info("testing sample '{s}'", .{sample});
 
         try shell.pushd("./samples/" ++ sample);
+
         defer shell.popd();
 
         var tmp_beetle = try TmpTigerBeetle.init(gpa, .{
             .development = true,
         });
+
         defer tmp_beetle.deinit(gpa);
+
         errdefer tmp_beetle.log_stderr();
 
         try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
+
         try shell.exec(
             \\mvn --batch-mode --file pom.xml --quiet
             \\  package exec:java
@@ -56,7 +60,9 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
         .development = true,
         .prebuilt = options.tigerbeetle,
     });
+
     defer tmp_beetle.deinit(gpa);
+
     errdefer tmp_beetle.log_stderr();
 
     try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -131,11 +137,13 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
             log.warn("waiting for 5 minutes for the {s} version to appear in maven cental", .{
                 options.release,
             });
+
             std.time.sleep(5 * std.time.ns_per_min);
         }
     } else {
         shell.exec("mvn package --update-snapshots", .{}) catch |err| {
             log.err("package is not available in maven central", .{});
+
             return err;
         };
     }
@@ -156,6 +164,7 @@ pub fn release_published_latest(shell: *Shell) ![]const u8 {
             name: []const u8,
             version: []const u8,
         };
+
         components: []Component,
     };
 

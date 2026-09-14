@@ -21,11 +21,14 @@ export function perEnvironmentState<State>(
   initial: (environment: Environment) => State,
 ): (context: PluginContext) => State {
   const stateMap = new WeakMap<Environment, State>()
+
   return function (context: PluginContext) {
     const { environment } = context
+
     if (!stateMap.has(environment)) {
       stateMap.set(environment, initial(environment))
     }
+
     return stateMap.get(environment)!
   }
 }

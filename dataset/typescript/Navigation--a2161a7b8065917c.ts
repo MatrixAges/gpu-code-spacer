@@ -17,6 +17,7 @@ export default {
 
 		node.__items.forEach(item => {
 			const [, , type] = item
+
 			const type_value = parseInt(type.replace('h', ''))
 
 			if (type_value < max_value) max_value = type_value

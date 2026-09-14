@@ -8,6 +8,7 @@ import type {
   MethodOptions,
   RenderFunction,
 } from './componentOptions'
+
 import type {
   AllowedComponentProps,
   Component,
@@ -16,23 +17,28 @@ import type {
   GlobalDirectives,
   SetupContext,
 } from './component'
+
 import type {
   ComponentObjectPropsOptions,
   ComponentPropsOptions,
   ExtractDefaultPropTypes,
   ExtractPropTypes,
 } from './componentProps'
+
 import type {
   EmitsOptions,
   EmitsToProps,
   TypeEmitsToOptions,
 } from './componentEmits'
+
 import { type IsKeyValues, extend, isFunction } from '@vue/shared'
 import type { VNodeProps } from './vnode'
+
 import type {
   ComponentPublicInstanceConstructor,
   CreateComponentPublicInstanceWithMixins,
 } from './componentPublicInstance'
+
 import type { SlotsType } from './componentSlots'
 import type { Directive } from './directives'
 import type { ComponentTypeEmits } from './apiSetupHelpers'
@@ -162,6 +168,7 @@ export function defineComponent<
     slots?: S
   },
 ): DefineSetupFnComponent<Props, E, S>
+
 export function defineComponent<
   Props extends Record<string, any>,
   E extends EmitsOptions = {},

@@ -24,6 +24,7 @@ pub fn BiasedFp(comptime T: type) type {
 
         pub fn inf(comptime FloatT: type) Self {
             const e = (1 << std.math.floatExponentBits(FloatT)) - 1;
+
             return switch (FloatT) {
                 f80 => .{ .f = 0x8000000000000000, .e = e },
                 else => .{ .f = 0, .e = e },
@@ -36,9 +37,13 @@ pub fn BiasedFp(comptime T: type) type {
 
         pub fn toFloat(self: Self, comptime FloatT: type, negative: bool) FloatT {
             var word = self.f;
+
             word |= @as(MantissaT, @intCast(self.e)) << std.math.floatMantissaBits(FloatT);
+
             var f = floatFromUnsigned(FloatT, MantissaT, word);
+
             if (negative) f = -f;
+
             return f;
         }
     };
@@ -73,6 +78,7 @@ pub fn Number(comptime T: type) type {
 pub fn isEightDigits(v: u64) bool {
     const a = v +% 0x4646_4646_4646_4646;
     const b = v -% 0x3030_3030_3030_3030;
+
     return ((a | b) & 0x8080_8080_8080_8080) == 0;
 }
 

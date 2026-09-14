@@ -37,6 +37,7 @@ local function splitn_common(value, pattern, n, plain)
 
   local p = 1
   local i = 1
+
   local t = new_tab(n or 10, 0)
 
   ::again::
@@ -45,6 +46,7 @@ local function splitn_common(value, pattern, n, plain)
 
     if s then
       t[i] = sub(value, p, s - 1)
+
       i = i + 1
       p = e + 1
 

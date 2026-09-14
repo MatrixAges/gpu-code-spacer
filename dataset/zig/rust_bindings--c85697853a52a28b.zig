@@ -7,11 +7,13 @@ const stdx = vsr.stdx;
 
 const TypeMapping = struct {
     source: type,
+
     target: enum {
         auto, // auto-detect based on zig type
         enum_manual,
         struct_with_default,
     } = .auto,
+
     name: []const u8,
     comment: ?[]const u8 = null,
 };
@@ -88,6 +90,7 @@ fn resolve_rust_type(comptime Type: type) []const u8 {
         .bool => return "u8", // todo "bool"
         .int => |info| {
             assert(info.signedness == .unsigned);
+
             return switch (info.bits) {
                 8 => "u8",
                 16 => "u16",
@@ -159,17 +162,23 @@ fn emit_bitflags(
     , .{ .rust_name = rust_name, .backing_type_text = backing_type_text });
 
     try writer.print("impl {s} {{\n", .{rust_name});
+
     {
         inline for (type_info.fields, 0..) |field, bit_index| {
             if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
             comptime var skip = false;
+
             inline for (skip_fields) |sf| {
                 skip = skip or comptime std.mem.eql(u8, sf, field.name);
             }
+
             if (skip) continue;
 
             assert(field.type == bool);
+
             const field_name = stdx.to_case(field.name, .PascalCase);
+
             try writer.print("    pub const {s}: {s} = {s}(1 << {});\n", .{
                 field_name,
                 rust_name,
@@ -177,9 +186,11 @@ fn emit_bitflags(
                 bit_index,
             });
         }
+
         try writer.print("\n", .{});
         try writer.print("    pub fn empty() -> Self {{ {s}(0) }}\n", .{rust_name});
     }
+
     try writer.print("}}\n\n", .{});
 
     try writer.print(
@@ -201,47 +212,59 @@ fn emit_enum_direct(
     comptime rust_name: []const u8,
 ) !void {
     @setEvalBranchQuota(2000);
+
     const backing_type_text = resolve_rust_backing_integer(type_info.tag_type);
 
     try writer.print("#[repr({s})]\n", .{backing_type_text});
     try writer.print("#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]\n", .{});
     try writer.print("#[non_exhaustive]\n", .{});
     try writer.print("pub enum {s} {{\n", .{rust_name});
+
     inline for (type_info.fields) |field| {
         if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
         const field_name = stdx.to_case(field.name, .PascalCase);
         const int_value = @intFromEnum(@field(Type, field.name));
         const int_fmt = if (int_value == std.math.maxInt(@TypeOf(int_value))) "0x{X}" else "{}";
+
         try writer.print("    {s} = " ++ int_fmt ++ ",\n", .{ field_name, int_value });
     }
+
     try writer.print("}}\n\n", .{}); // enum close
 
     { // convert from integer to enum
         try writer.print("impl From<{s}> for {s} {{\n", .{ backing_type_text, rust_name });
+
         try writer.print(
             \\    fn from(value: {s}) -> {s} {{
             \\        match value {{
             \\
         , .{ backing_type_text, rust_name });
+
         inline for (type_info.fields) |field| {
             if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
             const field_name = stdx.to_case(field.name, .PascalCase);
             const int_value = @intFromEnum(@field(Type, field.name));
             const int_fmt = if (int_value == std.math.maxInt(@TypeOf(int_value))) "0x{X}" else "{}";
+
             try writer.print("            " ++ int_fmt ++ " => {s}::{s},\n", .{
                 int_value,
                 rust_name,
                 field_name,
             });
         }
+
         try writer.print(
             \\            other_value => panic!("cannot convert {s} {{other_value}} to {s}")
             \\        }}
             \\    }}
             \\
         , .{ backing_type_text, rust_name });
+
         try writer.print("}}\n\n", .{}); // impl From<int> close
     }
+
     { // convert from enum to integer
         try writer.print(
             \\impl From<{[enum_type]s}> for {[int_type]s} {{
@@ -253,6 +276,7 @@ fn emit_enum_direct(
             \\
         , .{ .enum_type = rust_name, .int_type = backing_type_text });
     }
+
     { // implement display
         try writer.print(
             \\ impl core::fmt::Display for {[enum_name]s} {{
@@ -260,14 +284,18 @@ fn emit_enum_direct(
             \\         match self {{
             \\
         , .{ .enum_name = rust_name });
+
         inline for (type_info.fields) |field| {
             if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
             const field_name = stdx.to_case(field.name, .PascalCase);
+
             try writer.print(
                 "             Self::{[field_name]s} => f.write_str(\"{[field_name]s}\"),\n",
                 .{ .field_name = field_name },
             );
         }
+
         try writer.print(
             \\        }}
             \\    }}
@@ -285,6 +313,7 @@ fn emit_enum_manual(
     comptime rust_name: []const u8,
 ) !void {
     var suffix_pos = std.mem.lastIndexOf(u8, rust_name, "_").?;
+
     if (std.mem.count(u8, rust_name, "_") == 1) suffix_pos = rust_name.len;
 
     const backing_type_text = resolve_rust_backing_integer(type_info.tag_type);
@@ -296,6 +325,7 @@ fn emit_enum_manual(
 
         const field_name = stdx.to_case(field.name, .UPPER_CASE);
         const int_value = @intFromEnum(@field(Type, field.name));
+
         try writer.print("pub const {s}_{s}_{s}: {s} = {s};\n", .{
             rust_name,
             rust_name[0..suffix_pos],
@@ -322,9 +352,11 @@ fn emit_struct(
     assert(type_info.layout == .@"extern");
 
     try writer.print("#[repr(C)]\n", .{});
+
     if (options.derive.len > 0) {
         try writer.print("#[derive({s})]\n", .{options.derive});
     }
+
     try writer.print("pub struct {s} {{\n", .{rust_name});
 
     inline for (type_info.fields) |field| {
@@ -332,6 +364,7 @@ fn emit_struct(
             .array => |array| {
                 if (std.mem.eql(u8, field.name, "reserved")) {
                     assert(array.child == u8);
+
                     try writer.print("    pub reserved: Reserved<{d}>", .{array.len});
                 } else {
                     try writer.print("    pub {s}: [{s}; {}]", .{
@@ -357,11 +390,14 @@ fn emit_struct(
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
+
     const allocator = arena.allocator();
 
     var buffer = std.ArrayList(u8).init(allocator);
     var writer = buffer.writer();
+
     try writer.print(
         \\ ///////////////////////////////////////////////////////
         \\ // This file was auto-generated by rust_bindings.zig //

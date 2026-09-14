@@ -100,6 +100,7 @@ fn typescript_type(comptime Type: type) []const u8 {
         },
         .int => |info| {
             assert(info.signedness == .unsigned);
+
             return switch (info.bits) {
                 16 => "number",
                 32 => "number",
@@ -136,6 +137,7 @@ fn emit_enum(
         try emit_docs(buffer, mapping, 1, field.name);
 
         const int_value = @intFromEnum(@field(Type, field.name));
+
         try buffer.writer().print("  {s} = {s},\n", .{
             field.name,
             if (int_value == std.math.maxInt(@TypeOf(int_value)))
@@ -264,10 +266,14 @@ pub fn generate_bindings(buffer: *std.ArrayList(u8)) !void {
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
+
     const allocator = arena.allocator();
 
     var buffer = std.ArrayList(u8).init(allocator);
+
     try generate_bindings(&buffer);
+
     try std.io.getStdOut().writeAll(buffer.items);
 }

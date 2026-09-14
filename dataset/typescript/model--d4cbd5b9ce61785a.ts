@@ -8,16 +8,19 @@ import {
 	FORMAT_TEXT_COMMAND,
 	SELECTION_CHANGE_COMMAND
 } from 'lexical'
+
 import { makeAutoObservable } from 'mobx'
 
 import { getSelectedNode } from '@/Editor/utils'
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link'
+
 import {
 	$isListNode,
 	INSERT_CHECK_LIST_COMMAND,
 	INSERT_ORDERED_LIST_COMMAND,
 	INSERT_UNORDERED_LIST_COMMAND
 } from '@lexical/list'
+
 import { $createHeadingNode, $isHeadingNode } from '@lexical/rich-text'
 import { $setBlocksType } from '@lexical/selection'
 import { $findMatchingParent, mergeRegister } from '@lexical/utils'
@@ -27,17 +30,22 @@ import { $isCodeTextNode } from '../Code/utils'
 import type { LexicalEditor, LexicalNode, TextFormatType } from 'lexical'
 import type { HeadingTagType } from '@lexical/rich-text'
 import type { Formats, Format, ListType } from './types'
+
 const text_formats = ['bold', 'italic', 'strikethrough', 'underline', 'code']
 
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
+
 	md = false
+
 	ref = null as unknown as HTMLElement
 	node = null as unknown as LexicalNode
-	oveflow_x = 0
 
+	oveflow_x = 0
 	visible = false
+
 	position = null as unknown as { x: number; y: number }
 	formats = {} as Formats
 	heading_type = '' as HeadingTagType
@@ -79,7 +87,9 @@ export default class Index {
 		this.oveflow_x = 0
 		this.visible = false
 		this.position = null!
+
 		this.formats = {} as Index['formats']
+
 		this.heading_type = null!
 		this.list_type = null!
 
@@ -203,6 +213,7 @@ export default class Index {
 		}
 
 		this.formats = {} as Formats
+
 		this.node = getSelectedNode(selection)
 
 		if (selection.hasFormat('bold')) this.formats['bold'] = true
@@ -220,11 +231,13 @@ export default class Index {
 
 		if (parent_heading_node) {
 			this.formats['heading'] = true
+
 			this.heading_type = parent_heading_node.getTag()
 		}
 
 		if (parent_list_node) {
 			this.formats['list'] = true
+
 			this.list_type = parent_list_node.getListType() as ListType
 		}
 
@@ -232,6 +245,7 @@ export default class Index {
 
 		if (rect) {
 			this.visible = true
+
 			this.position = { x: rect.left, y: rect.y - 42 }
 		}
 	}

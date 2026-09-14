@@ -12,9 +12,11 @@ pub fn StaticStringMap(comptime V: type) type {
 /// of `a` and `b` are known to be equal.
 pub fn defaultEql(a: []const u8, b: []const u8) bool {
     if (a.ptr == b.ptr) return true;
+
     for (a, b) |a_elem, b_elem| {
         if (a_elem != b_elem) return false;
     }
+
     return true;
 }
 
@@ -22,9 +24,11 @@ pub fn defaultEql(a: []const u8, b: []const u8) bool {
 /// the lengths of `a` and `b` are known to be equal.
 pub fn eqlAsciiIgnoreCase(a: []const u8, b: []const u8) bool {
     if (a.ptr == b.ptr) return true;
+
     for (a, b) |a_c, b_c| {
         if (std.ascii.toLower(a_c) != std.ascii.toLower(b_c)) return false;
     }
+
     return true;
 }
 
@@ -39,6 +43,7 @@ pub fn StaticStringMapWithEql(
     return struct {
         kvs: *const KVs = &empty_kvs,
         len_indexes: [*]const u32 = &empty_len_indexes,
+
         len_indexes_len: u32 = 0,
         min_len: u32 = std.math.maxInt(u32),
         max_len: u32 = 0,
@@ -49,16 +54,19 @@ pub fn StaticStringMapWithEql(
         };
 
         const Self = @This();
+
         const KVs = struct {
             keys: [*]const []const u8,
             values: [*]const V,
             len: u32,
         };
+
         const empty_kvs = KVs{
             .keys = &empty_keys,
             .values = &empty_vals,
             .len = 0,
         };
+
         const empty_len_indexes = [0]u32{};
         const empty_keys = [0][]const u8{};
         const empty_vals = [0]V{};
@@ -71,6 +79,7 @@ pub fn StaticStringMapWithEql(
         pub inline fn initComptime(comptime kvs_list: anytype) Self {
             comptime {
                 var self = Self{};
+
                 if (kvs_list.len == 0)
                     return self;
 
@@ -83,8 +92,10 @@ pub fn StaticStringMapWithEql(
                 var sorted_vals: [kvs_list.len]V = undefined;
 
                 self.initSortedKVs(kvs_list, &sorted_keys, &sorted_vals);
+
                 const final_keys = sorted_keys;
                 const final_vals = sorted_vals;
+
                 self.kvs = &.{
                     .keys = &final_keys,
                     .values = &final_vals,
@@ -92,10 +103,14 @@ pub fn StaticStringMapWithEql(
                 };
 
                 var len_indexes: [self.max_len + 1]u32 = undefined;
+
                 self.initLenIndexes(&len_indexes);
+
                 const final_len_indexes = len_indexes;
+
                 self.len_indexes = &final_len_indexes;
                 self.len_indexes_len = @intCast(len_indexes.len);
+
                 return self;
             }
         }
@@ -105,28 +120,39 @@ pub fn StaticStringMapWithEql(
         /// Handles `kvs_list` the same way as `initComptime()`.
         pub fn init(kvs_list: anytype, allocator: mem.Allocator) !Self {
             var self = Self{};
+
             if (kvs_list.len == 0)
                 return self;
 
             const sorted_keys = try allocator.alloc([]const u8, kvs_list.len);
+
             errdefer allocator.free(sorted_keys);
+
             const sorted_vals = try allocator.alloc(V, kvs_list.len);
+
             errdefer allocator.free(sorted_vals);
+
             const kvs = try allocator.create(KVs);
+
             errdefer allocator.destroy(kvs);
 
             self.initSortedKVs(kvs_list, sorted_keys, sorted_vals);
+
             kvs.* = .{
                 .keys = sorted_keys.ptr,
                 .values = sorted_vals.ptr,
                 .len = @intCast(kvs_list.len),
             };
+
             self.kvs = kvs;
 
             const len_indexes = try allocator.alloc(u32, self.max_len + 1);
+
             self.initLenIndexes(len_indexes);
+
             self.len_indexes = len_indexes.ptr;
             self.len_indexes_len = @intCast(len_indexes.len);
+
             return self;
         }
 
@@ -161,9 +187,11 @@ pub fn StaticStringMapWithEql(
             for (kvs_list, 0..) |kv, i| {
                 sorted_keys[i] = kv.@"0";
                 sorted_vals[i] = if (V == void) {} else kv.@"1";
+
                 self.min_len = @intCast(@min(self.min_len, kv.@"0".len));
                 self.max_len = @intCast(@max(self.max_len, kv.@"0".len));
             }
+
             mem.sortUnstableContext(0, sorted_keys.len, SortContext{
                 .keys = sorted_keys,
                 .vals = sorted_vals,
@@ -173,11 +201,13 @@ pub fn StaticStringMapWithEql(
         fn initLenIndexes(self: Self, len_indexes: []u32) void {
             var len: usize = 0;
             var i: u32 = 0;
+
             while (len <= self.max_len) : (len += 1) {
                 // find the first keyword len == len
                 while (len > self.kvs.keys[i].len) {
                     i += 1;
                 }
+
                 len_indexes[len] = i;
             }
         }
@@ -197,6 +227,7 @@ pub fn StaticStringMapWithEql(
 
         pub fn getIndex(self: Self, str: []const u8) ?usize {
             const kvs = self.kvs.*;
+
             if (kvs.len == 0)
                 return null;
 
@@ -204,13 +235,18 @@ pub fn StaticStringMapWithEql(
                 return null;
 
             var i = self.len_indexes[str.len];
+
             while (true) {
                 const key = kvs.keys[i];
+
                 if (key.len != str.len)
                     return null;
+
                 if (eql(key, str))
                     return i;
+
                 i += 1;
+
                 if (i >= kvs.len)
                     return null;
             }
@@ -225,8 +261,10 @@ pub fn StaticStringMapWithEql(
         pub fn getLongestPrefix(self: Self, str: []const u8) ?KV {
             if (self.kvs.len == 0)
                 return null;
+
             const i = self.getLongestPrefixIndex(str) orelse return null;
             const kvs = self.kvs.*;
+
             return .{
                 .key = kvs.keys[i],
                 .value = kvs.values[i],
@@ -241,20 +279,24 @@ pub fn StaticStringMapWithEql(
                 return null;
 
             var len = @min(self.max_len, str.len);
+
             while (len >= self.min_len) : (len -= 1) {
                 if (self.getIndex(str[0..len])) |i|
                     return i;
             }
+
             return null;
         }
 
         pub fn keys(self: Self) []const []const u8 {
             const kvs = self.kvs.*;
+
             return kvs.keys[0..kvs.len];
         }
 
         pub fn values(self: Self) []const V {
             const kvs = self.kvs.*;
+
             return kvs.values[0..kvs.len];
         }
     };
@@ -266,6 +308,7 @@ const TestKV = struct { []const u8, TestEnum };
 const TestMapVoid = StaticStringMap(void);
 const TestKVVoid = struct { []const u8 };
 const TestMapWithEql = StaticStringMapWithEql(TestEnum, eqlAsciiIgnoreCase);
+
 const testing = std.testing;
 const test_alloc = testing.allocator;
 
@@ -279,14 +322,19 @@ test "list literal of list literals" {
     };
 
     const map = TestMap.initComptime(slice);
+
     try testMap(map);
+
     // Default comparison is case sensitive
     try testing.expect(null == map.get("NOTHING"));
 
     // runtime init(), deinit()
     const map_rt = try TestMap.init(slice, test_alloc);
+
     defer map_rt.deinit(test_alloc);
+
     try testMap(map_rt);
+
     // Default comparison is case sensitive
     try testing.expect(null == map_rt.get("NOTHING"));
 }
@@ -321,10 +369,8 @@ fn testMap(map: anytype) !void {
     try testing.expect(null == map.get("missing"));
     try testing.expectEqual(TestEnum.D, map.get("these").?);
     try testing.expectEqual(TestEnum.E, map.get("samelen").?);
-
     try testing.expect(!map.has("missing"));
     try testing.expect(map.has("these"));
-
     try testing.expect(null == map.get(""));
     try testing.expect(null == map.get("averylongstringthathasnomatches"));
 }
@@ -337,8 +383,11 @@ test "void value type, slice of structs" {
         .{"incommon"},
         .{"samelen"},
     };
+
     const map = TestMapVoid.initComptime(slice);
+
     try testSet(map);
+
     // Default comparison is case sensitive
     try testing.expect(null == map.get("NOTHING"));
 }
@@ -361,16 +410,15 @@ fn testSet(map: TestMapVoid) !void {
     try testing.expect(null == map.get("missing"));
     try testing.expectEqual({}, map.get("these").?);
     try testing.expectEqual({}, map.get("samelen").?);
-
     try testing.expect(!map.has("missing"));
     try testing.expect(map.has("these"));
-
     try testing.expect(null == map.get(""));
     try testing.expect(null == map.get("averylongstringthathasnomatches"));
 }
 
 fn testStaticStringMapWithEql(map: TestMapWithEql) !void {
     try testMap(map);
+
     try testing.expectEqual(TestEnum.A, map.get("HAVE").?);
     try testing.expectEqual(TestEnum.E, map.get("SameLen").?);
     try testing.expect(null == map.get("SameLength"));
@@ -391,15 +439,19 @@ test "StaticStringMapWithEql" {
 
 test "empty" {
     const m1 = StaticStringMap(usize).initComptime(.{});
+
     try testing.expect(null == m1.get("anything"));
 
     const m2 = StaticStringMapWithEql(usize, eqlAsciiIgnoreCase).initComptime(.{});
+
     try testing.expect(null == m2.get("anything"));
 
     const m3 = try StaticStringMap(usize).init(.{}, test_alloc);
+
     try testing.expect(null == m3.get("anything"));
 
     const m4 = try StaticStringMapWithEql(usize, eqlAsciiIgnoreCase).init(.{}, test_alloc);
+
     try testing.expect(null == m4.get("anything"));
 }
 
@@ -411,6 +463,7 @@ test "redundant entries" {
         .{ "re" ++ "dundant", .C },
         .{ "redun" ++ "dant", .E },
     };
+
     const map = TestMap.initComptime(slice);
 
     // No promises about which one you get:
@@ -418,7 +471,6 @@ test "redundant entries" {
 
     // Default map is not case sensitive:
     try testing.expect(null == map.get("REDUNDANT"));
-
     try testing.expectEqual(TestEnum.A, map.get("theNeedle").?);
 }
 
@@ -486,6 +538,7 @@ test "getLongestPrefix2" {
         .{ "eight", 8 },
         .{ "nine", 9 },
     };
+
     const map = StaticStringMap(u8).initComptime(slice);
 
     try testing.expectEqual(1, map.get("one"));
@@ -495,7 +548,6 @@ test "getLongestPrefix2" {
     try testing.expectEqual(null, map.get("n"));
     try testing.expectEqual(null, map.get("ninexxx"));
     try testing.expectEqual(null, map.get("xxx"));
-
     try testing.expectEqual(1, map.getLongestPrefix("one").?.value);
     try testing.expectEqual(1, map.getLongestPrefix("onexxx").?.value);
     try testing.expectEqual(null, map.getLongestPrefix("o"));
@@ -534,5 +586,6 @@ test "sorting kvs doesn't exceed eval branch quota" {
         .{ "t2", 0 },
         .{ "t1", 1 },
     });
+
     try testing.expectEqual(1, TypeToByteSizeLUT.get("t1"));
 }

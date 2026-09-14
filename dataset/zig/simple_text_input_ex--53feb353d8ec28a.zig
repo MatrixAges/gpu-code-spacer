@@ -10,21 +10,26 @@ const Error = Status.Error;
 pub const SimpleTextInputEx = extern struct {
     _reset: *const fn (*SimpleTextInputEx, bool) callconv(cc) Status,
     _read_key_stroke_ex: *const fn (*SimpleTextInputEx, *Key) callconv(cc) Status,
+
     wait_for_key_ex: Event,
+
     _set_state: *const fn (*SimpleTextInputEx, *const u8) callconv(cc) Status,
     _register_key_notify: *const fn (*SimpleTextInputEx, *const Key, *const fn (*const Key) callconv(cc) Status, **anyopaque) callconv(cc) Status,
     _unregister_key_notify: *const fn (*SimpleTextInputEx, *const anyopaque) callconv(cc) Status,
 
     pub const ResetError = uefi.UnexpectedError || error{DeviceError};
+
     pub const ReadKeyStrokeError = uefi.UnexpectedError || error{
         NotReady,
         DeviceError,
         Unsupported,
     };
+
     pub const SetStateError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
     };
+
     pub const RegisterKeyNotifyError = uefi.UnexpectedError || error{OutOfResources};
     pub const UnregisterKeyNotifyError = uefi.UnexpectedError || error{InvalidParameter};
 
@@ -40,6 +45,7 @@ pub const SimpleTextInputEx = extern struct {
     /// Reads the next keystroke from the input device.
     pub fn readKeyStroke(self: *SimpleTextInputEx) ReadKeyStrokeError!Key {
         var key: Key = undefined;
+
         switch (self._read_key_stroke_ex(self, &key)) {
             .success => return key,
             .not_ready => return Error.NotReady,
@@ -66,6 +72,7 @@ pub const SimpleTextInputEx = extern struct {
         notify: *const fn (*const Key) callconv(cc) Status,
     ) RegisterKeyNotifyError!uefi.Handle {
         var handle: uefi.Handle = undefined;
+
         switch (self._register_key_notify(self, key_data, notify, &handle)) {
             .success => return handle,
             .out_of_resources => return Error.OutOfResources,

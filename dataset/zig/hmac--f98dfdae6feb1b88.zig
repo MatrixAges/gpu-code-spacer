@@ -26,6 +26,7 @@ pub fn Hmac(comptime Hash: type) type {
         // HMAC(k, m) = H(o_key_pad || H(i_key_pad || msg)) where || is concatenation
         pub fn create(out: *[mac_length]u8, msg: []const u8, key: []const u8) void {
             var ctx = Self.init(key);
+
             ctx.update(msg);
             ctx.final(out);
         }
@@ -38,6 +39,7 @@ pub fn Hmac(comptime Hash: type) type {
             // Normalize key length to block size of hash
             if (key.len > Hash.block_length) {
                 Hash.hash(key, scratch[0..mac_length], .{});
+
                 @memset(scratch[mac_length..Hash.block_length], 0);
             } else if (key.len < Hash.block_length) {
                 @memcpy(scratch[0..key.len], key);
@@ -55,7 +57,9 @@ pub fn Hmac(comptime Hash: type) type {
             }
 
             ctx.hash = Hash.init(.{});
+
             ctx.hash.update(&i_key_pad);
+
             return ctx;
         }
 
@@ -65,8 +69,11 @@ pub fn Hmac(comptime Hash: type) type {
 
         pub fn final(ctx: *Self, out: *[mac_length]u8) void {
             var scratch: [mac_length]u8 = undefined;
+
             ctx.hash.final(&scratch);
+
             var ohash = Hash.init(.{});
+
             ohash.update(&ctx.o_key_pad);
             ohash.update(&scratch);
             ohash.final(out);
@@ -78,6 +85,7 @@ const htest = @import("test.zig");
 
 test "md5" {
     var out: [HmacMd5.mac_length]u8 = undefined;
+
     HmacMd5.create(out[0..], "", "");
     try htest.assertEqual("74e6f7298a9c2d168935f58c001bad88", out[0..]);
 
@@ -87,6 +95,7 @@ test "md5" {
 
 test "sha1" {
     var out: [HmacSha1.mac_length]u8 = undefined;
+
     HmacSha1.create(out[0..], "", "");
     try htest.assertEqual("fbdb1d1b18aa6c08324b7d64b71fb76370690e1d", out[0..]);
 
@@ -96,6 +105,7 @@ test "sha1" {
 
 test "sha256" {
     var out: [sha2.HmacSha256.mac_length]u8 = undefined;
+
     sha2.HmacSha256.create(out[0..], "", "");
     try htest.assertEqual("b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad", out[0..]);
 

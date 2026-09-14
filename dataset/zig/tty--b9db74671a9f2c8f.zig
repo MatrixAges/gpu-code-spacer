@@ -54,14 +54,15 @@ pub const Config = union(enum) {
             null;
 
         if (force_color == false) return .no_color;
-
         if (file.getOrEnableAnsiEscapeSupport()) return .escape_codes;
 
         if (native_os == .windows and file.isTty()) {
             var info: windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
+
             if (windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info) == windows.FALSE) {
                 return if (force_color == true) .escape_codes else .no_color;
             }
+
             return .{ .windows_api = .{
                 .handle = file.handle,
                 .reset_attributes = info.wAttributes,
@@ -103,6 +104,7 @@ pub const Config = union(enum) {
                     .dim => "\x1b[2m",
                     .reset => "\x1b[0m",
                 };
+
                 try w.writeAll(color_string);
             },
             .windows_api => |ctx| {
@@ -128,6 +130,7 @@ pub const Config = union(enum) {
                     .dim => windows.FOREGROUND_INTENSITY,
                     .reset => ctx.reset_attributes,
                 };
+
                 try w.flush();
                 try windows.SetConsoleTextAttribute(ctx.handle, attributes);
             },

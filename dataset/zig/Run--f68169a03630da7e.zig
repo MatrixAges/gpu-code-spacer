@@ -206,6 +206,7 @@ pub const CapturedStdIo = struct {
 
 pub fn create(owner: *std.Build, name: []const u8) *Run {
     const run = owner.allocator.create(Run) catch @panic("OOM");
+
     run.* = .{
         .step = .init(.{
             .id = base_id,
@@ -233,6 +234,7 @@ pub fn create(owner: *std.Build, name: []const u8) *Run {
         .rebuilt_executable = null,
         .producer = null,
     };
+
     return run;
 }
 
@@ -243,8 +245,11 @@ pub fn setName(run: *Run, name: []const u8) void {
 
 pub fn enableTestRunnerMode(run: *Run) void {
     const b = run.step.owner;
+
     run.stdio = .zig_test;
+
     run.addPrefixedDirectoryArg("--cache-dir=", .{ .cwd_relative = b.cache_root.path orelse "." });
+
     run.addArgs(&.{
         b.fmt("--seed=0x{x}", .{b.graph.random_seed}),
         "--listen=-",
@@ -262,9 +267,11 @@ pub fn addPrefixedArtifactArg(run: *Run, prefix: []const u8, artifact: *Step.Com
         .prefix = b.dupe(prefix),
         .artifact = artifact,
     };
+
     run.argv.append(b.allocator, .{ .artifact = prefixed_artifact }) catch @panic("OOM");
 
     const bin_file = artifact.getEmittedBin();
+
     bin_file.addStepDependencies(&run.step);
 }
 
@@ -301,14 +308,17 @@ pub fn addPrefixedOutputFileArg(
     basename: []const u8,
 ) std.Build.LazyPath {
     const b = run.step.owner;
+
     if (basename.len == 0) @panic("basename must not be empty");
 
     const output = b.allocator.create(Output) catch @panic("OOM");
+
     output.* = .{
         .prefix = b.dupe(prefix),
         .basename = b.dupe(basename),
         .generated_file = .{ .step = &run.step },
     };
+
     run.argv.append(b.allocator, .{ .output_file = output }) catch @panic("OOM");
 
     if (run.rename_step_with_output_arg) {
@@ -350,6 +360,7 @@ pub fn addPrefixedFileArg(run: *Run, prefix: []const u8, lp: std.Build.LazyPath)
         .prefix = b.dupe(prefix),
         .lazy_path = lp.dupe(b),
     };
+
     run.argv.append(b.allocator, .{ .lazy_path = prefixed_file_source }) catch @panic("OOM");
     lp.addStepDependencies(&run.step);
 }
@@ -404,6 +415,7 @@ pub fn addPrefixedFileContentArg(run: *Run, prefix: []const u8, lp: std.Build.La
         .prefix = b.dupe(prefix),
         .lazy_path = lp.dupe(b),
     };
+
     run.argv.append(b.allocator, .{ .file_content = prefixed_file_source }) catch @panic("OOM");
     lp.addStepDependencies(&run.step);
 }
@@ -441,14 +453,17 @@ pub fn addPrefixedOutputDirectoryArg(
     basename: []const u8,
 ) std.Build.LazyPath {
     if (basename.len == 0) @panic("basename must not be empty");
+
     const b = run.step.owner;
 
     const output = b.allocator.create(Output) catch @panic("OOM");
+
     output.* = .{
         .prefix = b.dupe(prefix),
         .basename = b.dupe(basename),
         .generated_file = .{ .step = &run.step },
     };
+
     run.argv.append(b.allocator, .{ .output_directory = output }) catch @panic("OOM");
 
     if (run.rename_step_with_output_arg) {
@@ -464,11 +479,13 @@ pub fn addDirectoryArg(run: *Run, lazy_directory: std.Build.LazyPath) void {
 
 pub fn addPrefixedDirectoryArg(run: *Run, prefix: []const u8, lazy_directory: std.Build.LazyPath) void {
     const b = run.step.owner;
+
     run.argv.append(b.allocator, .{ .decorated_directory = .{
         .prefix = b.dupe(prefix),
         .lazy_path = lazy_directory.dupe(b),
         .suffix = "",
     } }) catch @panic("OOM");
+
     lazy_directory.addStepDependencies(&run.step);
 }
 
@@ -479,11 +496,13 @@ pub fn addDecoratedDirectoryArg(
     suffix: []const u8,
 ) void {
     const b = run.step.owner;
+
     run.argv.append(b.allocator, .{ .decorated_directory = .{
         .prefix = b.dupe(prefix),
         .lazy_path = lazy_directory.dupe(b),
         .suffix = b.dupe(suffix),
     } }) catch @panic("OOM");
+
     lazy_directory.addStepDependencies(&run.step);
 }
 
@@ -499,9 +518,11 @@ pub fn addDepFileOutputArg(run: *Run, basename: []const u8) std.Build.LazyPath {
 /// Only one dep file argument is allowed by instance.
 pub fn addPrefixedDepFileOutputArg(run: *Run, prefix: []const u8, basename: []const u8) std.Build.LazyPath {
     const b = run.step.owner;
+
     assert(run.dep_output_file == null);
 
     const dep_file = b.allocator.create(Output) catch @panic("OOM");
+
     dep_file.* = .{
         .prefix = b.dupe(prefix),
         .basename = b.dupe(basename),
@@ -517,6 +538,7 @@ pub fn addPrefixedDepFileOutputArg(run: *Run, prefix: []const u8, basename: []co
 
 pub fn addArg(run: *Run, arg: []const u8) void {
     const b = run.step.owner;
+
     run.argv.append(b.allocator, .{ .bytes = b.dupe(arg) }) catch @panic("OOM");
 }
 
@@ -529,17 +551,20 @@ pub fn setStdIn(run: *Run, stdin: StdIn) void {
         .lazy_path => |lazy_path| lazy_path.addStepDependencies(&run.step),
         .bytes, .none => {},
     }
+
     run.stdin = stdin;
 }
 
 pub fn setCwd(run: *Run, cwd: Build.LazyPath) void {
     cwd.addStepDependencies(&run.step);
+
     run.cwd = cwd.dupe(run.step.owner);
 }
 
 pub fn clearEnvironment(run: *Run) void {
     const b = run.step.owner;
     const new_env_map = b.allocator.create(EnvMap) catch @panic("OOM");
+
     new_env_map.* = .init(b.allocator);
     run.env_map = new_env_map;
 }
@@ -555,6 +580,7 @@ pub fn addPathDir(run: *Run, search_path: []const u8) void {
                 .generated => |g| if (g.file.step.cast(Step.Compile)) |cs| break :use_wine cs.rootModuleTarget().os.tag == .windows,
                 else => {},
             }
+
             break :use_wine std.mem.endsWith(u8, p.lazy_path.basename(b, &run.step), ".exe");
         },
         .decorated_directory => false,
@@ -562,6 +588,7 @@ pub fn addPathDir(run: *Run, search_path: []const u8) void {
         .bytes => |bytes| std.mem.endsWith(u8, bytes, ".exe"),
         .output_file, .output_directory => false,
     };
+
     const key = if (use_wine) "WINEPATH" else "PATH";
     const prev_path = env_map.get(key);
 
@@ -571,6 +598,7 @@ pub fn addPathDir(run: *Run, search_path: []const u8) void {
             if (use_wine) fs.path.delimiter_windows else fs.path.delimiter,
             search_path,
         });
+
         env_map.put(key, new_path) catch @panic("OOM");
     } else {
         env_map.put(key, b.dupePath(search_path)) catch @panic("OOM");
@@ -583,10 +611,13 @@ pub fn getEnvMap(run: *Run) *EnvMap {
 
 fn getEnvMapInternal(run: *Run) *EnvMap {
     const arena = run.step.owner.allocator;
+
     return run.env_map orelse {
         const env_map = arena.create(EnvMap) catch @panic("OOM");
+
         env_map.* = process.getEnvMap(arena) catch @panic("unhandled error");
         run.env_map = env_map;
+
         return env_map;
     };
 }
@@ -594,6 +625,7 @@ fn getEnvMapInternal(run: *Run) *EnvMap {
 pub fn setEnvironmentVariable(run: *Run, key: []const u8, value: []const u8) void {
     const b = run.step.owner;
     const env_map = run.getEnvMap();
+
     env_map.put(b.dupe(key), b.dupe(value)) catch @panic("unhandled error");
 }
 
@@ -604,6 +636,7 @@ pub fn removeEnvironmentVariable(run: *Run, key: []const u8) void {
 /// Adds a check for exact stderr match. Does not add any other checks.
 pub fn expectStdErrEqual(run: *Run, bytes: []const u8) void {
     const new_check: StdIo.Check = .{ .expect_stderr_exact = run.step.owner.dupe(bytes) };
+
     run.addCheck(new_check);
 }
 
@@ -611,7 +644,9 @@ pub fn expectStdErrEqual(run: *Run, bytes: []const u8) void {
 /// there is not already an expected termination check.
 pub fn expectStdOutEqual(run: *Run, bytes: []const u8) void {
     const new_check: StdIo.Check = .{ .expect_stdout_exact = run.step.owner.dupe(bytes) };
+
     run.addCheck(new_check);
+
     if (!run.hasTermCheck()) {
         run.expectExitCode(0);
     }
@@ -619,6 +654,7 @@ pub fn expectStdOutEqual(run: *Run, bytes: []const u8) void {
 
 pub fn expectExitCode(run: *Run, code: u8) void {
     const new_check: StdIo.Check = .{ .expect_term = .{ .Exited = code } };
+
     run.addCheck(new_check);
 }
 
@@ -627,6 +663,7 @@ pub fn hasTermCheck(run: Run) bool {
         .expect_term => return true,
         else => continue,
     };
+
     return false;
 }
 
@@ -636,6 +673,7 @@ pub fn addCheck(run: *Run, new_check: StdIo.Check) void {
     switch (run.stdio) {
         .infer_from_args => {
             run.stdio = .{ .check = .{} };
+
             run.stdio.check.append(b.allocator, new_check) catch @panic("OOM");
         },
         .check => |*checks| checks.append(b.allocator, new_check) catch @panic("OOM"),
@@ -652,6 +690,7 @@ pub fn captureStdErr(run: *Run, options: CapturedStdIo.Options) std.Build.LazyPa
     if (run.captured_stderr) |captured| return .{ .generated = .{ .file = &captured.output.generated_file } };
 
     const captured = b.allocator.create(CapturedStdIo) catch @panic("OOM");
+
     captured.* = .{
         .output = .{
             .prefix = "",
@@ -660,7 +699,9 @@ pub fn captureStdErr(run: *Run, options: CapturedStdIo.Options) std.Build.LazyPa
         },
         .trim_whitespace = options.trim_whitespace,
     };
+
     run.captured_stderr = captured;
+
     return .{ .generated = .{ .file = &captured.output.generated_file } };
 }
 
@@ -673,6 +714,7 @@ pub fn captureStdOut(run: *Run, options: CapturedStdIo.Options) std.Build.LazyPa
     if (run.captured_stdout) |captured| return .{ .generated = .{ .file = &captured.output.generated_file } };
 
     const captured = b.allocator.create(CapturedStdIo) catch @panic("OOM");
+
     captured.* = .{
         .output = .{
             .prefix = "",
@@ -681,7 +723,9 @@ pub fn captureStdOut(run: *Run, options: CapturedStdIo.Options) std.Build.LazyPa
         },
         .trim_whitespace = options.trim_whitespace,
     };
+
     run.captured_stdout = captured;
+
     return .{ .generated = .{ .file = &captured.output.generated_file } };
 }
 
@@ -698,6 +742,7 @@ pub fn addFileInput(self: *Run, file_input: std.Build.LazyPath) void {
 /// Returns whether the Run step has side effects *other than* updating the output arguments.
 fn hasSideEffects(run: Run) bool {
     if (run.has_side_effects) return true;
+
     return switch (run.stdio) {
         .infer_from_args => !run.hasAnyOutputArgs(),
         .inherit => true,
@@ -709,10 +754,12 @@ fn hasSideEffects(run: Run) bool {
 fn hasAnyOutputArgs(run: Run) bool {
     if (run.captured_stdout != null) return true;
     if (run.captured_stderr != null) return true;
+
     for (run.argv.items) |arg| switch (arg) {
         .output_file, .output_directory => return true,
         else => continue,
     };
+
     return false;
 }
 
@@ -727,6 +774,7 @@ fn checksContainStdout(checks: []const StdIo.Check) bool {
         .expect_stdout_match,
         => return true,
     };
+
     return false;
 }
 
@@ -741,6 +789,7 @@ fn checksContainStderr(checks: []const StdIo.Check) bool {
         .expect_stderr_match,
         => return true,
     };
+
     return false;
 }
 
@@ -751,22 +800,27 @@ fn checksContainStderr(checks: []const StdIo.Check) bool {
 fn convertPathArg(run: *Run, path: Build.Cache.Path) []const u8 {
     const b = run.step.owner;
     const path_str = path.toString(b.graph.arena) catch @panic("OOM");
+
     if (std.fs.path.isAbsolute(path_str)) {
         // Absolute paths don't need changing.
         return path_str;
     }
+
     const child_cwd_rel: []const u8 = rel: {
         const child_lazy_cwd = run.cwd orelse break :rel path_str;
         const child_cwd = child_lazy_cwd.getPath3(b, &run.step).toString(b.graph.arena) catch @panic("OOM");
+
         // Convert it from relative to *our* cwd, to relative to the *child's* cwd.
         break :rel std.fs.path.relative(b.graph.arena, child_cwd, path_str) catch @panic("OOM");
     };
+
     // Not every path can be made relative, e.g. if the path and the child cwd are on different
     // disk designators on Windows. In that case, `relative` will return an absolute path which we can
     // just return.
     if (std.fs.path.isAbsolute(child_cwd_rel)) {
         return child_cwd_rel;
     }
+
     // We're not done yet. In some cases this path must be prefixed with './':
     // * On POSIX, the executable name cannot be a single component like 'foo'
     // * Some executables might treat a leading '-' like a flag, which we must avoid
@@ -779,6 +833,7 @@ const IndexedOutput = struct {
     tag: @typeInfo(Arg).@"union".tag_type.?,
     output: *Output,
 };
+
 fn make(step: *Step, options: Step.MakeOptions) !void {
     const b = step.owner;
     const io = b.graph.io;
@@ -790,12 +845,14 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     var output_placeholders = std.array_list.Managed(IndexedOutput).init(arena);
 
     var man = b.graph.cache.obtain();
+
     defer man.deinit();
 
     if (run.env_map) |env_map| {
         const KV = struct { []const u8, []const u8 };
         var kv_pairs = try std.array_list.Managed(KV).initCapacity(arena, env_map.count());
         var iter = env_map.iterator();
+
         while (iter.next()) |entry| {
             kv_pairs.appendAssumeCapacity(.{ entry.key_ptr.*, entry.value_ptr.* });
         }
@@ -809,8 +866,10 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
                 for (k1, k2) |c1, c2| {
                     if (c1 == c2) continue;
+
                     return c1 < c2;
                 }
+
                 unreachable; // two keys cannot be equal
             }
         }.lessThan);
@@ -832,13 +891,16 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
             },
             .lazy_path => |file| {
                 const file_path = file.lazy_path.getPath3(b, step);
+
                 try argv_list.append(b.fmt("{s}{s}", .{ file.prefix, run.convertPathArg(file_path) }));
                 man.hash.addBytes(file.prefix);
+
                 _ = try man.addFilePath(file_path, null);
             },
             .decorated_directory => |dd| {
                 const file_path = dd.lazy_path.getPath3(b, step);
                 const resolved_arg = b.fmt("{s}{s}{s}", .{ dd.prefix, run.convertPathArg(file_path), dd.suffix });
+
                 try argv_list.append(resolved_arg);
                 man.hash.addBytes(resolved_arg);
             },
@@ -846,7 +908,9 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                 const file_path = file_plp.lazy_path.getPath3(b, step);
 
                 var result: std.Io.Writer.Allocating = .init(arena);
+
                 errdefer result.deinit();
+
                 result.writer.writeAll(file_plp.prefix) catch return error.OutOfMemory;
 
                 const file = file_path.root_dir.handle.openFile(file_path.subPathOrDot(), .{}) catch |err| {
@@ -855,10 +919,12 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                         .{ file_path, err },
                     );
                 };
+
                 defer file.close();
 
                 var buf: [1024]u8 = undefined;
                 var file_reader = file.reader(io, &buf);
+
                 _ = file_reader.interface.streamRemaining(&result.writer) catch |err| switch (err) {
                     error.ReadFailed => return step.fail(
                         "failed to read from '{f}': {t}",
@@ -869,6 +935,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
                 try argv_list.append(result.written());
                 man.hash.addBytes(file_plp.prefix);
+
                 _ = try man.addFilePath(file_path, null);
             },
             .artifact => |pa| {
@@ -878,6 +945,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                     // On Windows we don't have rpaths so we have to add .dll search paths to PATH
                     run.addPathForDynLibs(artifact);
                 }
+
                 const file_path = artifact.installed_path orelse artifact.generated_bin.?.path.?;
 
                 try argv_list.append(b.fmt("{s}{s}", .{
@@ -890,6 +958,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
             .output_file, .output_directory => |output| {
                 man.hash.addBytes(output.prefix);
                 man.hash.addBytes(output.basename);
+
                 // Add a placeholder into the argument list because we need the
                 // manifest hash to be updated with all arguments before the
                 // object directory is computed.
@@ -898,6 +967,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                     .tag = arg,
                     .output = output,
                 });
+
                 _ = try argv_list.addOne();
             },
         }
@@ -909,6 +979,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         },
         .lazy_path => |lazy_path| {
             const file_path = lazy_path.getPath2(b, step);
+
             _ = try man.addFile(file_path, null);
         },
         .none => {},
@@ -932,6 +1003,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
     if (run.cwd) |cwd| {
         const cwd_path = cwd.getPath3(b, step);
+
         _ = man.hash.addBytes(try cwd_path.toString(arena));
     }
 
@@ -949,6 +1021,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         );
 
         step.result_cached = true;
+
         return;
     }
 
@@ -969,22 +1042,27 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         );
 
         const output_dir_path = "o" ++ fs.path.sep_str ++ &digest;
+
         for (output_placeholders.items) |placeholder| {
             const output_sub_path = b.pathJoin(&.{ output_dir_path, placeholder.output.basename });
+
             const output_sub_dir_path = switch (placeholder.tag) {
                 .output_file => fs.path.dirname(output_sub_path).?,
                 .output_directory => output_sub_path,
                 else => unreachable,
             };
+
             b.cache_root.handle.makePath(output_sub_dir_path) catch |err| {
                 return step.fail("unable to make path '{f}{s}': {s}", .{
                     b.cache_root, output_sub_dir_path, @errorName(err),
                 });
             };
+
             const arg_output_path = run.convertPathArg(.{
                 .root_dir = .cwd(),
                 .sub_path = placeholder.output.generated_file.getPath(),
             });
+
             argv_list.items[placeholder.index] = if (placeholder.output.prefix.len == 0)
                 arg_output_path
             else
@@ -992,7 +1070,9 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         }
 
         try runCommand(run, argv_list.items, has_side_effects, output_dir_path, options, null);
+
         if (!has_side_effects) try step.writeManifestAndWatch(&man);
+
         return;
     };
 
@@ -1003,21 +1083,26 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     for (output_placeholders.items) |placeholder| {
         const output_components = .{ tmp_dir_path, placeholder.output.basename };
         const output_sub_path = b.pathJoin(&output_components);
+
         const output_sub_dir_path = switch (placeholder.tag) {
             .output_file => fs.path.dirname(output_sub_path).?,
             .output_directory => output_sub_path,
             else => unreachable,
         };
+
         b.cache_root.handle.makePath(output_sub_dir_path) catch |err| {
             return step.fail("unable to make path '{f}{s}': {s}", .{
                 b.cache_root, output_sub_dir_path, @errorName(err),
             });
         };
+
         const raw_output_path: Build.Cache.Path = .{
             .root_dir = b.cache_root,
             .sub_path = b.pathJoin(&output_components),
         };
+
         placeholder.output.generated_file.path = raw_output_path.toString(b.graph.arena) catch @panic("OOM");
+
         argv_list.items[placeholder.index] = b.fmt("{s}{s}", .{
             placeholder.output.prefix,
             run.convertPathArg(raw_output_path),
@@ -1028,6 +1113,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
     const dep_file_dir = std.fs.cwd();
     const dep_file_basename = dep_output_file.generated_file.getPath2(b, step);
+
     if (has_side_effects)
         try man.addDepFile(dep_file_dir, dep_file_basename)
     else
@@ -1054,6 +1140,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                         @errorName(del_err),
                     });
                 };
+
                 b.cache_root.handle.rename(tmp_dir_path, o_sub_path) catch |retry_err| {
                     return step.fail("unable to rename dir '{f}{s}' to '{f}{s}': {s}", .{
                         b.cache_root,          tmp_dir_path,
@@ -1094,6 +1181,7 @@ pub fn rerunInFuzzMode(
     const io = b.graph.io;
     const arena = b.allocator;
     var argv_list: std.ArrayList([]const u8) = .empty;
+
     for (run.argv.items) |arg| {
         switch (arg) {
             .bytes => |bytes| {
@@ -1101,24 +1189,30 @@ pub fn rerunInFuzzMode(
             },
             .lazy_path => |file| {
                 const file_path = file.lazy_path.getPath3(b, step);
+
                 try argv_list.append(arena, b.fmt("{s}{s}", .{ file.prefix, run.convertPathArg(file_path) }));
             },
             .decorated_directory => |dd| {
                 const file_path = dd.lazy_path.getPath3(b, step);
+
                 try argv_list.append(arena, b.fmt("{s}{s}{s}", .{ dd.prefix, run.convertPathArg(file_path), dd.suffix }));
             },
             .file_content => |file_plp| {
                 const file_path = file_plp.lazy_path.getPath3(b, step);
 
                 var result: std.Io.Writer.Allocating = .init(arena);
+
                 errdefer result.deinit();
+
                 result.writer.writeAll(file_plp.prefix) catch return error.OutOfMemory;
 
                 const file = try file_path.root_dir.handle.openFile(file_path.subPathOrDot(), .{});
+
                 defer file.close();
 
                 var buf: [1024]u8 = undefined;
                 var file_reader = file.reader(io, &buf);
+
                 _ = file_reader.interface.streamRemaining(&result.writer) catch |err| switch (err) {
                     error.ReadFailed => return file_reader.err.?,
                     error.WriteFailed => return error.OutOfMemory,
@@ -1128,10 +1222,13 @@ pub fn rerunInFuzzMode(
             },
             .artifact => |pa| {
                 const artifact = pa.artifact;
+
                 const file_path: []const u8 = p: {
                     if (artifact == run.producer.?) break :p b.fmt("{f}", .{run.rebuilt_executable.?});
+
                     break :p artifact.installed_path orelse artifact.generated_bin.?.path.?;
                 };
+
                 try argv_list.append(arena, b.fmt("{s}{s}", .{
                     pa.prefix,
                     run.convertPathArg(.{ .root_dir = .cwd(), .sub_path = file_path }),
@@ -1143,12 +1240,14 @@ pub fn rerunInFuzzMode(
 
     if (run.step.result_failed_command) |cmd| {
         fuzz.gpa.free(cmd);
+
         run.step.result_failed_command = null;
     }
 
     const has_side_effects = false;
     const rand_int = std.crypto.random.int(u64);
     const tmp_dir_path = "tmp" ++ fs.path.sep_str ++ std.fmt.hex(rand_int);
+
     try runCommand(run, argv_list.items, has_side_effects, tmp_dir_path, .{
         .progress_node = prog_node,
         .watch = undefined, // not used by `runCommand`
@@ -1199,6 +1298,7 @@ fn formatTerm(term: ?std.process.Child.Term, w: *std.Io.Writer) std.Io.Writer.Er
         try w.writeAll("exited with any code");
     }
 }
+
 fn fmtTerm(term: ?std.process.Child.Term) std.fmt.Alt(?std.process.Child.Term, formatTerm) {
     return .{ .data = term };
 }
@@ -1256,12 +1356,15 @@ fn runCommand(
     };
 
     var interp_argv = std.array_list.Managed([]const u8).init(b.allocator);
+
     defer interp_argv.deinit();
 
     var env_map: EnvMap = env: {
         const orig = run.env_map orelse &b.graph.env_map;
+
         break :env try orig.clone(gpa);
     };
+
     defer env_map.deinit();
 
     color: switch (run.color) {
@@ -1283,6 +1386,7 @@ fn runCommand(
                 .check => |checks| checksContainStderr(checks.items),
                 .infer_from_args, .inherit, .zig_test => false,
             };
+
             if (capture_stderr) {
                 continue :color .disable;
             } else {
@@ -1303,21 +1407,26 @@ fn runCommand(
                 .artifact => |exe| exe.artifact,
                 else => break :interpret,
             };
+
             switch (exe.kind) {
                 .exe, .@"test" => {},
                 else => break :interpret,
             }
 
             const root_target = exe.rootModuleTarget();
+
             const need_cross_libc = exe.is_linking_libc and
                 (root_target.isGnuLibC() or (root_target.isMuslLibC() and exe.linkage == .dynamic));
+
             const other_target = exe.root_module.resolved_target.?.result;
+
             switch (std.zig.system.getExternalExecutor(&b.graph.host.result, &other_target, .{
                 .qemu_fixes_dl = need_cross_libc and b.libc_runtimes_dir != null,
                 .link_libc = exe.is_linking_libc,
             })) {
                 .native, .rosetta => {
                     if (allow_skip) return error.MakeSkipped;
+
                     break :interpret;
                 },
                 .wine => |bin_name| {
@@ -1341,6 +1450,7 @@ fn runCommand(
                         if (need_cross_libc) {
                             if (b.libc_runtimes_dir) |dir| {
                                 try interp_argv.append("-L");
+
                                 try interp_argv.append(b.pathJoin(&.{
                                     dir,
                                     try if (root_target.isGnuLibC()) std.zig.target.glibcRuntimeTriple(
@@ -1424,17 +1534,21 @@ fn runCommand(
             }
 
             gpa.free(step.result_failed_command.?);
+
             step.result_failed_command = null;
+
             try Step.handleVerbose2(step.owner, cwd, run.env_map, interp_argv.items);
 
             break :term spawnChildAndCollect(run, interp_argv.items, &env_map, has_side_effects, options, fuzz_context) catch |e| {
                 if (!run.failing_to_execute_foreign_is_an_error) return error.MakeSkipped;
                 if (e == error.MakeFailed) return error.MakeFailed; // error already reported
+
                 return step.fail("unable to spawn interpreter {s}: {s}", .{
                     interp_argv.items[0], @errorName(e),
                 });
             };
         }
+
         if (err == error.MakeFailed) return error.MakeFailed; // error already reported
 
         return step.fail("failed to spawn and capture stdio from {s}: {s}", .{ argv[0], @errorName(err) });
@@ -1442,9 +1556,11 @@ fn runCommand(
 
     const generic_result = opt_generic_result orelse {
         assert(run.stdio == .zig_test);
+
         // Specific errors have already been reported, and test results are populated. All we need
         // to do is report step failure if any test failed.
         if (!step.test_results.isSuccess()) return error.MakeFailed;
+
         return;
     };
 
@@ -1456,6 +1572,7 @@ fn runCommand(
         captured: ?*CapturedStdIo,
         bytes: ?[]const u8,
     };
+
     for ([_]Stream{
         .{
             .captured = run.captured_stdout,
@@ -1469,21 +1586,25 @@ fn runCommand(
         if (stream.captured) |captured| {
             const output_components = .{ output_dir_path, captured.output.basename };
             const output_path = try b.cache_root.join(arena, &output_components);
+
             captured.output.generated_file.path = output_path;
 
             const sub_path = b.pathJoin(&output_components);
             const sub_path_dirname = fs.path.dirname(sub_path).?;
+
             b.cache_root.handle.makePath(sub_path_dirname) catch |err| {
                 return step.fail("unable to make path '{f}{s}': {s}", .{
                     b.cache_root, sub_path_dirname, @errorName(err),
                 });
             };
+
             const data = switch (captured.trim_whitespace) {
                 .none => stream.bytes.?,
                 .all => mem.trim(u8, stream.bytes.?, &std.ascii.whitespace),
                 .leading => mem.trimStart(u8, stream.bytes.?, &std.ascii.whitespace),
                 .trailing => mem.trimEnd(u8, stream.bytes.?, &std.ascii.whitespace),
             };
+
             b.cache_root.handle.writeFile(.{ .sub_path = sub_path, .data = data }) catch |err| {
                 return step.fail("unable to write file '{f}{s}': {s}", .{
                     b.cache_root, sub_path, @errorName(err),
@@ -1562,6 +1683,7 @@ fn runCommand(
                 .Exited => |code| code != 0,
                 .Signal, .Stopped, .Unknown => true,
             };
+
             if (bad_exit) {
                 if (generic_result.stderr) |bytes| {
                     run.step.result_stderr = bytes;
@@ -1577,6 +1699,7 @@ const EvalZigTestResult = struct {
     test_results: Step.TestResults,
     test_metadata: ?TestMetadata,
 };
+
 const EvalGenericResult = struct {
     term: std.process.Child.Term,
     stdout: ?[]const u8,
@@ -1600,9 +1723,11 @@ fn spawnChildAndCollect(
     }
 
     var child = std.process.Child.init(argv, arena);
+
     if (run.cwd) |lazy_cwd| {
         child.cwd = lazy_cwd.getPath2(b, &run.step);
     }
+
     child.env_map = env_map;
     child.request_resource_usage_statistics = true;
 
@@ -1612,36 +1737,45 @@ fn spawnChildAndCollect(
         .check => .Ignore,
         .zig_test => .Pipe,
     };
+
     child.stdout_behavior = switch (run.stdio) {
         .infer_from_args => if (has_side_effects) .Inherit else .Ignore,
         .inherit => .Inherit,
         .check => |checks| if (checksContainStdout(checks.items)) .Pipe else .Ignore,
         .zig_test => .Pipe,
     };
+
     child.stderr_behavior = switch (run.stdio) {
         .infer_from_args => if (has_side_effects) .Inherit else .Pipe,
         .inherit => .Inherit,
         .check => .Pipe,
         .zig_test => .Pipe,
     };
+
     if (run.captured_stdout != null) child.stdout_behavior = .Pipe;
     if (run.captured_stderr != null) child.stderr_behavior = .Pipe;
+
     if (run.stdin != .none) {
         assert(run.stdio != .inherit);
+
         child.stdin_behavior = .Pipe;
     }
 
     // If an error occurs, it's caused by this command:
     assert(run.step.result_failed_command == null);
+
     run.step.result_failed_command = try Step.allocPrintCmd(options.gpa, child.cwd, argv);
 
     if (run.stdio == .zig_test) {
         var timer = try std.time.Timer.start();
         const res = try evalZigTest(run, &child, options, fuzz_context);
+
         run.step.result_duration_ns = timer.read();
         run.step.test_results = res.test_results;
+
         if (res.test_metadata) |tm| {
             run.cached_test_metadata = tm.toCachedTestMetadata();
+
             if (options.web_server) |ws| {
                 if (b.graph.time_report) {
                     ws.updateTimeReportRunTest(
@@ -1652,17 +1786,24 @@ fn spawnChildAndCollect(
                 }
             }
         }
+
         return null;
     } else {
         const inherit = child.stdout_behavior == .Inherit or child.stderr_behavior == .Inherit;
+
         if (!run.disable_zig_progress and !inherit) {
             child.progress_node = options.progress_node;
         }
+
         if (inherit) std.debug.lockStdErr();
+
         defer if (inherit) std.debug.unlockStdErr();
+
         var timer = try std.time.Timer.start();
         const res = try evalGeneric(run, &child);
+
         run.step.result_duration_ns = timer.read();
+
         return .{ .term = res.term, .stdout = res.stdout, .stderr = res.stderr };
     }
 }
@@ -1696,14 +1837,19 @@ fn evalZigTest(
 
     while (true) {
         try child.spawn();
+
         var poller = std.Io.poll(gpa, StdioPollEnum, .{
             .stdout = child.stdout.?,
             .stderr = child.stderr.?,
         });
+
         var child_killed = false;
+
         defer if (!child_killed) {
             _ = child.kill() catch {};
+
             poller.deinit();
+
             run.step.result_peak_rss = @max(
                 run.step.result_peak_rss,
                 child.resource_usage_statistics.getMaxRss() orelse 0,
@@ -1725,34 +1871,47 @@ fn evalZigTest(
                 // The runner unexpectedly closed a stdio pipe, which means a crash. Make sure we've captured
                 // all available stderr to make our error output as useful as possible.
                 while (try poller.poll()) {}
+
                 run.step.result_stderr = try arena.dupe(u8, poller.reader(.stderr).buffered());
 
                 // Clean up everything and wait for the child to exit.
                 child.stdin.?.close();
+
                 child.stdin = null;
+
                 poller.deinit();
+
                 child_killed = true;
+
                 const term = try child.wait();
+
                 run.step.result_peak_rss = @max(
                     run.step.result_peak_rss,
                     child.resource_usage_statistics.getMaxRss() orelse 0,
                 );
 
                 try run.step.addError("unable to write stdin ({t}); test process unexpectedly {f}", .{ err, fmtTerm(term) });
+
                 return result;
             },
             .no_poll => |no_poll| {
                 // This might be a success (we requested exit and the child dutifully closed stdout) or
                 // a crash of some kind. Either way, the child will terminate by itself -- wait for it.
                 const stderr_owned = try arena.dupe(u8, poller.reader(.stderr).buffered());
+
                 poller.reader(.stderr).tossBuffered();
 
                 // Clean up everything and wait for the child to exit.
                 child.stdin.?.close();
+
                 child.stdin = null;
+
                 poller.deinit();
+
                 child_killed = true;
+
                 const term = try child.wait();
+
                 run.step.result_peak_rss = @max(
                     run.step.result_peak_rss,
                     child.resource_usage_statistics.getMaxRss() orelse 0,
@@ -1763,44 +1922,56 @@ fn evalZigTest(
                     // test, and continue to the next test.
                     result.test_metadata.?.ns_per_test[test_index] = no_poll.ns_elapsed;
                     result.test_results.crash_count += 1;
+
                     try run.step.addError("'{s}' {f}{s}{s}", .{
                         result.test_metadata.?.testName(test_index),
                         fmtTerm(term),
                         if (stderr_owned.len != 0) " with stderr:\n" else "",
                         std.mem.trim(u8, stderr_owned, "\n"),
                     });
+
                     continue;
                 }
 
                 // Report an error if the child terminated uncleanly or if we were still trying to run more tests.
                 run.step.result_stderr = stderr_owned;
+
                 const tests_done = result.test_metadata != null and result.test_metadata.?.next_index == std.math.maxInt(u32);
+
                 if (!tests_done or !termMatches(.{ .Exited = 0 }, term)) {
                     try run.step.addError("test process unexpectedly {f}", .{fmtTerm(term)});
                 }
+
                 return result;
             },
             .timeout => |timeout| {
                 const stderr = poller.reader(.stderr).buffered();
+
                 poller.reader(.stderr).tossBuffered();
+
                 if (timeout.active_test_index) |test_index| {
                     // A test was running. Report the timeout against that test, and continue on to
                     // the next test.
                     result.test_metadata.?.ns_per_test[test_index] = timeout.ns_elapsed;
                     result.test_results.timeout_count += 1;
+
                     try run.step.addError("'{s}' timed out after {D}{s}{s}", .{
                         result.test_metadata.?.testName(test_index),
                         timeout.ns_elapsed,
                         if (stderr.len != 0) " with stderr:\n" else "",
                         std.mem.trim(u8, stderr, "\n"),
                     });
+
                     continue;
                 }
+
                 // Just log an error and let the child be killed.
                 run.step.result_stderr = try arena.dupe(u8, stderr);
+
                 return run.step.fail("test runner failed to respond for {D}", .{timeout.ns_elapsed});
             },
         }
+
         comptime unreachable;
     }
 }
@@ -1833,10 +2004,12 @@ fn pollZigTest(
     const io = run.step.owner.graph.io;
 
     var sub_prog_node: ?std.Progress.Node = null;
+
     defer if (sub_prog_node) |n| n.end();
 
     if (fuzz_context) |ctx| {
         assert(opt_metadata.* == null); // fuzz processes are never restarted
+
         switch (ctx.fuzz.mode) {
             .forever => {
                 sendRunFuzzTestMessage(
@@ -1861,6 +2034,7 @@ fn pollZigTest(
     } else {
         // Running unit tests normally
         run.fuzz_tests.clearRetainingCapacity();
+
         sendMessage(child.stdin.?, .query_test_metadata) catch |err| return .{ .write_failed = err };
     }
 
@@ -1878,6 +2052,7 @@ fn pollZigTest(
     // *should* never happen, but could in theory be caused by some very unlucky IB in a test.
     const response_timeout_ns: ?u64 = ns: {
         if (fuzz_context != null) break :ns null; // don't timeout fuzz tests
+
         break :ns @max(options.unit_test_timeout_ns orelse 0, 60 * std.time.ns_per_s);
     };
 
@@ -1898,11 +2073,13 @@ fn pollZigTest(
             const opt_timeout_ns: ?u64 = ns: {
                 if (timer == null) break :ns null;
                 if (active_test_index == null) break :ns response_timeout_ns;
+
                 break :ns options.unit_test_timeout_ns;
             };
 
             if (opt_timeout_ns) |timeout_ns| {
                 const remaining_ns = timeout_ns -| timer.?.read();
+
                 if (!try poller.pollTimeout(remaining_ns)) return .{ .no_poll = .{
                     .active_test_index = active_test_index,
                     .ns_elapsed = if (timer) |*t| t.read() else 0,
@@ -1921,13 +2098,16 @@ fn pollZigTest(
 
             if (opt_timeout_ns) |timeout_ns| {
                 const cur_ns = timer.?.read();
+
                 if (cur_ns >= timeout_ns) return .{ .timeout = .{
                     .active_test_index = active_test_index,
                     .ns_elapsed = cur_ns,
                 } };
             }
+
             continue;
         }
+
         // There is definitely a header available now -- read it.
         const header = stdout.takeStruct(Header, .little) catch unreachable;
 
@@ -1935,8 +2115,10 @@ fn pollZigTest(
             .active_test_index = active_test_index,
             .ns_elapsed = if (timer) |*t| t.read() else 0,
         } };
+
         const body = stdout.take(header.bytes_len) catch unreachable;
         var body_r: std.Io.Reader = .fixed(body);
+
         switch (header.tag) {
             .zig_version => {
                 if (!std.mem.eql(u8, builtin.zig_version_string, body)) return run.step.fail(
@@ -1953,17 +2135,21 @@ fn pollZigTest(
                 assert(opt_metadata.* == null);
 
                 const tm_hdr = body_r.takeStruct(std.zig.Server.Message.TestMetadata, .little) catch unreachable;
+
                 results.test_count = tm_hdr.tests_len;
 
                 const names = try arena.alloc(u32, results.test_count);
+
                 for (names) |*dest| dest.* = body_r.takeInt(u32, .little) catch unreachable;
 
                 const expected_panic_msgs = try arena.alloc(u32, results.test_count);
+
                 for (expected_panic_msgs) |*dest| dest.* = body_r.takeInt(u32, .little) catch unreachable;
 
                 const string_bytes = body_r.take(tm_hdr.string_bytes_len) catch unreachable;
 
                 options.progress_node.setEstimatedTotalItems(names.len);
+
                 opt_metadata.* = .{
                     .string_bytes = try arena.dupe(u8, string_bytes),
                     .ns_per_test = try arena.alloc(u64, results.test_count),
@@ -1972,22 +2158,27 @@ fn pollZigTest(
                     .next_index = 0,
                     .prog_node = options.progress_node,
                 };
+
                 @memset(opt_metadata.*.?.ns_per_test, std.math.maxInt(u64));
 
                 active_test_index = null;
+
                 if (timer) |*t| t.reset();
 
                 requestNextTest(child.stdin.?, &opt_metadata.*.?, &sub_prog_node) catch |err| return .{ .write_failed = err };
             },
             .test_started => {
                 active_test_index = opt_metadata.*.?.next_index - 1;
+
                 if (timer) |*t| t.reset();
             },
             .test_results => {
                 assert(fuzz_context == null);
+
                 const md = &opt_metadata.*.?;
 
                 const tr_hdr = body_r.takeStruct(std.zig.Server.Message.TestResults, .little) catch unreachable;
+
                 assert(tr_hdr.index == active_test_index);
 
                 switch (tr_hdr.flags.status) {
@@ -1995,8 +2186,10 @@ fn pollZigTest(
                     .skip => results.skip_count +|= 1,
                     .fail => results.fail_count +|= 1,
                 }
+
                 const leak_count = tr_hdr.flags.leak_count;
                 const log_err_count = tr_hdr.flags.log_err_count;
+
                 results.leak_count +|= leak_count;
                 results.log_err_count +|= log_err_count;
 
@@ -2005,7 +2198,9 @@ fn pollZigTest(
                 if (tr_hdr.flags.status == .fail) {
                     const name = std.mem.sliceTo(md.testName(tr_hdr.index), 0);
                     const stderr_bytes = std.mem.trim(u8, stderr.buffered(), "\n");
+
                     stderr.tossBuffered();
+
                     if (stderr_bytes.len == 0) {
                         try run.step.addError("'{s}' failed without output", .{name});
                     } else {
@@ -2014,30 +2209,37 @@ fn pollZigTest(
                 } else if (leak_count > 0) {
                     const name = std.mem.sliceTo(md.testName(tr_hdr.index), 0);
                     const stderr_bytes = std.mem.trim(u8, stderr.buffered(), "\n");
+
                     stderr.tossBuffered();
                     try run.step.addError("'{s}' leaked {d} allocations:\n{s}", .{ name, leak_count, stderr_bytes });
                 } else if (log_err_count > 0) {
                     const name = std.mem.sliceTo(md.testName(tr_hdr.index), 0);
                     const stderr_bytes = std.mem.trim(u8, stderr.buffered(), "\n");
+
                     stderr.tossBuffered();
                     try run.step.addError("'{s}' logged {d} errors:\n{s}", .{ name, log_err_count, stderr_bytes });
                 }
 
                 active_test_index = null;
+
                 if (timer) |*t| md.ns_per_test[tr_hdr.index] = t.lap();
 
                 requestNextTest(child.stdin.?, md, &sub_prog_node) catch |err| return .{ .write_failed = err };
             },
             .coverage_id => {
                 coverage_id = body_r.takeInt(u64, .little) catch unreachable;
+
                 const cumulative_runs = body_r.takeInt(u64, .little) catch unreachable;
                 const cumulative_unique = body_r.takeInt(u64, .little) catch unreachable;
                 const cumulative_coverage = body_r.takeInt(u64, .little) catch unreachable;
 
                 {
                     const fuzz = fuzz_context.?.fuzz;
+
                     fuzz.queue_mutex.lockUncancelable(io);
+
                     defer fuzz.queue_mutex.unlock(io);
+
                     try fuzz.msg_queue.append(fuzz.gpa, .{ .coverage = .{
                         .id = coverage_id.?,
                         .cumulative = .{
@@ -2047,19 +2249,24 @@ fn pollZigTest(
                         },
                         .run = run,
                     } });
+
                     fuzz.queue_cond.signal(io);
                 }
             },
             .fuzz_start_addr => {
                 const fuzz = fuzz_context.?.fuzz;
                 const addr = body_r.takeInt(u64, .little) catch unreachable;
+
                 {
                     fuzz.queue_mutex.lockUncancelable(io);
+
                     defer fuzz.queue_mutex.unlock(io);
+
                     try fuzz.msg_queue.append(fuzz.gpa, .{ .entry_point = .{
                         .addr = addr,
                         .coverage_id = coverage_id.?,
                     } });
+
                     fuzz.queue_cond.signal(io);
                 }
             },
@@ -2100,18 +2307,23 @@ pub const CachedTestMetadata = struct {
 fn requestNextTest(in: fs.File, metadata: *TestMetadata, sub_prog_node: *?std.Progress.Node) !void {
     while (metadata.next_index < metadata.names.len) {
         const i = metadata.next_index;
+
         metadata.next_index += 1;
 
         if (metadata.expected_panic_msgs[i] != 0) continue;
 
         const name = metadata.testName(i);
+
         if (sub_prog_node.*) |n| n.end();
+
         sub_prog_node.* = metadata.prog_node.start(name, 0);
 
         try sendRunTestMessage(in, .run_test, i);
+
         return;
     } else {
         metadata.next_index = std.math.maxInt(u32); // indicate that all tests are done
+
         try sendMessage(in, .exit);
     }
 }
@@ -2121,7 +2333,9 @@ fn sendMessage(file: std.fs.File, tag: std.zig.Client.Message.Tag) !void {
         .tag = tag,
         .bytes_len = 0,
     };
+
     var w = file.writer(&.{});
+
     w.interface.writeStruct(header, .little) catch |err| switch (err) {
         error.WriteFailed => return w.err.?,
     };
@@ -2132,10 +2346,13 @@ fn sendRunTestMessage(file: std.fs.File, tag: std.zig.Client.Message.Tag, index:
         .tag = tag,
         .bytes_len = 4,
     };
+
     var w = file.writer(&.{});
+
     w.interface.writeStruct(header, .little) catch |err| switch (err) {
         error.WriteFailed => return w.err.?,
     };
+
     w.interface.writeInt(u32, index, .little) catch |err| switch (err) {
         error.WriteFailed => return w.err.?,
     };
@@ -2151,16 +2368,21 @@ fn sendRunFuzzTestMessage(
         .tag = .start_fuzzing,
         .bytes_len = 4 + 1 + 8,
     };
+
     var w = file.writer(&.{});
+
     w.interface.writeStruct(header, .little) catch |err| switch (err) {
         error.WriteFailed => return w.err.?,
     };
+
     w.interface.writeInt(u32, index, .little) catch |err| switch (err) {
         error.WriteFailed => return w.err.?,
     };
+
     w.interface.writeByte(@intFromEnum(kind)) catch |err| switch (err) {
         error.WriteFailed => return w.err.?,
     };
+
     w.interface.writeInt(u64, amount_or_instance, .little) catch |err| switch (err) {
         error.WriteFailed => return w.err.?,
     };
@@ -2172,6 +2394,7 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
     const arena = b.allocator;
 
     try child.spawn();
+
     errdefer _ = child.kill() catch {};
 
     try child.waitForSpawn();
@@ -2181,20 +2404,26 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
             child.stdin.?.writeAll(bytes) catch |err| {
                 return run.step.fail("unable to write stdin: {s}", .{@errorName(err)});
             };
+
             child.stdin.?.close();
+
             child.stdin = null;
         },
         .lazy_path => |lazy_path| {
             const path = lazy_path.getPath3(b, &run.step);
+
             const file = path.root_dir.handle.openFile(path.subPathOrDot(), .{}) catch |err| {
                 return run.step.fail("unable to open stdin file: {s}", .{@errorName(err)});
             };
+
             defer file.close();
+
             // TODO https://github.com/ziglang/zig/issues/23955
             var read_buffer: [1024]u8 = undefined;
             var file_reader = file.reader(io, &read_buffer);
             var write_buffer: [1024]u8 = undefined;
             var stdin_writer = child.stdin.?.writer(&write_buffer);
+
             _ = stdin_writer.interface.sendFileAll(&file_reader, .unlimited) catch |err| switch (err) {
                 error.ReadFailed => return run.step.fail("failed to read from {f}: {t}", .{
                     path, file_reader.err.?,
@@ -2203,12 +2432,15 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
                     stdin_writer.err.?,
                 }),
             };
+
             stdin_writer.interface.flush() catch |err| switch (err) {
                 error.WriteFailed => return run.step.fail("failed to write to stdin: {t}", .{
                     stdin_writer.err.?,
                 }),
             };
+
             child.stdin.?.close();
+
             child.stdin = null;
         },
         .none => {},
@@ -2218,12 +2450,14 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
     var stderr_bytes: ?[]const u8 = null;
 
     run.stdio_limit = run.stdio_limit.min(.limited(run.max_stdio_size));
+
     if (child.stdout) |stdout| {
         if (child.stderr) |stderr| {
             var poller = std.Io.poll(arena, enum { stdout, stderr }, .{
                 .stdout = stdout,
                 .stderr = stderr,
             });
+
             defer poller.deinit();
 
             while (try poller.poll()) {
@@ -2239,6 +2473,7 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
             stderr_bytes = try poller.toOwnedSlice(.stderr);
         } else {
             var stdout_reader = stdout.readerStreaming(io, &.{});
+
             stdout_bytes = stdout_reader.interface.allocRemaining(arena, run.stdio_limit) catch |err| switch (err) {
                 error.OutOfMemory => return error.OutOfMemory,
                 error.ReadFailed => return stdout_reader.err.?,
@@ -2247,6 +2482,7 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
         }
     } else if (child.stderr) |stderr| {
         var stderr_reader = stderr.readerStreaming(io, &.{});
+
         stderr_bytes = stderr_reader.interface.allocRemaining(arena, run.stdio_limit) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.ReadFailed => return stderr_reader.err.?,
@@ -2260,6 +2496,7 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
             .check => |checks| !checksContainStderr(checks.items),
             else => true,
         };
+
         if (stderr_is_diagnostic) {
             run.step.result_stderr = bytes;
         }
@@ -2277,6 +2514,7 @@ fn evalGeneric(run: *Run, child: *std.process.Child) !EvalGenericResult {
 fn addPathForDynLibs(run: *Run, artifact: *Step.Compile) void {
     const b = run.step.owner;
     const compiles = artifact.getCompileDependencies(true);
+
     for (compiles) |compile| {
         if (compile.root_module.resolved_target.?.result.os.tag == .windows and
             compile.isDynamicLibrary())
@@ -2317,6 +2555,7 @@ fn hashStdIo(hh: *std.Build.Cache.HashHelper, stdio: StdIo) void {
         .infer_from_args, .inherit, .zig_test => {},
         .check => |checks| for (checks.items) |check| {
             hh.add(@as(std.meta.Tag(StdIo.Check), check));
+
             switch (check) {
                 .expect_stderr_exact,
                 .expect_stderr_match,
@@ -2326,6 +2565,7 @@ fn hashStdIo(hh: *std.Build.Cache.HashHelper, stdio: StdIo) void {
 
                 .expect_term => |term| {
                     hh.add(@as(std.meta.Tag(std.process.Child.Term), term));
+
                     switch (term) {
                         .Exited => |x| hh.add(x),
                         .Signal, .Stopped, .Unknown => |x| hh.add(x),

@@ -16,6 +16,7 @@ pub fn isNormal(x: anytype) bool {
     // For f80, even though it has an explicit integer part stored,
     // the exponent effectively takes priority if mismatching.
     const value = @as(TBits, @bitCast(x)) +% increment_exp;
+
     return value & remove_sign >= (increment_exp << 1);
 }
 

@@ -27,12 +27,14 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
 
         fn initContext(key: [8]u32, d: [4]u32) BlockVec {
             const c = "expand 32-byte k";
+
             const constant_le = comptime [4]u32{
                 mem.readInt(u32, c[0..4], .little),
                 mem.readInt(u32, c[4..8], .little),
                 mem.readInt(u32, c[8..12], .little),
                 mem.readInt(u32, c[12..16], .little),
             };
+
             return BlockVec{
                 Lane{ key[0], key[1], key[2], key[3] },
                 Lane{ key[4], key[5], key[6], key[7] },
@@ -60,6 +62,7 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
             const k2k3n3k7 = Lane{ k2k3[0], k2k3[1], n3k7[0], n3k7[1] };
 
             var diag0 = input[2];
+
             var diag1 = @shuffle(u32, k4k5k0n0, undefined, [_]i32{ 1, 2, 3, 0 });
             var diag2 = @shuffle(u32, n1n2k6k1, undefined, [_]i32{ 1, 2, 3, 0 });
             var diag3 = @shuffle(u32, k2k3n3k7, undefined, [_]i32{ 1, 2, 3, 0 });
@@ -70,6 +73,7 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
             const start3 = diag3;
 
             var i: usize = 0;
+
             while (i < rounds) : (i += 2) {
                 diag3 ^= math.rotl(Lane, diag1 +% diag0, 7);
                 diag2 ^= math.rotl(Lane, diag0 +% diag3, 9);
@@ -110,6 +114,7 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
 
         fn hashToBytes(out: *[64]u8, x: BlockVec) void {
             var i: usize = 0;
+
             while (i < 4) : (i += 1) {
                 mem.writeInt(u32, out[16 * i + 0 ..][0..4], x[i][0], .little);
                 mem.writeInt(u32, out[16 * i + 4 ..][0..4], x[i][1], .little);
@@ -120,27 +125,36 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
 
         fn salsaXor(out: []u8, in: []const u8, key: [8]u32, d: [4]u32) void {
             var ctx = initContext(key, d);
+
             var x: BlockVec = undefined;
             var buf: [64]u8 = undefined;
             var i: usize = 0;
+
             while (i + 64 <= in.len) : (i += 64) {
                 salsaCore(x[0..], ctx, true);
                 hashToBytes(buf[0..], x);
+
                 var xout = out[i..];
                 const xin = in[i..];
                 var j: usize = 0;
+
                 while (j < 64) : (j += 1) {
                     xout[j] = xin[j];
                 }
+
                 j = 0;
+
                 while (j < 64) : (j += 1) {
                     xout[j] ^= buf[j];
                 }
+
                 ctx[3][2] +%= 1;
+
                 if (ctx[3][2] == 0) {
                     ctx[3][3] += 1;
                 }
             }
+
             if (i < in.len) {
                 salsaCore(x[0..], ctx, true);
                 hashToBytes(buf[0..], x);
@@ -148,6 +162,7 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
                 var xout = out[i..];
                 const xin = in[i..];
                 var j: usize = 0;
+
                 while (j < in.len % 64) : (j += 1) {
                     xout[j] = xin[j] ^ buf[j];
                 }
@@ -156,13 +171,18 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
 
         fn hsalsa(input: [16]u8, key: [32]u8) [32]u8 {
             var c: [4]u32 = undefined;
+
             for (c, 0..) |_, i| {
                 c[i] = mem.readInt(u32, input[4 * i ..][0..4], .little);
             }
+
             const ctx = initContext(keyToWords(key), c);
             var x: BlockVec = undefined;
+
             salsaCore(x[0..], ctx, false);
+
             var out: [32]u8 = undefined;
+
             mem.writeInt(u32, out[0..4], x[0][0], .little);
             mem.writeInt(u32, out[4..8], x[1][1], .little);
             mem.writeInt(u32, out[8..12], x[2][2], .little);
@@ -171,6 +191,7 @@ fn SalsaVecImpl(comptime rounds: comptime_int) type {
             mem.writeInt(u32, out[20..24], x[1][3], .little);
             mem.writeInt(u32, out[24..28], x[2][0], .little);
             mem.writeInt(u32, out[28..32], x[2][1], .little);
+
             return out;
         }
     };
@@ -182,12 +203,14 @@ fn SalsaNonVecImpl(comptime rounds: comptime_int) type {
 
         fn initContext(key: [8]u32, d: [4]u32) BlockVec {
             const c = "expand 32-byte k";
+
             const constant_le = comptime [4]u32{
                 mem.readInt(u32, c[0..4], .little),
                 mem.readInt(u32, c[4..8], .little),
                 mem.readInt(u32, c[8..12], .little),
                 mem.readInt(u32, c[12..16], .little),
             };
+
             return BlockVec{
                 constant_le[0], key[0],         key[1],         key[2],
                 key[3],         constant_le[1], d[0],           d[1],
@@ -223,15 +246,20 @@ fn SalsaNonVecImpl(comptime rounds: comptime_int) type {
                 Rp(11, 10, 9, 7),  Rp(8, 11, 10, 9),  Rp(9, 8, 11, 13),   Rp(10, 9, 8, 18),
                 Rp(12, 15, 14, 7), Rp(13, 12, 15, 9), Rp(14, 13, 12, 13), Rp(15, 14, 13, 18),
             };
+
             x.* = input;
+
             var j: usize = 0;
+
             while (j < rounds) : (j += 2) {
                 inline for (arx_steps) |r| {
                     x[r.a] ^= math.rotl(u32, x[r.b] +% x[r.c], r.d);
                 }
             }
+
             if (feedback) {
                 j = 0;
+
                 while (j < 16) : (j += 1) {
                     x[j] +%= input[j];
                 }
@@ -246,26 +274,35 @@ fn SalsaNonVecImpl(comptime rounds: comptime_int) type {
 
         fn salsaXor(out: []u8, in: []const u8, key: [8]u32, d: [4]u32) void {
             var ctx = initContext(key, d);
+
             var x: BlockVec = undefined;
             var buf: [64]u8 = undefined;
             var i: usize = 0;
+
             while (i + 64 <= in.len) : (i += 64) {
                 salsaCore(x[0..], ctx, true);
                 hashToBytes(buf[0..], x);
+
                 var xout = out[i..];
                 const xin = in[i..];
                 var j: usize = 0;
+
                 while (j < 64) : (j += 1) {
                     xout[j] = xin[j];
                 }
+
                 j = 0;
+
                 while (j < 64) : (j += 1) {
                     xout[j] ^= buf[j];
                 }
+
                 const ov = @addWithOverflow(ctx[8], 1);
+
                 ctx[8] = ov[0];
                 ctx[9] += ov[1];
             }
+
             if (i < in.len) {
                 salsaCore(x[0..], ctx, true);
                 hashToBytes(buf[0..], x);
@@ -273,6 +310,7 @@ fn SalsaNonVecImpl(comptime rounds: comptime_int) type {
                 var xout = out[i..];
                 const xin = in[i..];
                 var j: usize = 0;
+
                 while (j < in.len % 64) : (j += 1) {
                     xout[j] = xin[j] ^ buf[j];
                 }
@@ -281,13 +319,18 @@ fn SalsaNonVecImpl(comptime rounds: comptime_int) type {
 
         fn hsalsa(input: [16]u8, key: [32]u8) [32]u8 {
             var c: [4]u32 = undefined;
+
             for (c, 0..) |_, i| {
                 c[i] = mem.readInt(u32, input[4 * i ..][0..4], .little);
             }
+
             const ctx = initContext(keyToWords(key), c);
             var x: BlockVec = undefined;
+
             salsaCore(x[0..], ctx, false);
+
             var out: [32]u8 = undefined;
+
             mem.writeInt(u32, out[0..4], x[0], .little);
             mem.writeInt(u32, out[4..8], x[5], .little);
             mem.writeInt(u32, out[8..12], x[10], .little);
@@ -296,6 +339,7 @@ fn SalsaNonVecImpl(comptime rounds: comptime_int) type {
             mem.writeInt(u32, out[20..24], x[7], .little);
             mem.writeInt(u32, out[24..28], x[8], .little);
             mem.writeInt(u32, out[28..32], x[9], .little);
+
             return out;
         }
     };
@@ -309,9 +353,11 @@ else
 fn keyToWords(key: [32]u8) [8]u32 {
     var k: [8]u32 = undefined;
     var i: usize = 0;
+
     while (i < 8) : (i += 1) {
         k[i] = mem.readInt(u32, key[i * 4 ..][0..4], .little);
     }
+
     return k;
 }
 
@@ -337,10 +383,13 @@ pub fn Salsa(comptime rounds: comptime_int) type {
             debug.assert(in.len == out.len);
 
             var d: [4]u32 = undefined;
+
             d[0] = mem.readInt(u32, nonce[0..4], .little);
             d[1] = mem.readInt(u32, nonce[4..8], .little);
+
             d[2] = @as(u32, @truncate(counter));
             d[3] = @as(u32, @truncate(counter >> 32));
+
             SalsaImpl(rounds).salsaXor(out, in, keyToWords(key), d);
         }
     };
@@ -359,6 +408,7 @@ pub fn XSalsa(comptime rounds: comptime_int) type {
         /// Using the AEAD or one of the `box` versions is usually preferred.
         pub fn xor(out: []u8, in: []const u8, counter: u64, key: [key_length]u8, nonce: [nonce_length]u8) void {
             const extended = extend(rounds, key, nonce);
+
             Salsa(rounds).xor(out, in, counter, extended.key, extended.nonce);
         }
     };
@@ -383,14 +433,22 @@ pub const XSalsa20Poly1305 = struct {
     /// k: private key
     pub fn encrypt(c: []u8, tag: *[tag_length]u8, m: []const u8, ad: []const u8, npub: [nonce_length]u8, k: [key_length]u8) void {
         debug.assert(c.len == m.len);
+
         const extended = extend(rounds, k, npub);
+
         var block0 = [_]u8{0} ** 64;
         const mlen0 = @min(32, m.len);
+
         @memcpy(block0[32..][0..mlen0], m[0..mlen0]);
+
         Salsa20.xor(block0[0..], block0[0..], 0, extended.key, extended.nonce);
+
         @memcpy(c[0..mlen0], block0[32..][0..mlen0]);
+
         Salsa20.xor(c[mlen0..], m[mlen0..], 1, extended.key, extended.nonce);
+
         var mac = Poly1305.init(block0[0..32]);
+
         mac.update(ad);
         mac.update(c);
         mac.final(tag);
@@ -407,24 +465,37 @@ pub const XSalsa20Poly1305 = struct {
     /// Contents of `m` are undefined if an error is returned.
     pub fn decrypt(m: []u8, c: []const u8, tag: [tag_length]u8, ad: []const u8, npub: [nonce_length]u8, k: [key_length]u8) AuthenticationError!void {
         debug.assert(c.len == m.len);
+
         const extended = extend(rounds, k, npub);
+
         var block0 = [_]u8{0} ** 64;
         const mlen0 = @min(32, c.len);
+
         @memcpy(block0[32..][0..mlen0], c[0..mlen0]);
+
         Salsa20.xor(block0[0..], block0[0..], 0, extended.key, extended.nonce);
+
         var mac = Poly1305.init(block0[0..32]);
+
         mac.update(ad);
         mac.update(c);
+
         var computed_tag: [tag_length]u8 = undefined;
+
         mac.final(&computed_tag);
 
         const verify = crypto.timing_safe.eql([tag_length]u8, computed_tag, tag);
+
         if (!verify) {
             crypto.secureZero(u8, &computed_tag);
+
             @memset(m, undefined);
+
             return error.AuthenticationFailed;
         }
+
         @memcpy(m[0..mlen0], block0[32..][0..mlen0]);
+
         Salsa20.xor(m[mlen0..], c[mlen0..], 1, extended.key, extended.nonce);
     }
 };
@@ -456,7 +527,9 @@ pub const SecretBox = struct {
         if (c.len < tag_length) {
             return error.AuthenticationFailed;
         }
+
         debug.assert(m.len == c.len - tag_length);
+
         return XSalsa20Poly1305.decrypt(m, c[tag_length..], c[0..tag_length].*, "", npub, k);
     }
 };
@@ -490,18 +563,21 @@ pub const Box = struct {
     pub fn createSharedSecret(public_key: [public_length]u8, secret_key: [secret_length]u8) (IdentityElementError || WeakPublicKeyError)![shared_length]u8 {
         const p = try X25519.scalarmult(secret_key, public_key);
         const zero = [_]u8{0} ** 16;
+
         return SalsaImpl(20).hsalsa(zero, p);
     }
 
     /// Encrypt and authenticate a message using a recipient's public key `public_key` and a sender's `secret_key`.
     pub fn seal(c: []u8, m: []const u8, npub: [nonce_length]u8, public_key: [public_length]u8, secret_key: [secret_length]u8) (IdentityElementError || WeakPublicKeyError)!void {
         const shared_key = try createSharedSecret(public_key, secret_key);
+
         return SecretBox.seal(c, m, npub, shared_key);
     }
 
     /// Verify and decrypt a message using a recipient's secret key `public_key` and a sender's `public_key`.
     pub fn open(m: []u8, c: []const u8, npub: [nonce_length]u8, public_key: [public_length]u8, secret_key: [secret_length]u8) (IdentityElementError || WeakPublicKeyError || AuthenticationError)!void {
         const shared_key = try createSharedSecret(public_key, secret_key);
+
         return SecretBox.open(m, c, npub, shared_key);
     }
 };
@@ -524,10 +600,14 @@ pub const SealedBox = struct {
 
     fn createNonce(pk1: [public_length]u8, pk2: [public_length]u8) [Box.nonce_length]u8 {
         var hasher = Blake2b(Box.nonce_length * 8).init(.{});
+
         hasher.update(&pk1);
         hasher.update(&pk2);
+
         var nonce: [Box.nonce_length]u8 = undefined;
+
         hasher.final(&nonce);
+
         return nonce;
     }
 
@@ -535,9 +615,12 @@ pub const SealedBox = struct {
     /// `c` must be `seal_length` bytes larger than `m`, so that the required metadata can be added.
     pub fn seal(c: []u8, m: []const u8, public_key: [public_length]u8) (WeakPublicKeyError || IdentityElementError)!void {
         debug.assert(c.len == m.len + seal_length);
+
         var ekp = KeyPair.generate();
         const nonce = createNonce(ekp.public_key, public_key);
+
         c[0..public_length].* = ekp.public_key;
+
         try Box.seal(c[Box.public_length..], m, nonce, public_key, ekp.secret_key);
         crypto.secureZero(u8, ekp.secret_key[0..]);
     }
@@ -548,8 +631,10 @@ pub const SealedBox = struct {
         if (c.len < seal_length) {
             return error.AuthenticationFailed;
         }
+
         const epk = c[0..public_length];
         const nonce = createNonce(epk.*, keypair.public_key);
+
         return Box.open(m, c[public_length..], nonce, epk.*, keypair.secret_key);
     }
 };
@@ -568,6 +653,7 @@ test "(x)salsa20" {
     try htest.assertEqual("30ff9933aa6534ff5207142593cd1fca4b23bdd8", c[0..]);
 
     const extended_nonce = [_]u8{0x42} ** 24;
+
     XSalsa20.xor(&c, msg[0..], 0, key, extended_nonce);
     try htest.assertEqual("b4ab7d82e750ec07644fa3281bce6cd91d4243f9", c[0..]);
 }
@@ -579,10 +665,10 @@ test "xsalsa20poly1305" {
     var key: [XSalsa20Poly1305.key_length]u8 = undefined;
     var nonce: [XSalsa20Poly1305.nonce_length]u8 = undefined;
     var tag: [XSalsa20Poly1305.tag_length]u8 = undefined;
+
     crypto.random.bytes(&msg);
     crypto.random.bytes(&key);
     crypto.random.bytes(&nonce);
-
     XSalsa20Poly1305.encrypt(c[0..], &tag, msg[0..], "ad", nonce, key);
     try XSalsa20Poly1305.decrypt(msg2[0..], c[0..], tag, "ad", nonce, key);
 }
@@ -593,10 +679,10 @@ test "xsalsa20poly1305 secretbox" {
     var key: [XSalsa20Poly1305.key_length]u8 = undefined;
     var nonce: [Box.nonce_length]u8 = undefined;
     var boxed: [msg.len + Box.tag_length]u8 = undefined;
+
     crypto.random.bytes(&msg);
     crypto.random.bytes(&key);
     crypto.random.bytes(&nonce);
-
     SecretBox.seal(boxed[0..], msg[0..], nonce, key);
     try SecretBox.open(msg2[0..], boxed[0..], nonce, key);
 }
@@ -608,11 +694,13 @@ test "xsalsa20poly1305 box" {
     var msg2: [msg.len]u8 = undefined;
     var nonce: [Box.nonce_length]u8 = undefined;
     var boxed: [msg.len + Box.tag_length]u8 = undefined;
+
     crypto.random.bytes(&msg);
     crypto.random.bytes(&nonce);
 
     const kp1 = Box.KeyPair.generate();
     const kp2 = Box.KeyPair.generate();
+
     try Box.seal(boxed[0..], msg[0..], nonce, kp1.public_key, kp2.secret_key);
     try Box.open(msg2[0..], boxed[0..], nonce, kp2.public_key, kp1.secret_key);
 }
@@ -623,9 +711,11 @@ test "xsalsa20poly1305 sealedbox" {
     var msg: [100]u8 = undefined;
     var msg2: [msg.len]u8 = undefined;
     var boxed: [msg.len + SealedBox.seal_length]u8 = undefined;
+
     crypto.random.bytes(&msg);
 
     const kp = Box.KeyPair.generate();
+
     try SealedBox.seal(boxed[0..], msg[0..], kp.public_key);
     try SealedBox.open(msg2[0..], boxed[0..], kp);
 }
@@ -635,6 +725,7 @@ test "secretbox twoblocks" {
     const nonce = [_]u8{ 0xa4, 0x33, 0xe9, 0x0a, 0x07, 0x68, 0x6e, 0x9a, 0x2b, 0x6d, 0xd4, 0x59, 0x04, 0x72, 0x3e, 0xd3, 0x8a, 0x67, 0x55, 0xc7, 0x9e, 0x3e, 0x77, 0xdc };
     const msg = [_]u8{'a'} ** 97;
     var ciphertext: [msg.len + SecretBox.tag_length]u8 = undefined;
+
     SecretBox.seal(&ciphertext, &msg, nonce, key);
     try htest.assertEqual("b05760e217288ba079caa2fd57fd3701784974ffcfda20fe523b89211ad8af065a6eb37cdb29d51aca5bd75dafdd21d18b044c54bb7c526cf576c94ee8900f911ceab0147e82b667a28c52d58ceb29554ff45471224d37b03256b01c119b89ff6d36855de8138d103386dbc9d971f52261", &ciphertext);
 }

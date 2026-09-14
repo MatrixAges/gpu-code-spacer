@@ -1,11 +1,14 @@
 import colors from 'picocolors'
+
 import {
   type PromiseWithResolvers,
   promiseWithResolvers,
 } from '../../shared/utils'
+
 import type { DevEnvironment } from '../server/environment'
 import { createDebugger, getHash } from '../utils'
 import { devToScanEnvironment } from './scan'
+
 import {
   addManuallyIncludedOptimizeDeps,
   addOptimizedDepInfo,
@@ -22,6 +25,7 @@ import {
   runOptimizeDeps,
   toDiscoveredDependencies,
 } from './index'
+
 import type {
   DepOptimizationMetadata,
   DepOptimizationResult,
@@ -41,6 +45,7 @@ export function createDepsOptimizer(
   environment: DevEnvironment,
 ): DepsOptimizer {
   const { logger } = environment
+
   const sessionTimestamp = Date.now().toString()
 
   let debounceProcessingHandle: NodeJS.Timeout | undefined
@@ -73,10 +78,12 @@ export function createDepsOptimizer(
 
   let newDepsToLog: string[] = []
   let newDepsToLogHandle: NodeJS.Timeout | undefined
+
   const logNewlyDiscoveredDeps = () => {
     if (newDepsToLog.length) {
       const dependencyLabel =
         newDepsToLog.length === 1 ? 'dependency' : 'dependencies'
+
       logger.info(
         colors.green(
           `${dependencyLabel} optimized: ${depsLogString(newDepsToLog)}`,
@@ -85,11 +92,13 @@ export function createDepsOptimizer(
           timestamp: true,
         },
       )
+
       newDepsToLog = []
     }
   }
 
   let discoveredDepsWhileScanning: string[] = []
+
   const logOptimizeDepsIncludeSuggestion = (reason: string) => {
     if (discoveredDepsWhileScanning.length) {
       logger.info(
@@ -105,23 +114,25 @@ export function createDepsOptimizer(
           timestamp: true,
         },
       )
+
       discoveredDepsWhileScanning = []
     }
   }
 
   let depOptimizationProcessing = promiseWithResolvers<void>()
   let depOptimizationProcessingQueue: PromiseWithResolvers<void>[] = []
+
   const resolveEnqueuedProcessingPromises = () => {
     // Resolve all the processings (including the ones which were delayed)
     for (const processing of depOptimizationProcessingQueue) {
       processing.resolve()
     }
+
     depOptimizationProcessingQueue = []
   }
 
   let enqueuedRerun: (() => void) | undefined
   let currentlyProcessing = false
-
   let firstRunCalled = false
   let warnAboutMissedDependencies = false
 
@@ -147,6 +158,7 @@ export function createDepsOptimizer(
 
   async function close() {
     closed = true
+
     await Promise.allSettled([
       discover?.cancel(),
       depsOptimizer.scanProcessing,
@@ -155,8 +167,10 @@ export function createDepsOptimizer(
   }
 
   let initState: 'idle' | 'initializing' | 'initialized' = 'idle'
+
   async function init() {
     if (initState !== 'idle') return
+
     initState = 'initializing'
 
     const cachedMetadata = await loadCachedDepOptimizationMetadata(environment)
@@ -175,6 +189,7 @@ export function createDepsOptimizer(
       // Initialize discovered deps with manually added optimizeDeps.include info
 
       const manuallyIncludedDeps: Record<string, string> = {}
+
       await addManuallyIncludedOptimizeDeps(environment, manuallyIncludedDeps)
 
       const manuallyIncludedDepsInfo = toDiscoveredDependencies(
@@ -188,6 +203,7 @@ export function createDepsOptimizer(
           ...depInfo,
           processing: depOptimizationProcessing.promise,
         })
+
         newDepsDiscovered = true
       }
 
@@ -212,11 +228,14 @@ export function createDepsOptimizer(
               }, 1000)
 
               let deps: Record<string, string>
+
               try {
                 discover = discoverProjectDependencies(
                   devToScanEnvironment(environment),
                 )
+
                 deps = await discover.result
+
                 discover = undefined
               } catch (e) {
                 environment.logger.error(
@@ -226,12 +245,14 @@ export function createDepsOptimizer(
                       e.stack,
                   ),
                 )
+
                 return
               } finally {
                 clearTimeout(scanTimer)
               }
 
               const manuallyIncluded = Object.keys(manuallyIncludedDepsInfo)
+
               discoveredDepsWhileScanning.push(
                 ...Object.keys(metadata.discovered).filter(
                   (dep) => !deps[dep] && !manuallyIncluded.includes(dep),
@@ -248,6 +269,7 @@ export function createDepsOptimizer(
               }
 
               const knownDeps = prepareKnownDeps()
+
               startNextDiscoveredBatch()
 
               // For dev, we run the scanner and the first optimization
@@ -277,12 +299,14 @@ export function createDepsOptimizer(
               logger.error(e.stack || e.message)
             } finally {
               resolve()
+
               depsOptimizer.scanProcessing = undefined
             }
           })()
         })
       }
     }
+
     initState = 'initialized'
   }
 
@@ -302,14 +326,18 @@ export function createDepsOptimizer(
     const knownDeps: Record<string, OptimizedDepInfo> = {}
     // Clone optimized info objects, fileHash, browserHash may be changed for them
     const metadata = depsOptimizer.metadata!
+
     for (const dep of Object.keys(metadata.optimized)) {
       knownDeps[dep] = { ...metadata.optimized[dep] }
     }
+
     for (const dep of Object.keys(metadata.discovered)) {
       // Clone the discovered info discarding its processing promise
       const { processing, ...info } = metadata.discovered[dep]
+
       knownDeps[dep] = info
     }
+
     return knownDeps
   }
 
@@ -327,6 +355,7 @@ export function createDepsOptimizer(
     // respect insertion order to keep the metadata file stable
 
     const isRerun = firstRunCalled
+
     firstRunCalled = true
 
     // Ensure that rerun is called sequentially
@@ -337,8 +366,11 @@ export function createDepsOptimizer(
 
     if (closed) {
       currentlyProcessing = false
+
       depOptimizationProcessing.resolve()
+
       resolveEnqueuedProcessingPromises()
+
       return
     }
 
@@ -346,21 +378,27 @@ export function createDepsOptimizer(
 
     try {
       let processingResult: DepOptimizationResult
+
       if (preRunResult) {
         processingResult = preRunResult
       } else {
         const knownDeps = prepareKnownDeps()
+
         startNextDiscoveredBatch()
 
         optimizationResult = runOptimizeDeps(environment, knownDeps)
         processingResult = await optimizationResult.result
+
         optimizationResult = undefined
       }
 
       if (closed) {
         currentlyProcessing = false
+
         processingResult.cancel()
+
         resolveEnqueuedProcessingPromises()
+
         return
       }
 
@@ -398,9 +436,11 @@ export function createDepsOptimizer(
         // If we don't reload the page, we need to keep browserHash stable
         if (!needsReload) {
           newData.browserHash = metadata.browserHash
+
           for (const dep in newData.chunks) {
             newData.chunks[dep].browserHash = metadata.browserHash
           }
+
           for (const dep in newData.optimized) {
             newData.optimized[dep].browserHash = (
               metadata.optimized[dep] || metadata.discovered[dep]
@@ -413,11 +453,14 @@ export function createDepsOptimizer(
         // and use the information in the same object
         for (const o in newData.optimized) {
           const discovered = metadata.discovered[o]
+
           if (discovered) {
             const optimized = newData.optimized[o]
+
             discovered.browserHash = optimized.browserHash
             discovered.fileHash = optimized.fileHash
             discovered.needsInterop = optimized.needsInterop
+
             discovered.processing = undefined
           }
         }
@@ -431,6 +474,7 @@ export function createDepsOptimizer(
         }
 
         metadata = depsOptimizer.metadata = newData
+
         resolveEnqueuedProcessingPromises()
       }
 
@@ -439,11 +483,15 @@ export function createDepsOptimizer(
 
         if (!debug) {
           if (newDepsToLogHandle) clearTimeout(newDepsToLogHandle)
+
           newDepsToLogHandle = setTimeout(() => {
             newDepsToLogHandle = undefined
+
             logNewlyDiscoveredDeps()
+
             if (warnAboutMissedDependencies) {
               logOptimizeDepsIncludeSuggestion('speed up cold start')
+
               warnAboutMissedDependencies = false
             }
           }, 2 * debounceMs)
@@ -474,12 +522,16 @@ export function createDepsOptimizer(
 
           if (!debug) {
             if (newDepsToLogHandle) clearTimeout(newDepsToLogHandle)
+
             newDepsToLogHandle = undefined
+
             logNewlyDiscoveredDeps()
+
             if (warnAboutMissedDependencies) {
               logOptimizeDepsIncludeSuggestion(
                 'avoid a full page reload during cold start',
               )
+
               warnAboutMissedDependencies = false
             }
           }
@@ -490,6 +542,7 @@ export function createDepsOptimizer(
               timestamp: true,
             },
           )
+
           if (needsInteropMismatch.length > 0) {
             logger.warn(
               `Mixed ESM and CJS detected in ${colors.yellow(
@@ -511,6 +564,7 @@ export function createDepsOptimizer(
         colors.red(`error while updating dependencies:\n${e.stack}`),
         { timestamp: true, error: e },
       )
+
       resolveEnqueuedProcessingPromises()
 
       // Reset missing deps, let the server rediscover the dependencies
@@ -518,6 +572,7 @@ export function createDepsOptimizer(
     }
 
     currentlyProcessing = false
+
     // @ts-expect-error `enqueuedRerun` could exist because `debouncedProcessing` may run while awaited
     enqueuedRerun?.()
   }
@@ -540,7 +595,9 @@ export function createDepsOptimizer(
     // optimizeDeps processing is finished
     const deps = Object.keys(metadata.discovered)
     const depsString = depsLogString(deps)
+
     debug?.(colors.green(`new dependencies found: ${depsString}`))
+
     runOptimizer()
   }
 
@@ -559,14 +616,19 @@ export function createDepsOptimizer(
     resolved: string,
   ): OptimizedDepInfo {
     const optimized = metadata.optimized[id]
+
     if (optimized) {
       return optimized
     }
+
     const chunk = metadata.chunks[id]
+
     if (chunk) {
       return chunk
     }
+
     let missing = metadata.discovered[id]
+
     if (missing) {
       // We are already discover this dependency
       // It will be processed in the next rerun call
@@ -621,12 +683,16 @@ export function createDepsOptimizer(
     // Debounced rerun, let other missing dependencies be discovered before
     // the next optimizeDeps run
     enqueuedRerun = undefined
+
     if (debounceProcessingHandle) clearTimeout(debounceProcessingHandle)
     if (newDepsToLogHandle) clearTimeout(newDepsToLogHandle)
+
     newDepsToLogHandle = undefined
+
     debounceProcessingHandle = setTimeout(() => {
       debounceProcessingHandle = undefined
       enqueuedRerun = rerun
+
       if (!currentlyProcessing) {
         enqueuedRerun()
       }
@@ -641,6 +707,7 @@ export function createDepsOptimizer(
     waitingForCrawlEnd = false
 
     debug?.(colors.green(`static imports crawl ended`))
+
     if (closed) {
       return
     }
@@ -658,9 +725,11 @@ export function createDepsOptimizer(
       // scan+optimize step finished after crawl end. We follow the same
       // process as in the holdUntilCrawlEnd in this case.
       const afterScanResult = optimizationResult.result
+
       optimizationResult = undefined // signal that we'll be using the result
 
       const result = await afterScanResult
+
       currentlyProcessing = false
 
       const crawlDeps = Object.keys(metadata.discovered)
@@ -672,10 +741,12 @@ export function createDepsOptimizer(
             `no dependencies found by the scanner or crawling static imports`,
           ),
         )
+
         // We still commit the result so the scanner isn't run on the next cold start
         // for projects without dependencies
         startNextDiscoveredBatch()
         runOptimizer(result)
+
         return
       }
 
@@ -683,7 +754,9 @@ export function createDepsOptimizer(
         metadata.discovered,
         result.metadata.optimized,
       )
+
       const scannerMissedDeps = crawlDeps.some((dep) => !scanDeps.includes(dep))
+
       const outdatedResult =
         needsInteropMismatch.length > 0 || scannerMissedDeps
 
@@ -697,6 +770,7 @@ export function createDepsOptimizer(
             addMissingDep(dep, result.metadata.optimized[dep].src!)
           }
         }
+
         if (scannerMissedDeps) {
           debug?.(
             colors.yellow(
@@ -704,7 +778,9 @@ export function createDepsOptimizer(
             ),
           )
         }
+
         debug?.(colors.green(`re-running optimizer`))
+
         debouncedProcessing(0)
       } else {
         debug?.(
@@ -712,6 +788,7 @@ export function createDepsOptimizer(
             `using post-scan optimizer result, the scanner found every used dependency`,
           ),
         )
+
         startNextDiscoveredBatch()
         runOptimizer(result)
       }
@@ -726,11 +803,14 @@ export function createDepsOptimizer(
             `new dependencies were found while crawling static imports, re-running optimizer`,
           ),
         )
+
         warnAboutMissedDependencies = true
+
         debouncedProcessing(0)
       }
     } else {
       const crawlDeps = Object.keys(metadata.discovered)
+
       currentlyProcessing = false
 
       if (crawlDeps.length === 0) {
@@ -739,6 +819,7 @@ export function createDepsOptimizer(
             `no dependencies found while crawling the static imports`,
           ),
         )
+
         firstRunCalled = true
       }
 
@@ -775,8 +856,10 @@ export function createExplicitDepsOptimizer(
   }
 
   let inited = false
+
   async function init() {
     if (inited) return
+
     inited = true
 
     depsOptimizer.metadata = await optimizeExplicitEnvironmentDeps(environment)
@@ -790,11 +873,14 @@ function findInteropMismatches(
   optimized: Record<string, OptimizedDepInfo>,
 ) {
   const needsInteropMismatch = []
+
   for (const dep in discovered) {
     const discoveredDepInfo = discovered[dep]
+
     if (discoveredDepInfo.needsInterop === undefined) continue
 
     const depInfo = optimized[dep]
+
     if (!depInfo) continue
 
     if (depInfo.needsInterop !== discoveredDepInfo.needsInterop) {
@@ -804,5 +890,6 @@ function findInteropMismatches(
       debug?.(colors.cyan(`needsInterop mismatch detected for ${dep}`))
     }
   }
+
   return needsInteropMismatch
 }

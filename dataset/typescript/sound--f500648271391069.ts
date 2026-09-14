@@ -2,6 +2,7 @@ import { Howl } from 'howler'
 
 export default class Index {
 	sound = null as unknown as Howl
+
 	times = 0
 
 	init(args: { src: string; loop?: boolean; times?: number }) {

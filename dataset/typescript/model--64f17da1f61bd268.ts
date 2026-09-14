@@ -12,6 +12,7 @@ import {
 	DRAGOVER_COMMAND,
 	DROP_COMMAND
 } from 'lexical'
+
 import { throttle } from 'lodash-es'
 import { makeAutoObservable, runInAction } from 'mobx'
 import ntry from 'nice-try'
@@ -43,14 +44,18 @@ import type { ListNode } from '@lexical/list'
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
+
 	md = false
+
 	container = null as unknown as HTMLDivElement
 	active_node = null as unknown as LexicalNode
 	over_node = null as unknown as LexicalNode
 
 	position_handler = { left: 0, top: 0 }
 	style_line = { width: 0, left: 0, top: 0 }
+
 	visible_handler = false
 	visible_line = false
 	visible_menu = false
@@ -84,6 +89,7 @@ export default class Index {
 		this.id = id
 		this.editor = editor
 		this.md = md
+
 		this.container = document.querySelector(`#${id} .__editor_container`)!
 
 		this.on()
@@ -94,8 +100,10 @@ export default class Index {
 
 		this.active_node = null as unknown as LexicalNode
 		this.over_node = null as unknown as LexicalNode
+
 		this.position_handler = { left: 0, top: 0 }
 		this.style_line = { width: 0, left: 0, top: 0 }
+
 		this.visible_handler = false
 		this.visible_line = false
 		this.visible_toggle = false
@@ -178,7 +186,6 @@ export default class Index {
 			const clone_node = $cloneNode(this.active_node)
 
 			this.active_node.insertAfter(clone_node)
-
 			clone_node.selectEnd()
 
 			return
@@ -288,10 +295,13 @@ export default class Index {
 
 			runInAction(() => {
 				this.position_handler = this.getNodePosition(this.active_node)
+
 				this.visible_handler = true
 				this.visible_menu = false
+
 				this.visible_toggle = fold !== undefined ? true : false
 				this.fold = fold
+
 				this.is_heading = $isHeadingNode(active_node)
 			})
 		})
@@ -329,6 +339,7 @@ export default class Index {
 		if (!this.active_node) return false
 
 		const target = e.target!
+
 		const [is_file] = eventFiles(e)
 
 		if (is_file) return
@@ -352,6 +363,7 @@ export default class Index {
 
 			runInAction(() => {
 				this.style_line = this.getNodePosition(this.over_node, true) as Index['style_line']
+
 				this.visible_line = true
 			})
 		})
@@ -370,7 +382,6 @@ export default class Index {
 				const target_list_node = $copyNode(active_list_node)
 
 				target_list_node.append(this.active_node)
-
 				this.over_node.insertAfter(target_list_node)
 
 				return
@@ -384,7 +395,6 @@ export default class Index {
 		}
 
 		this.over_node.insertAfter(this.active_node)
-
 		this.reset()
 
 		return true
@@ -392,6 +402,7 @@ export default class Index {
 
 	getDragNode(e: MouseEvent | DragEvent) {
 		const target = e.target as HTMLElement
+
 		const node = $getNearestNodeFromDOMNode(target)
 
 		if (!node) return
@@ -464,6 +475,7 @@ export default class Index {
 		} else {
 			let inline_padding = getComputedStyleValue(el_node, 'padding-inline-start')
 			let block_padding = getComputedStyleValue(el_node, 'padding-block-start')
+
 			let margin_left = 0
 			let margin_top = 6
 
@@ -535,7 +547,6 @@ export default class Index {
 
 		container.removeEventListener('mousemove', this.onMouseMove)
 		container.removeEventListener('mouseleave', this.reset)
-
 		this.utils.off()
 	}
 }

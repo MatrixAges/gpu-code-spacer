@@ -29,7 +29,9 @@ pub fn join(self: Directory, allocator: Allocator, paths: []const []const u8) ![
     if (self.path) |p| {
         // TODO clean way to do this with only 1 allocation
         const part2 = try fs.path.join(allocator, paths);
+
         defer allocator.free(part2);
+
         return fs.path.join(allocator, &[_][]const u8{ p, part2 });
     } else {
         return fs.path.join(allocator, paths);
@@ -40,7 +42,9 @@ pub fn joinZ(self: Directory, allocator: Allocator, paths: []const []const u8) !
     if (self.path) |p| {
         // TODO clean way to do this with only 1 allocation
         const part2 = try fs.path.join(allocator, paths);
+
         defer allocator.free(part2);
+
         return fs.path.joinZ(allocator, &[_][]const u8{ p, part2 });
     } else {
         return fs.path.joinZ(allocator, paths);
@@ -52,7 +56,9 @@ pub fn joinZ(self: Directory, allocator: Allocator, paths: []const []const u8) !
 /// if it happens to be what the caller needs.
 pub fn closeAndFree(self: *Directory, gpa: Allocator) void {
     self.handle.close();
+
     if (self.path) |p| gpa.free(p);
+
     self.* = undefined;
 }
 

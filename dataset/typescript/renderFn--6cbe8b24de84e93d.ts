@@ -10,6 +10,7 @@ import {
   normalizeStyle,
   toHandlerKey,
 } from '@vue/shared'
+
 import type {
   Component,
   ComponentInternalInstance,
@@ -17,12 +18,15 @@ import type {
   Data,
   InternalRenderFunction,
 } from '../component'
+
 import { currentRenderingInstance } from '../componentRenderContext'
 import { type DirectiveArguments, withDirectives } from '../directives'
+
 import {
   resolveDirective,
   resolveDynamicComponent,
 } from '../helpers/resolveAssets'
+
 import {
   Comment,
   type VNode,
@@ -32,11 +36,13 @@ import {
   isVNode,
   normalizeChildren,
 } from '../vnode'
+
 import {
   DeprecationTypes,
   checkCompatEnabled,
   isCompatEnabled,
 } from './compatConfig'
+
 import { compatModelEventPrefix } from './componentVModel'
 
 export function convertLegacyRenderFn(
@@ -55,6 +61,7 @@ export function convertLegacyRenderFn(
     // 2 arguments, and v2 functional render functions would have already been
     // normalized into v3 functional components
     render._compatChecked = true
+
     return
   }
 
@@ -64,6 +71,7 @@ export function convertLegacyRenderFn(
       // @ts-expect-error
       return render.call(this, compatH)
     })
+
     // @ts-expect-error
     wrapped._compatWrapped = true
   }
@@ -109,6 +117,7 @@ export function compatH(
   type: string | Component,
   children?: LegacyVNodeChildren,
 ): VNode
+
 export function compatH(
   type: string | Component,
   props?: Data & LegacyVNodeProps,
@@ -127,23 +136,27 @@ export function compatH(
   // to support v2 string component name look!up
   if (typeof type === 'string') {
     const t = hyphenate(type)
+
     if (t === 'transition' || t === 'transition-group' || t === 'keep-alive') {
       // since transition and transition-group are runtime-dom-specific,
       // we cannot import them directly here. Instead they are registered using
       // special keys in @vue/compat entry.
       type = `__compat__${t}`
     }
+
     type = resolveDynamicComponent(type)
   }
 
   const l = arguments.length
   const is2ndArgArrayChildren = isArray(propsOrChildren)
+
   if (l === 2 || is2ndArgArrayChildren) {
     if (isObject(propsOrChildren) && !is2ndArgArrayChildren) {
       // single vnode without props
       if (isVNode(propsOrChildren)) {
         return convertLegacySlots(createVNode(type, null, [propsOrChildren]))
       }
+
       // props without children
       return convertLegacySlots(
         convertLegacyDirectives(
@@ -159,6 +172,7 @@ export function compatH(
     if (isVNode(children)) {
       children = [children]
     }
+
     return convertLegacySlots(
       convertLegacyDirectives(
         createVNode(type, convertLegacyProps(propsOrChildren, type), children),
@@ -187,11 +201,15 @@ function convertLegacyProps(
       extend(converted, legacyProps[key])
     } else if (key === 'on' || key === 'nativeOn') {
       const listeners = legacyProps[key]
+
       for (const event in listeners) {
         let handlerKey = convertLegacyEventKey(event)
+
         if (key === 'nativeOn') handlerKey += `Native`
+
         const existing = converted[handlerKey]
         const incoming = listeners[event]
+
         if (existing !== incoming) {
           if (existing) {
             converted[handlerKey] = [].concat(existing as any, incoming as any)
@@ -208,6 +226,7 @@ function convertLegacyProps(
   if (legacyProps.staticClass) {
     converted.class = normalizeClass([legacyProps.staticClass, converted.class])
   }
+
   if (legacyProps.staticStyle) {
     converted.style = normalizeStyle([legacyProps.staticStyle, converted.style])
   }
@@ -215,6 +234,7 @@ function convertLegacyProps(
   if (legacyProps.model && isObject(type)) {
     // v2 compiled component v-model
     const { prop = 'value', event = 'input' } = (type as any).model || {}
+
     converted[prop] = legacyProps.model.value
     converted[compatModelEventPrefix + event] = legacyProps.model.callback
   }
@@ -227,12 +247,15 @@ function convertLegacyEventKey(event: string): string {
   if (event[0] === '&') {
     event = event.slice(1) + 'Passive'
   }
+
   if (event[0] === '~') {
     event = event.slice(1) + 'Once'
   }
+
   if (event[0] === '!') {
     event = event.slice(1) + 'Capture'
   }
+
   return toHandlerKey(event)
 }
 
@@ -253,6 +276,7 @@ function convertLegacyDirectives(
       }),
     )
   }
+
   return vnode
 }
 
@@ -263,30 +287,39 @@ function convertLegacySlots(vnode: VNode): VNode {
 
   if (vnode.shapeFlag & ShapeFlags.COMPONENT && isArray(children)) {
     slots = {}
+
     // check "slot" property on vnodes and turn them into v3 function slots
     for (let i = 0; i < children.length; i++) {
       const child = children[i]
+
       const slotName =
         (isVNode(child) && child.props && child.props.slot) || 'default'
+
       const slot = slots[slotName] || (slots[slotName] = [] as any[])
+
       if (isVNode(child) && child.type === 'template') {
         slot.push(child.children)
       } else {
         slot.push(child)
       }
     }
+
     if (slots) {
       for (const key in slots) {
         const slotChildren = slots[key]
+
         slots[key] = () => slotChildren
+
         slots[key]._ns = true /* non-scoped slot */
       }
     }
   }
 
   const scopedSlots = props && props.scopedSlots
+
   if (scopedSlots) {
     delete props!.scopedSlots
+
     if (slots) {
       extend(slots, scopedSlots)
     } else {
@@ -316,8 +349,11 @@ export function defineLegacyVNodeProperties(vnode: VNode): void {
     )
   ) {
     const context = currentRenderingInstance
+
     const getInstance = () => vnode.component && vnode.component.proxy
+
     let componentOptions: any
+
     Object.defineProperties(vnode, {
       tag: { get: () => vnode.type },
       data: { get: () => vnode.props || {}, set: p => (vnode.props = p) },
@@ -332,6 +368,7 @@ export function defineLegacyVNodeProperties(vnode: VNode): void {
             if (componentOptions) {
               return componentOptions
             }
+
             return (componentOptions = {
               Ctor: vnode.type,
               propsData: vnode.props,

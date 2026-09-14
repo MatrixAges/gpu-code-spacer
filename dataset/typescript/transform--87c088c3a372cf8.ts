@@ -4,20 +4,25 @@ import colors from 'picocolors'
 import type { ExistingRawSourceMap } from 'rolldown'
 import type { Connect } from '#dep-types/connect'
 import type { ViteDevServer } from '..'
+
 import {
   ERR_OUTDATED_OPTIMIZED_DEP,
   NULL_BYTE_PLACEHOLDER,
 } from '../../../shared/constants'
+
 import { cleanUrl, unwrapId, withTrailingSlash } from '../../../shared/utils'
 import type { ResolvedConfig } from '../../config'
+
 import {
   DEP_VERSION_RE,
   ERR_FILE_NOT_FOUND_IN_OPTIMIZED_DEP_DIR,
   ERR_OPTIMIZE_DEPS_PROCESSING_ERROR,
   FS_PREFIX,
 } from '../../constants'
+
 import { isDirectCSSRequest, isDirectRequest } from '../../plugins/css'
 import { isHTMLProxy } from '../../plugins/html'
+
 import {
   createDebugger,
   fsPathFromId,
@@ -30,6 +35,7 @@ import {
   removeImportQuery,
   removeTimestampQuery,
 } from '../../utils'
+
 import { ERR_CLOSED_SERVER } from '../pluginContainer'
 import { send } from '../send'
 import { applySourcemapIgnoreList } from '../sourcemap'
@@ -46,8 +52,10 @@ const documentFetchDests = new Set([
   'frame',
   'fencedframe',
 ])
+
 function isDocumentFetchDest(req: Connect.IncomingMessage) {
   const fetchDest = req.headers['sec-fetch-dest']
+
   return fetchDest !== undefined && documentFetchDests.has(fetchDest)
 }
 
@@ -67,6 +75,7 @@ export function isServerAccessDeniedForTransform(
       checkLoadingAccess(config, id) !== 'allowed'
     )
   }
+
   return false
 }
 
@@ -82,13 +91,16 @@ export function cachedTransformMiddleware(
 
     if (isDocumentFetchDest(req)) {
       res.appendHeader('Vary', 'Sec-Fetch-Dest')
+
       return next()
     }
 
     // check if we can return 304 early
     const ifNoneMatch = req.headers['if-none-match']
+
     if (ifNoneMatch) {
       const moduleByEtag = environment.moduleGraph.getModuleByEtag(ifNoneMatch)
+
       if (
         moduleByEtag?.transformResult?.etag === ifNoneMatch &&
         moduleByEtag.url === req.url
@@ -97,9 +109,12 @@ export function cachedTransformMiddleware(
         // the browser sends the request for the direct CSS request with the etag
         // from the imported CSS module. We ignore the etag in this case.
         const maybeMixedEtag = isCSSRequest(req.url!)
+
         if (!maybeMixedEtag) {
           debugCache?.(`[304] ${prettifyUrl(req.url!, server.config.root)}`)
+
           res.statusCode = 304
+
           return res.end()
         }
       }
@@ -131,6 +146,7 @@ export function transformMiddleware(
     }
 
     let url: string
+
     try {
       url = decodeURI(removeTimestampQuery(req.url!)).replace(
         NULL_BYTE_PLACEHOLDER,
@@ -143,8 +159,10 @@ export function transformMiddleware(
             `Malformed URI sequence in request URL: ${removeTimestampQuery(req.url!)}`,
           ),
         )
+
         return next()
       }
+
       return next(e)
     }
 
@@ -152,19 +170,23 @@ export function transformMiddleware(
 
     try {
       const isSourceMap = withoutQuery.endsWith('.map')
+
       // since we generate source map references, handle those requests here
       if (isSourceMap) {
         const depsOptimizer = environment.depsOptimizer
+
         if (depsOptimizer?.isOptimizedDepUrl(url)) {
           // If the browser is requesting a source map for an optimized dep, it
           // means that the dependency has already been pre-bundled and loaded
           const sourcemapPath = url.startsWith(FS_PREFIX)
             ? fsPathFromId(url)
             : normalizePath(path.resolve(server.config.root, url.slice(1)))
+
           // url may contain relative path that may resolve outside of the optimized deps directory
           if (!depsOptimizer.isOptimizedDepFile(sourcemapPath)) {
             return next()
           }
+
           try {
             const map = JSON.parse(
               await fsp.readFile(sourcemapPath, 'utf-8'),
@@ -192,6 +214,7 @@ export function transformMiddleware(
               names: [],
               mappings: ';;;;;;;;;',
             }
+
             return send(req, res, JSON.stringify(dummySourceMap), 'json', {
               cacheControl: 'no-cache',
               headers: server.config.server.headers,
@@ -199,9 +222,11 @@ export function transformMiddleware(
           }
         } else {
           const originalUrl = url.replace(/\.map($|\?)/, '$1')
+
           const map = (
             await environment.moduleGraph.getModuleByUrl(originalUrl)
           )?.transformResult?.map
+
           if (map) {
             return send(req, res, JSON.stringify(map), 'json', {
               headers: server.config.server.headers,
@@ -242,24 +267,30 @@ export function transformMiddleware(
           // by the cachedTransformMiddleware due to the browser possibly mixing the
           // etags of direct and imported CSS
           const ifNoneMatch = req.headers['if-none-match']
+
           if (
             ifNoneMatch &&
             (await environment.moduleGraph.getModuleByUrl(url))?.transformResult
               ?.etag === ifNoneMatch
           ) {
             debugCache?.(`[304] ${prettifyUrl(url, server.config.root)}`)
+
             res.statusCode = 304
+
             return res.end()
           }
         }
 
         // resolve, load and transform using the plugin container
         const result = await environment.transformRequest(url)
+
         if (result) {
           const depsOptimizer = environment.depsOptimizer
           const type = isDirectCSSRequest(url) ? 'css' : 'js'
+
           const isDep =
             DEP_VERSION_RE.test(url) || depsOptimizer?.isOptimizedDepUrl(url)
+
           return send(req, res, result.code, type, {
             etag: result.etag,
             // allow browser to cache npm deps!
@@ -275,19 +306,25 @@ export function transformMiddleware(
         if (!res.writableEnded) {
           res.statusCode = 504 // status code request timeout
           res.statusMessage = 'Optimize Deps Processing Error'
+
           res.end()
         }
+
         // This timeout is unexpected
         server.config.logger.error(e.message)
+
         return
       }
+
       if (e?.code === ERR_OUTDATED_OPTIMIZED_DEP) {
         // Skip if response has already been sent
         if (!res.writableEnded) {
           res.statusCode = 504 // status code request timeout
           res.statusMessage = 'Outdated Optimize Dep'
+
           res.end()
         }
+
         // We don't need to log an error in this case, the request
         // is outdated because new dependencies were discovered and
         // the new pre-bundle dependencies have changed.
@@ -296,13 +333,16 @@ export function transformMiddleware(
         // error but a normal part of the missing deps discovery flow
         return
       }
+
       if (e?.code === ERR_CLOSED_SERVER) {
         // Skip if response has already been sent
         if (!res.writableEnded) {
           res.statusCode = 504 // status code request timeout
           res.statusMessage = 'Outdated Request'
+
           res.end()
         }
+
         // We don't need to log an error in this case, the request
         // is outdated because new dependencies were discovered and
         // the new pre-bundle dependencies have changed.
@@ -311,39 +351,54 @@ export function transformMiddleware(
         // error but a normal part of the missing deps discovery flow
         return
       }
+
       if (e?.code === ERR_FILE_NOT_FOUND_IN_OPTIMIZED_DEP_DIR) {
         // Skip if response has already been sent
         if (!res.writableEnded) {
           res.statusCode = 404
+
           res.end()
         }
+
         server.config.logger.warn(colors.yellow(e.message))
+
         return
       }
+
       if (e?.code === ERR_LOAD_URL) {
         // Let other middleware handle if we can't load the url via transformRequest
         return next()
       }
+
       if (e?.code === ERR_DENIED_ID) {
         const id: string = e.id
+
         let servingAccessResult = checkLoadingAccess(
           server.config,
           cleanUrl(id),
         )
+
         if (servingAccessResult === 'allowed') {
           servingAccessResult = checkLoadingAccess(server.config, id)
         }
+
         if (servingAccessResult === 'denied') {
           respondWithAccessDenied(id, server, res)
+
           return true
         }
+
         if (servingAccessResult === 'fallback') {
           next()
+
           return true
         }
+
         servingAccessResult satisfies 'allowed'
+
         throw new Error(`Unexpected access result for id ${id}`)
       }
+
       return next(e)
     }
 
@@ -355,6 +410,7 @@ export function transformMiddleware(
 
     if (isImportRequest(url)) {
       const rawUrl = removeImportQuery(url)
+
       if (urlRE.test(url)) {
         warning =
           `Assets in the public directory are served at the root path.\n` +

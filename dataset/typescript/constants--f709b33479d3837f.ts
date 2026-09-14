@@ -41,8 +41,10 @@ const DEFAULT_MAIN_FIELDS = [
   'jsnext:main', // moment still uses this...
   'jsnext',
 ]
+
 export const DEFAULT_CLIENT_MAIN_FIELDS: readonly string[] =
   Object.freeze(DEFAULT_MAIN_FIELDS)
+
 export const DEFAULT_SERVER_MAIN_FIELDS: readonly string[] = Object.freeze(
   DEFAULT_MAIN_FIELDS.filter((f) => f !== 'browser'),
 )
@@ -54,9 +56,11 @@ export const DEFAULT_SERVER_MAIN_FIELDS: readonly string[] = Object.freeze(
 export const DEV_PROD_CONDITION = `development|production` as const
 
 const DEFAULT_CONDITIONS = ['module', 'browser', 'node', DEV_PROD_CONDITION]
+
 export const DEFAULT_CLIENT_CONDITIONS: readonly string[] = Object.freeze(
   DEFAULT_CONDITIONS.filter((c) => c !== 'node'),
 )
+
 export const DEFAULT_SERVER_CONDITIONS: readonly string[] = Object.freeze(
   DEFAULT_CONDITIONS.filter((c) => c !== 'browser'),
 )
@@ -116,6 +120,7 @@ export const FS_PREFIX = `/@fs/`
 
 export const CLIENT_PUBLIC_PATH = `/@vite/client`
 export const ENV_PUBLIC_PATH = `/@vite/env`
+
 export const VITE_PACKAGE_DIR: string = resolve(
   fileURLToPath(import.meta.url),
   '../../..',
@@ -125,16 +130,20 @@ export const CLIENT_ENTRY: string = resolve(
   VITE_PACKAGE_DIR,
   'dist/client/client.mjs',
 )
+
 export const BUNDLED_DEV_CLIENT_ENTRY: string = resolve(
   VITE_PACKAGE_DIR,
   'dist/client/bundledDevClient.mjs',
 )
+
 /** URL filename the bundled-dev server serves the vite client under */
 export const BUNDLED_DEV_CLIENT_FILENAME: string = 'bundledDevClient.mjs'
+
 export const ENV_ENTRY: string = resolve(
   VITE_PACKAGE_DIR,
   'dist/client/env.mjs',
 )
+
 export const CLIENT_DIR: string = path.dirname(CLIENT_ENTRY)
 
 // ** READ THIS ** before editing `KNOWN_ASSET_TYPES`.
@@ -200,6 +209,7 @@ export const loopbackHosts: Set<string> = new Set([
   '::1',
   '0000:0000:0000:0000:0000:0000:0000:0001',
 ])
+
 export const wildcardHosts: Set<string> = new Set([
   '0.0.0.0',
   '::',
@@ -223,5 +233,6 @@ export const METADATA_FILENAME = '_metadata.json'
 
 export const ERR_OPTIMIZE_DEPS_PROCESSING_ERROR =
   'ERR_OPTIMIZE_DEPS_PROCESSING_ERROR'
+
 export const ERR_FILE_NOT_FOUND_IN_OPTIMIZED_DEP_DIR =
   'ERR_FILE_NOT_FOUND_IN_OPTIMIZED_DEP_DIR'

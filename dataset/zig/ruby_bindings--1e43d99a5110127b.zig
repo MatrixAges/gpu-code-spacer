@@ -33,24 +33,30 @@ const Buffer = struct {
 fn ruby_flags_name_from_type(comptime Type: type) ?[]const u8 {
     comptime for (flag_mappings) |mapping| {
         const ZigType, const ruby_name = mapping;
+
         if (Type == ZigType) return ruby_name;
     };
+
     return null;
 }
 
 fn c_operation_name(comptime operation: tb.Operation) []const u8 {
     const upper_snake = stdx.to_case(@tagName(operation), .UPPER_CASE);
+
     return "TB_OPERATION_" ++ upper_snake;
 }
 
 fn c_init_status_name(comptime status: exports.tb_init_status) []const u8 {
     const upper_snake = stdx.to_case(@tagName(status), .UPPER_CASE);
+
     return "TB_INIT_" ++ upper_snake;
 }
 
 fn operation_supported(comptime operation: tb.Operation) bool {
     const name = @tagName(operation);
+
     if (comptime std.mem.startsWith(u8, name, "deprecated_")) return false;
+
     return switch (operation) {
         .pulse,
         .get_change_events,
@@ -61,27 +67,33 @@ fn operation_supported(comptime operation: tb.Operation) bool {
 
 fn type_basename(comptime Type: type) []const u8 {
     const name = @typeName(Type);
+
     if (comptime std.mem.lastIndexOfScalar(u8, name, '.')) |index| {
         return name[index + 1 ..];
     }
+
     return name;
 }
 
 fn to_snake_case(comptime input: []const u8) []const u8 {
     comptime var output: [input.len * 2]u8 = undefined;
     comptime var len: usize = 0;
+
     inline for (input, 0..) |c, i| {
         if (c >= 'A' and c <= 'Z') {
             if (i > 0) {
                 output[len] = '_';
                 len += 1;
             }
+
             output[len] = c + 32;
         } else {
             output[len] = c;
         }
+
         len += 1;
     }
+
     return output[0..len];
 }
 
@@ -96,6 +108,7 @@ fn ruby_type_name(comptime Type: type) []const u8 {
 fn result_status_type(comptime Type: type) ?type {
     if (Type == tb.CreateAccountResult) return tb.CreateAccountStatus;
     if (Type == tb.CreateTransferResult) return tb.CreateTransferStatus;
+
     return null;
 }
 
@@ -118,6 +131,7 @@ fn int_bits(comptime Type: type) comptime_int {
 fn field_reserved(comptime field_name: []const u8) bool {
     if (comptime std.mem.eql(u8, field_name, "reserved")) return true;
     if (comptime std.mem.eql(u8, field_name, "padding")) return true;
+
     return false;
 }
 
@@ -131,12 +145,16 @@ fn emit_flags_module(
 
     buffer.print("  module {s}\n", .{ruby_name});
     buffer.print("    NONE = 0\n", .{});
+
     inline for (@typeInfo(Type).@"struct".fields, 0..) |field, i| {
         if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
         if (comptime std.mem.eql(u8, field.name, "padding")) continue;
+
         const upper_snake = stdx.to_case(field.name, .UPPER_CASE);
+
         buffer.print("    {s} = 1 << {d}\n", .{ upper_snake, i });
     }
+
     buffer.print("  end\n\n", .{});
 }
 
@@ -149,23 +167,31 @@ fn emit_enum_module(
     assert(@typeInfo(Type) == .@"enum");
 
     buffer.print("  module {s}\n", .{ruby_name});
+
     inline for (@typeInfo(Type).@"enum".fields) |field| {
         if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
         comptime var skip = false;
+
         inline for (skip_fields) |sf| {
             skip = skip or comptime std.mem.eql(u8, sf, field.name);
         }
+
         if (skip) continue;
+
         const upper_snake = stdx.to_case(field.name, .UPPER_CASE);
         const value: u64 = @intCast(@intFromEnum(@field(Type, field.name)));
+
         buffer.print("    {s} = {d}\n", .{ upper_snake, value });
     }
+
     buffer.print("  end\n\n", .{});
 }
 
 fn emit_field_default(buffer: *Buffer, comptime FieldType: type) void {
     const type_info = @typeInfo(FieldType);
     const is_flags = type_info == .@"struct" and type_info.@"struct".layout == .@"packed";
+
     if (is_flags) {
         buffer.print("{s}::NONE", .{comptime ruby_flags_name_from_type(FieldType).?});
     } else {
@@ -188,10 +214,12 @@ fn emit_struct_class(
 
     inline for (fields) |field| {
         if (comptime std.mem.eql(u8, field.name, "reserved")) continue;
+
         buffer.print(
             "    attr_{s} :{s}\n",
             .{ if (read_only) "reader" else "accessor", field.name },
         );
+
         if (comptime read_only and
             std.mem.eql(u8, field.name, "status") and
             result_status_type(Type) != null)
@@ -199,30 +227,43 @@ fn emit_struct_class(
             buffer.print("    attr_reader :status_name\n", .{});
         }
     }
+
     buffer.print("\n", .{});
 
     if (!read_only) {
         buffer.print("    def initialize(\n", .{});
+
         comptime var sep: []const u8 = "";
+
         inline for (fields) |field| {
             if (comptime std.mem.eql(u8, field.name, "reserved")) continue;
             if (sep.len > 0) buffer.print("{s}", .{sep});
+
             buffer.print("      {s}: ", .{field.name});
+
             emit_field_default(buffer, field.type);
+
             sep = ",\n";
         }
+
         buffer.print("\n    )\n", .{});
+
         inline for (fields) |field| {
             if (comptime std.mem.eql(u8, field.name, "reserved")) continue;
+
             buffer.print("      @{s} = {s}\n", .{ field.name, field.name });
         }
+
         buffer.print("    end\n", .{});
     } else {
         buffer.print("    def initialize\n", .{});
+
         inline for (fields) |field| {
             if (comptime std.mem.eql(u8, field.name, "reserved")) continue;
+
             buffer.print("      @{s} = 0\n", .{field.name});
         }
+
         buffer.print("    end\n", .{});
 
         if (comptime result_status_type(Type) != null) {
@@ -232,6 +273,7 @@ fn emit_struct_class(
             buffer.write("status_name=#{@status_name}>\"\n");
         }
     }
+
     buffer.print("  end\n\n", .{});
 }
 
@@ -246,23 +288,32 @@ fn emit_rbs_constants_module(
     switch (@typeInfo(Type)) {
         .@"struct" => |info| {
             assert(info.layout == .@"packed");
+
             buffer.print("    NONE: Integer\n", .{});
+
             inline for (info.fields) |field| {
                 if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
                 if (comptime std.mem.eql(u8, field.name, "padding")) continue;
+
                 const upper_snake = stdx.to_case(field.name, .UPPER_CASE);
+
                 buffer.print("    {s}: Integer\n", .{upper_snake});
             }
         },
         .@"enum" => |info| {
             inline for (info.fields) |field| {
                 if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
                 comptime var skip = false;
+
                 inline for (skip_fields) |sf| {
                     skip = skip or comptime std.mem.eql(u8, sf, field.name);
                 }
+
                 if (skip) continue;
+
                 const upper_snake = stdx.to_case(field.name, .UPPER_CASE);
+
                 buffer.print("    {s}: Integer\n", .{upper_snake});
             }
         },
@@ -280,12 +331,17 @@ fn emit_rbs_status_name_alias(
     assert(@typeInfo(StatusType) == .@"enum");
 
     buffer.print("  type {s} =\n", .{alias_name});
+
     comptime var sep: []const u8 = "    ";
+
     inline for (@typeInfo(StatusType).@"enum".fields) |field| {
         if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
         buffer.print("{s}:{s}\n", .{ sep, field.name });
+
         sep = "    | ";
     }
+
     buffer.print("\n", .{});
 }
 
@@ -304,10 +360,12 @@ fn emit_rbs_struct_class(
 
     inline for (fields) |field| {
         if (comptime std.mem.eql(u8, field.name, "reserved")) continue;
+
         buffer.print(
             "    attr_{s} {s}: Integer\n",
             .{ if (read_only) "reader" else "accessor", field.name },
         );
+
         if (comptime read_only and std.mem.eql(u8, field.name, "status")) {
             if (comptime Type == tb.CreateAccountResult) {
                 buffer.print("    attr_reader status_name: create_account_status_name\n", .{});
@@ -316,18 +374,24 @@ fn emit_rbs_struct_class(
             }
         }
     }
+
     buffer.print("\n", .{});
 
     if (read_only) {
         buffer.print("    def initialize: () -> void\n", .{});
     } else {
         buffer.print("    def initialize: (", .{});
+
         comptime var sep: []const u8 = "";
+
         inline for (fields) |field| {
             if (comptime std.mem.eql(u8, field.name, "reserved")) continue;
+
             buffer.print("{s}?{s}: Integer", .{ sep, field.name });
+
             sep = ", ";
         }
+
         buffer.print(") -> void\n", .{});
     }
 
@@ -359,8 +423,10 @@ fn emit_rbs_bindings(buffer: *Buffer) void {
         \\
         \\  class Client
     );
+
     buffer.write("\n    def self.open: (cluster_id: Integer, replica_addresses: String)");
     buffer.write(" { (Client) -> untyped } -> untyped\n\n");
+
     buffer.write(
         \\    def initialize: (cluster_id: Integer, replica_addresses: String) -> void
         \\    def close: () -> nil
@@ -381,31 +447,34 @@ fn emit_rbs_bindings(buffer: *Buffer) void {
 
     inline for (flag_mappings) |mapping| {
         const ZigType, const ruby_name = mapping;
+
         emit_rbs_constants_module(buffer, ZigType, ruby_name, &.{});
     }
 
     emit_rbs_constants_module(buffer, exports.tb_operation, "Operation", &.{
         "reserved", "root", "register", "pulse", "get_change_events",
     });
+
     emit_rbs_constants_module(buffer, tb.CreateAccountStatus, "CreateAccountStatus", &.{});
     emit_rbs_constants_module(buffer, tb.CreateTransferStatus, "CreateTransferStatus", &.{});
-
     emit_rbs_struct_class(buffer, tb.Account, "Account", false);
     emit_rbs_struct_class(buffer, tb.Transfer, "Transfer", false);
     emit_rbs_struct_class(buffer, tb.AccountFilter, "AccountFilter", false);
     emit_rbs_struct_class(buffer, tb.QueryFilter, "QueryFilter", false);
-
     emit_rbs_struct_class(buffer, tb.AccountBalance, "AccountBalance", true);
+
     emit_rbs_status_name_alias(
         buffer,
         tb.CreateAccountStatus,
         "create_account_status_name",
     );
+
     emit_rbs_status_name_alias(
         buffer,
         tb.CreateTransferStatus,
         "create_transfer_status_name",
     );
+
     emit_rbs_struct_class(buffer, tb.CreateAccountResult, "CreateAccountResult", true);
     emit_rbs_struct_class(buffer, tb.CreateTransferResult, "CreateTransferResult", true);
 
@@ -428,6 +497,7 @@ fn emit_ruby_bindings(buffer: *Buffer) void {
     // Flag modules (packed structs).
     inline for (flag_mappings) |mapping| {
         const ZigType, const ruby_name = mapping;
+
         emit_flags_module(buffer, ZigType, ruby_name);
     }
 
@@ -519,11 +589,14 @@ fn emit_c_header_preamble(buffer: *Buffer) void {
 fn emit_c_init_error_message(buffer: *Buffer) void {
     buffer.print("static const char *rb_tb_init_error_message(TB_INIT_STATUS status) {{\n", .{});
     buffer.print("    switch (status) {{\n", .{});
+
     inline for (@typeInfo(exports.tb_init_status).@"enum".fields) |field| {
         const status: exports.tb_init_status = @enumFromInt(field.value);
+
         buffer.print("    case {s}:\n", .{comptime c_init_status_name(status)});
         buffer.print("        return \"{s}\";\n", .{field.name});
     }
+
     buffer.write(
         \\    default:
         \\        return "unknown";
@@ -543,12 +616,16 @@ fn emit_c_status_name_function(
 
     buffer.print("static VALUE {s}(uint32_t status) {{\n", .{function_name});
     buffer.print("    switch (status) {{\n", .{});
+
     inline for (@typeInfo(StatusType).@"enum".fields) |field| {
         if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
+
         const value: u64 = @intCast(@intFromEnum(@field(StatusType, field.name)));
+
         buffer.print("    case {d}:\n", .{value});
         buffer.print("        return ID2SYM(rb_intern(\"{s}\"));\n", .{field.name});
     }
+
     buffer.write(
         \\    default:
         \\        tb_assert(false);
@@ -556,6 +633,7 @@ fn emit_c_status_name_function(
         \\    }
         \\}
     );
+
     buffer.write("\n\n");
 }
 
@@ -565,6 +643,7 @@ fn emit_c_num_from_ruby(
     comptime field_name: []const u8,
 ) void {
     const bits = comptime int_bits(FieldType);
+
     const macro: []const u8 = switch (bits) {
         8 => "RB_NUM2CHR",
         16 => "RB_NUM2USHORT",
@@ -572,6 +651,7 @@ fn emit_c_num_from_ruby(
         64 => "RB_NUM2ULL",
         else => @compileError("unsupported Ruby numeric field"),
     };
+
     buffer.print("{s}(rb_tb_ivar_get_checked(item_rb, {s}))", .{ macro, field_name });
 }
 
@@ -581,6 +661,7 @@ fn emit_c_value_from_field(
     comptime field_expr: []const u8,
 ) void {
     const bits = comptime int_bits(FieldType);
+
     switch (bits) {
         8, 16, 32 => buffer.print("RB_UINT2NUM({s})", .{field_expr}),
         64 => buffer.print("RB_ULL2NUM({s})", .{field_expr}),
@@ -593,12 +674,14 @@ fn emit_c_serialize_struct(buffer: *Buffer, comptime operation: tb.Operation) vo
     const Type = operation.EventType();
     const operation_name = comptime operation_function_name(operation);
     const c_name = comptime c_type_name(Type);
+
     buffer.print(
         "static void rb_tb_serialize_{s}(VALUE items_rb, uint8_t *buf, long count) {{\n",
         .{
             operation_name,
         },
     );
+
     buffer.print("    {s} *items = ({s} *)buf;\n", .{ c_name, c_name });
     buffer.print("    for (long i = 0; i < count; i++) {{\n", .{});
     buffer.print("        VALUE item_rb = RARRAY_AREF(items_rb, i);\n", .{});
@@ -613,8 +696,10 @@ fn emit_c_serialize_struct(buffer: *Buffer, comptime operation: tb.Operation) vo
                 ),
                 else => buffer.print("        item->{s} = 0;\n", .{field.name}),
             }
+
             continue;
         }
+
         switch (@typeInfo(field.type)) {
             .int => |info| if (info.bits == 128) {
                 buffer.print(
@@ -623,12 +708,16 @@ fn emit_c_serialize_struct(buffer: *Buffer, comptime operation: tb.Operation) vo
                 );
             } else {
                 buffer.print("        item->{s} = ", .{field.name});
+
                 emit_c_num_from_ruby(buffer, field.type, field.name);
+
                 buffer.print(";\n", .{});
             },
             .@"enum", .@"struct" => {
                 buffer.print("        item->{s} = ", .{field.name});
+
                 emit_c_num_from_ruby(buffer, field.type, field.name);
+
                 buffer.print(";\n", .{});
             },
             else => @compileError("unsupported serializer field: " ++ @typeName(field.type)),
@@ -643,13 +732,16 @@ fn emit_c_deserialize_struct(buffer: *Buffer, comptime operation: tb.Operation) 
     const Type = operation.ResultType();
     const operation_name = comptime operation_function_name(operation);
     const c_name = comptime c_type_name(Type);
+
     buffer.print(
         "static VALUE rb_tb_deserialize_{s}(const uint8_t *buf, uint32_t buf_size) {{\n",
         .{operation_name},
     );
+
     buffer.print("    VALUE klass = rb_path2class(\"TigerBeetle::{s}\");\n", .{
         comptime ruby_type_name(Type),
     });
+
     buffer.print("    tb_assert(buf_size % sizeof({s}) == 0);\n", .{c_name});
     buffer.print("    long count = (long)(buf_size / sizeof({s}));\n", .{c_name});
     buffer.print("    VALUE results = rb_ary_new_capa(count);\n", .{});
@@ -670,12 +762,18 @@ fn emit_c_deserialize_struct(buffer: *Buffer, comptime operation: tb.Operation) 
                 ),
                 else => buffer.print("        tb_assert(item->{s} == 0);\n", .{field.name}),
             }
+
             continue;
         }
+
         const field_expr = "item->" ++ field.name;
+
         buffer.print("        rb_ivar_set(obj, rb_intern(\"@{s}\"), ", .{field.name});
+
         emit_c_value_from_field(buffer, field.type, field_expr);
+
         buffer.print(");\n", .{});
+
         if (comptime std.mem.eql(u8, field.name, "status")) {
             if (comptime result_status_type(Type) != null) {
                 buffer.print(
@@ -712,17 +810,23 @@ fn emit_c_lookup_serializer(buffer: *Buffer) void {
 fn emit_c_event_size(buffer: *Buffer) void {
     buffer.print("static size_t rb_tb_event_size(TB_OPERATION operation) {{\n", .{});
     buffer.print("    switch (operation) {{\n", .{});
+
     inline for (@typeInfo(tb.Operation).@"enum".fields) |operation_field| {
         const operation: tb.Operation = @enumFromInt(operation_field.value);
+
         if (comptime !operation_supported(operation)) continue;
+
         const Event = operation.EventType();
+
         buffer.print("    case {s}:\n", .{comptime c_operation_name(operation)});
+
         if (Event == u128) {
             buffer.print("        return sizeof(tb_uint128_t);\n", .{});
         } else {
             buffer.print("        return sizeof({s});\n", .{comptime c_type_name(Event)});
         }
     }
+
     buffer.write(
         \\    default:
         \\        rb_raise(rb_eRuntimeError, "unsupported operation: %d", (int)operation);
@@ -744,12 +848,18 @@ fn emit_c_serialize_dispatch(buffer: *Buffer) void {
         \\) {
         \\
     );
+
     buffer.print("    switch (operation) {{\n", .{});
+
     inline for (@typeInfo(tb.Operation).@"enum".fields) |operation_field| {
         const operation: tb.Operation = @enumFromInt(operation_field.value);
+
         if (comptime !operation_supported(operation)) continue;
+
         const Event = operation.EventType();
+
         buffer.print("    case {s}:\n", .{comptime c_operation_name(operation)});
+
         if (Event == u128) {
             buffer.print("        rb_tb_serialize_u128(items_rb, buf, count);\n", .{});
         } else {
@@ -757,8 +867,10 @@ fn emit_c_serialize_dispatch(buffer: *Buffer) void {
                 comptime operation_function_name(operation),
             });
         }
+
         buffer.print("        break;\n", .{});
     }
+
     buffer.write(
         \\    default:
         \\        rb_raise(rb_eRuntimeError, "unsupported operation: %d", (int)operation);
@@ -778,15 +890,21 @@ fn emit_c_deserialize_dispatch(buffer: *Buffer) void {
         \\) {
         \\
     );
+
     buffer.print("    switch (operation) {{\n", .{});
+
     inline for (@typeInfo(tb.Operation).@"enum".fields) |operation_field| {
         const operation: tb.Operation = @enumFromInt(operation_field.value);
+
         if (comptime !operation_supported(operation)) continue;
+
         buffer.print("    case {s}:\n", .{comptime c_operation_name(operation)});
+
         buffer.print("        return rb_tb_deserialize_{s}(buf, buf_size);\n", .{
             comptime operation_function_name(operation),
         });
     }
+
     buffer.write(
         \\    default:
         \\        rb_raise(rb_eRuntimeError, "unsupported operation: %d", (int)operation);
@@ -801,11 +919,13 @@ fn emit_c_header(buffer: *Buffer) void {
 
     emit_c_header_preamble(buffer);
     emit_c_init_error_message(buffer);
+
     emit_c_status_name_function(
         buffer,
         tb.CreateAccountStatus,
         "rb_tb_create_accounts_status_name",
     );
+
     emit_c_status_name_function(
         buffer,
         tb.CreateTransferStatus,
@@ -814,8 +934,10 @@ fn emit_c_header(buffer: *Buffer) void {
 
     inline for (@typeInfo(tb.Operation).@"enum".fields) |operation_field| {
         const operation: tb.Operation = @enumFromInt(operation_field.value);
+
         if (comptime !operation_supported(operation)) continue;
         if (operation.EventType() != u128) emit_c_serialize_struct(buffer, operation);
+
         emit_c_deserialize_struct(buffer, operation);
     }
 
@@ -829,7 +951,9 @@ fn emit_c_header(buffer: *Buffer) void {
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
+
     const allocator = arena.allocator();
 
     var buffer = Buffer.init(allocator);

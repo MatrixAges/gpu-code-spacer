@@ -11,6 +11,7 @@ import {
 	$restoreNodeFromJson,
 	getStateJson
 } from '@/Editor/utils'
+
 import { getDocItem, getDocItemsData } from '@/utils'
 import { disableWatcher } from '@/utils/decorators'
 import { mergeRegister } from '@lexical/utils'
@@ -26,17 +27,23 @@ import type { Lexical } from '@/types'
 export default class Index {
 	collection: IPropsDataLoader['collection'] = 'note_items'
 	id = ''
+
 	editor = null as unknown as LexicalEditor
 	total_watcher = null as unknown as Subscription
 	update_watchers = [] as Array<Subscription>
 	ids_array = [] as Array<string>
+
 	ids_map = new Map<string, undefined>()
+
 	disable_watcher = false
 	loaded = false
 	mutation_load_status = false
 	update_load_status = 1
+
 	timer_change = null as unknown as NodeJS.Timer
+
 	changes = new Map<string, Change>()
+
 	undo_stack = [] as Array<Array<string>>
 	redo_stack = [] as Array<Array<string>>
 
@@ -112,7 +119,9 @@ export default class Index {
 		if (this.editor.isComposing()) return
 
 		const { dirtyElements, dirtyLeaves, editorState, prevEditorState, tags } = args
+
 		const dirty_els = $copy(dirtyElements)
+
 		const curr_map = editorState._nodeMap
 		const prev_map = prevEditorState._nodeMap
 
@@ -333,6 +342,7 @@ export default class Index {
 				if (add_doc.length) {
 					add_doc.forEach(item => {
 						const { prev, next, content } = item
+
 						const json = JSON.parse(content)
 
 						this.editor.update(() => {
@@ -403,6 +413,7 @@ export default class Index {
 
 	removeUpdateListner() {
 		this.update_watchers.forEach(item => item.unsubscribe())
+
 		this.update_watchers = []
 	}
 
@@ -417,8 +428,8 @@ export default class Index {
 	off() {
 		this.unregister?.()
 		this.removeUpdateListner()
-
 		this.total_watcher?.unsubscribe?.()
+
 		this.total_watcher = null as unknown as Subscription
 
 		if (this.timer_change) {

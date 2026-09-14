@@ -30,10 +30,12 @@ const vtable: Allocator.VTable = .{
 
 fn alloc(context: *anyopaque, n: usize, alignment: std.mem.Alignment, ra: usize) ?[*]u8 {
     const ptr = page_allocator_vtable.alloc(context, n, alignment, ra) orelse return null;
+
     // This is just a hint, so if it fails we can safely ignore it.
     std.posix.madvise(@alignCast(ptr), n, std.posix.MADV.HUGEPAGE) catch {
         log.warn("Transparent Huge Pages (THP) are disabled.", .{});
     };
+
     return ptr;
 }
 
@@ -43,12 +45,15 @@ const assert = std.debug.assert;
 /// Checks /proc/self/smaps for the "hg" VmFlag on the mapping containing `ptr`.
 fn verify_address_is_huge_page(ptr: [*]const u8) !bool {
     assert(builtin.target.os.tag == .linux);
+
     const addr = @intFromPtr(ptr);
 
     var file = try std.fs.openFileAbsolute("/proc/self/smaps", .{});
+
     defer file.close();
 
     const content = try file.readToEndAlloc(testing.allocator, 10 * 1024 * 1024);
+
     defer testing.allocator.free(content);
 
     var lines = std.mem.splitScalar(u8, content, '\n');
@@ -66,6 +71,7 @@ fn verify_address_is_huge_page(ptr: [*]const u8) !bool {
             }
         }
     }
+
     return false;
 }
 
@@ -74,14 +80,17 @@ fn parse_mapping_range(line: []const u8) ?struct { min: u64, max: u64 } {
     const addr_hex_min, const addr_hex_max = stdx.cut(addr_range, "-") orelse return null;
     const addr_min = stdx.parse_int(u64, addr_hex_min, .{ .base = 16 }) catch return null;
     const addr_max = stdx.parse_int(u64, addr_hex_max, .{ .base = 16 }) catch return null;
+
     return .{ .min = addr_min, .max = addr_max };
 }
 
 test "huge_page_allocator: basic alloc and free" {
     const slice = try huge_page_allocator.alloc(u8, 4096);
+
     defer huge_page_allocator.free(slice);
 
     @memset(slice, 0xab);
+
     try testing.expectEqual(@as(u8, 0xab), slice[0]);
 }
 
@@ -89,9 +98,11 @@ test "huge_page_allocator: large THP-eligible allocation" {
     // 4 MiB — large enough for THP promotion on Linux.
     const size = 4 * 1024 * 1024;
     const slice = try huge_page_allocator.alloc(u8, size);
+
     defer huge_page_allocator.free(slice);
 
     @memset(slice, 0xcd);
+
     try testing.expectEqual(@as(u8, 0xcd), slice[size - 1]);
 
     if (builtin.target.os.tag == .linux) {
@@ -104,12 +115,15 @@ test "huge_page_allocator: large THP-eligible allocation" {
 
 test "huge_page_allocator: as ArenaAllocator backing" {
     var arena = std.heap.ArenaAllocator.init(huge_page_allocator);
+
     defer arena.deinit();
 
     const alloc1 = try arena.allocator().alloc(u8, 1024);
     const alloc2 = try arena.allocator().alloc(u8, 2048);
+
     @memset(alloc1, 1);
     @memset(alloc2, 2);
+
     try testing.expectEqual(@as(u8, 1), alloc1[0]);
     try testing.expectEqual(@as(u8, 2), alloc2[0]);
 }

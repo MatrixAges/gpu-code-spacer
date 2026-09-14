@@ -1,10 +1,12 @@
 import { isFunction, isObject } from '@vue/shared'
 import type { Component, ComponentInternalInstance } from '../component'
+
 import {
   DeprecationTypes,
   checkCompatEnabled,
   softAssertCompatEnabled,
 } from './compatConfig'
+
 import { convertLegacyAsyncComponent } from './componentAsync'
 import { convertLegacyFunctionalComponent } from './componentFunctional'
 
@@ -23,10 +25,12 @@ export function convertLegacyComponent(
       // only necessary when compiled from SFC
       comp.options.render = comp.render
     }
+
     // copy over internal properties set by the SFC compiler
     comp.options.__file = comp.__file
     comp.options.__hmrId = comp.__hmrId
     comp.options.__scopeId = comp.__scopeId
+
     comp = comp.options
   }
 

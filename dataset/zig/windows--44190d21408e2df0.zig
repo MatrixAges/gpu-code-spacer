@@ -23,8 +23,10 @@ pub const IO = struct {
     iocp: os.windows.HANDLE,
     time: TimeOS = .{},
     io_pending: usize = 0,
+
     timeouts: QueueType(Completion) = QueueType(Completion).init(.{ .name = "io_timeouts" }),
     completed: QueueType(Completion) = QueueType(Completion).init(.{ .name = "io_completed" }),
+
     run_for_ns_active: bool = false,
 
     stats: common.Stats = .{},
@@ -34,6 +36,7 @@ pub const IO = struct {
         _ = flags;
 
         _ = try os.windows.WSAStartup(2, 2);
+
         errdefer os.windows.WSACleanup() catch unreachable;
 
         const iocp = try os.windows.CreateIoCompletionPort(
@@ -42,12 +45,15 @@ pub const IO = struct {
             0,
             0,
         );
+
         return IO{ .iocp = iocp };
     }
 
     pub fn deinit(self: *IO) void {
         assert(self.iocp != os.windows.INVALID_HANDLE_VALUE);
+
         os.windows.CloseHandle(self.iocp);
+
         self.iocp = os.windows.INVALID_HANDLE_VALUE;
 
         os.windows.WSACleanup() catch unreachable;
@@ -61,15 +67,19 @@ pub const IO = struct {
 
     pub fn run_for_ns(self: *IO, nanoseconds: u63) !void {
         assert(!self.run_for_ns_active);
+
         self.run_for_ns_active = true;
+
         defer {
             assert(self.run_for_ns_active);
+
             self.run_for_ns_active = false;
         }
 
         defer self.stats.trace();
 
         const timer = self.time.monotonic();
+
         defer self.stats.window.time_run_for_ns.ns +=
             timer.elapsed(self.time.monotonic()).ns;
 
@@ -81,12 +91,14 @@ pub const IO = struct {
             ) void {
                 _ = result catch unreachable;
                 _ = completion;
+
                 timed_out.* = true;
             }
         };
 
         var timed_out = false;
         var completion: Completion = undefined;
+
         self.timeout(*bool, &timed_out, Callback.on_timeout, &completion, nanoseconds);
 
         while (!timed_out) {
@@ -105,14 +117,18 @@ pub const IO = struct {
         // ensures timeouts that expire during callback dispatch are
         // discovered on the next flush.
         var timeout_ms: ?os.windows.DWORD = null;
+
         if (self.flush_timeouts()) |expires_ns| {
             // 0ns expires should have been completed not returned.
             assert(expires_ns != 0);
+
             // Round up sub-millisecond expire times to the next millisecond.
             const expires_ms = (expires_ns + (std.time.ns_per_ms / 2)) / std.time.ns_per_ms;
+
             // Saturating cast to DWORD milliseconds.
             const expires = std.math.cast(os.windows.DWORD, expires_ms) orelse
                 std.math.maxInt(os.windows.DWORD);
+
             // Max DWORD is reserved for INFINITE so cap the cast at max - 1.
             timeout_ms = if (expires == os.windows.INFINITE) expires - 1 else expires;
         }
@@ -130,6 +146,7 @@ pub const IO = struct {
             };
 
             var events: [64]os.windows.OVERLAPPED_ENTRY = undefined;
+
             const num_events: u32 = os.windows.GetQueuedCompletionStatusEx(
                 self.iocp,
                 &events,
@@ -142,16 +159,21 @@ pub const IO = struct {
             };
 
             assert(self.io_pending >= num_events);
+
             self.io_pending -= num_events;
 
             for (events[0..num_events]) |event| {
                 const raw_overlapped = event.lpOverlapped;
+
                 const overlapped: *Completion.Overlapped = @fieldParentPtr(
                     "raw",
                     raw_overlapped,
                 );
+
                 const completion = overlapped.completion;
+
                 completion.link = .{};
+
                 self.completed.push(completion);
             }
 
@@ -165,13 +187,16 @@ pub const IO = struct {
         // (e.g. zero-delay timeouts) which are picked up in the same pass,
         // matching Linux io_uring behavior (see ba0535354).
         const timer = self.time.monotonic();
+
         while (self.completed.pop()) |completion| {
             (completion.callback)(Completion.Context{
                 .io = self,
                 .completion = completion,
             });
         }
+
         const elapsed = timer.elapsed(self.time.monotonic());
+
         self.stats.window.time_callbacks.ns += elapsed.ns;
     }
 
@@ -181,20 +206,24 @@ pub const IO = struct {
 
         // Iterate through the timeouts, returning min_expires at the end.
         var timeouts_iterator = self.timeouts.iterate();
+
         while (timeouts_iterator.next()) |completion| {
             // Lazily get the current time.
             const now = current_time orelse self.time.monotonic().ns;
+
             current_time = now;
 
             // Move the completion to completed if it expired.
             if (now >= completion.operation.timeout.deadline) {
                 self.timeouts.remove(completion);
                 self.completed.push(completion);
+
                 continue;
             }
 
             // If it's still waiting, update min_timeout.
             const expires = completion.operation.timeout.deadline - now;
+
             if (min_expires) |current_min_expires| {
                 min_expires = @min(expires, current_min_expires);
             } else {
@@ -209,7 +238,9 @@ pub const IO = struct {
     pub const Completion = struct {
         link: QueueType(Completion).Link,
         context: ?*anyopaque,
+
         callback: *const fn (Context) void,
+
         operation: Operation,
 
         const Context = struct {
@@ -236,17 +267,21 @@ pub const IO = struct {
                 client_socket: ?socket_t,
                 addr_buffer: [(@sizeOf(std.net.Address) + 16) * 2]u8 align(4),
             },
+
             connect: struct {
                 socket: socket_t,
                 address: std.net.Address,
                 overlapped: Overlapped,
                 pending: bool,
             },
+
             fsync: struct {
                 fd: fd_t,
             },
+
             send: Transfer,
             recv: Transfer,
+
             read: struct {
                 fd: fd_t,
                 buf: [*]u8,
@@ -255,6 +290,7 @@ pub const IO = struct {
                 overlapped: Overlapped,
                 pending: bool,
             },
+
             write: struct {
                 fd: fd_t,
                 buf: [*]const u8,
@@ -263,13 +299,17 @@ pub const IO = struct {
                 overlapped: Overlapped,
                 pending: bool,
             },
+
             close: struct {
                 fd: fd_t,
             },
+
             timeout: struct {
                 deadline: u64,
             },
+
             event: Overlapped,
+
             next_tick: struct {
                 source: NextTickSource,
             },
@@ -297,6 +337,7 @@ pub const IO = struct {
                         _ = result catch |err| switch (err) {
                             error.WouldBlock => {
                                 ctx.io.io_pending += 1;
+
                                 return;
                             },
                             else => {},
@@ -376,6 +417,7 @@ pub const IO = struct {
                         };
 
                         var sync_bytes_read: os.windows.DWORD = undefined;
+
                         op.overlapped = .{
                             .raw = std.mem.zeroes(os.windows.OVERLAPPED),
                             .completion = ctx.completion,
@@ -422,6 +464,7 @@ pub const IO = struct {
                         error.WouldBlock => {},
                         else => {
                             ctx.io.close_socket(op.client_socket.?);
+
                             op.client_socket = null;
                         },
                     };
@@ -498,6 +541,7 @@ pub const IO = struct {
                         // ConnectEx requires the socket to be initially bound (INADDR_ANY).
                         const inaddr_any: [4]u8 = @splat(0);
                         const bind_addr = std.net.Address.initIp4(inaddr_any, 0);
+
                         posix.bind(
                             op.socket,
                             &bind_addr.any,
@@ -530,6 +574,7 @@ pub const IO = struct {
                         var num_bytes: os.windows.DWORD = undefined;
                         const guid = os.windows.ws2_32.WSAID_CONNECTEX;
                         const socket_error = os.windows.ws2_32.SOCKET_ERROR;
+
                         switch (os.windows.ws2_32.WSAIoctl(
                             op.socket,
                             os.windows.ws2_32.SIO_GET_EXTENSION_FUNCTION_POINTER,
@@ -550,6 +595,7 @@ pub const IO = struct {
                         }
 
                         op.pending = true;
+
                         op.overlapped = .{
                             .raw = std.mem.zeroes(os.windows.OVERLAPPED),
                             .completion = ctx.completion,
@@ -628,6 +674,7 @@ pub const IO = struct {
             struct {
                 fn do_operation(ctx: Completion.Context, op: anytype) FsyncError!void {
                     _ = ctx;
+
                     return posix.fsync(op.fd);
                 }
             },
@@ -683,6 +730,7 @@ pub const IO = struct {
                         }
 
                         op.pending = true;
+
                         op.overlapped = .{
                             .raw = std.mem.zeroes(os.windows.OVERLAPPED),
                             .completion = ctx.completion,
@@ -790,6 +838,7 @@ pub const IO = struct {
                         }
 
                         op.pending = true;
+
                         op.overlapped = .{
                             .raw = std.mem.zeroes(os.windows.OVERLAPPED),
                             .completion = ctx.completion,
@@ -849,6 +898,7 @@ pub const IO = struct {
 
     fn do_file_io(ctx: Completion.Context, op: anytype, comptime overlapped_fn: anytype) !usize {
         var transferred: os.windows.DWORD = undefined;
+
         const rc = blk: {
             // Poll result if already started.
             if (op.pending) break :blk os.windows.kernel32.GetOverlappedResult(
@@ -860,6 +910,7 @@ pub const IO = struct {
 
             // Start the operation.
             op.pending = true;
+
             op.overlapped = .{
                 .raw = .{
                     .Internal = 0,
@@ -874,6 +925,7 @@ pub const IO = struct {
                 },
                 .completion = ctx.completion,
             };
+
             break :blk overlapped_fn(op.fd, op.buf, op.len, &transferred, &op.overlapped.raw);
         };
 
@@ -960,6 +1012,7 @@ pub const IO = struct {
     ) void {
         // Windows dsync is efficient - it's used on every write.
         assert(dsync_all);
+
         _ = options;
 
         self.submit(
@@ -1006,6 +1059,7 @@ pub const IO = struct {
                     // Check if the fd is a SOCKET by seeing if getsockopt() returns ENOTSOCK
                     // https://stackoverflow.com/a/50981652
                     const socket: socket_t = @ptrCast(op.fd);
+
                     getsockoptError(socket) catch |err| switch (err) {
                         error.FileDescriptorNotASocket => return os.windows.CloseHandle(op.fd),
                         else => {},
@@ -1044,6 +1098,7 @@ pub const IO = struct {
                 fn do_operation(ctx: Completion.Context, op: anytype) TimeoutError!void {
                     _ = ctx;
                     _ = op;
+
                     return;
                 }
             },
@@ -1075,12 +1130,14 @@ pub const IO = struct {
                 }
             }.on_complete,
         };
+
         self.completed.push(completion);
     }
 
     /// Remove all next_tick entries with the given source from the completed queue.
     pub fn reset_next_tick(self: *IO, source: NextTickSource) void {
         var completed = self.completed;
+
         self.completed.reset();
 
         while (completed.pop()) |completion| {
@@ -1089,6 +1146,7 @@ pub const IO = struct {
             {
                 continue;
             }
+
             self.completed.push(completion);
         }
     }
@@ -1100,6 +1158,7 @@ pub const IO = struct {
         self: *IO,
     ) !Event {
         _ = self;
+
         // Events on Windows don't need an identifier,
         // they're handled just by the OVERLAPPED structure.
         return INVALID_EVENT + 1;
@@ -1112,6 +1171,7 @@ pub const IO = struct {
         comptime on_event: fn (*Completion) void,
     ) void {
         assert(event != INVALID_EVENT);
+
         completion.* = .{
             .link = .{},
             .context = null,
@@ -1134,6 +1194,7 @@ pub const IO = struct {
 
     pub fn event_trigger(self: *IO, event: Event, completion: *Completion) void {
         assert(event != INVALID_EVENT);
+
         os.windows.PostQueuedCompletionStatus(
             self.iocp,
             undefined,
@@ -1144,6 +1205,7 @@ pub const IO = struct {
 
     pub fn close_event(self: *IO, event: Event) void {
         _ = self;
+
         // Nothing to close as events are just intrusive OVERLAPPED structs.
         assert(event != INVALID_EVENT);
     }
@@ -1161,9 +1223,11 @@ pub const IO = struct {
             posix.SOCK.STREAM,
             posix.IPPROTO.TCP,
         );
+
         errdefer self.close_socket(socket);
 
         try common.tcp_options(socket, options);
+
         return socket;
     }
 
@@ -1190,22 +1254,27 @@ pub const IO = struct {
             0,
             socket_flags,
         );
+
         errdefer self.close_socket(socket);
 
         try self.register_handle(@ptrCast(socket));
+
         return socket;
     }
 
     /// Register the IO handle for overlapped operations.
     fn register_handle(self: *IO, handle: os.windows.HANDLE) !void {
         const iocp_handle = try os.windows.CreateIoCompletionPort(handle, self.iocp, 0, 0);
+
         assert(iocp_handle == self.iocp);
 
         // Ensure that synchronous IO completion doesn't queue an unneeded overlapped
         // and that the event for the handle (WaitForSingleObject) doesn't need to be set.
         var mode: os.windows.BYTE = 0;
+
         mode |= os.windows.FILE_SKIP_COMPLETION_PORT_ON_SUCCESS;
         mode |= os.windows.FILE_SKIP_SET_EVENT_ON_HANDLE;
+
         try os.windows.SetFileCompletionNotificationModes(handle, mode);
     }
 
@@ -1234,6 +1303,7 @@ pub const IO = struct {
     /// Opens a directory with read only access.
     pub fn open_dir(dir_path: []const u8) !fd_t {
         const dir = try std.fs.cwd().openDir(dir_path, .{});
+
         return dir.fd;
     }
 
@@ -1250,13 +1320,16 @@ pub const IO = struct {
 
         // FILE_CREATE = O_CREAT | O_EXCL
         var creation_disposition: os.windows.DWORD = 0;
+
         switch (purpose) {
             .format => {
                 creation_disposition = os.windows.FILE_CREATE;
+
                 log.info("creating \"{s}\"...", .{relative_path});
             },
             .open, .inspect => {
                 creation_disposition = os.windows.OPEN_EXISTING;
+
                 log.info("opening \"{s}\"...", .{relative_path});
             },
         }
@@ -1269,6 +1342,7 @@ pub const IO = struct {
         // https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile
         // FILE_GENERIC_READ should include SYNCHRONIZE but it does not.
         var access_mask: os.windows.DWORD = 0;
+
         access_mask |= os.windows.SYNCHRONIZE;
         access_mask |= os.windows.GENERIC_READ;
 
@@ -1280,6 +1354,7 @@ pub const IO = struct {
         // NB: These are NtDll flags, not to be confused with the Win32 style flags that are
         // similar but different (!).
         var attributes: os.windows.DWORD = 0;
+
         attributes |= os.windows.FILE_NO_INTERMEDIATE_BUFFERING;
         attributes |= os.windows.FILE_WRITE_THROUGH;
 
@@ -1318,6 +1393,7 @@ pub const IO = struct {
     }
 
     pub const OpenDataFilePurpose = enum { format, open, inspect };
+
     /// Opens or creates a journal file:
     /// - For reading and writing.
     /// - For Direct I/O (required on windows).
@@ -1336,6 +1412,7 @@ pub const IO = struct {
     ) !fd_t {
         assert(relative_path.len > 0);
         assert(size % constants.sector_size == 0);
+
         // On windows, assume that Direct IO is always available.
         _ = direct_io;
 
@@ -1348,6 +1425,7 @@ pub const IO = struct {
                 .inspect,
             ),
         };
+
         errdefer os.windows.CloseHandle(handle);
 
         // Obtain an advisory exclusive lock
@@ -1369,6 +1447,7 @@ pub const IO = struct {
         // Ask the file system to allocate contiguous sectors for the file (if possible):
         if (purpose == .format) {
             log.info("allocating {}...", .{std.fmt.fmtIntSizeBin(size)});
+
             fs_allocate(handle, size) catch {
                 log.warn("file system failed to preallocate the file memory", .{});
                 log.info("allocating by writing to the last sector of the file instead...", .{});
@@ -1379,6 +1458,7 @@ pub const IO = struct {
                 // Handle partial writes where the physical sector is less than a logical sector:
                 const write_offset = size - sector.len;
                 var written: usize = 0;
+
                 while (written < sector.len) {
                     written += try posix.pwrite(
                         handle,
@@ -1403,6 +1483,7 @@ pub const IO = struct {
         // try posix.fsync(dir_handle);
 
         const file_size = try os.windows.GetFileSizeEx(handle);
+
         if (file_size < size) @panic("data file inode size was truncated or corrupted");
 
         return handle;
@@ -1418,6 +1499,7 @@ pub const IO = struct {
 
         // LOCK_EX | LOCK_NB
         var lock_flags: os.windows.DWORD = 0;
+
         lock_flags |= stdx.windows.LOCKFILE_EXCLUSIVE_LOCK;
         lock_flags |= stdx.windows.LOCKFILE_FAIL_IMMEDIATELY;
 
@@ -1460,8 +1542,10 @@ pub const IO = struct {
 
         // Mark the moved file pointer (start + size) as the physical EOF.
         const allocated = stdx.windows.SetEndOfFile(handle);
+
         if (allocated == os.windows.FALSE) {
             const err = os.windows.kernel32.GetLastError();
+
             return os.windows.unexpectedError(err);
         }
     }
@@ -1493,6 +1577,7 @@ pub const IO = struct {
 
         const dir_path = std.fs.path.dirname(path) orelse ".";
         const dir_fd = try IO.open_dir(dir_path);
+
         defer io.aof_blocking_close(dir_fd);
 
         const file_path = std.fs.path.basename(path);
@@ -1505,6 +1590,7 @@ pub const IO = struct {
 fn getsockoptError(socket: posix.socket_t) IO.ConnectError!void {
     var err_code: u32 = undefined;
     var size: i32 = @sizeOf(u32);
+
     const rc = os.windows.ws2_32.getsockopt(
         socket,
         posix.SOL.SOCKET,
@@ -1530,10 +1616,12 @@ fn getsockoptError(socket: posix.socket_t) IO.ConnectError!void {
     }
 
     assert(size == 4);
+
     if (err_code == 0)
         return;
 
     const ws_err: os.windows.ws2_32.WinsockError = @enumFromInt(@as(u16, @intCast(err_code)));
+
     return switch (ws_err) {
         .WSAEACCES => error.PermissionDenied,
         .WSAEADDRINUSE => error.AddressInUse,
@@ -1563,6 +1651,7 @@ pub fn windows_open_file(
     if (std.mem.eql(u16, sub_path_w, &[_]u16{'.'}) and options.filter == .file_only) {
         return error.IsDir;
     }
+
     if (std.mem.eql(u16, sub_path_w, &[_]u16{ '.', '.' }) and options.filter == .file_only) {
         return error.IsDir;
     }
@@ -1570,11 +1659,13 @@ pub fn windows_open_file(
     var result: os.windows.HANDLE = undefined;
 
     const path_len_bytes = std.math.cast(u16, sub_path_w.len * 2) orelse return error.NameTooLong;
+
     var nt_name = os.windows.UNICODE_STRING{
         .Length = path_len_bytes,
         .MaximumLength = path_len_bytes,
         .Buffer = @constCast(sub_path_w.ptr),
     };
+
     var attr = os.windows.OBJECT_ATTRIBUTES{
         .Length = @sizeOf(os.windows.OBJECT_ATTRIBUTES),
         .RootDirectory = if (std.fs.path.isAbsoluteWindowsWTF16(sub_path_w)) null else options.dir,
@@ -1583,15 +1674,19 @@ pub fn windows_open_file(
         .SecurityDescriptor = if (options.sa) |ptr| ptr.lpSecurityDescriptor else null,
         .SecurityQualityOfService = null,
     };
+
     var io: os.windows.IO_STATUS_BLOCK = undefined;
+
     const file_or_dir_flag: os.windows.ULONG = switch (options.filter) {
         .file_only => os.windows.FILE_NON_DIRECTORY_FILE,
         .dir_only => os.windows.FILE_DIRECTORY_FILE,
         .any => 0,
     };
+
     // This code is changed slightly from Zig's stdlib: there, options.follow_symlinks enforces
     // FILE_SYNCHRONOUS_IO_NONALERT which stops overlapped IO.
     assert(!options.follow_symlinks);
+
     const flags: os.windows.ULONG = file_or_dir_flag | os.windows.FILE_OPEN_REPARSE_POINT;
 
     while (true) {
@@ -1608,6 +1703,7 @@ pub fn windows_open_file(
             null,
             0,
         );
+
         switch (rc) {
             .SUCCESS => return result,
             .OBJECT_NAME_INVALID => unreachable,
@@ -1635,6 +1731,7 @@ pub fn windows_open_file(
                 // this other than retrying the creation after the OS finishes
                 // the deletion.
                 std.time.sleep(std.time.ns_per_ms);
+
                 continue;
             },
             else => return os.windows.unexpectedStatus(rc),

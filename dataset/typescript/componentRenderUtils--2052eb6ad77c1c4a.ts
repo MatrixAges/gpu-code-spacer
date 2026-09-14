@@ -4,6 +4,7 @@ import {
   type FunctionalComponent,
   getComponentName,
 } from './component'
+
 import {
   Comment,
   type VNode,
@@ -14,7 +15,9 @@ import {
   isVNode,
   normalizeVNode,
 } from './vnode'
+
 import { ErrorCodes, handleError } from './errorHandling'
+
 import {
   PatchFlags,
   ShapeFlags,
@@ -23,16 +26,19 @@ import {
   isOn,
   looseEqual,
 } from '@vue/shared'
+
 import { warn } from './warning'
 import { isHmrUpdating } from './hmr'
 import type { NormalizedProps } from './componentProps'
 import { isEmitListener } from './componentEmits'
 import { setCurrentRenderingInstance } from './componentRenderContext'
+
 import {
   DeprecationTypes,
   isCompatEnabled,
   warnDeprecation,
 } from './compat/compatConfig'
+
 import { shallowReadonly } from '@vue/reactivity'
 import { getInnerChild, setTransitionHooks } from './components/BaseTransition'
 import { isTeleport } from './components/Teleport'
@@ -70,10 +76,12 @@ export function renderComponentRoot(
     ctx,
     inheritAttrs,
   } = instance
+
   const prev = setCurrentRenderingInstance(instance)
 
   let result
   let fallthroughAttrs
+
   if (__DEV__) {
     accessedAttrs = false
   }
@@ -83,6 +91,7 @@ export function renderComponentRoot(
       // withProxy is a proxy with a different `has` trap only for
       // runtime-compiled render functions using `with` block.
       const proxyToUse = withProxy || proxy
+
       // 'this' isn't available in production builds with `<script setup>`,
       // so warn if it's used in dev.
       const thisProxy =
@@ -94,10 +103,12 @@ export function renderComponentRoot(
                     key,
                   )}' was accessed via 'this'. Avoid using 'this' in templates.`,
                 )
+
                 return Reflect.get(target, key, receiver)
               },
             })
           : proxyToUse
+
       result = normalizeVNode(
         render!.call(
           thisProxy,
@@ -109,14 +120,17 @@ export function renderComponentRoot(
           ctx,
         ),
       )
+
       fallthroughAttrs = attrs
     } else {
       // functional
       const render = Component as FunctionalComponent
+
       // in dev, mark attrs accessed if optional props (attrs === props)
       if (__DEV__ && attrs === props) {
         markAttrsAccessed()
       }
+
       result = normalizeVNode(
         render.length > 1
           ? render(
@@ -125,6 +139,7 @@ export function renderComponentRoot(
                 ? {
                     get attrs() {
                       markAttrsAccessed()
+
                       return shallowReadonly(attrs)
                     },
                     slots,
@@ -137,13 +152,16 @@ export function renderComponentRoot(
               null as any /* we know it doesn't need it */,
             ),
       )
+
       fallthroughAttrs = Component.props
         ? attrs
         : getFunctionalFallthrough(attrs)
     }
   } catch (err) {
     blockStack.length = 0
+
     handleError(err, instance, ErrorCodes.RENDER_FUNCTION)
+
     result = createVNode(Comment)
   }
 
@@ -152,6 +170,7 @@ export function renderComponentRoot(
   // to have comments along side the root element which makes it a fragment
   let root = result
   let setRoot: SetRootFn = undefined
+
   if (
     __DEV__ &&
     result.patchFlag > 0 &&
@@ -162,7 +181,9 @@ export function renderComponentRoot(
 
   if (fallthroughAttrs && inheritAttrs !== false) {
     const keys = Object.keys(fallthroughAttrs)
+
     const { shapeFlag } = root
+
     if (keys.length) {
       if (shapeFlag & (ShapeFlags.ELEMENT | ShapeFlags.COMPONENT)) {
         if (propsOptions && keys.some(isModelListener)) {
@@ -175,13 +196,17 @@ export function renderComponentRoot(
             propsOptions,
           )
         }
+
         root = cloneVNode(root, fallthroughAttrs, false, true)
       } else if (__DEV__ && !accessedAttrs && root.type !== Comment) {
         const allAttrs = Object.keys(attrs)
+
         const eventAttrs: string[] = []
         const extraAttrs: string[] = []
+
         for (let i = 0, l = allAttrs.length; i < l; i++) {
           const key = allAttrs[i]
+
           if (isOn(key)) {
             // ignore v-model handlers when they fail to fallthrough
             if (!isModelListener(key)) {
@@ -193,6 +218,7 @@ export function renderComponentRoot(
             extraAttrs.push(key)
           }
         }
+
         if (extraAttrs.length) {
           warn(
             `Extraneous non-props attributes (` +
@@ -201,6 +227,7 @@ export function renderComponentRoot(
               `because component renders fragment or text or teleport root nodes.`,
           )
         }
+
         if (eventAttrs.length) {
           warn(
             `Extraneous non-emits event listeners (` +
@@ -222,6 +249,7 @@ export function renderComponentRoot(
     root.shapeFlag & (ShapeFlags.ELEMENT | ShapeFlags.COMPONENT)
   ) {
     const { class: cls, style } = vnode.props || {}
+
     if (cls || style) {
       if (__DEV__ && inheritAttrs === false) {
         warnDeprecation(
@@ -230,6 +258,7 @@ export function renderComponentRoot(
           getComponentName(instance.type),
         )
       }
+
       root = cloneVNode(
         root,
         {
@@ -250,19 +279,23 @@ export function renderComponentRoot(
           `The directives will not function as intended.`,
       )
     }
+
     // clone before mutating since the root may be a hoisted vnode
     root = cloneVNode(root, null, false, true)
     root.dirs = root.dirs ? root.dirs.concat(vnode.dirs) : vnode.dirs
   }
+
   // inherit transition data
   if (vnode.transition) {
     const child = isTeleport(root.type) ? getInnerChild(root) || root : root
+
     if (__DEV__ && !isElementRoot(child)) {
       warn(
         `Component inside <Transition> renders non-element root node ` +
           `that cannot be animated.`,
       )
     }
+
     setTransitionHooks(child, vnode.transition)
   }
 
@@ -273,6 +306,7 @@ export function renderComponentRoot(
   }
 
   setCurrentRenderingInstance(prev)
+
   return result
 }
 
@@ -286,6 +320,7 @@ const getChildRoot = (vnode: VNode): [VNode, SetRootFn] => {
   const rawChildren = vnode.children as VNodeArrayChildren
   const dynamicChildren = vnode.dynamicChildren
   const childRoot = filterSingleRoot(rawChildren, false)
+
   if (!childRoot) {
     return [vnode, undefined]
   } else if (
@@ -298,8 +333,10 @@ const getChildRoot = (vnode: VNode): [VNode, SetRootFn] => {
 
   const index = rawChildren.indexOf(childRoot)
   const dynamicIndex = dynamicChildren ? dynamicChildren.indexOf(childRoot) : -1
+
   const setRoot: SetRootFn = (updatedRoot: VNode) => {
     rawChildren[index] = updatedRoot
+
     if (dynamicChildren) {
       if (dynamicIndex > -1) {
         dynamicChildren[dynamicIndex] = updatedRoot
@@ -308,6 +345,7 @@ const getChildRoot = (vnode: VNode): [VNode, SetRootFn] => {
       }
     }
   }
+
   return [normalizeVNode(childRoot), setRoot]
 }
 
@@ -316,8 +354,10 @@ export function filterSingleRoot(
   recurse = true,
 ): VNode | undefined {
   let singleRoot
+
   for (let i = 0; i < children.length; i++) {
     const child = children[i]
+
     if (isVNode(child)) {
       // ignore user comment
       if (child.type !== Comment || child.children === 'v-if') {
@@ -326,6 +366,7 @@ export function filterSingleRoot(
           return
         } else {
           singleRoot = child
+
           if (
             __DEV__ &&
             recurse &&
@@ -340,26 +381,31 @@ export function filterSingleRoot(
       return
     }
   }
+
   return singleRoot
 }
 
 const getFunctionalFallthrough = (attrs: Data): Data | undefined => {
   let res: Data | undefined
+
   for (const key in attrs) {
     if (key === 'class' || key === 'style' || isOn(key)) {
       ;(res || (res = {}))[key] = attrs[key]
     }
   }
+
   return res
 }
 
 const filterModelListeners = (attrs: Data, props: NormalizedProps): Data => {
   const res: Data = {}
+
   for (const key in attrs) {
     if (!isModelListener(key) || !(key.slice(9) in props)) {
       res[key] = attrs[key]
     }
   }
+
   return res
 }
 
@@ -377,6 +423,7 @@ export function shouldUpdateComponent(
 ): boolean {
   const { props: prevProps, children: prevChildren, component } = prevVNode
   const { props: nextProps, children: nextChildren, patchFlag } = nextVNode
+
   const emits = component!.emitsOptions
 
   // Parent component's render function was hot-updated. Since this may have
@@ -397,16 +444,20 @@ export function shouldUpdateComponent(
       // e.g. in a v-for
       return true
     }
+
     if (patchFlag & PatchFlags.FULL_PROPS) {
       if (!prevProps) {
         return !!nextProps
       }
+
       // presence of this flag indicates props are always non-null
       return hasPropsChanged(prevProps, nextProps!, emits)
     } else if (patchFlag & PatchFlags.PROPS) {
       const dynamicProps = nextVNode.dynamicProps!
+
       for (let i = 0; i < dynamicProps.length; i++) {
         const key = dynamicProps[i]
+
         if (
           hasPropValueChanged(nextProps!, prevProps!, key) &&
           !isEmitListener(emits, key)
@@ -423,15 +474,19 @@ export function shouldUpdateComponent(
         return true
       }
     }
+
     if (prevProps === nextProps) {
       return false
     }
+
     if (!prevProps) {
       return !!nextProps
     }
+
     if (!nextProps) {
       return true
     }
+
     return hasPropsChanged(prevProps, nextProps, emits)
   }
 
@@ -444,11 +499,14 @@ function hasPropsChanged(
   emitsOptions: ComponentInternalInstance['emitsOptions'],
 ): boolean {
   const nextKeys = Object.keys(nextProps)
+
   if (nextKeys.length !== Object.keys(prevProps).length) {
     return true
   }
+
   for (let i = 0; i < nextKeys.length; i++) {
     const key = nextKeys[i]
+
     if (
       hasPropValueChanged(nextProps, prevProps, key) &&
       !isEmitListener(emitsOptions, key)
@@ -456,6 +514,7 @@ function hasPropsChanged(
       return true
     }
   }
+
   return false
 }
 
@@ -466,9 +525,11 @@ function hasPropValueChanged(
 ): boolean {
   const nextProp = nextProps[key]
   const prevProp = prevProps[key]
+
   if (key === 'style' && isObject(nextProp) && isObject(prevProp)) {
     return !looseEqual(nextProp, prevProp)
   }
+
   return nextProp !== prevProp
 }
 
@@ -478,12 +539,15 @@ export function updateHOCHostEl(
 ): void {
   while (parent) {
     const root = parent.subTree
+
     if (root.suspense && root.suspense.activeBranch === vnode) {
       // Suspense proxies its active branch host node, so keep propagating from
       // the boundary vnode to any wrapper components above it.
       root.suspense.vnode.el = root.el = el
+
       vnode = root
     }
+
     if (root === vnode) {
       ;(vnode = parent.vnode).el = el
       parent = parent.parent
@@ -491,6 +555,7 @@ export function updateHOCHostEl(
       break
     }
   }
+
   // also update suspense vnode el
   if (suspense && suspense.activeBranch === vnode) {
     suspense.vnode.el = el

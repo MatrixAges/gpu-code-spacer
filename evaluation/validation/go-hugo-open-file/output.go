@@ -2,6 +2,7 @@ package validation
 
 func openFile(filename string, fs afero.Fs) (afero.File, string, error) {
 	realFilename := filename
+
 	// We want the most specific filename possible in the error message.
 	fi, err2 := fs.Stat(filename)
 

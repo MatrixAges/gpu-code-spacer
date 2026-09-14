@@ -1,10 +1,12 @@
 import { type ComponentInternalInstance, currentInstance } from './component'
+
 import {
   type VNode,
   type VNodeChild,
   type VNodeNormalizedChildren,
   normalizeVNode,
 } from './vnode'
+
 import {
   EMPTY_OBJ,
   type IfAny,
@@ -15,13 +17,16 @@ import {
   isArray,
   isFunction,
 } from '@vue/shared'
+
 import { warn } from './warning'
 import { isKeepAlive } from './components/KeepAlive'
+
 import {
   type ContextualRenderFn,
   currentRenderingInstance,
   withCtx,
 } from './componentRenderContext'
+
 import { isHmrUpdating } from './hmr'
 import { DeprecationTypes, isCompatEnabled } from './compat/compatConfig'
 import { TriggerOpTypes, trigger } from '@vue/reactivity'
@@ -38,6 +43,7 @@ export type InternalSlots = {
 export type Slots = Readonly<InternalSlots>
 
 declare const SlotSymbol: unique symbol
+
 export type SlotsType<T extends Record<string, any> = Record<string, any>> = {
   [SlotSymbol]?: T
 }
@@ -98,6 +104,7 @@ const normalizeSlot = (
     // already normalized - #5353
     return rawSlot as Slot
   }
+
   const normalized = withCtx((...args: any[]) => {
     if (
       __DEV__ &&
@@ -111,10 +118,13 @@ const normalizeSlot = (
           `Invoke the slot function inside the render function instead.`,
       )
     }
+
     return normalizeSlotValue(rawSlot(...args))
   }, ctx) as Slot
+
   // NOT a compiled slot
   ;(normalized as ContextualRenderFn)._c = false
+
   return normalized
 }
 
@@ -124,9 +134,12 @@ const normalizeObjectSlots = (
   instance: ComponentInternalInstance,
 ) => {
   const ctx = rawSlots._ctx
+
   for (const key in rawSlots) {
     if (isInternalKey(key)) continue
+
     const value = rawSlots[key]
+
     if (isFunction(value)) {
       slots[key] = normalizeSlot(key, value, ctx)
     } else if (value != null) {
@@ -142,7 +155,9 @@ const normalizeObjectSlots = (
             `Prefer function slots for better performance.`,
         )
       }
+
       const normalized = normalizeSlotValue(value)
+
       slots[key] = () => normalized
     }
   }
@@ -162,7 +177,9 @@ const normalizeVNodeSlots = (
         `Prefer function slots for better performance.`,
     )
   }
+
   const normalized = normalizeSlotValue(children)
+
   instance.slots.default = () => normalized
 }
 
@@ -188,10 +205,13 @@ export const initSlots = (
   optimized: boolean,
 ): void => {
   const slots = (instance.slots = createInternalObject())
+
   if (instance.vnode.shapeFlag & ShapeFlags.SLOTS_CHILDREN) {
     const type = (children as RawSlots)._
+
     if (type) {
       assignSlots(slots, children as Slots, optimized)
+
       // make compiler marker non-enumerable
       if (optimized) {
         def(slots, '_', type, true)
@@ -210,10 +230,13 @@ export const updateSlots = (
   optimized: boolean,
 ): void => {
   const { vnode, slots } = instance
+
   let needDeletionCheck = true
   let deletionComparisonTarget = EMPTY_OBJ
+
   if (vnode.shapeFlag & ShapeFlags.SLOTS_CHILDREN) {
     const type = (children as RawSlots)._
+
     if (type) {
       // compiled slots.
       if (__DEV__ && isHmrUpdating) {
@@ -232,12 +255,15 @@ export const updateSlots = (
       }
     } else {
       needDeletionCheck = !(children as RawSlots).$stable
+
       normalizeObjectSlots(children as RawSlots, slots, instance)
     }
+
     deletionComparisonTarget = children as RawSlots
   } else if (children) {
     // non slot object children (direct value) passed to a component
     normalizeVNodeSlots(instance, children)
+
     deletionComparisonTarget = { default: 1 }
   }
 

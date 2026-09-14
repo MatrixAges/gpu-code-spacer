@@ -57,11 +57,13 @@ pub fn main(shell: *Shell, _: std.mem.Allocator, cli_args: CLIArgs) !void {
 
 fn devhub_coverage(shell: *Shell) !void {
     var section = try shell.open_section("coverage");
+
     defer section.close();
 
     const kcov_version = shell.exec_stdout("kcov --version", .{}) catch {
         return error.NoKcov;
     };
+
     log.info("kcov version {s}", .{kcov_version});
 
     try shell.exec_zig("build test:unit:build", .{});
@@ -73,6 +75,7 @@ fn devhub_coverage(shell: *Shell) !void {
     try shell.project_root.makePath("./src/devhub/coverage");
 
     const kcov: []const []const u8 = &.{ "kcov", "--include-path=./src", "./src/devhub/coverage" };
+
     inline for (.{
         "{kcov} ./zig-out/bin/test-unit",
         "{kcov} ./zig-out/bin/fuzz --events-max=500000 lsm_tree 92",
@@ -83,10 +86,12 @@ fn devhub_coverage(shell: *Shell) !void {
     }
 
     var coverage_dir = try shell.cwd.openDir("./src/devhub/coverage", .{ .iterate = true });
+
     defer coverage_dir.close();
 
     // kcov adds some symlinks to the output, which prevents upload to GitHub actions from working.
     var it = coverage_dir.iterate();
+
     while (try it.next()) |entry| {
         if (entry.kind == .sym_link) {
             try coverage_dir.deleteFile(entry.name);
@@ -96,10 +101,12 @@ fn devhub_coverage(shell: *Shell) !void {
 
 fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
     var section = try shell.open_section("metrics");
+
     defer section.close();
 
     const commit_timestamp_str =
         try shell.exec_stdout("git show -s --format=%ct {sha}", .{ .sha = cli_args.sha });
+
     const commit_timestamp = try stdx.parse_int(u64, commit_timestamp_str, .{});
 
     // Only build the TigerBeetle binary to test build speed and build size. Throw it away once
@@ -109,6 +116,7 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
     const build_time_debug_ms = blk: {
         timer.reset();
         try shell.exec_zig("build install", .{});
+
         defer shell.project_root.deleteFile("tigerbeetle") catch unreachable;
 
         break :blk timer.read() / std.time.ns_per_ms;
@@ -118,6 +126,7 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
         timer.reset();
         try shell.project_root.deleteTree(".zig-cache/tmp/devhub_cache");
         try shell.exec_zig("build -Drelease install", .{});
+
         defer shell.project_root.deleteFile("tigerbeetle") catch unreachable;
 
         break :blk .{
@@ -135,10 +144,12 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
             "CHANGELOG.md",
             1 * MiB,
         );
+
         var changelog_iterator = changelog.ChangelogIterator.init(changelog_text);
 
         const last_release_changelog = changelog_iterator.next_changelog().?.release orelse
             break :blk true;
+
         const last_release_published = try Release.parse(try shell.exec_stdout(
             "gh release list --json tagName --jq {query} --limit 1",
             .{ .query = ".[].tagName" },
@@ -162,6 +173,7 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
             \\    --language=zig --devhub
         , .{ .sha = cli_args.sha });
     }
+
     try shell.project_root.deleteFile("tigerbeetle");
 
     try shell.unzip_executable(
@@ -200,11 +212,13 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
     const rss_bytes = try get_measurement(benchmark_result, "rss", "bytes");
     const datafile_bytes = try get_measurement(benchmark_result, "datafile", "bytes");
     const datafile_empty_bytes = try get_measurement(benchmark_result, "datafile empty", "bytes");
+
     const checksum_message_size_max_us = try get_measurement(
         benchmark_result,
         "checksum message size max",
         "us",
     );
+
     const format_time_ms = blk: {
         timer.reset();
 
@@ -215,24 +229,29 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
 
         break :blk timer.read() / std.time.ns_per_ms;
     };
+
     defer shell.cwd.deleteFile("datafile-devhub") catch unreachable;
 
     const stats_count = blk: {
         const stats_inspect_result = try shell.exec_stdout("./tigerbeetle inspect metrics", .{});
         var stats_count: u32 = 0;
+
         var lines = std.mem.splitScalar(
             u8,
             stats_inspect_result,
             '\n',
         );
+
         while (lines.next()) |line| {
             // line looks like
             // timing: compact_mutable_suffix(tree)=136
             if (line.len != 0) {
                 _, const value_string = stdx.cut(line, "=").?;
+
                 stats_count += try stdx.parse_int(u32, value_string, .{});
             }
         }
+
         break :blk stats_count;
     };
 
@@ -251,13 +270,16 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
 
         defer {
             process.stdin.?.close();
+
             process.stdin = null;
+
             _ = process.wait() catch {};
         }
 
         const port: u16 = b: {
             var buffer: [std.fmt.count("{}\n", .{std.math.maxInt(u16)})]u8 = undefined;
             const size = try process.stdout.?.readAll(&buffer);
+
             break :b try stdx.parse_int(u16, buffer[0 .. size - 1], .{});
         };
 
@@ -275,6 +297,7 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
             .ping_timestamp_monotonic = 0,
             .session = 0,
         };
+
         ping.set_checksum_body(&[0]u8{});
         ping.set_checksum();
 
@@ -286,12 +309,15 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
 
         const peer = try std.net.Address.parseIp4("127.0.0.1", port);
         const stream = try std.net.tcpConnectToAddress(peer);
+
         defer stream.close();
 
         var writer = stream.writer();
+
         try writer.writeAll(std.mem.asBytes(&ping)[0..@sizeOf(Header)]);
 
         const reader = stream.reader();
+
         _ = try reader.readAll(std.mem.asBytes(&eviction)[0..@sizeOf(Header)]);
 
         assert(eviction.command == .eviction);
@@ -320,9 +346,11 @@ fn devhub_metrics(shell: *Shell, cli_args: CLIArgs) !void {
             .sha = cli_args.sha,
             .template = "{{range .}}{{.startedAt}} {{.updatedAt}}{{end}}",
         });
+
         const iso8601_started_at, const iso8601_updated_at = stdx.cut(times_gh, " ") orelse {
             log.err("error parsing run list", .{});
             log.err("output: {s}", .{times_gh});
+
             break :blk null;
         };
 
@@ -396,6 +424,7 @@ fn get_measurement(
 
     _, const rest = stdx.cut(benchmark_stdout, label ++ " = ") orelse
         return error.BadMeasurement;
+
     const value_string, _ = stdx.cut(rest, " " ++ unit) orelse return error.BadMeasurement;
 
     return try stdx.parse_int(u64, value_string, .{});
@@ -403,6 +432,7 @@ fn get_measurement(
 
 fn upload_run(shell: *Shell, batch: *const MetricBatch) !void {
     const token = shell.env_get_option("DEVHUBDB_PAT");
+
     try shell.exec(
         \\git clone --single-branch --depth 1
         \\  https://oauth2:{token}@github.com/tigerbeetle/devhubdb.git
@@ -412,6 +442,7 @@ fn upload_run(shell: *Shell, batch: *const MetricBatch) !void {
     });
 
     try shell.pushd("./devhubdb");
+
     defer shell.popd();
 
     for (0..32) |_| {
@@ -422,19 +453,24 @@ fn upload_run(shell: *Shell, batch: *const MetricBatch) !void {
             const file = try shell.cwd.openFile("./devhub/data.json", .{
                 .mode = .write_only,
             });
+
             defer file.close();
 
             try file.seekFromEnd(0);
+
             try std.json.stringify(batch, .{}, file.writer());
+
             try file.writeAll("\n");
         }
 
         try shell.exec("git add ./devhub/data.json", .{});
         try shell.git_env_setup(.{ .use_hostname = false });
         try shell.exec("git commit -m 📈", .{});
+
         if (token) |_| {
             if (shell.exec("git push", .{})) {
                 log.info("metrics uploaded", .{});
+
                 break;
             } else |_| {
                 log.info("conflict, retrying", .{});
@@ -444,6 +480,7 @@ fn upload_run(shell: *Shell, batch: *const MetricBatch) !void {
         }
     } else {
         log.err("can't push new data to devhub", .{});
+
         return error.CanNotPush;
     }
 }
@@ -467,11 +504,13 @@ const MetricBatch = struct {
 fn upload_nyrkio(shell: *Shell, batch: *const MetricBatch) !void {
     const url = "https://nyrkio.com/api/v0/result/devhub";
     const token = try shell.env_get("NYRKIO_TOKEN");
+
     const payload = try std.json.stringifyAlloc(
         shell.arena.allocator(),
         [_]*const MetricBatch{batch}, // Nyrkiö needs an _array_ of batches.
         .{},
     );
+
     _ = try shell.http_post(url, payload, .{
         .content_type = .json,
         .authorization = try shell.fmt("Bearer {s}", .{token}),

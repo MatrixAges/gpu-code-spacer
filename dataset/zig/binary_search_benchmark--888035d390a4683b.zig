@@ -41,6 +41,7 @@ const repetitions: usize = 32;
 
 test "benchmark: binary search" {
     var bench: Bench = .init();
+
     defer bench.deinit();
 
     bench.report("WT: Wall time/search", .{});
@@ -50,6 +51,7 @@ test "benchmark: binary search" {
 
     var prng = stdx.PRNG.from_seed(bench.seed);
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
 
     const blob = try arena.allocator().alignedAlloc(u8, 64, blob_size);
@@ -59,6 +61,7 @@ test "benchmark: binary search" {
         inline for (scenarios) |scenario| {
             // Clamp for `smoke` mode.
             const page_buffer_size = @min(blob_size, scenario.page_buffer_size);
+
             checksum +%= try run_benchmark(
                 &bench,
                 scenario.name,
@@ -74,6 +77,7 @@ test "benchmark: binary search" {
             );
         }
     }
+
     bench.report("checksum {}", .{checksum});
 }
 
@@ -88,34 +92,44 @@ fn run_benchmark(
 ) !u64 {
     const V = ValueType(layout);
     const K = V.Key;
+
     const Page = struct {
         values: [layout.values_count]V,
     };
 
     const page_count = @divFloor(page_buffer.len, @sizeOf(Page));
+
     assert(page_count > 0);
+
     if (page_count > 1024 * 1024) @panic("page_count too large");
 
     const page_picker = try arena.alloc(usize, page_count);
+
     shuffled_index(prng, page_picker);
 
     const value_picker = try arena.alloc(usize, layout.values_count);
+
     shuffled_index(prng, value_picker);
 
     var page_alloc = std.heap.FixedBufferAllocator.init(page_buffer);
     const pages = try page_alloc.allocator().alloc(Page, page_count);
+
     prng.fill(std.mem.sliceAsBytes(pages));
+
     for (pages) |*page| {
         for (&page.values, 0..) |*value, i| value.key = i;
     }
 
     var duration_samples: [repetitions]stdx.Duration = undefined;
     var checksum: u64 = 0;
+
     for (&duration_samples) |*duration| {
         bench.start();
+
         for (0..search_count) |i| {
             const target = value_picker[i % value_picker.len];
             const page = &pages[page_picker[i % page_picker.len]];
+
             const hit = page.values[
                 binary_search_values_upsert_index(
                     K,
@@ -128,8 +142,10 @@ fn run_benchmark(
             ];
 
             assert(hit.key == target);
+
             checksum +%= @truncate(hit.key);
         }
+
         duration.* = bench.stop();
         duration.ns /= search_count;
     }
@@ -158,6 +174,7 @@ fn ValueType(comptime layout: Layout) type {
         pub const max_key = (1 << (8 * layout.key_size)) - 1;
         pub const Key = math.IntFittingRange(0, max_key);
         const Value = @This();
+
         key: Key,
         body: [layout.value_size - layout.key_size]u8,
 
@@ -175,5 +192,6 @@ fn ValueType(comptime layout: Layout) type {
 // shuffle([0,1,…,n-1])
 fn shuffled_index(prng: *stdx.PRNG, indices: []usize) void {
     for (indices, 0..) |*i, j| i.* = j;
+
     prng.shuffle(usize, indices);
 }

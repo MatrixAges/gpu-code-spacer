@@ -34,6 +34,7 @@ pub fn TableValueIteratorType(comptime Storage: type) type {
             context: Context,
         ) void {
             assert(context.addresses.len == context.checksums.len);
+
             it.* = .{
                 .context = context,
                 .callback = null,
@@ -43,6 +44,7 @@ pub fn TableValueIteratorType(comptime Storage: type) type {
 
         pub fn empty(it: *const TableValueIterator) bool {
             assert(it.context.addresses.len == it.context.checksums.len);
+
             return it.context.addresses.len == 0;
         }
 
@@ -55,9 +57,11 @@ pub fn TableValueIteratorType(comptime Storage: type) type {
 
             const address = it.context.direction.slice_peek(it.context.addresses).*;
             const checksum = it.context.direction.slice_peek(it.context.checksums).*;
+
             assert(checksum.padding == 0);
 
             it.callback = callback;
+
             it.context.grid.read_block(
                 .{ .from_local_or_global_storage = read_block_callback },
                 &it.read,
@@ -69,21 +73,26 @@ pub fn TableValueIteratorType(comptime Storage: type) type {
 
         fn read_block_callback(read: *Grid.Read, block: BlockPtrConst) void {
             const it: *TableValueIterator = @fieldParentPtr("read", read);
+
             assert(it.callback != null);
             assert(it.context.addresses.len == it.context.checksums.len);
 
             const callback = it.callback.?;
+
             it.callback = null;
 
             const address, it.context.addresses =
                 it.context.direction.slice_pop(it.context.addresses);
+
             const checksum, it.context.checksums =
                 it.context.direction.slice_pop(it.context.checksums);
 
             const header = schema.header_from_block(block);
+
             assert(header.address == address);
             assert(header.checksum == checksum.value);
             assert(it.context.addresses.len == it.context.checksums.len);
+
             callback(it, block);
         }
     };

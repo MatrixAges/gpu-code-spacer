@@ -22,6 +22,7 @@
 
 test "benchmark: API tutorial" { // `benchmark:` in the name is important!
     var bench: Bench = .init();
+
     defer bench.deinit();
 
     // Parameters are named, and have two default values.
@@ -33,6 +34,7 @@ test "benchmark: API tutorial" { // `benchmark:` in the name is important!
     const b = bench.parameter("b", 2, 2_000);
 
     bench.start(); // Built-in timer.
+
     const c = a + b;
     const elapsed = bench.stop();
 
@@ -79,6 +81,7 @@ pub fn init() Bench {
 
 pub fn deinit(bench: *Bench) void {
     assert(bench.timer == null);
+
     bench.* = undefined;
 }
 
@@ -89,10 +92,13 @@ pub fn parameter(
     value_benchmark: u64,
 ) u64 {
     assert(value_smoke < value_benchmark);
+
     const value = parameter_fallible(name, value_smoke, value_benchmark) catch |err| switch (err) {
         error.InvalidCharacter, error.Overflow => @panic("invalid benchmark parameter value"),
     };
+
     b.report("{s}={}", .{ name, value });
+
     return value;
 }
 
@@ -102,6 +108,7 @@ fn parameter_fallible(
     value_benchmark: u64,
 ) std.fmt.ParseIntError!u64 {
     assert(value_smoke < value_benchmark);
+
     return switch (mode) {
         .smoke => value_smoke,
         .benchmark => std.process.parseEnvVarInt(name, u64, 10) catch |err| switch (err) {
@@ -113,6 +120,7 @@ fn parameter_fallible(
 
 pub fn start(bench: *Bench) void {
     assert(bench.timer == null);
+
     defer assert(bench.timer != null);
 
     bench.timer = bench.time.benchmark_monotonic();
@@ -120,11 +128,14 @@ pub fn start(bench: *Bench) void {
 
 pub fn stop(bench: *Bench) Duration {
     assert(bench.timer != null);
+
     defer assert(bench.timer == null);
 
     const instant_stop = bench.time.benchmark_monotonic();
     const elapsed = bench.timer.?.elapsed(instant_stop);
+
     bench.timer = null;
+
     return elapsed;
 }
 
@@ -133,8 +144,11 @@ pub fn stop(bench: *Bench) Duration {
 // E.g. see https://lemire.me/blog/2018/01/16/microbenchmarking-calls-for-idealized-conditions/
 pub fn estimate(bench: *const Bench, durations: []Duration) Duration {
     assert(durations.len >= 8); // Ensure that we have enough samples to get a meaningful result.
+
     _ = bench;
+
     std.sort.block(stdx.Duration, durations, {}, stdx.Duration.sort.asc);
+
     return durations[2];
 }
 

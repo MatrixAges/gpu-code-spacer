@@ -40,6 +40,7 @@ const BlockPtrConst = *align(constants.sector_size) const [block_size]u8;
 
 pub inline fn header_from_block(block: BlockPtrConst) *const vsr.Header.Block {
     const header = mem.bytesAsValue(vsr.Header.Block, block[0..@sizeOf(vsr.Header)]);
+
     assert(header.command == .block);
     assert(header.address > 0);
     assert(header.size >= @sizeOf(vsr.Header)); // Every block has a header.
@@ -48,6 +49,7 @@ pub inline fn header_from_block(block: BlockPtrConst) *const vsr.Header.Block {
     assert(header.block_type.valid());
     assert(header.block_type != .reserved);
     assert(header.release.value > 0);
+
     return header;
 }
 
@@ -100,7 +102,6 @@ pub const TableIndex = struct {
 
     key_size: u32,
     value_block_count_max: u32,
-
     size: u32,
     value_checksums_offset: u32,
     value_checksums_size: u32,
@@ -124,21 +125,21 @@ pub const TableIndex = struct {
 
         const value_checksums_offset = @sizeOf(vsr.Header);
         const value_checksums_size = parameters.value_block_count_max * checksum_size;
-
         const keys_size = parameters.value_block_count_max * parameters.key_size;
         const keys_min_offset = value_checksums_offset + value_checksums_size;
         const keys_max_offset = keys_min_offset + keys_size;
-
         const value_addresses_offset = keys_max_offset + keys_size;
         const value_addresses_size = parameters.value_block_count_max * address_size;
-
         const padding_offset = value_addresses_offset + value_addresses_size;
+
         assert(padding_offset <= constants.block_size);
+
         const padding_size = constants.block_size - padding_offset;
 
         // `keys_size * 2` for counting both key_min and key_max:
         const size = @sizeOf(vsr.Header) + value_checksums_size +
             (keys_size * 2) + value_addresses_size;
+
         assert(size <= constants.block_size);
 
         return .{
@@ -159,12 +160,14 @@ pub const TableIndex = struct {
 
     pub fn from_block_without_schema(index_block: BlockPtrConst) TableIndex {
         const header = header_from_block(index_block);
+
         assert(header.command == .block);
         assert(header.block_type == .index);
         assert(header.address > 0);
         assert(header.snapshot > 0);
 
         const header_metadata = metadata(index_block);
+
         const index = TableIndex.init(.{
             .key_size = header_metadata.key_size,
             .value_block_count_max = header_metadata.value_block_count_max,
@@ -183,9 +186,11 @@ pub const TableIndex = struct {
         tree_id: u16,
     ) TableIndex {
         const header_metadata = metadata(index_block);
+
         assert(header_metadata.tree_id == tree_id);
         assert(header_metadata.key_size == schema.key_size);
         assert(header_metadata.value_block_count_max == schema.value_block_count_max);
+
         // The other schema fields are computed from key_size and value_block_count_max at runtime
         // and not saved in metadata. There is currently no way to detect whether this computation
         // itself has changed between versions.
@@ -194,15 +199,19 @@ pub const TableIndex = struct {
 
     pub fn metadata(index_block: BlockPtrConst) *const Metadata {
         const header = header_from_block(index_block);
+
         assert(header.command == .block);
         assert(header.block_type == .index);
 
         const header_metadata = std.mem.bytesAsValue(Metadata, &header.metadata_bytes);
+
         assert(header_metadata.value_block_count <= header_metadata.value_block_count_max);
         assert(stdx.zeroed(&header_metadata.reserved));
+
         assert(header.size == @sizeOf(vsr.Header) +
             header_metadata.value_block_count_max *
                 (checksum_size + address_size + header_metadata.key_size * 2));
+
         return header_metadata;
     }
 
@@ -211,8 +220,10 @@ pub const TableIndex = struct {
         index_block: BlockPtrConst,
     ) *const Metadata {
         const result = metadata(index_block);
+
         assert(result.key_size == schema.key_size);
         assert(result.value_block_count_max == schema.value_block_count_max);
+
         return result;
     }
 
@@ -231,6 +242,7 @@ pub const TableIndex = struct {
             u64,
             index_block[index.value_addresses_offset..][0..index.value_addresses_size],
         );
+
         return @alignCast(slice[0..index.value_blocks_used(index_block)]);
     }
 
@@ -249,13 +261,16 @@ pub const TableIndex = struct {
             Checksum,
             index_block[index.value_checksums_offset..][0..index.value_checksums_size],
         );
+
         return @alignCast(slice[0..index.value_blocks_used(index_block)]);
     }
 
     pub inline fn value_blocks_used(index: *const TableIndex, index_block: BlockPtrConst) u32 {
         const header_metadata = block_metadata(index, index_block);
+
         assert(header_metadata.value_block_count > 0);
         assert(header_metadata.value_block_count <= index.value_block_count_max);
+
         return header_metadata.value_block_count;
     }
 
@@ -267,6 +282,7 @@ pub const TableIndex = struct {
         const keys_min_skip = index.value_blocks_used(index_block) * index.key_size;
         const keys_max_skip = index.value_blocks_used(index_block) * index.key_size;
         const value_addresses_skip = index.value_blocks_used(index_block) * address_size;
+
         return .{
             .{
                 .start = index.value_checksums_offset + value_checksums_skip,
@@ -310,7 +326,6 @@ pub const TableValue = struct {
 
     values_offset: u32,
     values_size: u32,
-
     padding_offset: u32,
     padding_size: u32,
 
@@ -328,7 +343,6 @@ pub const TableValue = struct {
 
         const values_offset = @sizeOf(vsr.Header);
         const values_size = parameters.value_count_max * parameters.value_size;
-
         const padding_offset = values_offset + values_size;
         const padding_size = constants.block_size - padding_offset;
 
@@ -344,6 +358,7 @@ pub const TableValue = struct {
 
     pub fn from(value_block: BlockPtrConst) TableValue {
         const header = header_from_block(value_block);
+
         assert(header.command == .block);
         assert(header.block_type == .value);
         assert(header.address > 0);
@@ -363,6 +378,7 @@ pub const TableValue = struct {
         tree_id: u16,
     ) void {
         const header = header_from_block(value_block);
+
         assert(header.command == .block);
         assert(header.block_type == .value);
         assert(header.address > 0);
@@ -381,15 +397,18 @@ pub const TableValue = struct {
 
     pub fn metadata(value_block: BlockPtrConst) *const Metadata {
         const header = header_from_block(value_block);
+
         assert(header.command == .block);
         assert(header.block_type == .value);
 
         const header_metadata = std.mem.bytesAsValue(Metadata, &header.metadata_bytes);
+
         assert(header_metadata.value_size > 0);
         assert(header_metadata.value_count > 0);
         assert(header_metadata.value_count <= header_metadata.value_count_max);
         assert(header_metadata.tree_id > 0);
         assert(stdx.zeroed(&header_metadata.reserved));
+
         assert(@sizeOf(vsr.Header) + header_metadata.value_size * header_metadata.value_count ==
             header.size);
 
@@ -401,8 +420,10 @@ pub const TableValue = struct {
         value_block: BlockPtrConst,
     ) *const Metadata {
         const result = metadata(value_block);
+
         assert(result.value_size == schema.value_size);
         assert(result.value_count_max == schema.value_count_max);
+
         return result;
     }
 
@@ -411,6 +432,7 @@ pub const TableValue = struct {
         value_block: BlockPtr,
     ) []align(constants.cache_line_size) u8 {
         assert(schema.values_offset % constants.cache_line_size == 0);
+
         return @alignCast(value_block[schema.values_offset..][0..schema.values_size]);
     }
 
@@ -419,6 +441,7 @@ pub const TableValue = struct {
         value_block: BlockPtrConst,
     ) []align(constants.cache_line_size) const u8 {
         assert(schema.values_offset % constants.cache_line_size == 0);
+
         return @alignCast(value_block[schema.values_offset..][0..schema.values_size]);
     }
 
@@ -427,15 +450,19 @@ pub const TableValue = struct {
         value_block: BlockPtrConst,
     ) []align(constants.cache_line_size) const u8 {
         const header = header_from_block(value_block);
+
         assert(header.block_type == .value);
 
         const used_values: u32 = block_metadata(schema, value_block).value_count;
+
         assert(used_values > 0);
         assert(used_values <= schema.value_count_max);
 
         const used_bytes = used_values * schema.value_size;
+
         assert(@sizeOf(vsr.Header) + used_bytes == header.size);
         assert(header.size <= schema.padding_offset); // This is the maximum padding_offset
+
         return schema.block_values_bytes_const(value_block)[0..used_bytes];
     }
 };
@@ -456,12 +483,14 @@ pub const TrailerNode = struct {
 
     pub fn metadata(free_set_block: BlockPtrConst) *const Metadata {
         const header = header_from_block(free_set_block);
+
         assert(header.command == .block);
         assert(header.block_type == .free_set or header.block_type == .client_sessions);
         assert(header.address > 0);
         assert(header.snapshot == 0);
 
         const header_metadata = std.mem.bytesAsValue(Metadata, &header.metadata_bytes);
+
         assert(header_metadata.previous_trailer_block_checksum_padding == 0);
         assert(stdx.zeroed(&header_metadata.reserved));
 
@@ -494,6 +523,7 @@ pub const TrailerNode = struct {
 
         if (header_metadata.previous_trailer_block_address == 0) {
             assert(header_metadata.previous_trailer_block_checksum == 0);
+
             return null;
         } else {
             return .{
@@ -510,6 +540,7 @@ pub const TrailerNode = struct {
     /// reinterpret the bytes.
     pub fn body(block: BlockPtrConst) []align(constants.cache_line_size) const u8 {
         const header = header_from_block(block);
+
         return block[@sizeOf(vsr.Header)..header.size];
     }
 };
@@ -526,12 +557,12 @@ pub const ManifestNode = struct {
 
         // Bit 7 is reserved to indicate whether the event is an insert or remove.
         assert(constants.lsm_levels <= std.math.maxInt(u6) + 1);
-
         assert(@sizeOf(Label) == @sizeOf(u8));
         assert(@alignOf(Label) == 1);
 
         // TableInfo should already be 16-byte aligned because of the leading padded key.
         const alignment = 16;
+
         assert(alignment <= @sizeOf(vsr.Header));
         assert(alignment == @alignOf(TableInfo));
 
@@ -597,21 +628,26 @@ pub const ManifestNode = struct {
 
     pub fn from(manifest_block: BlockPtrConst) ManifestNode {
         const header_metadata = metadata(manifest_block);
+
         return .{ .entry_count = header_metadata.entry_count };
     }
 
     pub fn metadata(manifest_block: BlockPtrConst) *const Metadata {
         const header = header_from_block(manifest_block);
+
         assert(header.command == .block);
         assert(header.block_type == .manifest);
         assert(header.address > 0);
         assert(header.snapshot == 0);
 
         const header_metadata = std.mem.bytesAsValue(Metadata, &header.metadata_bytes);
+
         assert(header_metadata.entry_count > 0);
         assert(header_metadata.entry_count <= entry_count_max);
+
         assert(header_metadata.entry_count ==
             @divExact(header.size - @sizeOf(vsr.Header), entry_size));
+
         assert(header_metadata.previous_manifest_block_checksum_padding == 0);
         assert(stdx.zeroed(&header_metadata.reserved));
 
@@ -628,6 +664,7 @@ pub const ManifestNode = struct {
         _ = from(manifest_block); // Validation only.
 
         const header_metadata = metadata(manifest_block);
+
         if (header_metadata.previous_manifest_block_address == 0) {
             assert(header_metadata.previous_manifest_block_checksum == 0);
 
@@ -645,6 +682,7 @@ pub const ManifestNode = struct {
         assert(schema.entry_count <= entry_count_max);
 
         const tables_size = schema.entry_count * @sizeOf(TableInfo);
+
         return @sizeOf(vsr.Header) + tables_size;
     }
 

@@ -60,7 +60,9 @@ const PendingExpiryQueue = PriorityQueue(PendingExpiry, void, struct {
             .eq => std.math.order(a.transfer_timestamp, b.transfer_timestamp),
             else => |order| order,
         };
+
         assert(order != .eq);
+
         return order;
     }
 }.compare);
@@ -84,6 +86,7 @@ pub const AccountingAuditor = struct {
             transfer_timestamp: u64,
         ) void {
             assert(state.created);
+
             switch (entry) {
                 .dr => state.dr_transfer_count += 1,
                 .cr => state.cr_transfer_count += 1,
@@ -91,19 +94,24 @@ pub const AccountingAuditor = struct {
 
             if (state.transfer_timestamp_min == 0) {
                 assert(state.transfer_timestamp_max == 0);
+
                 state.transfer_timestamp_min = transfer_timestamp;
             }
+
             state.transfer_timestamp_max = transfer_timestamp;
         }
 
         pub fn transfers_count(self: *const AccountState, flags: tb.AccountFilterFlags) u32 {
             var transfer_count: u32 = 0;
+
             if (flags.debits) {
                 transfer_count += self.dr_transfer_count;
             }
+
             if (flags.credits) {
                 transfer_count += self.cr_transfer_count;
             }
+
             return transfer_count;
         }
     };
@@ -155,6 +163,7 @@ pub const AccountingAuditor = struct {
 
     pub const ChangesTracker = struct {
         const EnumArray = std.EnumArray(tb.ChangeEventType, u32);
+
         const Counter = struct {
             /// The number of events recorded.
             count: EnumArray,
@@ -175,11 +184,15 @@ pub const AccountingAuditor = struct {
                 const timestamp_valid: bool =
                     TimestampRange.valid(self.timestamp_min) and
                     TimestampRange.valid(self.timestamp_max);
+
                 maybe(timestamp_valid);
 
                 var total: u32 = 0;
+
                 for (self.count.values) |value| total += value;
+
                 assert((total > 0) == timestamp_valid);
+
                 return total;
             }
         };
@@ -212,10 +225,13 @@ pub const AccountingAuditor = struct {
                 .transfer => 1,
                 .expiry => |expiry| expiry.expired_count,
             };
+
             assert(count > 0);
+
             if (self.current.count_total() + count > self.changes_events_max) {
                 // Reset the counters if we reach the maximum size.
                 self.current = Counter.init();
+
                 // Too many events to keep track of.
                 if (count > self.changes_events_max) return;
             }
@@ -223,6 +239,7 @@ pub const AccountingAuditor = struct {
             switch (change) {
                 .transfer => |transfer| {
                     assert(TimestampRange.valid(transfer.timestamp));
+
                     if (self.current.timestamp_min == 0 and
                         self.current.timestamp_max == 0)
                     {
@@ -233,6 +250,7 @@ pub const AccountingAuditor = struct {
                         assert(TimestampRange.valid(self.current.timestamp_max));
                         assert(self.current.timestamp_min <= self.current.timestamp_max);
                         assert(transfer.timestamp > self.current.timestamp_max);
+
                         self.current.timestamp_max = transfer.timestamp;
                     }
 
@@ -248,11 +266,14 @@ pub const AccountingAuditor = struct {
                 },
                 .expiry => |expiry| {
                     assert(TimestampRange.valid(expiry.timestamp));
+
                     if (self.current.timestamp_min == 0 and
                         self.current.timestamp_max == 0)
                     {
                         const timestamp_first: u64 = expiry.timestamp - expiry.expired_count;
+
                         assert(TimestampRange.valid(timestamp_first));
+
                         self.current.timestamp_min = timestamp_first;
                         self.current.timestamp_max = expiry.timestamp;
                     } else {
@@ -260,8 +281,10 @@ pub const AccountingAuditor = struct {
                         assert(TimestampRange.valid(self.current.timestamp_max));
                         assert(self.current.timestamp_min <= self.current.timestamp_max);
                         assert(expiry.timestamp > self.current.timestamp_max);
+
                         self.current.timestamp_max = expiry.timestamp;
                     }
+
                     self.current.count.getPtr(.two_phase_expired).* += expiry.expired_count;
                 },
             }
@@ -274,12 +297,15 @@ pub const AccountingAuditor = struct {
             if (self.current.count_total() == 0) return null;
 
             assert(self.snapshot == null);
+
             self.snapshot = self.current;
+
             return self.snapshot.?;
         }
 
         fn release_snapshot(self: *ChangesTracker) Counter {
             assert(self.snapshot != null);
+
             defer self.snapshot = null;
 
             return self.snapshot.?;
@@ -342,11 +368,15 @@ pub const AccountingAuditor = struct {
         assert(options.client_count > 0);
 
         const accounts = try gpa.alloc(tb.Account, options.accounts_max);
+
         errdefer gpa.free(accounts);
+
         @memset(accounts, undefined);
 
         const accounts_state = try gpa.alloc(AccountState, options.accounts_max);
+
         errdefer gpa.free(accounts_state);
+
         @memset(accounts_state, AccountState{});
 
         // The number of known intersection values for the secondary indices is kept low enough to
@@ -355,7 +385,9 @@ pub const AccountingAuditor = struct {
             QueryIntersection,
             options.accounts_max / 2,
         );
+
         errdefer gpa.free(query_intersections);
+
         for (query_intersections, 1..) |*query_intersection, index| {
             query_intersection.* = .{
                 .user_data_64 = @intCast(index * 1_000_000),
@@ -365,26 +397,36 @@ pub const AccountingAuditor = struct {
         }
 
         var pending_transfers = std.AutoHashMapUnmanaged(u128, PendingTransfer){};
+
         errdefer pending_transfers.deinit(gpa);
+
         try pending_transfers.ensureTotalCapacity(
             gpa,
             @intCast(options.transfers_pending_max),
         );
 
         var pending_expiries = PendingExpiryQueue.init(gpa, {});
+
         errdefer pending_expiries.deinit();
+
         try pending_expiries.ensureTotalCapacity(options.transfers_pending_max);
 
         var in_flight = InFlightQueue{};
+
         errdefer in_flight.deinit(gpa);
+
         try in_flight.ensureTotalCapacity(gpa, @intCast(options.in_flight_max));
 
         const creates_sent = try gpa.alloc(usize, options.client_count);
+
         errdefer gpa.free(creates_sent);
+
         @memset(creates_sent, 0);
 
         const creates_delivered = try gpa.alloc(usize, options.client_count);
+
         errdefer gpa.free(creates_delivered);
+
         @memset(creates_delivered, 0);
 
         return .{
@@ -432,10 +474,12 @@ pub const AccountingAuditor = struct {
             .client_index = client_index,
             .client_request = self.creates_sent[client_index],
         });
+
         assert(!result.found_existing);
 
         self.creates_sent[client_index] += 1;
         result.value_ptr.* = .{ .create_accounts = undefined };
+
         return result.value_ptr.*.create_accounts[0..];
     }
 
@@ -447,34 +491,42 @@ pub const AccountingAuditor = struct {
             .client_index = client_index,
             .client_request = self.creates_sent[client_index],
         });
+
         assert(!result.found_existing);
 
         self.creates_sent[client_index] += 1;
         result.value_ptr.* = .{ .create_transfers = undefined };
+
         return result.value_ptr.*.create_transfers[0..];
     }
 
     /// Expire pending transfers that have not been posted or voided.
     pub fn expire_pending_transfers(self: *AccountingAuditor, timestamp: u64) void {
         assert(self.timestamp < timestamp);
+
         defer self.timestamp = timestamp;
 
         var expired_count: u32 = 0;
+
         while (self.pending_expiries.peek()) |expiration| {
             if (timestamp < expiration.expires_at) break;
+
             defer _ = self.pending_expiries.remove();
 
             // Ignore the transfer if it was already posted/voided.
             const pending_transfer =
                 self.pending_transfers.get(expiration.transfer_id) orelse continue;
+
             assert(self.pending_transfers.remove(expiration.transfer_id));
             assert(self.accounts_state[pending_transfer.debit_account_index].created);
             assert(self.accounts_state[pending_transfer.credit_account_index].created);
 
             const dr = &self.accounts[pending_transfer.debit_account_index];
             const cr = &self.accounts[pending_transfer.credit_account_index];
+
             dr.debits_pending -= pending_transfer.amount;
             cr.credits_pending -= pending_transfer.amount;
+
             assert(!dr.debits_exceed_credits(0));
             assert(!dr.credits_exceed_debits(0));
             assert(!cr.debits_exceed_credits(0));
@@ -482,6 +534,7 @@ pub const AccountingAuditor = struct {
 
             // Each expiration round can expire at most one batch of transfers.
             expired_count += 1;
+
             if (expired_count == self.options.pulse_expiries_max) break;
         }
 
@@ -501,27 +554,33 @@ pub const AccountingAuditor = struct {
         results_sparse: []const tb.CreateAccountErrorResult,
     ) void {
         assert(accounts.len >= results_sparse.len);
+
         assert(self.timestamp < timestamp or
             // Zero-sized batches packed in a multi-batch message:
             (accounts.len == 0 and self.timestamp == timestamp));
+
         defer self.timestamp = timestamp;
 
         const results_expect = self.take_in_flight(client_index).create_accounts;
+
         var iterator: ResultsSparseIteratorType(tb.CreateAccountErrorResult) = .init(
             results_sparse,
         );
+
         defer assert(iterator.results.len == 0);
 
         for (accounts, 0..) |*account, i| {
             const account_timestamp = timestamp - accounts.len + i + 1;
 
             const result_actual = iterator.take(i) orelse .created;
+
             if (!results_expect[i].contains(result_actual)) {
                 log.err("on_create_accounts_sparse: account={} expect={} result={}", .{
                     account.*,
                     results_expect[i],
                     result_actual,
                 });
+
                 @panic("on_create_accounts_sparse: unexpected result");
             }
 
@@ -539,14 +598,18 @@ pub const AccountingAuditor = struct {
         results: []const tb.CreateAccountResult,
     ) void {
         assert(accounts.len == results.len);
+
         assert(self.timestamp < timestamp or
             // Zero-sized batches packed in a multi-batch message:
             (accounts.len == 0 and self.timestamp == timestamp));
+
         defer self.timestamp = timestamp;
 
         const results_expect = self.take_in_flight(client_index).create_accounts;
+
         for (accounts, results, 0..) |*account, *result, i| {
             assert(result.reserved == 0);
+
             const account_timestamp = timestamp - accounts.len + i + 1;
 
             if (!results_expect[i].contains(result.status)) {
@@ -555,12 +618,14 @@ pub const AccountingAuditor = struct {
                     results_expect[i],
                     result,
                 });
+
                 @panic("on_create_accounts: unexpected result");
             }
 
             switch (result.status) {
                 .created => {
                     assert(result.timestamp == account_timestamp);
+
                     self.on_create_account_ok(account_timestamp, account);
                 },
                 .exists => assert(result.timestamp == self.get_account(account.id).?.timestamp),
@@ -575,21 +640,27 @@ pub const AccountingAuditor = struct {
         account: *const tb.Account,
     ) void {
         const account_index = self.account_id_to_index(account.id);
+
         assert(account_index < self.accounts.len);
         assert(!self.accounts_state[account_index].created);
+
         self.accounts_state[account_index].created = true;
         self.accounts[account_index] = account.*;
         self.accounts[account_index].timestamp = timestamp;
 
         const query_intersection_index = account.code - 1;
         const query_intersection = &self.query_intersections[query_intersection_index];
+
         assert(account.user_data_64 == query_intersection.user_data_64);
         assert(account.user_data_32 == query_intersection.user_data_32);
         assert(account.code == query_intersection.code);
+
         query_intersection.accounts.count += 1;
+
         if (query_intersection.accounts.timestamp_min == 0) {
             query_intersection.accounts.timestamp_min = timestamp;
         }
+
         query_intersection.accounts.timestamp_max = timestamp;
     }
 
@@ -601,27 +672,33 @@ pub const AccountingAuditor = struct {
         results_sparse: []const tb.CreateTransferErrorResult,
     ) void {
         assert(transfers.len >= results_sparse.len);
+
         assert(self.timestamp < timestamp or
             // Zero-sized batches packed in a multi-batch message:
             (transfers.len == 0 and self.timestamp == timestamp));
+
         defer self.timestamp = timestamp;
 
         const results_expect = self.take_in_flight(client_index).create_transfers;
+
         var iterator: ResultsSparseIteratorType(tb.CreateTransferErrorResult) = .init(
             results_sparse,
         );
+
         defer assert(iterator.results.len == 0);
 
         for (transfers, 0..) |*transfer, i| {
             const transfer_timestamp = timestamp - transfers.len + i + 1;
 
             const result_actual = iterator.take(i) orelse .created;
+
             if (!results_expect[i].contains(result_actual.to_ordered())) {
                 log.err("on_create_transfers_sparse: transfer={} expect={} result={}", .{
                     transfer.*,
                     results_expect[i],
                     result_actual,
                 });
+
                 @panic("on_create_transfers_sparse: unexpected result");
             }
 
@@ -640,12 +717,15 @@ pub const AccountingAuditor = struct {
         results: []const tb.CreateTransferResult,
     ) void {
         assert(transfers.len == results.len);
+
         assert(self.timestamp < timestamp or
             // Zero-sized batches packed in a multi-batch message:
             (transfers.len == 0 and self.timestamp == timestamp));
+
         defer self.timestamp = timestamp;
 
         const results_expect = self.take_in_flight(client_index).create_transfers;
+
         for (transfers, results, 0..) |
             *transfer,
             result,
@@ -659,13 +739,16 @@ pub const AccountingAuditor = struct {
                     results_expect[i],
                     result,
                 });
+
                 @panic("on_create_transfers: unexpected result");
             }
 
             assert(result.timestamp > 0);
+
             switch (result.status) {
                 .created => {
                     assert(result.timestamp == transfer_timestamp);
+
                     self.on_create_transfer_ok(transfer_timestamp, transfer);
                 },
                 .exists => assert(result.timestamp < transfer_timestamp),
@@ -686,19 +769,24 @@ pub const AccountingAuditor = struct {
 
         const query_intersection_index = transfer.code - 1;
         const query_intersection = &self.query_intersections[query_intersection_index];
+
         assert(transfer.user_data_64 == query_intersection.user_data_64);
         assert(transfer.user_data_32 == query_intersection.user_data_32);
         assert(transfer.code == query_intersection.code);
+
         query_intersection.transfers.count += 1;
+
         if (query_intersection.transfers.timestamp_min == 0) {
             query_intersection.transfers.timestamp_min = timestamp;
         }
+
         query_intersection.transfers.timestamp_max = timestamp;
 
         if (transfer.flags.post_pending_transfer or transfer.flags.void_pending_transfer) {
             const p = self.pending_transfers.get(transfer.pending_id).?;
             const dr_state = &self.accounts_state[p.debit_account_index];
             const cr_state = &self.accounts_state[p.credit_account_index];
+
             dr_state.update(.dr, timestamp);
             cr_state.update(.cr, timestamp);
 
@@ -711,8 +799,10 @@ pub const AccountingAuditor = struct {
 
             dr.debits_pending -= p.amount;
             cr.credits_pending -= p.amount;
+
             if (transfer.flags.post_pending_transfer) {
                 const amount = @min(transfer.amount, p.amount);
+
                 dr.debits_posted += amount;
                 cr.credits_posted += amount;
             }
@@ -726,6 +816,7 @@ pub const AccountingAuditor = struct {
             const cr_index = self.account_id_to_index(transfer.credit_account_id);
             const dr_state = &self.accounts_state[dr_index];
             const cr_state = &self.accounts_state[cr_index];
+
             dr_state.update(.dr, timestamp);
             cr_state.update(.cr, timestamp);
 
@@ -740,15 +831,18 @@ pub const AccountingAuditor = struct {
                         .credit_account_index = cr_index,
                         .query_intersection_index = transfer.code - 1,
                     });
+
                     self.pending_expiries.add(.{
                         .transfer_id = transfer.id,
                         .transfer_timestamp = timestamp,
                         .expires_at = timestamp + transfer.timeout_ns(),
                     }) catch unreachable;
+
                     // PriorityQueue lacks an "unmanaged" API, so verify that the workload
                     // hasn't created more pending transfers than permitted.
                     assert(self.pending_expiries.count() <= self.options.transfers_pending_max);
                 }
+
                 dr.debits_pending += transfer.amount;
                 cr.credits_pending += transfer.amount;
             } else {
@@ -771,11 +865,14 @@ pub const AccountingAuditor = struct {
         results: []const tb.Account,
     ) void {
         _ = client_index;
+
         assert(ids.len >= results.len);
         assert(self.timestamp <= timestamp);
+
         defer self.timestamp = timestamp;
 
         var results_iterator = IteratorForLookupType(tb.Account).init(results);
+
         defer assert(results_iterator.results.len == 0);
 
         for (ids) |account_id| {
@@ -792,6 +889,7 @@ pub const AccountingAuditor = struct {
                 assert(!account_lookup.?.credits_exceed_debits(0));
 
                 const account_expect = &self.accounts[account_index];
+
                 if (!std.mem.eql(
                     u8,
                     std.mem.asBytes(account_lookup.?),
@@ -803,6 +901,7 @@ pub const AccountingAuditor = struct {
                         account_expect,
                         account_lookup.?,
                     });
+
                     @panic("on_lookup_accounts: account data mismatch");
                 }
             } else {
@@ -822,15 +921,19 @@ pub const AccountingAuditor = struct {
         results: []const tb.Transfer,
     ) void {
         _ = client_index;
+
         assert(ids.len >= results.len);
         assert(self.timestamp <= timestamp);
+
         defer self.timestamp = timestamp;
 
         var results_iterator = IteratorForLookupType(tb.Transfer).init(results);
+
         defer assert(results_iterator.results.len == 0);
 
         for (ids) |id| {
             const result = results_iterator.take(id);
+
             assert(result == null or result.?.id == id);
         }
     }
@@ -851,9 +954,11 @@ pub const AccountingAuditor = struct {
     ) ?*const tb.Account {
         const offset = self.prng.int_inclusive(usize, self.accounts.len - 1);
         var i: usize = 0;
+
         // Iterate `accounts`, starting from a random offset.
         while (i < self.accounts.len) : (i += 1) {
             const account_index = (offset + i) % self.accounts.len;
+
             if (match.created) |expect_created| {
                 if (self.accounts_state[account_index].created) {
                     if (!expect_created) continue;
@@ -863,6 +968,7 @@ pub const AccountingAuditor = struct {
             }
 
             const account = &self.accounts[account_index];
+
             if (match.debits_must_not_exceed_credits) |b| {
                 if (account.flags.debits_must_not_exceed_credits != b) continue;
             }
@@ -874,8 +980,10 @@ pub const AccountingAuditor = struct {
             if (match.exclude) |exclude_id| {
                 if (account.id == exclude_id) continue;
             }
+
             return account;
         }
+
         return null;
     }
 
@@ -886,17 +994,21 @@ pub const AccountingAuditor = struct {
         results: []const tb.ChangeEvent,
     ) void {
         _ = timestamp;
+
         const filter_valid = filter.limit != 0 and
             TimestampRange.valid(filter.timestamp_min) and
             TimestampRange.valid(filter.timestamp_max) and
             stdx.zeroed(&filter.reserved) and
             (filter.timestamp_max == 0 or filter.timestamp_min <= filter.timestamp_max);
+
         if (!filter_valid) {
             assert(results.len == 0);
+
             return;
         }
 
         const snapshot = self.changes_tracker.release_snapshot();
+
         assert(filter.limit >= snapshot.count_total());
         assert(filter.timestamp_min == snapshot.timestamp_min);
         assert(filter.timestamp_max == snapshot.timestamp_max);
@@ -904,13 +1016,16 @@ pub const AccountingAuditor = struct {
 
         var timestamp_previous: u64 = 0;
         var count = ChangesTracker.EnumArray.initFill(0);
+
         for (results) |*result| {
             assert(result.timestamp > timestamp_previous);
+
             timestamp_previous = result.timestamp;
 
             if (filter.timestamp_min > 0) {
                 assert(result.timestamp >= filter.timestamp_min);
             }
+
             if (filter.timestamp_max > 0) {
                 assert(result.timestamp <= filter.timestamp_max);
             }
@@ -919,8 +1034,10 @@ pub const AccountingAuditor = struct {
         }
 
         var iterator = count.iterator();
+
         while (iterator.next()) |kv| {
             const expected = snapshot.count.getPtrConst(kv.key).*;
+
             assert(kv.value.* == expected);
         }
     }
@@ -937,11 +1054,13 @@ pub const AccountingAuditor = struct {
 
     pub fn get_account(self: *const AccountingAuditor, id: u128) ?*const tb.Account {
         const index = self.account_id_to_index(id);
+
         return if (index < self.accounts.len) &self.accounts[index] else null;
     }
 
     pub fn get_account_state(self: *const AccountingAuditor, id: u128) ?*const AccountState {
         const index = self.account_id_to_index(id);
+
         return if (index < self.accounts_state.len) &self.accounts_state[index] else null;
     }
 
@@ -950,10 +1069,13 @@ pub const AccountingAuditor = struct {
             .client_index = client_index,
             .client_request = self.creates_delivered[client_index],
         };
+
         self.creates_delivered[client_index] += 1;
 
         const in_flight = self.in_flight.get(key).?;
+
         assert(self.in_flight.remove(key));
+
         return in_flight;
     }
 };

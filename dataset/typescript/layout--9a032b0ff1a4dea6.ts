@@ -9,6 +9,7 @@ import type { Node } from '@xyflow/react'
 
 export default (args: Pick<IPropsMindmap, 'file_id' | 'kanban_items'>, nodes: Array<Node>) => {
 	const { file_id, kanban_items } = args
+
 	const raw_tree = { type: 'root', id: file_id, isRoot: () => true, children: [] as Array<any> }
 
 	const nodes_map = nodes.reduce(
@@ -85,6 +86,7 @@ export default (args: Pick<IPropsMindmap, 'file_id' | 'kanban_items'>, nodes: Ar
 		item.position = nodes_map[item.id].position
 		//@ts-ignore
 		item.measured.positionAbsolute = item.position
+
 		item.targetPosition = Position.Left
 		item.sourcePosition = Position.Right
 

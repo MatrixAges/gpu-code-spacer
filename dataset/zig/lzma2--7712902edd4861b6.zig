@@ -24,6 +24,7 @@ pub const AccumBuffer = struct {
 
     pub fn appendByte(self: *AccumBuffer, allocator: Allocator, byte: u8) !void {
         try self.buf.append(allocator, byte);
+
         self.len += 1;
     }
 
@@ -31,12 +32,14 @@ pub const AccumBuffer = struct {
     pub fn reset(self: *AccumBuffer, writer: *Writer) !void {
         try writer.writeAll(self.buf.items);
         self.buf.clearRetainingCapacity();
+
         self.len = 0;
     }
 
     /// Retrieve the last byte or return a default
     pub fn lastOr(self: AccumBuffer, lit: u8) u8 {
         const buf_len = self.buf.items.len;
+
         return if (buf_len == 0)
             lit
         else
@@ -46,6 +49,7 @@ pub const AccumBuffer = struct {
     /// Retrieve the n-th last byte
     pub fn lastN(self: AccumBuffer, dist: usize) !u8 {
         const buf_len = self.buf.items.len;
+
         if (dist > buf_len) {
             return error.CorruptInput;
         }
@@ -61,10 +65,13 @@ pub const AccumBuffer = struct {
         writer: *Writer,
     ) !void {
         _ = writer;
+
         if (self.len >= self.memlimit) {
             return error.CorruptInput;
         }
+
         try self.buf.append(allocator, lit);
+
         self.len += 1;
     }
 
@@ -79,9 +86,11 @@ pub const AccumBuffer = struct {
         _ = writer;
 
         const buf_len = self.buf.items.len;
+
         if (dist > buf_len) return error.CorruptInput;
 
         try self.buf.ensureUnusedCapacity(allocator, len);
+
         const buffer = self.buf.allocatedSlice();
         const src = buffer[buf_len - dist ..][0..len];
         const dst = buffer[buf_len..][0..len];
@@ -101,6 +110,7 @@ pub const AccumBuffer = struct {
 
     pub fn deinit(self: *AccumBuffer, allocator: Allocator) void {
         self.buf.deinit(allocator);
+
         self.* = undefined;
     }
 };
@@ -114,6 +124,7 @@ pub const Decode = struct {
 
     pub fn deinit(self: *Decode, gpa: Allocator) void {
         self.lzma_decode.deinit(gpa);
+
         self.* = undefined;
     }
 
@@ -122,12 +133,14 @@ pub const Decode = struct {
         const gpa = allocating.allocator;
 
         var accum = AccumBuffer.init(std.math.maxInt(usize));
+
         defer accum.deinit(gpa);
 
         var n_read: u64 = 0;
 
         while (true) {
             const status = try reader.takeByte();
+
             n_read += 1;
 
             switch (status) {
@@ -139,6 +152,7 @@ pub const Decode = struct {
         }
 
         try accum.finish(&allocating.writer);
+
         return n_read;
     }
 
@@ -185,15 +199,20 @@ pub const Decode = struct {
 
         const unpacked_size = blk: {
             var tmp: u64 = status & 0x1F;
+
             tmp <<= 16;
             tmp |= try reader.takeInt(u16, .big);
+
             n_read += 2;
+
             break :blk tmp + 1;
         };
 
         const packed_size = blk: {
             const tmp: u17 = try reader.takeInt(u16, .big);
+
             n_read += 2;
+
             break :blk tmp + 1;
         };
 
@@ -206,15 +225,21 @@ pub const Decode = struct {
 
             if (reset.props) {
                 var props = try reader.takeByte();
+
                 n_read += 1;
+
                 if (props >= 225) {
                     return error.CorruptInput;
                 }
 
                 const lc = @as(u4, @intCast(props % 9));
+
                 props /= 9;
+
                 const lp = @as(u3, @intCast(props % 5));
+
                 props /= 5;
+
                 const pb = @as(u3, @intCast(props));
 
                 if (lc + lp > 4) {
@@ -233,11 +258,13 @@ pub const Decode = struct {
 
         while (true) {
             if (accum.len >= expected_unpacked_size) break;
+
             switch (try ld.process(reader, allocating, accum, &range_decoder, &n_read)) {
                 .more => continue,
                 .finished => break,
             }
         }
+
         if (accum.len != expected_unpacked_size) return error.DecompressedSizeMismatch;
         if (n_read - start_count != packed_size) return error.CompressedSizeMismatch;
 
@@ -259,6 +286,7 @@ pub const Decode = struct {
         for (0..unpacked_size) |_| {
             try accum.appendByte(gpa, try reader.takeByte());
         }
+
         return 2 + unpacked_size;
     }
 };
@@ -270,13 +298,16 @@ test "decompress hello world stream" {
     const gpa = std.testing.allocator;
 
     var decode = try Decode.init(gpa);
+
     defer decode.deinit(gpa);
 
     var stream: std.Io.Reader = .fixed(compressed);
     var result: std.Io.Writer.Allocating = .init(gpa);
+
     defer result.deinit();
 
     const n_read = try decode.decompress(&stream, &result);
+
     try std.testing.expectEqual(compressed.len, n_read);
     try std.testing.expectEqualStrings(expected, result.written());
 }

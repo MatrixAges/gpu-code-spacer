@@ -22,6 +22,7 @@ pub fn nextAfter(comptime T: type, x: T, y: T) T {
 
 fn nextAfterInt(comptime T: type, x: T, y: T) T {
     comptime assert(@typeInfo(T) == .int or @typeInfo(T) == .comptime_int);
+
     return if (@typeInfo(T) == .int and @bitSizeOf(T) < 2)
         // Special case for `i0`, `u0`, `i1`, and `u1`.
         y
@@ -39,19 +40,23 @@ fn nextAfterInt(comptime T: type, x: T, y: T) T {
 
 fn nextAfterFloat(comptime T: type, x: T, y: T) T {
     comptime assert(@typeInfo(T) == .float);
+
     if (x == y) {
         // Returning `y` ensures that (0.0, -0.0) returns -0.0 and that (-0.0, 0.0) returns 0.0.
         return y;
     }
+
     if (math.isNan(x) or math.isNan(y)) {
         return math.nan(T);
     }
+
     if (x == 0.0) {
         return if (y > 0.0)
             math.floatTrueMin(T)
         else
             -math.floatTrueMin(T);
     }
+
     if (@bitSizeOf(T) == 80) {
         // Unlike other floats, `f80` has an explicitly stored integer bit between the fractional
         // part and the exponent and thus requires special handling. This integer bit *must* be set
@@ -68,6 +73,7 @@ fn nextAfterFloat(comptime T: type, x: T, y: T) T {
         // intentional.
         if ((x > 0.0) == (y > x)) {
             x_parts.fraction +%= 1;
+
             if (x_parts.fraction & fractional_bits_mask == 0) {
                 x_parts.exp += 1;
             }
@@ -75,6 +81,7 @@ fn nextAfterFloat(comptime T: type, x: T, y: T) T {
             if (x_parts.fraction & fractional_bits_mask == 0) {
                 x_parts.exp -= 1;
             }
+
             x_parts.fraction -%= 1;
         }
 
@@ -92,11 +99,13 @@ fn nextAfterFloat(comptime T: type, x: T, y: T) T {
     } else {
         const Bits = std.meta.Int(.unsigned, @bitSizeOf(T));
         var x_bits: Bits = @bitCast(x);
+
         if ((x > 0.0) == (y > x)) {
             x_bits += 1;
         } else {
             x_bits -= 1;
         }
+
         return @bitCast(x_bits);
     }
 }
@@ -112,6 +121,7 @@ test "int" {
     try expect(nextAfter(u1, 0, 1) == 1);
     try expect(nextAfter(u1, 1, 1) == 1);
     try expect(nextAfter(u1, 1, 0) == 0);
+
     inline for (.{ i8, i16, i32, i64, i128, i333 }) |T| {
         try expect(nextAfter(T, 3, 7) == 4);
         try expect(nextAfter(T, 3, -7) == 2);
@@ -123,6 +133,7 @@ test "int" {
         try expect(nextAfter(T, math.minInt(T), math.minInt(T)) == math.minInt(T));
         try expect(nextAfter(T, math.maxInt(T), math.maxInt(T)) == math.maxInt(T));
     }
+
     inline for (.{ u8, u16, u32, u64, u128, u333 }) |T| {
         try expect(nextAfter(T, 3, 7) == 4);
         try expect(nextAfter(T, 7, 3) == 6);
@@ -131,6 +142,7 @@ test "int" {
         try expect(nextAfter(T, math.minInt(T), math.minInt(T)) == math.minInt(T));
         try expect(nextAfter(T, math.maxInt(T), math.maxInt(T)) == math.maxInt(T));
     }
+
     comptime {
         try expect(nextAfter(comptime_int, 3, 7) == 4);
         try expect(nextAfter(comptime_int, 3, -7) == 2);
@@ -159,6 +171,7 @@ test "float" {
     try expect(nextAfter(f32, -0x1.001234p0, -2.0) == -0x1.001236p0);
     try expect(nextAfter(f32, -0x1.001234p0, 2.0) == -0x1.001232p0);
     try expect(nextAfter(f32, -0x1.001234p0, -0x1.001234p0) == -0x1.001234p0);
+
     inline for (.{f64} ++ if (@bitSizeOf(c_longdouble) == 64) .{c_longdouble} else .{}) |T64| {
         try expect(nextAfter(T64, 0x1.0000000001234p0, 2.0) == 0x1.0000000001235p0);
         try expect(nextAfter(T64, 0x1.0000000001234p0, -2.0) == 0x1.0000000001233p0);
@@ -167,6 +180,7 @@ test "float" {
         try expect(nextAfter(T64, -0x1.0000000001234p0, 2.0) == -0x1.0000000001233p0);
         try expect(nextAfter(T64, -0x1.0000000001234p0, -0x1.0000000001234p0) == -0x1.0000000001234p0);
     }
+
     inline for (.{f80} ++ if (@bitSizeOf(c_longdouble) == 80) .{c_longdouble} else .{}) |T80| {
         try expect(nextAfter(T80, 0x1.0000000000001234p0, 2.0) == 0x1.0000000000001236p0);
         try expect(nextAfter(T80, 0x1.0000000000001234p0, -2.0) == 0x1.0000000000001232p0);
@@ -175,6 +189,7 @@ test "float" {
         try expect(nextAfter(T80, -0x1.0000000000001234p0, 2.0) == -0x1.0000000000001232p0);
         try expect(nextAfter(T80, -0x1.0000000000001234p0, -0x1.0000000000001234p0) == -0x1.0000000000001234p0);
     }
+
     inline for (.{f128} ++ if (@bitSizeOf(c_longdouble) == 128) .{c_longdouble} else .{}) |T128| {
         try expect(nextAfter(T128, 0x1.0000000000000000000000001234p0, 2.0) == 0x1.0000000000000000000000001235p0);
         try expect(nextAfter(T128, 0x1.0000000000000000000000001234p0, -2.0) == 0x1.0000000000000000000000001233p0);
@@ -197,6 +212,7 @@ test "float" {
     try expect(nextAfter(f32, -0x0.001234p-126, -1.0) == -0x0.001236p-126);
     try expect(nextAfter(f32, -0x0.001234p-126, 1.0) == -0x0.001232p-126);
     try expect(nextAfter(f32, -0x0.001234p-126, -0x0.001234p-126) == -0x0.001234p-126);
+
     inline for (.{f64} ++ if (@bitSizeOf(c_longdouble) == 64) .{c_longdouble} else .{}) |T64| {
         try expect(nextAfter(T64, 0x0.0000000001234p-1022, 1.0) == 0x0.0000000001235p-1022);
         try expect(nextAfter(T64, 0x0.0000000001234p-1022, -1.0) == 0x0.0000000001233p-1022);
@@ -205,6 +221,7 @@ test "float" {
         try expect(nextAfter(T64, -0x0.0000000001234p-1022, 1.0) == -0x0.0000000001233p-1022);
         try expect(nextAfter(T64, -0x0.0000000001234p-1022, -0x0.0000000001234p-1022) == -0x0.0000000001234p-1022);
     }
+
     inline for (.{f80} ++ if (@bitSizeOf(c_longdouble) == 80) .{c_longdouble} else .{}) |T80| {
         try expect(nextAfter(T80, 0x0.0000000000001234p-16382, 1.0) == 0x0.0000000000001236p-16382);
         try expect(nextAfter(T80, 0x0.0000000000001234p-16382, -1.0) == 0x0.0000000000001232p-16382);
@@ -213,6 +230,7 @@ test "float" {
         try expect(nextAfter(T80, -0x0.0000000000001234p-16382, 1.0) == -0x0.0000000000001232p-16382);
         try expect(nextAfter(T80, -0x0.0000000000001234p-16382, -0x0.0000000000001234p-16382) == -0x0.0000000000001234p-16382);
     }
+
     inline for (.{f128} ++ if (@bitSizeOf(c_longdouble) == 128) .{c_longdouble} else .{}) |T128| {
         try expect(nextAfter(T128, 0x0.0000000000000000000000001234p-16382, 1.0) == 0x0.0000000000000000000000001235p-16382);
         try expect(nextAfter(T128, 0x0.0000000000000000000000001234p-16382, -1.0) == 0x0.0000000000000000000000001233p-16382);
@@ -231,18 +249,21 @@ test "float" {
     try expect(nextAfter(f32, 0x1p4, -math.inf(f32)) == 0x1.FFFFFEp3);
     try expect(nextAfter(f32, -0x1.FFFFFEp3, -math.inf(f32)) == -0x1p4);
     try expect(nextAfter(f32, -0x1p4, math.inf(f32)) == -0x1.FFFFFEp3);
+
     inline for (.{f64} ++ if (@bitSizeOf(c_longdouble) == 64) .{c_longdouble} else .{}) |T64| {
         try expect(nextAfter(T64, 0x1.FFFFFFFFFFFFFp3, math.inf(T64)) == 0x1p4);
         try expect(nextAfter(T64, 0x1p4, -math.inf(T64)) == 0x1.FFFFFFFFFFFFFp3);
         try expect(nextAfter(T64, -0x1.FFFFFFFFFFFFFp3, -math.inf(T64)) == -0x1p4);
         try expect(nextAfter(T64, -0x1p4, math.inf(T64)) == -0x1.FFFFFFFFFFFFFp3);
     }
+
     inline for (.{f80} ++ if (@bitSizeOf(c_longdouble) == 80) .{c_longdouble} else .{}) |T80| {
         try expect(nextAfter(T80, 0x1.FFFFFFFFFFFFFFFEp3, math.inf(T80)) == 0x1p4);
         try expect(nextAfter(T80, 0x1p4, -math.inf(T80)) == 0x1.FFFFFFFFFFFFFFFEp3);
         try expect(nextAfter(T80, -0x1.FFFFFFFFFFFFFFFEp3, -math.inf(T80)) == -0x1p4);
         try expect(nextAfter(T80, -0x1p4, math.inf(T80)) == -0x1.FFFFFFFFFFFFFFFEp3);
     }
+
     inline for (.{f128} ++ if (@bitSizeOf(c_longdouble) == 128) .{c_longdouble} else .{}) |T128| {
         try expect(nextAfter(T128, 0x1.FFFFFFFFFFFFFFFFFFFFFFFFFFFFp3, math.inf(T128)) == 0x1p4);
         try expect(nextAfter(T128, 0x1p4, -math.inf(T128)) == 0x1.FFFFFFFFFFFFFFFFFFFFFFFFFFFFp3);
@@ -255,14 +276,17 @@ test "float" {
     try expect(nextAfter(f16, -0x1p-14, math.inf(f16)) == -0x0.FFCp-14);
     try expect(nextAfter(f32, 0x1p-126, -math.inf(f32)) == 0x0.FFFFFEp-126);
     try expect(nextAfter(f32, -0x1p-126, math.inf(f32)) == -0x0.FFFFFEp-126);
+
     inline for (.{f64} ++ if (@bitSizeOf(c_longdouble) == 64) .{c_longdouble} else .{}) |T64| {
         try expect(nextAfter(T64, 0x1p-1022, -math.inf(T64)) == 0x0.FFFFFFFFFFFFFp-1022);
         try expect(nextAfter(T64, -0x1p-1022, math.inf(T64)) == -0x0.FFFFFFFFFFFFFp-1022);
     }
+
     inline for (.{f80} ++ if (@bitSizeOf(c_longdouble) == 80) .{c_longdouble} else .{}) |T80| {
         try expect(nextAfter(T80, 0x1p-16382, -math.inf(T80)) == 0x0.FFFFFFFFFFFFFFFEp-16382);
         try expect(nextAfter(T80, -0x1p-16382, math.inf(T80)) == -0x0.FFFFFFFFFFFFFFFEp-16382);
     }
+
     inline for (.{f128} ++ if (@bitSizeOf(c_longdouble) == 128) .{c_longdouble} else .{}) |T128| {
         try expect(nextAfter(T128, 0x1p-16382, -math.inf(T128)) == 0x0.FFFFFFFFFFFFFFFFFFFFFFFFFFFFp-16382);
         try expect(nextAfter(T128, -0x1p-16382, math.inf(T128)) == -0x0.FFFFFFFFFFFFFFFFFFFFFFFFFFFFp-16382);
@@ -273,14 +297,17 @@ test "float" {
     try expect(nextAfter(f16, -0x0.FFCp-14, -math.inf(f16)) == -0x1p-14);
     try expect(nextAfter(f32, 0x0.FFFFFEp-126, math.inf(f32)) == 0x1p-126);
     try expect(nextAfter(f32, -0x0.FFFFFEp-126, -math.inf(f32)) == -0x1p-126);
+
     inline for (.{f64} ++ if (@bitSizeOf(c_longdouble) == 64) .{c_longdouble} else .{}) |T64| {
         try expect(nextAfter(T64, 0x0.FFFFFFFFFFFFFp-1022, math.inf(T64)) == 0x1p-1022);
         try expect(nextAfter(T64, -0x0.FFFFFFFFFFFFFp-1022, -math.inf(T64)) == -0x1p-1022);
     }
+
     inline for (.{f80} ++ if (@bitSizeOf(c_longdouble) == 80) .{c_longdouble} else .{}) |T80| {
         try expect(nextAfter(T80, 0x0.FFFFFFFFFFFFFFFEp-16382, math.inf(T80)) == 0x1p-16382);
         try expect(nextAfter(T80, -0x0.FFFFFFFFFFFFFFFEp-16382, -math.inf(T80)) == -0x1p-16382);
     }
+
     inline for (.{f128} ++ if (@bitSizeOf(c_longdouble) == 128) .{c_longdouble} else .{}) |T128| {
         try expect(nextAfter(T128, 0x0.FFFFFFFFFFFFFFFFFFFFFFFFFFFFp-16382, math.inf(T128)) == 0x1p-16382);
         try expect(nextAfter(T128, -0x0.FFFFFFFFFFFFFFFFFFFFFFFFFFFFp-16382, -math.inf(T128)) == -0x1p-16382);
@@ -321,6 +348,8 @@ test "float" {
 /// Helps ensure that 0.0 doesn't compare equal to -0.0.
 fn bitwiseEqual(comptime T: type, x: T, y: T) bool {
     comptime assert(@typeInfo(T) == .float);
+
     const Bits = std.meta.Int(.unsigned, @bitSizeOf(T));
+
     return @as(Bits, @bitCast(x)) == @as(Bits, @bitCast(y));
 }

@@ -16,6 +16,7 @@ const expect = std.testing.expect;
 ///  - atan(+-inf) = +-pi/2
 pub fn atan(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => atan32(x),
         f64 => atan64(x),
@@ -49,6 +50,7 @@ fn atan32(x_: f32) f32 {
     var x = x_;
     var ix: u32 = @as(u32, @bitCast(x));
     const sign = ix >> 31;
+
     ix &= 0x7FFFFFFF;
 
     // |x| >= 2^26
@@ -57,6 +59,7 @@ fn atan32(x_: f32) f32 {
             return x;
         } else {
             const z = atanhi[3] + 0x1.0p-120;
+
             return if (sign != 0) -z else z;
         }
     }
@@ -70,32 +73,39 @@ fn atan32(x_: f32) f32 {
             if (ix < 0x00800000) {
                 mem.doNotOptimizeAway(x * x);
             }
+
             return x;
         }
+
         id = null;
     } else {
         x = @abs(x);
+
         // |x| < 1.1875
         if (ix < 0x3F980000) {
             // 7/16 <= |x| < 11/16
             if (ix < 0x3F300000) {
                 id = 0;
+
                 x = (2.0 * x - 1.0) / (2.0 + x);
             }
             // 11/16 <= |x| < 19/16
             else {
                 id = 1;
+
                 x = (x - 1.0) / (x + 1.0);
             }
         } else {
             // |x| < 2.4375
             if (ix < 0x401C0000) {
                 id = 2;
+
                 x = (x - 1.5) / (1.0 + 1.5 * x);
             }
             // 2.4375 <= |x| < 2^26
             else {
                 id = 3;
+
                 x = -1.0 / x;
             }
         }
@@ -108,6 +118,7 @@ fn atan32(x_: f32) f32 {
 
     if (id) |id_value| {
         const zz = atanhi[id_value] - ((x * (s1 + s2) - atanlo[id_value]) - x);
+
         return if (sign != 0) -zz else zz;
     } else {
         return x - x * (s1 + s2);
@@ -147,6 +158,7 @@ fn atan64(x_: f64) f64 {
     const ux: u64 = @bitCast(x);
     var ix: u32 = @intCast(ux >> 32);
     const sign = ix >> 31;
+
     ix &= 0x7FFFFFFF;
 
     // |x| >= 2^66
@@ -155,6 +167,7 @@ fn atan64(x_: f64) f64 {
             return x;
         } else {
             const z = atanhi[3] + 0x1.0p-120;
+
             return if (sign != 0) -z else z;
         }
     }
@@ -168,32 +181,39 @@ fn atan64(x_: f64) f64 {
             if (ix < 0x00100000) {
                 mem.doNotOptimizeAway(@as(f32, @floatCast(x)));
             }
+
             return x;
         }
+
         id = null;
     } else {
         x = @abs(x);
+
         // |x| < 1.1875
         if (ix < 0x3FF30000) {
             // 7/16 <= |x| < 11/16
             if (ix < 0x3FE60000) {
                 id = 0;
+
                 x = (2.0 * x - 1.0) / (2.0 + x);
             }
             // 11/16 <= |x| < 19/16
             else {
                 id = 1;
+
                 x = (x - 1.0) / (x + 1.0);
             }
         } else {
             // |x| < 2.4375
             if (ix < 0x40038000) {
                 id = 2;
+
                 x = (x - 1.5) / (1.0 + 1.5 * x);
             }
             // 2.4375 <= |x| < 2^66
             else {
                 id = 3;
+
                 x = -1.0 / x;
             }
         }
@@ -206,6 +226,7 @@ fn atan64(x_: f64) f64 {
 
     if (id) |id_value| {
         const zz = atanhi[id_value] - ((x * (s1 + s2) - atanlo[id_value]) - x);
+
         return if (sign != 0) -zz else zz;
     } else {
         return x - x * (s1 + s2);

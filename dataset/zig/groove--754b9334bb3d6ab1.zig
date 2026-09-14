@@ -44,7 +44,9 @@ fn ObjectTreeHelperType(comptime Object: type) type {
             assert(timestamp & tombstone_bit == 0);
 
             var value = std.mem.zeroes(Object); // Full zero-initialized Value.
+
             value.timestamp = timestamp | tombstone_bit;
+
             return value;
         }
     };
@@ -57,6 +59,7 @@ fn UniqueKeyTreeType(
     comptime table_value_count_max: usize,
 ) type {
     const UniqueKey = UniqueKeyType(IndexType(Field));
+
     const Table = TableType(
         UniqueKey.Key,
         UniqueKey,
@@ -78,6 +81,7 @@ fn IndexTreeType(
     comptime table_value_count_max: usize,
 ) type {
     const CompositeKey = CompositeKeyType(IndexType(Field));
+
     const Table = TableType(
         CompositeKey.Key,
         CompositeKey,
@@ -107,6 +111,7 @@ fn IndexType(comptime Field: type) type {
             if (i.signedness != .unsigned) {
                 @compileError("Index int type (" ++ @typeName(Field) ++ ") is not unsigned");
             }
+
             return switch (@bitSizeOf(Field)) {
                 0...@bitSizeOf(u64) => u64,
                 @bitSizeOf(u65)...@bitSizeOf(u128) => u128,
@@ -121,15 +126,12 @@ comptime {
     assert(IndexType(void) == void);
     assert(IndexType(u0) == u64);
     assert(IndexType(enum(u0) { x }) == u64);
-
     assert(IndexType(u1) == u64);
     assert(IndexType(u16) == u64);
     assert(IndexType(enum(u16) { x }) == u64);
-
     assert(IndexType(u32) == u64);
     assert(IndexType(u63) == u64);
     assert(IndexType(u64) == u64);
-
     assert(IndexType(enum(u65) { x }) == u128);
     assert(IndexType(u65) == u128);
     assert(IndexType(u128) == u128);
@@ -189,6 +191,7 @@ pub fn GrooveType(
     // `groove_options` must be `anytype` because of groove-specific fields.
     // Keep this validation in sync with the documentation above.
     const GrooveOptions = @TypeOf(groove_options);
+
     assert(@hasField(GrooveOptions, "ids"));
     assert(@hasField(GrooveOptions, "batch_value_count_max"));
     assert(@hasField(GrooveOptions, "primary_key"));
@@ -203,6 +206,7 @@ pub fn GrooveType(
     assert(@hasField(Object, "timestamp"));
     assert(@FieldType(Object, "timestamp") == u64);
     assert(@hasField(Object, groove_options.primary_key));
+
     const PrimaryKey = @FieldType(Object, groove_options.primary_key);
 
     const _is_primary_key = struct {
@@ -210,12 +214,14 @@ pub fn GrooveType(
         /// It accepts enums, enum literals, or strings containing the identifier.
         inline fn is_primary_key(identifier: anytype) bool {
             const ObjectField = std.meta.FieldEnum(Object);
+
             const primary_key: ObjectField = comptime @field(
                 ObjectField,
                 groove_options.primary_key,
             );
 
             const Identifier = @TypeOf(identifier);
+
             if (Identifier == ObjectField) {
                 return identifier == primary_key;
             }
@@ -250,6 +256,7 @@ pub fn GrooveType(
         // Verify if the primary key is also a unique key.
         for (groove_options.unique_keys) |field_name| {
             comptime assert(!std.mem.eql(u8, field_name, "timestamp"));
+
             if (std.mem.eql(u8, field_name, groove_options.primary_key)) {
                 break;
             }
@@ -262,6 +269,7 @@ pub fn GrooveType(
     for (groove_options.ignored) |field_name| {
         comptime assert(!std.mem.eql(u8, field_name, "timestamp"));
         comptime assert(!std.mem.eql(u8, field_name, groove_options.primary_key));
+
         if (!@hasField(Object, field_name)) {
             @compileError("ignore: unrecognized field name " ++ field_name);
         }
@@ -270,6 +278,7 @@ pub fn GrooveType(
     // Verify that every entry referenced by "optional" corresponds to an actual field.
     for (groove_options.optional) |field_name| {
         comptime assert(!std.mem.eql(u8, field_name, "timestamp"));
+
         if (!@hasField(Object, field_name)) {
             @compileError("optional: unrecognized field name " ++ field_name);
         }
@@ -278,6 +287,7 @@ pub fn GrooveType(
     // Verify the unique keys.
     for (groove_options.unique_keys) |field_name| {
         comptime assert(!std.mem.eql(u8, field_name, "timestamp"));
+
         if (!@hasField(Object, field_name) and
             !@hasField(@TypeOf(groove_options.derived), field_name))
         {
@@ -287,18 +297,24 @@ pub fn GrooveType(
         // Neither the "timestamp" or any unique key should be provided
         // in groove_options.ignored.
         comptime var ignored = false;
+
         for (groove_options.ignored) |ignored_field_name| {
             comptime assert(!std.mem.eql(u8, ignored_field_name, "timestamp"));
+
             ignored = ignored or std.mem.eql(u8, field_name, ignored_field_name);
         }
+
         comptime assert(!ignored);
 
         // Unique keys can be optional (i.e. pending_id).
         comptime var optional = false;
+
         for (groove_options.optional) |optional_field_name| {
             comptime assert(!std.mem.eql(u8, optional_field_name, "timestamp"));
+
             optional = optional or std.mem.eql(u8, field_name, optional_field_name);
         }
+
         comptime maybe(optional);
     }
 
@@ -309,19 +325,24 @@ pub fn GrooveType(
         // See if we should ignore this field from the options.
         // By default, we ignore the "timestamp" and the unique keys.
         comptime var ignored = mem.eql(u8, field.name, "timestamp");
+
         for (groove_options.ignored) |ignored_field_name| {
             comptime assert(!std.mem.eql(u8, ignored_field_name, "timestamp"));
+
             ignored = ignored or std.mem.eql(u8, field.name, ignored_field_name);
         }
+
         if (ignored) continue;
 
         comptime var unique_key: bool = false;
+
         for (groove_options.unique_keys) |unique_key_name| {
             unique_key = unique_key or std.mem.eql(u8, field.name, unique_key_name);
         }
 
         const table_value_count_max = constants.lsm_compaction_ops *
             @field(groove_options.batch_value_count_max, field.name);
+
         const IndexTree = if (unique_key)
             UniqueKeyTreeType(Storage, field.type, table_value_count_max)
         else
@@ -340,6 +361,7 @@ pub fn GrooveType(
 
     // Generate IndexTrees for fields derived from the Value in groove_options.
     const derived_fields = std.meta.fields(@TypeOf(groove_options.derived));
+
     for (derived_fields) |field| {
         // Get the function info for the derived field.
         const derive_func = @field(groove_options.derived, field.name);
@@ -352,7 +374,9 @@ pub fn GrooveType(
 
         // Make sure the function takes in a reference to the Value:
         const derive_arg = derive_func_info.params[0];
+
         if (derive_arg.is_generic) @compileError("expected derive fn arg to not be generic");
+
         if (derive_arg.type != *const Object) {
             @compileError("expected derive fn to take in *const " ++ @typeName(Object));
         }
@@ -363,22 +387,27 @@ pub fn GrooveType(
         }
 
         const derive_return_type = @typeInfo(derive_func_info.return_type.?);
+
         if (derive_return_type != .optional) {
             @compileError("expected derive fn to return optional tree index type");
         }
 
         comptime var unique_key: bool = false;
+
         for (groove_options.unique_keys) |unique_key_name| {
             unique_key = unique_key or std.mem.eql(u8, field.name, unique_key_name);
         }
 
         const DerivedType = derive_return_type.optional.child;
+
         const table_value_count_max = constants.lsm_compaction_ops *
             @field(groove_options.batch_value_count_max, field.name);
+
         const IndexTree = if (unique_key)
             UniqueKeyTreeType(Storage, DerivedType, table_value_count_max)
         else
             IndexTreeType(Storage, DerivedType, table_value_count_max);
+
         index_fields = index_fields ++ [_]std.builtin.Type.StructField{
             .{
                 .name = field.name,
@@ -391,8 +420,10 @@ pub fn GrooveType(
     }
 
     comptime var index_options_fields: [index_fields.len]std.builtin.Type.StructField = undefined;
+
     for (index_fields, 0..) |index_field, i| {
         const IndexTree = index_field.type;
+
         index_options_fields[i] = .{
             .name = index_field.name,
             .type = IndexTree.Options,
@@ -407,6 +438,7 @@ pub fn GrooveType(
     const _ObjectTree = T: {
         const table_value_count_max = constants.lsm_compaction_ops *
             groove_options.batch_value_count_max.timestamp;
+
         const Table = TableType(
             u64, // key = timestamp
             Object,
@@ -417,6 +449,7 @@ pub fn GrooveType(
             table_value_count_max,
             .general,
         );
+
         break :T TreeType(Table, Storage);
     };
 
@@ -428,6 +461,7 @@ pub fn GrooveType(
             .is_tuple = false,
         },
     });
+
     const _IndexTreeOptions = @Type(.{
         .@"struct" = .{
             .layout = .auto,
@@ -441,11 +475,13 @@ pub fn GrooveType(
 
     // Verify groove index count:
     const indexes_count_actual = std.meta.fields(_IndexTrees).len;
+
     const indexes_count_expect = std.meta.fields(Object).len +
         std.meta.fields(@TypeOf(groove_options.derived)).len -
         groove_options.ignored.len -
         // The timestamp field is implicitly ignored since it's the primary key for ObjectTree:
         @as(usize, 1);
+
     assert(indexes_count_actual == indexes_count_expect);
     assert(indexes_count_actual == std.meta.fields(_IndexTreeOptions).len);
 
@@ -458,11 +494,14 @@ pub fn GrooveType(
                             groove_options.derived,
                             field_name,
                         )));
+
                         assert(derived_fn == .@"fn");
                         assert(derived_fn.@"fn".return_type != null);
 
                         const return_type = @typeInfo(derived_fn.@"fn".return_type.?);
+
                         assert(return_type == .optional);
+
                         break :type return_type.optional.child;
                     }
 
@@ -475,6 +514,7 @@ pub fn GrooveType(
                     for (groove_options.unique_keys) |unique_key| {
                         if (std.mem.eql(u8, unique_key, field_name)) break :is_unique true;
                     }
+
                     break :is_unique false;
                 };
 
@@ -482,6 +522,7 @@ pub fn GrooveType(
                     for (derived_fields) |derived_field| {
                         if (std.mem.eql(u8, derived_field.name, field_name)) break :is_derived true;
                     }
+
                     break :is_derived false;
                 };
 
@@ -489,9 +530,11 @@ pub fn GrooveType(
                     for (groove_options.optional) |optional| {
                         if (std.mem.eql(u8, field_name, optional)) {
                             assert(!is_derived);
+
                             break :allow_zero false;
                         }
                     }
+
                     break :allow_zero true;
                 };
 
@@ -515,9 +558,11 @@ pub fn GrooveType(
                     }
 
                     const value: IndexPrefix = as_prefix(get(object).?);
+
                     if (!allow_zero and value == 0) {
                         return null;
                     }
+
                     return value;
                 }
 
@@ -526,6 +571,7 @@ pub fn GrooveType(
                 pub inline fn get(object: *const Object) ?Type {
                     if (is_derived) {
                         const function = @field(groove_options.derived, field_name);
+
                         return function(object);
                     }
 
@@ -551,13 +597,17 @@ pub fn GrooveType(
 
         inline fn tombstone_from_key(a: PrimaryKey) Object {
             var obj: Object = undefined;
+
             if (comptime _is_primary_key(.timestamp)) {
                 obj.timestamp = a;
             } else {
                 @field(obj, groove_options.primary_key) = a;
+
                 obj.timestamp = 0;
             }
+
             obj.timestamp |= tombstone_bit;
+
             return obj;
         }
 
@@ -594,11 +644,13 @@ pub fn GrooveType(
         /// Union containing all of the Object's unique keys.
         pub const UniqueKey: type = T: {
             const Tag = stdx.EnumType(.{"timestamp"} ++ groove_options.unique_keys);
+
             break :T stdx.EnumUnionType(
                 Tag,
                 struct {
                     fn Type(comptime variant: Tag) type {
                         const IndexHelper = IndexHelperType(@tagName(variant));
+
                         return IndexHelper.Type;
                     }
                 }.Type,
@@ -636,6 +688,7 @@ pub fn GrooveType(
                     inline else => |value, tag| value: {
                         if (groove_options.unique_keys.len == 0) {
                             comptime assert(tag == .timestamp);
+
                             break :value value;
                         }
 
@@ -643,20 +696,25 @@ pub fn GrooveType(
                         // and the value as the least significant bytes.
                         // Ensures it is the smallest aligned integer possible.
                         const Tag = std.meta.Tag(std.meta.Tag(UniqueKey));
+
                         comptime assert(@sizeOf(Tag) > 0);
 
                         const Value = @TypeOf(value);
+
                         const size_bytes = comptime std.mem.alignForward(
                             usize,
                             @sizeOf(Tag) + @sizeOf(Value),
                             @alignOf(Value),
                         );
+
                         comptime assert(size_bytes >= @sizeOf(Value) + @sizeOf(Tag));
 
                         const Int = std.meta.Int(.unsigned, size_bytes * 8);
+
                         comptime assert(stdx.no_padding(Int));
 
                         const tag_shift = @bitSizeOf(Int) - @bitSizeOf(Tag);
+
                         break :value (@as(Int, @intFromEnum(tag)) << tag_shift) |
                             @as(Int, value);
                     },
@@ -671,11 +729,13 @@ pub fn GrooveType(
             pub fn eql(ctx: @This(), a: UniqueKey, b: UniqueKey, b_index: usize) bool {
                 _ = b_index;
                 _ = ctx;
+
                 switch (a) {
                     inline else => |value, tag| {
                         // Disable runtime safety: we do not have to check the tag of `b` when
                         // accessing the field, since it has already been checked against `a`.
                         @setRuntimeSafety(builtin.mode != .ReleaseSafe);
+
                         return b == tag and
                             value == @field(b, @tagName(tag));
                     },
@@ -753,6 +813,7 @@ pub fn GrooveType(
         ) !void {
             assert(options.tree_options_object.batch_value_count_limit *
                 constants.lsm_compaction_ops <= ObjectTree.Table.value_count_max);
+
             assert(radix_buffer.state == .free);
 
             groove.* = .{
@@ -786,6 +847,7 @@ pub fn GrooveType(
                 // no `objects_cache` is needed.
                 assert(options.prefetch_entries_for_read_max == 0);
                 assert(options.prefetch_entries_for_update_max == 0);
+
                 {}
             };
 
@@ -803,14 +865,17 @@ pub fn GrooveType(
                 },
                 options.tree_options_object,
             );
+
             errdefer groove.objects.deinit(allocator);
 
             var index_trees_initialized: usize = 0;
+
             // Make sure to deinit initialized index LSM trees on error.
             errdefer inline for (std.meta.fields(IndexTrees), 0..) |field, field_index| {
                 if (index_trees_initialized >= field_index + 1) {
                     const Tree = field.type;
                     const tree: *Tree = &@field(groove.indexes, field.name);
+
                     tree.deinit(allocator);
                 }
             };
@@ -819,6 +884,7 @@ pub fn GrooveType(
             inline for (std.meta.fields(IndexTrees)) |field| {
                 const Tree = field.type;
                 const tree: *Tree = &@field(groove.indexes, field.name);
+
                 try tree.init(
                     allocator,
                     node_pool,
@@ -830,19 +896,23 @@ pub fn GrooveType(
                     },
                     @field(options.tree_options_index, field.name),
                 );
+
                 index_trees_initialized += 1;
             }
 
             groove.prefetch_keys = .{};
+
             try groove.prefetch_keys.ensureTotalCapacity(
                 allocator,
                 // The total prefetch capacity must account for reads and
                 // idempotency checks performed during insert/update.
                 options.prefetch_entries_for_read_max + options.prefetch_entries_for_update_max,
             );
+
             errdefer groove.prefetch_keys.deinit(allocator);
 
             if (has_scan) try groove.scan_builder.init(allocator);
+
             errdefer if (has_scan) groove.scan_builder.deinit(allocator);
         }
 
@@ -852,7 +922,6 @@ pub fn GrooveType(
             }
 
             groove.objects.deinit(allocator);
-
             groove.prefetch_keys.deinit(allocator);
 
             if (ObjectsCache != void) groove.objects_cache.deinit(allocator);
@@ -865,12 +934,11 @@ pub fn GrooveType(
             inline for (std.meta.fields(IndexTrees)) |field| {
                 @field(groove.indexes, field.name).reset();
             }
-            groove.objects.reset();
 
+            groove.objects.reset();
             groove.prefetch_keys.clearRetainingCapacity();
 
             if (ObjectsCache != void) groove.objects_cache.reset();
-
             if (has_scan) groove.scan_builder.reset();
 
             groove.* = .{
@@ -892,6 +960,7 @@ pub fn GrooveType(
                     if (object.timestamp == 0) {
                         if (!groove_options.primary_key_orphaned) unreachable;
                         if (is_primary_key(.timestamp)) unreachable;
+
                         comptime assert(groove_options.primary_key_orphaned);
                         comptime assert(!is_primary_key(.timestamp));
 
@@ -901,6 +970,7 @@ pub fn GrooveType(
                                 groove_options.primary_key,
                                 key,
                             ));
+
                             assert(prefetch_key == null or
                                 prefetch_key.? == .found_orphaned or
                                 prefetch_key.? == .not_found // not found and then failed.
@@ -909,6 +979,7 @@ pub fn GrooveType(
 
                         return .found_orphaned;
                     }
+
                     assert(TimestampRange.valid(object.timestamp));
 
                     if (constants.verify) {
@@ -917,6 +988,7 @@ pub fn GrooveType(
                             groove_options.primary_key,
                             key,
                         ));
+
                         assert(prefetch_key == null or
                             prefetch_key.? == .found or
                             prefetch_key.? == .not_found // not found and then inserted.
@@ -932,6 +1004,7 @@ pub fn GrooveType(
                             groove_options.primary_key,
                             key,
                         ));
+
                         assert(prefetch_key == null or
                             prefetch_key.? == .not_found or
                             prefetch_key.? == .found // found and then deleted.
@@ -945,6 +1018,7 @@ pub fn GrooveType(
                         const prefetch_key = groove.prefetch_keys.get(
                             @unionInit(UniqueKey, groove_options.primary_key, key),
                         );
+
                         assert(prefetch_key == null or prefetch_key.? == .not_found);
                     }
 
@@ -958,20 +1032,25 @@ pub fn GrooveType(
         /// Use `get()` for direct lookups by the primary key.
         pub fn indirect_lookup(groove: *const Groove, key: UniqueKey) ?Object {
             comptime assert(groove_options.unique_keys.len > 0);
+
             assert(!is_primary_key(std.meta.activeTag(key)));
 
             const prefetch_status = groove.prefetch_keys.get(key);
+
             assert(prefetch_status != null);
 
             switch (prefetch_status.?) {
                 .enqueued, .prefetching => unreachable,
                 .found => |primary_key| {
                     const object: ?*Object = groove.objects_cache.get(primary_key);
+
                     assert(object != null);
                     assert(object.?.timestamp != 0);
+
                     switch (key) {
                         inline else => |value, field| {
                             const IndexHelper = IndexHelperType(@tagName(field));
+
                             assert(IndexHelper.get(object.?).? == value);
                         },
                     }
@@ -988,6 +1067,7 @@ pub fn GrooveType(
             assert(snapshot_target < snapshot_latest);
 
             groove.prefetch_snapshot = snapshot_target;
+
             groove.prefetch_keys.clearRetainingCapacity();
         }
 
@@ -1001,12 +1081,16 @@ pub fn GrooveType(
             key: UniqueKey,
         ) void {
             const entry = groove.prefetch_keys.getOrPutAssumeCapacity(key);
+
             // No need to check again if the key is already enqueued for prefetching.
             if (entry.found_existing) {
                 assert(entry.value_ptr.* != .enqueued);
+
                 return;
             }
+
             entry.value_ptr.* = .enqueued;
+
             defer assert(entry.value_ptr.* != .enqueued);
 
             const timestamp_hint: ?u64 = switch (key) {
@@ -1016,6 +1100,7 @@ pub fn GrooveType(
                         // so the prefetch step does not need to verify the data's validity.
                         if (!TimestampRange.valid(value)) {
                             entry.value_ptr.* = .not_found;
+
                             return;
                         }
 
@@ -1024,6 +1109,7 @@ pub fn GrooveType(
                                 entry.value_ptr.* = .{
                                     .found = value,
                                 };
+
                                 return;
                             }
                         }
@@ -1033,17 +1119,20 @@ pub fn GrooveType(
                             value,
                         )) {
                             entry.value_ptr.* = .not_found;
+
                             return;
                         }
 
                         break :timestamp value;
                     }
+
                     comptime assert(field != .timestamp);
 
                     // Instead of asserting, we allow and ignore zeroes keys (most likely zero),
                     // so the prefetch step does not need to verify the data's validity.
                     if (value == 0) {
                         entry.value_ptr.* = .not_found;
+
                         return;
                     }
 
@@ -1053,19 +1142,23 @@ pub fn GrooveType(
                                 if (groove_options.primary_key_orphaned) {
                                     if (object.timestamp == 0) {
                                         entry.value_ptr.* = .found_orphaned;
+
                                         return;
                                     }
                                 }
+
                                 assert(TimestampRange.valid(object.timestamp));
 
                                 entry.value_ptr.* = .{
                                     .found = value,
                                 };
+
                                 return;
                             },
                             .tombstone => {
                                 // Tombstone found in the object cache, the key was deleted.
                                 entry.value_ptr.* = .not_found;
+
                                 return;
                             },
                             .not_found => {},
@@ -1074,8 +1167,10 @@ pub fn GrooveType(
 
                     const Tree = @FieldType(IndexTrees, @tagName(field));
                     const tree: *Tree = &@field(groove.indexes, @tagName(field));
+
                     if (!tree.key_range_contains(groove.prefetch_snapshot.?, value)) {
                         entry.value_ptr.* = .not_found;
+
                         return;
                     }
 
@@ -1085,9 +1180,11 @@ pub fn GrooveType(
                         // When searching by other unique keys, the mutable
                         // table needs to be sorted and binary-searched.
                         tree.table_mutable.sort();
+
                         if (tree.table_mutable.get(value)) |tree_value| {
                             if (tree_value.tombstone()) {
                                 entry.value_ptr.* = .not_found;
+
                                 return;
                             }
 
@@ -1095,9 +1192,11 @@ pub fn GrooveType(
                             // as orphaned objects are only expected for primary keys.
                             assert(TimestampRange.valid(tree_value.timestamp));
                             assert(tree_value.field == value);
+
                             break :timestamp tree_value.timestamp;
                         }
                     }
+
                     break :timestamp null;
                 },
             };
@@ -1111,6 +1210,7 @@ pub fn GrooveType(
                             entry.value_ptr.* = .{
                                 .found = timestamp,
                             };
+
                             return;
                         }
                     } else {
@@ -1124,9 +1224,11 @@ pub fn GrooveType(
                                     .found = primary_key,
                                 };
                                 return;
+
                             },
                             .tombstone => {
                                 entry.value_ptr.* = .not_found;
+
                                 return;
                             },
                             .not_found => {},
@@ -1140,8 +1242,10 @@ pub fn GrooveType(
                     .entry = entry,
                     .timestamp_hint = timestamp,
                 });
+
                 return;
             }
+
             assert(timestamp_hint == null);
             assert(key != .timestamp);
 
@@ -1158,6 +1262,7 @@ pub fn GrooveType(
         ) void {
             assert(!entry.found_existing);
             assert(entry.value_ptr.* == .enqueued);
+
             defer assert(entry.value_ptr.* != .enqueued);
 
             const key: UniqueKey = entry.key_ptr.*;
@@ -1166,6 +1271,7 @@ pub fn GrooveType(
                 inline else => |value, field| {
                     // Timestamp is handled by `prefetch_from_memory_by_timestamp`.
                     if (field == .timestamp) unreachable;
+
                     comptime assert(field != .timestamp);
 
                     const Tree = @FieldType(IndexTrees, @tagName(field));
@@ -1184,15 +1290,19 @@ pub fn GrooveType(
                             if (tree_value.timestamp == 0) {
                                 if (!groove_options.primary_key_orphaned) unreachable;
                                 if (!is_primary_key(field)) unreachable;
+
                                 comptime assert(groove_options.primary_key_orphaned);
                                 comptime assert(is_primary_key(field));
 
                                 // Zeroed timestamp indicates the object is not present,
                                 // and this id cannot be used anymore.
                                 entry.value_ptr.* = .found_orphaned;
+
                                 groove.insert_orphaned_object(value);
+
                                 return;
                             }
+
                             assert(TimestampRange.valid(tree_value.timestamp));
 
                             if (comptime !is_primary_key(field)) {
@@ -1208,10 +1318,12 @@ pub fn GrooveType(
                                         entry.value_ptr.* = .{
                                             .found = primary_key,
                                         };
+
                                         return;
                                     },
                                     .tombstone => {
                                         entry.value_ptr.* = .not_found;
+
                                         return;
                                     },
                                     .not_found => {},
@@ -1249,11 +1361,13 @@ pub fn GrooveType(
         ) void {
             assert(!options.entry.found_existing);
             assert(options.entry.value_ptr.* == .enqueued);
+
             defer assert(options.entry.value_ptr.* != .enqueued);
 
             assert(TimestampRange.valid(options.timestamp_hint));
 
             const key: UniqueKey = options.entry.key_ptr.*;
+
             if (key == .timestamp) assert(key.timestamp == options.timestamp_hint);
 
             switch (groove.objects.lookup_from_levels_cache(
@@ -1270,10 +1384,13 @@ pub fn GrooveType(
                     switch (key) {
                         inline else => |value, field| {
                             const IndexHelper = IndexHelperType(@tagName(field));
+
                             assert(IndexHelper.get(object).? == value);
                         },
                     }
+
                     groove.objects_cache.upsert(object);
+
                     options.entry.value_ptr.* = .{
                         .found = @field(object, groove_options.primary_key),
                     };
@@ -1309,19 +1426,23 @@ pub fn GrooveType(
             // The mutable table needs to be sorted to enable searching.
             // If not found, the immutable table and other LSM levels will be searched.
             groove.objects.table_mutable.sort();
+
             if (groove.objects.table_mutable.get(
                 timestamp,
             )) |object| {
                 if (ObjectTreeHelper.tombstone(object)) {
                     assert(ObjectTreeHelper.key_from_value(object) == timestamp);
+
                     return .tombstone;
                 }
+
                 assert(!ObjectTreeHelper.tombstone(object));
                 assert(object.timestamp == timestamp);
 
                 switch (key) {
                     inline else => |value, field| {
                         const IndexHelper = IndexHelperType(@tagName(field));
+
                         assert(IndexHelper.get(object).? == value);
                     },
                 }
@@ -1330,7 +1451,9 @@ pub fn GrooveType(
                     object,
                     groove_options.primary_key,
                 );
+
                 assert(groove.objects_cache.has(primary_key));
+
                 return .{ .found = primary_key };
             }
 
@@ -1350,7 +1473,9 @@ pub fn GrooveType(
                 .snapshot = groove.prefetch_snapshot.?,
                 .key_iterator = groove.prefetch_keys.iterator(),
             };
+
             groove.prefetch_snapshot = null;
+
             context.start_workers();
         }
 
@@ -1397,6 +1522,7 @@ pub fn GrooveType(
                     );
 
                     context.workers_pending += 1;
+
                     worker.lookup_start_next();
 
                     // If the worker finished synchronously (e.g `workers_pending` decreased),
@@ -1405,6 +1531,7 @@ pub fn GrooveType(
                 }
 
                 assert(context.workers_pending > 0);
+
                 context.workers_pending -= 1;
 
                 if (context.workers_pending == 0) {
@@ -1418,44 +1545,53 @@ pub fn GrooveType(
                 const context: *PrefetchContext = @alignCast(
                     @fieldParentPtr("next_tick", completion),
                 );
+
                 assert(context.workers_pending == 0);
+
                 context.finish();
             }
 
             fn worker_finished(context: *PrefetchContext) void {
                 context.workers_pending -= 1;
+
                 if (context.workers_pending == 0) context.finish();
             }
 
             fn finish(context: *PrefetchContext) void {
                 assert(context.workers_pending == 0);
-
                 assert(context.key_iterator.next() == null);
+
                 if (constants.verify) {
                     // Validate that all keys have been prefetched
                     // and are consistent with the object cache.
                     var it = context.groove.prefetch_keys.iterator();
+
                     while (it.next()) |entry| {
                         switch (entry.value_ptr.*) {
                             .enqueued, .prefetching => unreachable,
                             .found => |primary_key| {
                                 assert(primary_key != 0);
+
                                 if (is_primary_key(std.meta.activeTag(entry.key_ptr.*))) {
                                     const value: PrimaryKey = @field(
                                         entry.key_ptr.*,
                                         groove_options.primary_key,
                                     );
+
                                     assert(primary_key == value);
                                 }
 
                                 const object: ?*Object = context.groove.objects_cache.get(
                                     primary_key,
                                 );
+
                                 assert(object != null);
                                 assert(object.?.timestamp != 0);
+
                                 switch (entry.key_ptr.*) {
                                     inline else => |value, field| {
                                         const IndexHelper = IndexHelperType(@tagName(field));
+
                                         assert(IndexHelper.get(object.?).? == value);
                                     },
                                 }
@@ -1466,6 +1602,7 @@ pub fn GrooveType(
                                         entry.key_ptr.*,
                                         groove_options.primary_key,
                                     );
+
                                     assert(!context.groove.objects_cache.has(primary_key));
                                 }
                             },
@@ -1477,15 +1614,18 @@ pub fn GrooveType(
                                     entry.key_ptr.*,
                                     groove_options.primary_key,
                                 );
+
                                 const object: ?*Object = context.groove.objects_cache.get(
                                     primary_key,
                                 );
+
                                 assert(object != null);
                                 assert(object.?.timestamp == 0);
                             },
                         }
                     }
                 }
+
                 context.groove.grid.trace.stop(.{
                     .lookup = .{ .tree = @enumFromInt(context.groove.objects.config.id) },
                 });
@@ -1502,12 +1642,14 @@ pub fn GrooveType(
 
             const LookupContext = T: {
                 const Tag = stdx.EnumType(.{ "null", "object" } ++ groove_options.unique_keys);
+
                 break :T stdx.EnumUnionType(
                     Tag,
                     struct {
                         fn Type(comptime variant: Tag) type {
                             if (variant == .null) return void;
                             if (variant == .object) return ObjectTree.LookupContext;
+
                             return @FieldType(IndexTrees, @tagName(variant)).LookupContext;
                         }
                     }.Type,
@@ -1515,6 +1657,7 @@ pub fn GrooveType(
             };
 
             const Field = std.meta.FieldEnum(LookupContext);
+
             fn FieldType(comptime field: Field) type {
                 return @FieldType(LookupContext, @tagName(field));
             }
@@ -1524,6 +1667,7 @@ pub fn GrooveType(
                 completion: *FieldType(field),
             ) *PrefetchWorker {
                 const lookup: *LookupContext = @fieldParentPtr(@tagName(field), completion);
+
                 assert(lookup.* ==
                     comptime std.enums.nameCast(std.meta.Tag(LookupContext), field));
 
@@ -1535,16 +1679,19 @@ pub fn GrooveType(
                 comptime field: Field,
             ) *FieldType(field) {
                 assert(self.lookup == .null);
+
                 self.lookup = @unionInit(
                     LookupContext,
                     @tagName(field),
                     undefined,
                 );
+
                 return &@field(self.lookup, @tagName(field));
             }
 
             fn lookup_start_next(worker: *PrefetchWorker) void {
                 assert(worker.current == null);
+
                 worker.current = prefetch_entry: {
                     while (worker.context.key_iterator.next()) |entry| {
                         switch (entry.value_ptr.*) {
@@ -1560,10 +1707,14 @@ pub fn GrooveType(
                             .tree = @enumFromInt(worker.context.groove.objects.config.id),
                         } },
                     );
+
                     worker.context.worker_finished();
+
                     return;
                 };
+
                 assert(worker.current.?.value_ptr.* == .prefetching);
+
                 // prefetch_enqueue() ensures that the tree's cache is checked before queueing the
                 // object for prefetching. If not in the LSM tree's cache, the object must be read
                 // from disk and added to the auxiliary prefetch_objects hash map.
@@ -1571,6 +1722,7 @@ pub fn GrooveType(
                     if (worker.current.?.key_ptr.* == .timestamp) {
                         assert(worker.current.?.key_ptr.timestamp == timestamp);
                     }
+
                     worker.context.groove.objects.lookup_from_levels_storage(.{
                         .callback = lookup_object_callback,
                         .context = worker.lookup_context(.object),
@@ -1578,13 +1730,16 @@ pub fn GrooveType(
                         .key = timestamp,
                         .level_min = worker.current.?.value_ptr.prefetching.level,
                     });
+
                     return;
                 }
+
                 assert(worker.current.?.value_ptr.prefetching.timestamp_hint == null);
 
                 // The code below is specific to handling unique indexes,
                 // it does not apply to grooves with only the `timestamp` as PrefetchKey.
                 if (groove_options.unique_keys.len == 0) unreachable;
+
                 comptime assert(groove_options.unique_keys.len > 0);
 
                 switch (worker.current.?.key_ptr.*) {
@@ -1598,6 +1753,7 @@ pub fn GrooveType(
                             worker.context.groove.indexes,
                             @tagName(field),
                         );
+
                         tree.lookup_from_levels_storage(.{
                             .callback = callback,
                             .context = worker.lookup_context(comptime std.enums.nameCast(
@@ -1625,20 +1781,25 @@ pub fn GrooveType(
                             comptime std.enums.nameCast(Field, @tagName(field)),
                             completion,
                         );
+
                         assert(worker.current != null);
+
                         assert(worker.lookup ==
                             comptime std.enums.nameCast(std.meta.Tag(LookupContext), field));
 
                         worker.lookup = .null;
 
                         const entry = worker.current.?;
+
                         assert(entry.key_ptr.* != .timestamp);
                         assert(entry.value_ptr.* == .prefetching);
 
                         const tree_value = result orelse {
                             entry.value_ptr.* = .not_found;
                             worker.current = null;
+
                             worker.lookup_start_next();
+
                             return;
                         };
 
@@ -1648,14 +1809,18 @@ pub fn GrooveType(
                         if (tree_value.timestamp == 0) {
                             if (!groove_options.primary_key_orphaned) unreachable;
                             if (!is_primary_key(field)) unreachable;
+
                             comptime assert(groove_options.primary_key_orphaned);
                             comptime assert(is_primary_key(field));
 
                             worker.context.groove.insert_orphaned_object(tree_value.field);
+
                             entry.value_ptr.* = .found_orphaned;
 
                             worker.current = null;
+
                             worker.lookup_start_next();
+
                             return;
                         }
 
@@ -1663,9 +1828,12 @@ pub fn GrooveType(
                             entry.value_ptr.* = .not_found;
 
                             worker.current = null;
+
                             worker.lookup_start_next();
+
                             return;
                         }
+
                         assert(!tree_value.tombstone());
                         assert(TimestampRange.valid(tree_value.timestamp));
 
@@ -1684,14 +1852,18 @@ pub fn GrooveType(
                                     };
 
                                     worker.current = null;
+
                                     worker.lookup_start_next();
+
                                     return;
                                 },
                                 .tombstone => {
                                     entry.value_ptr.* = .not_found;
 
                                     worker.current = null;
+
                                     worker.lookup_start_next();
+
                                     return;
                                 },
                                 .not_found => {},
@@ -1699,6 +1871,7 @@ pub fn GrooveType(
                         }
 
                         assert(worker.current.?.value_ptr.* == .prefetching);
+
                         worker.lookup_by_timestamp(tree_value.timestamp);
                     }
                 }.callback;
@@ -1739,24 +1912,31 @@ pub fn GrooveType(
                 result: ?*const Object,
             ) void {
                 const worker: *PrefetchWorker = worker_from_completion(.object, completion);
+
                 assert(worker.lookup == .object);
+
                 worker.lookup = .null;
 
                 assert(worker.current != null);
                 assert(worker.current.?.value_ptr.* == .prefetching);
 
                 const entry = worker.current.?;
+
                 worker.current = null;
 
                 if (result) |object| {
                     assert(!ObjectTreeHelper.tombstone(object));
+
                     switch (entry.key_ptr.*) {
                         inline else => |value, field| {
                             const IndexHelper = IndexHelperType(@tagName(field));
+
                             assert(IndexHelper.get(object).? == value);
                         },
                     }
+
                     worker.context.groove.objects_cache.upsert(object);
+
                     entry.value_ptr.* = .{
                         .found = @field(object, groove_options.primary_key),
                     };
@@ -1775,7 +1955,9 @@ pub fn GrooveType(
 
             if (ObjectsCache != void) {
                 const primary_key = @field(object, groove_options.primary_key);
+
                 assert(!groove.objects_cache.has(primary_key));
+
                 groove.objects_cache.upsert(object);
             }
 
@@ -1784,9 +1966,11 @@ pub fn GrooveType(
 
             inline for (std.meta.fields(IndexTrees)) |field| {
                 const IndexHelper = IndexHelperType(field.name);
+
                 if (IndexHelper.index_from_object(object)) |value| {
                     const Tree = field.type;
                     const tree: *Tree = &@field(groove.indexes, field.name);
+
                     tree.put(&.{
                         .timestamp = object.timestamp,
                         .field = value,
@@ -1811,12 +1995,12 @@ pub fn GrooveType(
             if (ObjectsCache != void) {
                 const primary_key = @field(old, groove_options.primary_key);
                 const old_from_cache = groove.objects_cache.get(primary_key).?;
+
                 assert(stdx.equal_bytes(Object, old_from_cache, old));
             }
 
             // Sanity check to ensure the caller didn't accidentally pass in an alias.
             assert(new != old);
-
             assert(old.timestamp == new.timestamp);
             assert(TimestampRange.valid(new.timestamp));
 
@@ -1843,8 +2027,10 @@ pub fn GrooveType(
                 if (IndexHelper.is_unique_key) {
                     // Invariant: Unique keys cannot change.
                     assert(old_index == new_index);
+
                     continue;
                 }
+
                 comptime assert(!IndexHelper.is_unique_key);
                 comptime maybe(IndexHelper.is_derived);
 
@@ -1856,6 +2042,7 @@ pub fn GrooveType(
                             .field = value,
                         });
                     }
+
                     if (new_index) |value| {
                         @field(groove.indexes, field.name).put(&.{
                             .timestamp = new.timestamp,
@@ -1873,6 +2060,7 @@ pub fn GrooveType(
             if (ObjectsCache != void) {
                 groove.objects_cache.upsert(new);
             }
+
             groove.objects.put(new);
         }
 
@@ -1886,6 +2074,7 @@ pub fn GrooveType(
             // The object must have been prefetched beforehand,
             // to ensure we only delete existing keys.
             const object: *const Object = groove.objects_cache.get(key).?;
+
             assert(TimestampRange.valid(object.timestamp));
 
             // TODO: should update the timestamp range,
@@ -1894,9 +2083,11 @@ pub fn GrooveType(
 
             inline for (std.meta.fields(IndexTrees)) |field| {
                 const IndexHelper = IndexHelperType(field.name);
+
                 if (IndexHelper.index_from_object(object)) |value| {
                     const IndexTree = @FieldType(IndexTrees, field.name);
                     const tree: *IndexTree = &@field(groove.indexes, field.name);
+
                     tree.remove(&.{
                         .timestamp = object.timestamp,
                         .field = value,
@@ -1924,6 +2115,7 @@ pub fn GrooveType(
             assert(key != std.math.maxInt(PrimaryKey));
 
             const tree_key = &@field(groove.indexes, groove_options.primary_key);
+
             // We should not insert an orphaned `id` inside a scope.
             assert(!groove.objects_cache.scope_is_active);
             assert(!groove.objects_cache.has(key));
@@ -1947,7 +2139,9 @@ pub fn GrooveType(
             assert(key != std.math.maxInt(PrimaryKey));
 
             var orphaned: Object = std.mem.zeroInit(Object, .{});
+
             @field(orphaned, groove_options.primary_key) = key;
+
             groove.objects_cache.upsert(&orphaned);
         }
 
@@ -1965,6 +2159,7 @@ pub fn GrooveType(
 
         pub fn scope_open(groove: *Groove) void {
             if (ObjectsCache != void) groove.objects_cache.scope_open();
+
             groove.objects.scope_open();
 
             inline for (std.meta.fields(IndexTrees)) |field| {
@@ -1974,6 +2169,7 @@ pub fn GrooveType(
 
         pub fn scope_close(groove: *Groove, mode: ScopeCloseMode) void {
             if (ObjectsCache != void) groove.objects_cache.scope_close(mode);
+
             groove.objects.scope_close(mode);
 
             inline for (std.meta.fields(IndexTrees)) |field| {
@@ -1992,15 +2188,18 @@ pub fn GrooveType(
             // their mutable tables.
             if (ObjectsCache != void) {
                 const compaction_beat = op % constants.lsm_compaction_ops;
+
                 if (compaction_beat == constants.lsm_compaction_ops - 1) {
                     groove.objects_cache.compact();
                 }
 
                 const Trace = @TypeOf(groove.grid.trace.*);
+
                 const GrooveMetric = @FieldType(
                     @FieldType(Trace.EventMetric, "lsm_object_cache_entries"),
                     "groove",
                 );
+
                 const maybe_groove_metric = comptime std.meta.stringToEnum(
                     GrooveMetric,
                     ObjectTree.tree_name(),
@@ -2013,6 +2212,7 @@ pub fn GrooveType(
                         } },
                         groove.objects_cache.cache_entries(),
                     );
+
                     groove.grid.trace.gauge(
                         .{ .lsm_object_cache_entries_max = .{
                             .groove = groove_metric,

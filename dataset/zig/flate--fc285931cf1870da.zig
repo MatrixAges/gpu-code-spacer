@@ -85,10 +85,12 @@ pub const Container = enum {
 
     pub const Hasher = union(Container) {
         raw: void,
+
         gzip: struct {
             crc: std.hash.Crc32 = .init(),
             count: u32 = 0,
         },
+
         zlib: std.hash.Adler32,
 
         pub fn init(containter: Container) Hasher {
@@ -108,6 +110,7 @@ pub const Container = enum {
                 .raw => {},
                 .gzip => |*gzip| {
                     gzip.crc.update(buf);
+
                     gzip.count +%= @truncate(buf.len);
                 },
                 .zlib => |*zlib| {
@@ -141,10 +144,12 @@ pub const Container = enum {
 
     pub const Metadata = union(Container) {
         raw: void,
+
         gzip: struct {
             crc: u32 = 0,
             count: u32 = 0,
         },
+
         zlib: struct {
             adler: u32 = 0,
         },

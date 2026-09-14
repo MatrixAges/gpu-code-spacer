@@ -5,16 +5,19 @@ import { init, parse as parseImports } from 'es-module-lexer'
 import getEtag from 'etag'
 import MagicString from 'magic-string'
 import colors from 'picocolors'
+
 import type {
   ModuleType,
   PartialResolvedId,
   SourceDescription,
   SourceMap,
 } from 'rolldown'
+
 import { cleanUrl, slash, unwrapId } from '../../shared/utils'
 import { checkPublicFile } from '../publicDir'
 import type { EnvironmentModuleNode } from '../server/moduleGraph'
 import { ssrTransform } from '../ssr/ssrTransform'
+
 import {
   createDebugger,
   ensureWatchedFile,
@@ -27,10 +30,12 @@ import {
   stripBase,
   timeFrom,
 } from '../utils'
+
 import type { DevEnvironment } from './environment'
 import { isFileLoadingAllowed } from './middlewares/static'
 import { isServerAccessDeniedForTransform } from './middlewares/transform'
 import { throwClosedServerError } from './pluginContainer'
+
 import {
   applySourcemapIgnoreList,
   extractSourcemapFromFile,
@@ -108,6 +113,7 @@ export function transformRequest(
   url = removeTimestampQuery(url)
 
   const pending = environment._pendingRequests.get(url)
+
   if (pending) {
     return environment.moduleGraph.getModuleByUrl(url).then((module) => {
       if (!module || pending.timestamp > module.lastInvalidationTimestamp) {
@@ -121,6 +127,7 @@ export function transformRequest(
         // First request has been invalidated, abort it to clear the cache,
         // then perform a new doTransform.
         pending.abort()
+
         return transformRequest(environment, url, options)
       }
     })
@@ -130,9 +137,11 @@ export function transformRequest(
 
   // Avoid clearing the cache of future requests if aborted
   let cleared = false
+
   const clearCache = () => {
     if (!cleared) {
       environment._pendingRequests.delete(url)
+
       cleared = true
     }
   }
@@ -156,6 +165,7 @@ async function doTransform(
   const { pluginContainer } = environment
 
   let module = await environment.moduleGraph.getModuleByUrl(url)
+
   if (module) {
     // try use cache from url
     const cached = await getCachedTransformResult(
@@ -164,6 +174,7 @@ async function doTransform(
       module,
       timestamp,
     )
+
     if (cached) return cached
   }
 
@@ -175,9 +186,11 @@ async function doTransform(
   const id = module?.id ?? resolved?.id ?? url
 
   module ??= environment.moduleGraph.getModuleById(id)
+
   if (module) {
     // if a different url maps to an existing loaded id,  make sure we relate this url to the id
     await environment.moduleGraph._ensureEntryFromUrl(url, undefined, resolved)
+
     // try use cache from id
     const cached = await getCachedTransformResult(
       environment,
@@ -185,6 +198,7 @@ async function doTransform(
       module,
       timestamp,
     )
+
     if (cached) return cached
   }
 
@@ -199,6 +213,7 @@ async function doTransform(
   )
 
   const { depsOptimizer } = environment
+
   if (!depsOptimizer?.isOptimizedDepFile(id)) {
     environment._registerRequestProcessing(id, () => result)
   }
@@ -221,15 +236,19 @@ async function getCachedTransformResult(
     module,
     timestamp,
   )
+
   if (softInvalidatedTransformResult) {
     debugCache?.(`[memory-hmr] ${prettyUrl}`)
+
     return softInvalidatedTransformResult
   }
 
   // check if we have a fresh cache
   const cached = module.transformResult
+
   if (cached) {
     debugCache?.(`[memory] ${prettyUrl}`)
+
     return cached
   }
 }
@@ -244,6 +263,7 @@ async function loadAndTransform(
   resolved?: PartialResolvedId,
 ) {
   const { config, pluginContainer, logger } = environment
+
   const prettyUrl =
     debugLoad || debugTransform ? prettifyUrl(url, config.root) : ''
 
@@ -255,8 +275,10 @@ async function loadAndTransform(
     isServerAccessDeniedForTransform(config, id)
   ) {
     const err: any = new Error(`Denied ID ${id}`)
+
     err.code = ERR_DENIED_ID
     err.id = id
+
     throw err
   }
 
@@ -282,12 +304,14 @@ async function loadAndTransform(
     ) {
       try {
         code = await fsp.readFile(file, 'utf-8')
+
         debugLoad?.(`${timeFrom(loadStart)} [fs] ${prettyUrl}`)
       } catch (e) {
         if (e.code !== 'ENOENT' && e.code !== 'EISDIR') {
           throw e
         }
       }
+
       if (code != null && environment.pluginContainer.watcher) {
         ensureWatchedFile(
           environment.pluginContainer.watcher,
@@ -296,9 +320,11 @@ async function loadAndTransform(
         )
       }
     }
+
     if (code) {
       try {
         const extracted = extractSourcemapFromFile(code, file, logger)
+
         if (extracted) {
           code = extracted.code
           map = extracted.map
@@ -311,6 +337,7 @@ async function loadAndTransform(
     }
   } else {
     debugLoad?.(`${timeFrom(loadStart)} [plugin] ${prettyUrl}`)
+
     if (isObject(loadResult)) {
       code = loadResult.code
       map = loadResult.map
@@ -319,29 +346,39 @@ async function loadAndTransform(
       code = loadResult
     }
   }
+
   if (code == null) {
     const isPublicFile = checkPublicFile(url, environment.getTopLevelConfig())
     let publicDirName = path.relative(config.root, config.publicDir)
+
     if (publicDirName[0] !== '.') publicDirName = '/' + publicDirName
+
     const msg = isPublicFile
       ? `This file is in ${publicDirName} and will be copied as-is during ` +
         `build without going through the plugin transforms, and therefore ` +
         `should not be imported from source code. It can only be referenced ` +
         `via HTML tags.`
       : `Does the file exist?`
+
     const importerMod: EnvironmentModuleNode | undefined =
       moduleGraph.idToModuleMap.get(id)?.importers.values().next().value
+
     const importer = importerMod?.file || importerMod?.url
+
     const err: any = new Error(
       `Failed to load url ${url} (resolved id: ${id})${
         importer ? ` in ${importer}` : ''
       }. ${msg}`,
     )
+
     err.code = isPublicFile ? ERR_LOAD_PUBLIC_URL : ERR_LOAD_URL
+
     throw err
   }
+
   if (moduleType === undefined) {
     const guessedModuleType = getModuleTypeFromId(id)
+
     if (guessedModuleType && guessedModuleType !== 'js') {
       moduleType = guessedModuleType
     }
@@ -355,11 +392,14 @@ async function loadAndTransform(
 
   // transform
   const transformStart = debugTransform ? performance.now() : 0
+
   const transformResult = await pluginContainer.transform(code, id, {
     inMap: map,
     moduleType,
   })
+
   const originalCode = code
+
   if (transformResult.code === originalCode) {
     // no transform applied, keep code as-is
     debugTransform?.(
@@ -367,11 +407,13 @@ async function loadAndTransform(
     )
   } else {
     debugTransform?.(`${timeFrom(transformStart)} ${prettyUrl}`)
+
     code = transformResult.code!
     map = transformResult.map
   }
 
   let normalizedMap: SourceMap | { mappings: '' } | null
+
   if (typeof map === 'string') {
     normalizedMap = JSON.parse(map)
   } else if (map) {
@@ -386,6 +428,7 @@ async function loadAndTransform(
     }
 
     const sourcemapPath = `${mod.file}.map`
+
     applySourcemapIgnoreList(
       normalizedMap,
       sourcemapPath,
@@ -395,18 +438,21 @@ async function loadAndTransform(
 
     if (path.isAbsolute(mod.file)) {
       let modDirname
+
       for (
         let sourcesIndex = 0;
         sourcesIndex < normalizedMap.sources.length;
         ++sourcesIndex
       ) {
         const sourcePath = normalizedMap.sources[sourcesIndex]
+
         if (sourcePath) {
           // Rewrite sources to relative paths to give debuggers the chance
           // to resolve and display them in a meaningful way (rather than
           // with absolute paths).
           if (path.isAbsolute(sourcePath)) {
             modDirname ??= path.dirname(mod.file)
+
             normalizedMap.sources[sourcesIndex] = path.relative(
               modDirname,
               sourcePath,
@@ -421,6 +467,7 @@ async function loadAndTransform(
     throwClosedServerError()
 
   const topLevelConfig = environment.getTopLevelConfig()
+
   const result = environment.config.dev.moduleRunnerTransform
     ? await ssrTransform(code, normalizedMap, url, originalCode, {
         json: {
@@ -470,6 +517,7 @@ async function handleModuleSoftInvalidation(
   }
 
   let result: TransformResult
+
   // For SSR soft-invalidation, no transformation is needed
   if (transformResult.ssr) {
     result = transformResult
@@ -477,20 +525,24 @@ async function handleModuleSoftInvalidation(
   // We need to transform each imports with new timestamps if available
   else {
     await init
+
     const source = transformResult.code
     const s = new MagicString(source)
     const [imports] = parseImports(source, mod.id || undefined)
 
     for (const imp of imports) {
       let rawUrl = source.slice(imp.s, imp.e)
+
       if (rawUrl === 'import.meta') continue
 
       const hasQuotes = rawUrl[0] === '"' || rawUrl[0] === "'"
+
       if (hasQuotes) {
         rawUrl = rawUrl.slice(1, -1)
       }
 
       const urlWithoutTimestamp = removeTimestampQuery(rawUrl)
+
       // moduleUrl must be derived the same way as importAnalysis
       const moduleUrl = unwrapId(
         stripBase(
@@ -498,15 +550,19 @@ async function handleModuleSoftInvalidation(
           environment.config.base,
         ),
       )
+
       for (const importedMod of mod.importedModules) {
         if (importedMod.url !== moduleUrl) continue
+
         if (importedMod.lastHMRTimestamp > 0) {
           const replacedUrl = injectQuery(
             urlWithoutTimestamp,
             `t=${importedMod.lastHMRTimestamp}`,
           )
+
           const start = hasQuotes ? imp.s + 1 : imp.s
           const end = hasQuotes ? imp.e - 1 : imp.e
+
           s.overwrite(start, end, replacedUrl)
         }
 
@@ -522,6 +578,7 @@ async function handleModuleSoftInvalidation(
     // Update `transformResult` with new code. We don't have to update the sourcemap
     // as the timestamp changes doesn't affect the code lines (stable).
     const code = s.toString()
+
     result = {
       ...transformResult,
       code,
@@ -555,9 +612,11 @@ const defaultModuleTypes: Record<string, ModuleType | undefined> = {
 // https://github.com/rolldown/rolldown/blob/bf53a100edf1780d5a5aa41f0bc0459c5696543e/crates/rolldown/src/utils/load_source.rs#L53-L89
 export function getModuleTypeFromId(id: string): ModuleType | undefined {
   let pos = -1
+
   while ((pos = id.indexOf('.', pos + 1)) >= 0) {
     const ext = id.slice(pos + 1)
     const moduleType = defaultModuleTypes[ext]
+
     if (moduleType) {
       return moduleType
     }

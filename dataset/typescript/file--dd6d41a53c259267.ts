@@ -19,9 +19,11 @@ export const convertFile = (file: Blob, type?: 'base64' | 'array_buffer') => {
 		switch (type) {
 			case 'base64':
 				reader.readAsDataURL(file)
+
 				break
 			case 'array_buffer':
 				reader.readAsArrayBuffer(file)
+
 				break
 		}
 	} else {
@@ -110,6 +112,7 @@ export const downloadImage = (filename: string, data_url: string, ext: string) =
 
 export const uploadFile = (args?: { max_count?: number; accept?: string }) => {
 	const { max_count, accept } = args || {}
+
 	const input = document.createElement('input') as HTMLInputElement
 
 	input.style.display = 'none'

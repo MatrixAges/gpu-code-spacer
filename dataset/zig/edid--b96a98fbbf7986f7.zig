@@ -49,6 +49,7 @@ pub const Override = extern struct {
         var size: usize = undefined;
         var ptr: ?[*]u8 = undefined;
         var attributes: Attributes = undefined;
+
         switch (self._get_edid(self, &handle, &attributes, &size, &ptr)) {
             .success => {},
             .unsupported => return Error.Unsupported,

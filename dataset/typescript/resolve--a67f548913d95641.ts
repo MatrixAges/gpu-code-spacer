@@ -5,12 +5,15 @@ import { exports, imports } from 'resolve.exports'
 import type { PartialResolvedId } from 'rolldown'
 import { viteResolvePlugin } from 'rolldown/experimental'
 import type { Environment } from '..'
+
 import {
   cleanUrl,
   splitFileAndPostfix,
   withTrailingSlash,
 } from '../../shared/utils'
+
 import type { ResolvedConfig, ResolvedEnvironmentOptions } from '../config'
+
 import {
   CLIENT_ENTRY,
   DEP_VERSION_RE,
@@ -19,21 +22,27 @@ import {
   FS_PREFIX,
   SPECIAL_QUERY_RE,
 } from '../constants'
+
 import { canExternalizeFile } from '../external'
+
 import {
   isDepOptimizationDisabled,
   optimizedDepInfoFromFile,
   optimizedDepInfoFromId,
 } from '../optimizer'
+
 import type { DepsOptimizer } from '../optimizer'
 import type { PackageCache, PackageData } from '../packages'
+
 import {
   findNearestMainPackageData,
   findNearestPackageData,
   loadPackageData,
   resolvePackageData,
 } from '../packages'
+
 import type { Plugin } from '../plugin'
+
 import {
   bareImportRE,
   createDebugger,
@@ -190,6 +199,7 @@ const perEnvironmentOrWorkerPlugin = (
   ) => Plugin,
 ): Plugin[] => {
   const envs: Record<string, Environment> = {}
+
   const getEnvironmentPlugin: Plugin = {
     name: `${name}:get-environment`,
     buildStart() {
@@ -197,6 +207,7 @@ const perEnvironmentOrWorkerPlugin = (
     },
     perEnvironmentStartEndDuringDev: true,
   }
+
   const createGetEnvironment = (name: string) => () => envs[name]
 
   if (overrideEnvConfig) {
@@ -208,6 +219,7 @@ const perEnvironmentOrWorkerPlugin = (
       ),
     ]
   }
+
   return [
     getEnvironmentPlugin,
     {
@@ -239,12 +251,15 @@ export function oxcResolvePlugin(
           !resolveOptions.isBuild &&
           !partialEnv.config.isBundled &&
           !isDepOptimizationDisabled(partialEnv.config.optimizeDeps)
+
         const getDepsOptimizer = () => {
           const env = getEnv()
+
           if (env.mode !== 'dev')
             throw new Error('The environment mode should be dev')
           if (!env.depsOptimizer)
             throw new Error('The environment should have a depsOptimizer')
+
           return env.depsOptimizer
         }
 
@@ -252,6 +267,7 @@ export function oxcResolvePlugin(
           ...partialEnv.config.resolve,
           ...resolveOptions, // plugin options + resolve options overrides
         }
+
         const noExternal =
           Array.isArray(options.noExternal) || options.noExternal === true
             ? options.noExternal
@@ -294,15 +310,18 @@ export function oxcResolvePlugin(
             ? undefined
             : (resolvedId, rawId, importer) => {
                 const depsOptimizer = getDepsOptimizer()
+
                 // if we reach here, it's a valid dep import that hasn't been optimized.
                 const isJsType = isOptimizable(
                   resolvedId,
                   depsOptimizer.options,
                 )
+
                 const exclude = depsOptimizer?.options.exclude
 
                 // check for deep import, e.g. "my-lib/foo"
                 const deepMatch = deepImportRE.exec(rawId)
+
                 // package name doesn't include postfixes
                 // trim them to support importing package with queries (e.g. `import css from 'normalize.css?inline'`)
                 const pkgId = deepMatch
@@ -318,6 +337,7 @@ export function oxcResolvePlugin(
                   SPECIAL_QUERY_RE.test(resolvedId)
 
                 let newId = resolvedId
+
                 if (skipOptimization) {
                   // excluded from optimization
                   // Inject a version query to npm deps so that the browser
@@ -325,6 +345,7 @@ export function oxcResolvePlugin(
                   // otherwise we may introduce duplicated modules for externalized files
                   // from pre-bundled deps.
                   const versionHash = depsOptimizer!.metadata.browserHash
+
                   if (versionHash && isJsType) {
                     newId = injectQuery(newId, `v=${versionHash}`)
                   }
@@ -335,20 +356,24 @@ export function oxcResolvePlugin(
                     rawId,
                     newId,
                   )
+
                   newId = depsOptimizer!.getOptimizedDepId(optimizedInfo)
                 }
+
                 return newId
               },
           finalizeOtherSpecifiers: !depsOptimizerEnabled
             ? undefined
             : (resolvedId, rawId) => {
                 const depsOptimizer = getDepsOptimizer()
+
                 const newResolvedId = ensureVersionQuery(
                   resolvedId,
                   rawId,
                   options,
                   depsOptimizer,
                 )
+
                 return newResolvedId === resolvedId ? undefined : newResolvedId
               },
           resolveSubpathImports(id, importer, isRequire) {
@@ -378,7 +403,9 @@ export function oxcResolvePlugin(
               }
             : {}),
         })
+
         ;(plugin as Plugin).perEnvironmentWatchChangeDuringDev = true
+
         return plugin
       },
     ),
@@ -417,6 +444,7 @@ function optimizerResolvePlugin(
           resolveOptions.optimizeDeps && this.environment.mode === 'dev'
             ? this.environment.depsOptimizer
             : undefined
+
         if (!depsOptimizer) {
           return
         }
@@ -427,6 +455,7 @@ function optimizerResolvePlugin(
           ...resolveOptions,
           scan: resolveOpts.scan ?? resolveOptions.scan,
         }
+
         options.preferRelative ||= importer?.endsWith('.html')
 
         // resolve pre-bundled deps requests, these could be resolved by
@@ -436,6 +465,7 @@ function optimizerResolvePlugin(
           const optimizedPath = id.startsWith(FS_PREFIX)
             ? fsPathFromId(id)
             : normalizePath(path.resolve(root, id.slice(1)))
+
           return optimizedPath
         }
 
@@ -458,10 +488,12 @@ function optimizerResolvePlugin(
                   depsOptimizer.metadata,
                   normalizedFsPath,
                 )?.browserHash
+
                 if (browserHash) {
                   return injectQuery(normalizedFsPath, `v=${browserHash}`)
                 }
               }
+
               return normalizedFsPath
             }
           }
@@ -469,6 +501,7 @@ function optimizerResolvePlugin(
           // bare package imports, perform node resolve
           if (bareImportRE.test(id)) {
             let res: string | PartialResolvedId | undefined
+
             if (
               asSrc &&
               !options.scan &&
@@ -502,11 +535,14 @@ export function resolveSubpathImports(
   >,
 ): string | undefined {
   if (!importer || !id.startsWith(subpathImportsPrefix)) return
+
   const basedir = path.dirname(importer)
   const pkgData = findNearestPackageData(basedir, options.packageCache)
+
   if (!pkgData) return
 
   let { file: idWithoutPostfix, postfix } = splitFileAndPostfix(id.slice(1))
+
   idWithoutPostfix = '#' + idWithoutPostfix
 
   let importsPath = resolveExportsOrImports(
@@ -525,6 +561,7 @@ export function resolveSubpathImports(
   }
 
   if (importsPath == null) return
+
   return importsPath + postfix
 }
 
@@ -548,11 +585,13 @@ function ensureVersionQuery(
 
     if (isNodeModule && !DEP_VERSION_RE.test(resolved)) {
       const versionHash = depsOptimizer.metadata.browserHash
+
       if (versionHash && isOptimizable(resolved, depsOptimizer.options)) {
         resolved = injectQuery(resolved, `v=${versionHash}`)
       }
     }
   }
+
   return resolved
 }
 
@@ -566,22 +605,27 @@ export function tryFsResolve(
   // source code so we only need to perform the check for dependencies.
   // We don't support `?` in node_modules paths, so we only need to check in this branch.
   const hashIndex = fsPath.indexOf('#')
+
   if (hashIndex >= 0 && isInNodeModules(fsPath)) {
     const queryIndex = fsPath.indexOf('?')
+
     // We only need to check foo#bar?baz and foo#bar, ignore foo?bar#baz
     if (queryIndex < 0 || queryIndex > hashIndex) {
       const file = queryIndex > hashIndex ? fsPath.slice(0, queryIndex) : fsPath
       const res = tryCleanFsResolve(file, options, tryIndex, skipPackageJson)
+
       if (res) return res + fsPath.slice(file.length)
     }
   }
 
   const { file, postfix } = splitFileAndPostfix(fsPath)
   const res = tryCleanFsResolve(file, options, tryIndex, skipPackageJson)
+
   if (res) return res + postfix
 }
 
 const knownTsOutputRE = /\.(?:js|mjs|cjs|jsx)$/
+
 const isPossibleTsOutput = (url: string): boolean => knownTsOutputRE.test(url)
 
 function tryCleanFsResolve(
@@ -601,13 +645,16 @@ function tryCleanFsResolve(
 
   // If path.dirname is a valid directory, try extensions and ts resolution logic
   const possibleJsToTs = isPossibleTsOutput(file)
+
   if (possibleJsToTs || options.extensions.length || tryPrefix) {
     const dirPath = path.dirname(file)
+
     if (isDirectory(dirPath)) {
       if (possibleJsToTs) {
         // try resolve .js, .mjs, .cjs or .jsx import to typescript file
         const fileExt = path.extname(file)
         const fileName = file.slice(0, -fileExt.length)
+
         if (
           (res = tryResolveRealFile(
             fileName + fileExt.replace('js', 'ts'),
@@ -615,6 +662,7 @@ function tryCleanFsResolve(
           ))
         )
           return res
+
         // for .js, also try .tsx
         if (
           fileExt === '.js' &&
@@ -655,13 +703,16 @@ function tryCleanFsResolve(
 
     if (!skipPackageJson) {
       let pkgPath = `${dirPath}/package.json`
+
       try {
         if (fs.existsSync(pkgPath)) {
           if (!options.preserveSymlinks) {
             pkgPath = safeRealpathSync(pkgPath)
           }
+
           // path points to a node package
           const pkg = loadPackageData(pkgPath)
+
           return resolvePackageEntry(dirPath, pkg, options)
         }
       } catch (e) {
@@ -709,6 +760,7 @@ export function tryNodeResolve(
   const pkgId = deepMatch ? deepMatch[1] || deepMatch[2] : cleanUrl(id)
 
   let basedir: string
+
   if (dedupe.includes(pkgId)) {
     basedir = root
   } else if (
@@ -725,9 +777,11 @@ export function tryNodeResolve(
   const isModuleBuiltin = (id: string) => isBuiltin(options.builtins, id)
 
   let selfPkg = null
+
   if (!isModuleBuiltin(id) && !id.includes('\0') && bareImportRE.test(id)) {
     // check if it's a self reference dep.
     const selfPackageData = findNearestPackageData(basedir, packageCache)
+
     selfPkg =
       selfPackageData?.data.exports && selfPackageData.data.name === pkgId
         ? selfPackageData
@@ -737,6 +791,7 @@ export function tryNodeResolve(
   const pkg =
     selfPkg ||
     resolvePackageData(pkgId, basedir, preserveSymlinks, packageCache)
+
   if (!pkg) {
     // if import can't be found, check if it's an optional peer dep.
     // if so, we can resolve to a special id that errors only when imported.
@@ -748,8 +803,10 @@ export function tryNodeResolve(
       bareImportRE.test(id)
     ) {
       const mainPkg = findNearestMainPackageData(basedir, packageCache)?.data
+
       if (mainPkg) {
         const pkgName = getNpmPackageName(id)
+
         if (
           pkgName != null &&
           mainPkg.peerDependencies?.[pkgName] &&
@@ -761,6 +818,7 @@ export function tryNodeResolve(
         }
       }
     }
+
     return
   }
 
@@ -768,6 +826,7 @@ export function tryNodeResolve(
   const unresolvedId = deepMatch ? '.' + id.slice(pkgId.length) : id
 
   let resolved = resolveId(unresolvedId, pkg, options, externalize)
+
   if (!resolved) {
     return
   }
@@ -776,11 +835,13 @@ export function tryNodeResolve(
     if (!externalize) {
       return resolved
     }
+
     if (!canExternalizeFile(resolved.id)) {
       return resolved
     }
 
     let resolvedId = id
+
     if (
       deepMatch &&
       !pkg.data.exports &&
@@ -789,13 +850,16 @@ export function tryNodeResolve(
       // id date-fns/locale
       // resolve.id ...date-fns/esm/locale/index.js
       const index = resolved.id.indexOf(id)
+
       if (index > -1) {
         resolvedId = resolved.id.slice(index)
+
         debug?.(
           `[processResult] ${colors.cyan(id)} -> ${colors.dim(resolvedId)}`,
         )
       }
     }
+
     return { ...resolved, id: resolvedId, external: true }
   }
 
@@ -841,6 +905,7 @@ export function tryNodeResolve(
     // otherwise we may introduce duplicated modules for externalized files
     // from pre-bundled deps.
     const versionHash = depsOptimizer.metadata.browserHash
+
     if (versionHash && isJsType) {
       resolved = injectQuery(resolved, `v=${versionHash}`)
     }
@@ -848,6 +913,7 @@ export function tryNodeResolve(
     // this is a missing import, queue optimize-deps re-run and
     // get a resolved its optimized info
     const optimizedInfo = depsOptimizer.registerMissingImport(id, resolved)
+
     resolved = depsOptimizer.getOptimizedDepId(optimizedInfo)
   }
 
@@ -870,6 +936,7 @@ export async function tryOptimizedResolve(
   const metadata = depsOptimizer.metadata
 
   const depInfo = optimizedDepInfoFromId(metadata, id)
+
   if (depInfo) {
     return depsOptimizer.getOptimizedDepId(depInfo)
   }
@@ -889,16 +956,20 @@ export async function tryOptimizedResolve(
     // lazily initialize idPkgDir
     if (idPkgDir == null) {
       const pkgName = getNpmPackageName(id)
+
       if (!pkgName) break
+
       idPkgDir = resolvePackageData(
         pkgName,
         importer,
         preserveSymlinks,
         packageCache,
       )?.dir
+
       // if still null, it likely means that this id isn't a dep for importer.
       // break to bail early
       if (idPkgDir == null) break
+
       idPkgDir = normalizePath(idPkgDir)
     }
 
@@ -918,6 +989,7 @@ export function resolvePackageEntry(
   const { file: idWithoutPostfix, postfix } = splitFileAndPostfix(id)
 
   const cached = getResolvedCache('.', options)
+
   if (cached) {
     return cached + postfix
   }
@@ -942,16 +1014,20 @@ export function resolvePackageEntry(
       for (const field of options.mainFields) {
         if (typeof data[field] === 'string') {
           entryPoint = data[field]
+
           break
         } else if (field === 'browser') {
           const browser = data[field]
+
           if (isObject(browser) && browser['.']) {
             entryPoint = browser['.']
+
             break
           }
         }
       }
     }
+
     entryPoint ||= data.main
 
     // try default entry when entry is not define
@@ -963,6 +1039,7 @@ export function resolvePackageEntry(
     for (let entry of entryPoints) {
       // make sure we don't get scripts when looking for sass
       let skipPackageJson = false
+
       if (
         options.mainFields[0] === 'sass' &&
         !options.extensions.includes(path.extname(entry))
@@ -972,31 +1049,37 @@ export function resolvePackageEntry(
       } else {
         // resolve object browser field in package.json
         const { browser: browserField } = data
+
         if (options.mainFields.includes('browser') && isObject(browserField)) {
           entry = mapWithBrowserField(entry, browserField) || entry
         }
       }
 
       const entryPointPath = path.join(dir, entry)
+
       const resolvedEntryPoint = tryFsResolve(
         entryPointPath,
         options,
         true,
         skipPackageJson,
       )
+
       if (resolvedEntryPoint) {
         debug?.(
           `[package entry] ${colors.cyan(idWithoutPostfix)} -> ${colors.dim(
             resolvedEntryPoint,
           )}${postfix !== '' ? ` (postfix: ${postfix})` : ''}`,
         )
+
         setResolvedCache('.', resolvedEntryPoint, options)
+
         return resolvedEntryPoint + postfix
       }
     }
   } catch (e) {
     packageEntryFailure(id, e.message)
   }
+
   packageEntryFailure(id)
 }
 
@@ -1006,7 +1089,9 @@ function packageEntryFailure(id: string, details?: string) {
       `The package may have incorrect main/module/exports specified in its package.json` +
       (details ? ': ' + details : '.'),
   )
+
   err.code = ERR_RESOLVE_PACKAGE_ENTRY_FAIL
+
   throw err
 }
 
@@ -1019,6 +1104,7 @@ function getConditions(
     if (condition === DEV_PROD_CONDITION) {
       return isProduction ? 'production' : 'development'
     }
+
     return condition
   })
 
@@ -1049,6 +1135,7 @@ function resolveExportsOrImports(
 
   const fn = type === 'imports' ? imports : exports
   const result = fn(pkg, key, { conditions, unsafe: true })
+
   return result ? result[0] : undefined
 }
 
@@ -1059,6 +1146,7 @@ function resolveDeepImport(
   externalize?: boolean,
 ): string | undefined {
   const cache = getResolvedCache(id, options)
+
   if (cache) {
     return cache
   }
@@ -1071,6 +1159,7 @@ function resolveDeepImport(
     if (isObject(exportsField) && !Array.isArray(exportsField)) {
       // resolve without postfix (see #7098)
       const { file, postfix } = splitFileAndPostfix(relativeId)
+
       const exportsId = resolveExportsOrImports(
         data,
         file,
@@ -1078,6 +1167,7 @@ function resolveDeepImport(
         'exports',
         externalize,
       )
+
       if (exportsId !== undefined) {
         relativeId = exportsId + postfix
       } else {
@@ -1087,6 +1177,7 @@ function resolveDeepImport(
       // not exposed
       relativeId = undefined
     }
+
     if (!relativeId) {
       throw new Error(
         `Package subpath '${relativeId}' is not defined by "exports" in ` +
@@ -1097,10 +1188,12 @@ function resolveDeepImport(
     // resolve without postfix (see #7098)
     const { file, postfix } = splitFileAndPostfix(relativeId)
     const mapped = mapWithBrowserField(file, browserField)
+
     if (mapped) {
       relativeId = mapped + postfix
     } else if (mapped === false) {
       setResolvedCache(id, browserExternalId, options)
+
       return browserExternalId
     }
   }
@@ -1111,11 +1204,14 @@ function resolveDeepImport(
       options,
       !exportsField, // try index only if no exports field
     )
+
     if (resolved) {
       debug?.(
         `[node/deep-import] ${colors.cyan(id)} -> ${colors.dim(resolved)}`,
       )
+
       setResolvedCache(id, resolved, options)
+
       return resolved
     }
   }
@@ -1137,6 +1233,7 @@ function mapWithBrowserField(
 
   for (const key in map) {
     const normalizedKey = path.posix.normalize(key)
+
     if (
       normalizedPath === normalizedKey ||
       equalWithoutSuffix(normalizedPath, normalizedKey, '.js') ||
@@ -1156,6 +1253,7 @@ function tryResolveRealFile(
   preserveSymlinks?: boolean,
 ): string | undefined {
   const stat = tryStatSync(file)
+
   if (stat?.isFile()) return getRealPath(file, preserveSymlinks)
 }
 
@@ -1166,6 +1264,7 @@ function tryResolveRealFileWithExtensions(
 ): string | undefined {
   for (const ext of extensions) {
     const res = tryResolveRealFile(filePath + ext, preserveSymlinks)
+
     if (res) return res
   }
 }
@@ -1175,12 +1274,15 @@ function tryResolveRealFileOrType(
   preserveSymlinks?: boolean,
 ): { path?: string; type: 'directory' | 'file' } | undefined {
   const fileStat = tryStatSync(file)
+
   if (fileStat?.isFile()) {
     return { path: getRealPath(file, preserveSymlinks), type: 'file' }
   }
+
   if (fileStat?.isDirectory()) {
     return { type: 'directory' }
   }
+
   return
 }
 
@@ -1188,11 +1290,13 @@ function getRealPath(resolved: string, preserveSymlinks?: boolean): string {
   if (!preserveSymlinks) {
     resolved = safeRealpathSync(resolved)
   }
+
   return normalizePath(resolved)
 }
 
 function isDirectory(path: string): boolean {
   const stat = tryStatSync(path)
+
   return stat?.isDirectory() ?? false
 }
 
@@ -1203,6 +1307,8 @@ function findNearestPackagePath(
   isBuild: boolean,
 ) {
   if (!isBuild || legacyInconsistentCjsInterop) return
+
   const pkgData = findNearestPackageData(file, packageCache)
+
   return pkgData ? path.join(pkgData.dir, 'package.json') : null
 }

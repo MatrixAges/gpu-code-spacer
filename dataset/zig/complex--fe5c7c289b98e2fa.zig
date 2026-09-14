@@ -105,6 +105,7 @@ pub fn Complex(comptime T: type) type {
         /// Returns the reciprocal of a complex number.
         pub fn reciprocal(self: Self) Self {
             const m = self.re * self.re + self.im * self.im;
+
             return Self{
                 .re = self.re / m,
                 .im = -self.im / m,

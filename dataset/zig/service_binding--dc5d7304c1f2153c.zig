@@ -17,6 +17,7 @@ pub fn ServiceBinding(service_guid: Guid) type {
             InvalidParameter,
             OutOfResources,
         } || Error;
+
         pub const DestroyChildError = uefi.UnexpectedError || error{
             Unsupported,
             InvalidParameter,
@@ -26,10 +27,12 @@ pub fn ServiceBinding(service_guid: Guid) type {
         /// To add this protocol to an existing handle, use `addToHandle` instead.
         pub fn createChild(self: *Self) CreateChildError!Handle {
             var handle: ?Handle = null;
+
             switch (self._create_child(self, &handle)) {
                 .success => return handle orelse error.Unexpected,
                 else => |status| {
                     try status.err();
+
                     return uefi.unexpectedStatus(status);
                 },
             }
@@ -40,6 +43,7 @@ pub fn ServiceBinding(service_guid: Guid) type {
                 .success => {},
                 else => |status| {
                     try status.err();
+
                     return uefi.unexpectedStatus(status);
                 },
             }
@@ -50,6 +54,7 @@ pub fn ServiceBinding(service_guid: Guid) type {
                 .success => {},
                 else => |status| {
                     try status.err();
+
                     return uefi.unexpectedStatus(status);
                 },
             }

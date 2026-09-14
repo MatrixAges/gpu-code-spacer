@@ -29,8 +29,10 @@ pub const Grid = vsr.GridType(Storage);
 
 const Client = vsr.ClientType(StateMachine.Operation, MessageBus);
 pub const Replica = vsr.ReplicaType(StateMachine, MessageBus, Storage, AOF);
+
 const ReplicaReformat =
     vsr.ReplicaReformatType(StateMachine, MessageBus, Storage);
+
 const data_file_size_min = vsr.superblock.data_file_size_min;
 
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator(.{});
@@ -66,10 +68,14 @@ pub fn main() !void {
     if (builtin.os.tag == .windows) try vsr.multiversion.wait_for_parent_to_exit();
 
     var allocator = GeneralPurposeAllocator.init;
+
     allocator.backing_allocator = stdx.huge_page_allocator;
+
     const gpa = allocator.allocator();
+
     defer {
         _ = allocator.detectLeaks();
+
         switch (allocator.deinit()) {
             .ok => {},
             .leak => @panic("memory leaked"),
@@ -77,12 +83,14 @@ pub fn main() !void {
     }
 
     var flags = stdx.Flags.init(gpa);
+
     defer flags.deinit(gpa);
 
     var command = cli.parse_args(&flags);
 
     if (command == .version) {
         try command_version(gpa, command.version.verbose);
+
         return; // Exit early before initializing IO.
     }
 
@@ -100,13 +108,16 @@ pub fn main() !void {
         .format, .recover => 2048,
         else => 128,
     };
+
     var io = try IO.init(io_entries, 0);
+
     defer io.deinit();
 
     var time_os: TimeOS = .{};
     const time = time_os.time();
 
     var trace_file: ?std.fs.File = null;
+
     defer if (trace_file) |file| file.close();
 
     var statsd_address: ?stdx.SocketAddress = null;
@@ -117,10 +128,13 @@ pub fn main() !void {
             if (args.trace) |path| {
                 trace_file = std.fs.cwd().createFile(path, .{ .exclusive = true }) catch |err| {
                     log.err("error creating trace file '{s}': {}", .{ path, err });
+
                     return err;
                 };
             }
+
             if (args.statsd) |address| statsd_address = address;
+
             log_trace = args.log_trace;
         },
         .benchmark => {}, // Forwards trace and statsd argument to child tigerbeetle.
@@ -140,6 +154,7 @@ pub fn main() !void {
         } else .log,
         .log_trace = log_trace,
     });
+
     defer tracer.deinit(gpa);
 
     switch (command) {
@@ -163,6 +178,7 @@ pub fn main() !void {
                 },
                 .direct_io = direct_io,
             });
+
             defer storage.deinit();
 
             switch (command_storage) {
@@ -196,12 +212,14 @@ fn command_version(gpa: mem.Allocator, verbose: bool) !void {
 
     if (verbose) {
         try stdout.writeAll("\n");
+
         inline for (.{ "mode", "zig_version" }) |declaration| {
             try print_value(stdout, "build." ++ declaration, @field(builtin, declaration));
         }
 
         // Zig 0.10 doesn't see field_name as comptime if this `comptime` isn't used.
         try stdout.writeAll("\n");
+
         inline for (comptime std.meta.fieldNames(@TypeOf(config.cluster))) |field_name| {
             try print_value(
                 stdout,
@@ -211,6 +229,7 @@ fn command_version(gpa: mem.Allocator, verbose: bool) !void {
         }
 
         try stdout.writeAll("\n");
+
         inline for (comptime std.meta.fieldNames(@TypeOf(config.process))) |field_name| {
             try print_value(
                 stdout,
@@ -220,11 +239,14 @@ fn command_version(gpa: mem.Allocator, verbose: bool) !void {
         }
 
         try stdout.writeAll("\n");
+
         const self_exe_path = try vsr.multiversion.self_exe_path(gpa);
+
         defer gpa.free(self_exe_path);
 
         vsr.multiversion.print_information(gpa, self_exe_path, stdout) catch {};
     }
+
     try stdout_buffer.flush();
 }
 
@@ -267,14 +289,17 @@ fn command_start(
         .pipeline_requests_limit = args.pipeline_requests_limit,
         .message_bus = .tcp,
     } });
+
     defer message_pool.deinit(gpa);
 
     var aof: ?AOF = if (args.aof_file) |*aof_file| blk: {
         break :blk try AOF.init(io, aof_file.const_slice());
     } else null;
+
     defer if (aof != null) aof.?.close();
 
     const grid_cache_size_min = constants.block_size * Grid.Cache.value_count_max_multiple;
+
     const grid_cache_size = if (args.development)
         grid_cache_size_min
     else
@@ -294,9 +319,11 @@ fn command_start(
             });
         }
     }
+
     assert(grid_cache_size >= grid_cache_size_min);
 
     const grid_cache_size_warn = 1 * GiB;
+
     if (grid_cache_size < grid_cache_size_warn) {
         log.warn("Grid cache size of {}MiB is small. See --cache-grid", .{
             @divExact(grid_cache_size, MiB),
@@ -306,9 +333,11 @@ fn command_start(
     const random_nonce = stdx.unique_u128();
 
     var self_exe_path: ?[:0]const u8 = null;
+
     defer if (self_exe_path) |path| gpa.free(path);
 
     var multiversion_os: ?vsr.multiversion.MultiversionOS = null;
+
     defer if (multiversion_os != null) multiversion_os.?.deinit(gpa);
 
     const multiversion: vsr.multiversion.Multiversion = blk: {
@@ -318,25 +347,31 @@ fn command_start(
             log.info("multiversioning: upgrades disabled for development ({}) release.", .{
                 constants.config.process.release,
             });
+
             break :blk .single_release(constants.config.process.release);
         }
+
         if (args.aof_recovery) {
             log.info("multiversioning: upgrades disabled due to aof_recovery.", .{});
+
             break :blk .single_release(constants.config.process.release);
         }
 
         if (args.addresses.zero) {
             log.info("multiversioning: upgrades disabled due to --addresses=0", .{});
+
             break :blk .single_release(constants.config.process.release);
         }
 
         self_exe_path = try vsr.multiversion.self_exe_path(gpa);
+
         multiversion_os = try vsr.multiversion.MultiversionOS.init(
             gpa,
             io,
             self_exe_path.?,
             .native,
         );
+
         // The error from .open_sync() is ignored - timeouts and checking for new binaries are still
         // enabled even if the first version fails to load.
         multiversion_os.?.open_sync() catch {};
@@ -352,6 +387,7 @@ fn command_start(
     const clients_limit = constants.pipeline_prepare_queue_max + args.pipeline_requests_limit;
 
     var replica: Replica = undefined;
+
     replica.open(
         gpa,
         time,
@@ -418,6 +454,7 @@ fn command_start(
             if (args.experimental) {
                 log.warn("multiversioning: upgrade polling and --experimental enabled - " ++
                     "make sure to check CLI argument compatibility before upgrading.", .{});
+
                 log.warn("If the cluster upgrades automatically, and incompatible experimental " ++
                     "CLI arguments are set, it will crash.", .{});
             }
@@ -430,6 +467,7 @@ fn command_start(
         replica.replica,
         @divFloor(counting_allocator.live_size(), MiB),
     });
+
     log.info("{}: Grid cache: {}MiB, LSM-tree manifests: {}MiB", .{
         replica.replica,
         @divFloor(grid_cache_size, MiB),
@@ -471,6 +509,7 @@ fn command_start(
     if (args.addresses.zero) {
         const port_actual = replica.message_bus.accept_address.?.port;
         const stdout = std.io.getStdOut();
+
         try stdout.writer().print("{}\n", .{port_actual});
         stdout.close();
 
@@ -480,11 +519,14 @@ fn command_start(
         const watchdog = try std.Thread.spawn(.{}, struct {
             fn thread_main() void {
                 var buf: [1]u8 = .{0};
+
                 _ = std.io.getStdIn().read(&buf) catch {};
+
                 log.info("stdin closed, exiting", .{});
                 std.process.exit(0);
             }
         }.thread_main, .{});
+
         watchdog.detach();
     }
 
@@ -536,6 +578,7 @@ fn command_reformat(
     args: *const cli.Command.Recover,
 ) !void {
     var message_pool = try MessagePool.init(gpa, .client);
+
     defer message_pool.deinit(gpa);
 
     var client = try Client.init(
@@ -558,6 +601,7 @@ fn command_reformat(
             .eviction_callback = &reformat_client_eviction_callback,
         },
     );
+
     defer client.deinit(gpa);
 
     var reformatter = try ReplicaReformat.init(gpa, &client, storage, .{
@@ -567,17 +611,21 @@ fn command_reformat(
         .release = config.process.release,
         .view = null,
     });
+
     defer reformatter.deinit(gpa);
 
     reformatter.start();
+
     while (reformatter.pending()) {
         client.tick();
         try io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
     }
+
     if (reformatter.format()) {
         log.info("{}: success", .{args.replica});
     } else |err| {
         log.err("{}: error: {s}", .{ args.replica, @errorName(err) });
+
         return err;
     }
 }
@@ -587,6 +635,7 @@ fn reformat_client_eviction_callback(
     eviction: *const MessagePool.Message.Eviction,
 ) void {
     _ = client;
+
     std.debug.panic("error: client evicted: {s}", .{@tagName(eviction.header.reason)});
 }
 
@@ -603,6 +652,7 @@ fn command_repl(
         .addresses = args.addresses.slice(),
         .verbose = args.verbose,
     });
+
     defer repl_instance.deinit(gpa);
 
     try repl_instance.run(args.statements);
@@ -610,6 +660,7 @@ fn command_repl(
 
 fn command_amqp(gpa: mem.Allocator, time: Time, args: *const cli.Command.AMQP) !void {
     var runner: vsr.cdc.Runner = undefined;
+
     try runner.init(
         gpa,
         time,
@@ -633,6 +684,7 @@ fn command_amqp(gpa: mem.Allocator, time: Time, args: *const cli.Command.AMQP) !
                 .recover,
         },
     );
+
     defer runner.deinit();
 
     while (true) {
@@ -647,6 +699,7 @@ fn print_value(
 ) !void {
     if (@TypeOf(value) == ?[40]u8) {
         assert(std.mem.eql(u8, field, "process.git_commit"));
+
         return std.fmt.format(writer, "{s}=\"{?s}\"\n", .{
             field,
             value,

@@ -1,5 +1,6 @@
 let sample_from_event ~loc ({label; created_at_ts; data} : LogEntry.t) =
   let open StatsSample in
+
   let create_sample_with_label label =
     new_sample ~time:(Some created_at_ts)
     |> set_common_fields

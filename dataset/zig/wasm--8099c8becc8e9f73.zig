@@ -186,7 +186,6 @@ pub const Opcode = enum(u8) {
     i64_extend8_s = 0xC2,
     i64_extend16_s = 0xC3,
     i64_extend32_s = 0xC4,
-
     misc_prefix = 0xFC,
     simd_prefix = 0xFD,
     atomics_prefix = 0xFE,
@@ -547,7 +546,6 @@ pub const AtomicsOpcode = enum(u32) {
     i64_atomic_rmw8_xchg_u = 0x45,
     i64_atomic_rmw16_xchg_u = 0x46,
     i64_atomic_rmw32_xchg_u = 0x47,
-
     i32_atomic_rmw_cmpxchg = 0x48,
     i64_atomic_rmw_cmpxchg = 0x49,
     i32_atomic_rmw8_cmpxchg_u = 0x4A,

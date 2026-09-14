@@ -3,5 +3,6 @@ fun collect(items: MutableList<String>, name: String, publish: (List<String>) ->
 
     items.add(normalized)
     items.sort()
+
     publish(items)
 }

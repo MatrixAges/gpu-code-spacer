@@ -7,6 +7,7 @@ import {
   isReservedProp,
   normalizeClass,
 } from '@vue/shared'
+
 import type { ComponentInternalInstance, Data } from '../component'
 import type { Slot } from '../componentSlots'
 import { createSlots } from '../helpers/createSlots'
@@ -16,11 +17,13 @@ import { type VNode, mergeProps } from '../vnode'
 
 function toObject(arr: Array<any>): Object {
   const res = {}
+
   for (let i = 0; i < arr.length; i++) {
     if (arr[i]) {
       extend(res, arr[i])
     }
   }
+
   return res
 }
 
@@ -35,6 +38,7 @@ export function legacyBindObjectProps(
     if (isArray(value)) {
       value = toObject(value)
     }
+
     for (const key in value) {
       if (isReservedProp(key)) {
         data[key] = value[key]
@@ -46,11 +50,13 @@ export function legacyBindObjectProps(
         const attrs = data.attrs || (data.attrs = {})
         const camelizedKey = camelize(key)
         const hyphenatedKey = hyphenate(key)
+
         if (!(camelizedKey in attrs) && !(hyphenatedKey in attrs)) {
           attrs[key] = value[key]
 
           if (isSync) {
             const on = data.on || (data.on = {})
+
             on[`update:${key}`] = function ($event: any) {
               value[key] = $event
             }
@@ -59,6 +65,7 @@ export function legacyBindObjectProps(
       }
     }
   }
+
   return data
 }
 
@@ -76,6 +83,7 @@ export function legacyRenderSlot(
   if (bindObject) {
     props = mergeProps(props, bindObject)
   }
+
   return renderSlot(instance.slots, name, props, fallback && (() => fallback))
 }
 
@@ -103,6 +111,7 @@ export function legacyResolveScopedSlots(
 function mapKeyToName(slots: LegacyScopedSlotsData) {
   for (let i = 0; i < slots.length; i++) {
     const fn = slots[i]
+
     if (fn) {
       if (isArray(fn)) {
         mapKeyToName(fn)
@@ -111,6 +120,7 @@ function mapKeyToName(slots: LegacyScopedSlotsData) {
       }
     }
   }
+
   return slots as any
 }
 
@@ -124,14 +134,18 @@ export function legacyRenderStatic(
   index: number,
 ): any {
   let cache = staticCacheMap.get(instance)
+
   if (!cache) {
     staticCacheMap.set(instance, (cache = []))
   }
+
   if (cache[index]) {
     return cache[index]
   }
+
   const fn = (instance.type as any).staticRenderFns[index]
   const ctx = instance.proxy
+
   return (cache[index] = fn.call(ctx, null, ctx))
 }
 
@@ -146,6 +160,7 @@ export function legacyCheckKeyCodes(
   const config = instance.appContext.config as any
   const configKeyCodes = config.keyCodes || {}
   const mappedKeyCode = configKeyCodes[key] || builtInKeyCode
+
   if (builtInKeyName && eventKeyName && !configKeyCodes[key]) {
     return isKeyNotMatch(builtInKeyName, eventKeyName)
   } else if (mappedKeyCode) {
@@ -170,10 +185,12 @@ export function legacyMarkOnce(tree: VNode): VNode {
 export function legacyBindDynamicKeys(props: any, values: any[]): any {
   for (let i = 0; i < values.length; i += 2) {
     const key = values[i]
+
     if (typeof key === 'string' && key) {
       props[values[i]] = values[i + 1]
     }
   }
+
   return props
 }
 

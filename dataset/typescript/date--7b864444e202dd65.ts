@@ -59,6 +59,7 @@ export const getCleanTime = (v: CleanTime) => {
 export const getDays = (type: 'week' | 'month' | 'year', v: Dayjs) => {
 	const start = v.startOf(type)
 	const end = v.endOf(type)
+
 	const dates = [] as Array<Dayjs>
 
 	let current = start
@@ -75,13 +76,16 @@ export const getDays = (type: 'week' | 'month' | 'year', v: Dayjs) => {
 export const getMonthDays = (day: Dayjs) => {
 	const start_of_month = day.startOf('month')
 	const end_of_month = day.endOf('month')
+
 	const calendar_data = []
 
 	let start_of_week = start_of_month.startOf('week')
 
 	while (start_of_week.isSameOrBefore(end_of_month)) {
 		const end_of_week = start_of_week.endOf('week')
+
 		const week_data = []
+
 		let current_date = start_of_week
 
 		while (current_date.isBefore(end_of_week) || current_date.isSame(end_of_week)) {
@@ -103,6 +107,7 @@ export const getMonthDays = (day: Dayjs) => {
 const transform = (matrix: Array<Array<string>>) => {
 	const rows = matrix.length
 	const cols = matrix[0].length
+
 	const target = [] as Array<Array<string>>
 
 	let all = 0

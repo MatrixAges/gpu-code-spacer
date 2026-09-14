@@ -28,6 +28,7 @@ local function normalize(uri, merge_slashes)
 
   while #uri > 0 do
     local FIRST = string_byte(uri, 1)
+
     local SECOND = FIRST and string_byte(uri, 2) or nil
     local THIRD = SECOND and string_byte(uri, 3) or nil
     local FOURTH = THIRD and string_byte(uri, 4) or nil
@@ -65,9 +66,11 @@ local function normalize(uri, merge_slashes)
         local seg = string_sub(uri, 1, i - 1)
 
         TMP_OUTPUT[output_n] = seg
+
         uri = string_sub(uri, i)
       else
         TMP_OUTPUT[output_n] = uri
+
         uri = ""
       end
     end

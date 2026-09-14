@@ -47,7 +47,9 @@ pub const Ratio = struct {
     ) !void {
         _ = fmt;
         _ = options;
+
         if (r.numerator == 0) return writer.print("0", .{});
+
         return writer.print("{d}/{d}", .{ r.numerator, r.denominator });
     }
 
@@ -56,10 +58,12 @@ pub const Ratio = struct {
         static_diagnostic: *?[]const u8,
     ) error{InvalidFlagValue}!Ratio {
         assert(string.len > 0);
+
         if (string.len == 1 and string[0] == '0') return .zero();
 
         const string_numerator, const string_denominator = stdx.cut(string, "/") orelse {
             static_diagnostic.* = "expected 'a/b' ratio, but found:";
+
             return error.InvalidFlagValue;
         };
 
@@ -68,23 +72,31 @@ pub const Ratio = struct {
             .allow_separators = true,
         }) catch {
             static_diagnostic.* = "invalid numerator:";
+
             return error.InvalidFlagValue;
         };
+
         const denominator = stdx.parse_int(u64, string_denominator, .{
             .base = 10,
             .allow_separators = true,
         }) catch {
             static_diagnostic.* = "invalid denominator:";
+
             return error.InvalidFlagValue;
         };
+
         if (denominator == 0) {
             static_diagnostic.* = "denominator is zero:";
+
             return error.InvalidFlagValue;
         }
+
         if (numerator > denominator) {
             static_diagnostic.* = "ratio greater than 1:";
+
             return error.InvalidFlagValue;
         }
+
         return ratio(numerator, denominator);
     }
 };
@@ -111,11 +123,13 @@ test "Ratio.parse_flag_value" {
 pub fn ratio(numerator: u64, denominator: u64) Ratio {
     assert(denominator > 0);
     assert(numerator <= denominator);
+
     return .{ .numerator = numerator, .denominator = denominator };
 }
 
 pub fn from_seed(seed: u64) PRNG {
     var s = seed;
+
     return .{ .s = .{
         split_mix_64(&s),
         split_mix_64(&s),
@@ -126,6 +140,7 @@ pub fn from_seed(seed: u64) PRNG {
 
 pub fn from_seed_testing() PRNG {
     comptime assert(@import("builtin").is_test);
+
     return .from_seed(std.testing.random_seed);
 }
 
@@ -133,23 +148,22 @@ fn split_mix_64(s: *u64) u64 {
     s.* +%= 0x9e3779b97f4a7c15;
 
     var z = s.*;
+
     z = (z ^ (z >> 30)) *% 0xbf58476d1ce4e5b9;
     z = (z ^ (z >> 27)) *% 0x94d049bb133111eb;
+
     return z ^ (z >> 31);
 }
 
 fn next(prng: *PRNG) u64 {
     const r = std.math.rotl(u64, prng.s[0] +% prng.s[3], 23) +% prng.s[0];
-
     const t = prng.s[1] << 17;
 
     prng.s[2] ^= prng.s[0];
     prng.s[3] ^= prng.s[1];
     prng.s[1] ^= prng.s[2];
     prng.s[0] ^= prng.s[3];
-
     prng.s[2] ^= t;
-
     prng.s[3] = math.rotl(u64, prng.s[3], 45);
 
     return r;
@@ -158,9 +172,11 @@ fn next(prng: *PRNG) u64 {
 test next {
     var prng = from_seed(92);
     var distribution: [8]u32 = @splat(0);
+
     for (0..1000) |_| {
         distribution[prng.next() % 8] += 1;
     }
+
     try snap(@src(),
         \\{ 134, 134, 117, 121, 117, 128, 131, 118 }
     ).diff_fmt("{d}", .{distribution});
@@ -174,6 +190,7 @@ pub fn fill(prng: *PRNG, target: []u8) void {
     while (i < aligned_len) : (i += 8) {
         var n = prng.next();
         comptime var j: usize = 0;
+
         inline while (j < 8) : (j += 1) {
             target[i + j] = @as(u8, @truncate(n));
             n >>= 8;
@@ -183,6 +200,7 @@ pub fn fill(prng: *PRNG, target: []u8) void {
     // Remaining (cuts the stream).
     if (i != target.len) {
         var n = prng.next();
+
         while (i < target.len) : (i += 1) {
             target[i] = @as(u8, @truncate(n));
             n >>= 8;
@@ -194,21 +212,26 @@ test fill {
     const size_max = 128;
     var buffer_max: [size_max]u8 = undefined;
     var prng = from_seed(32);
-
     var distribution: [8]u32 = @splat(0);
+
     for (0..size_max + 1) |size| {
         // Check that the entire buffer is filled, by filling it over a couple of times
         // and checking that each byte is non-zero at least once.
         var non_zero: stdx.BitSetType(size_max) = .{};
+
         for (0..3) |_| {
             const buffer = buffer_max[0..size];
+
             @memset(buffer, 0);
             prng.fill(buffer);
+
             for (buffer, 0..) |byte, i| {
                 distribution[byte % 8] += 1;
+
                 if (byte != 0) non_zero.set(i);
             }
         }
+
         for (0..size) |i| assert(non_zero.is_set(i));
     }
 
@@ -223,11 +246,13 @@ test fill {
 /// quite high depending on max!
 pub fn int_inclusive(prng: *PRNG, Int: anytype, max: Int) Int {
     comptime assert(@typeInfo(Int).int.signedness == .unsigned);
+
     if (max == std.math.maxInt(Int)) {
         return prng.int(Int);
     }
 
     comptime assert(@typeInfo(Int).int.signedness == .unsigned);
+
     const bits = @typeInfo(Int).int.bits;
     const less_than = max + 1;
 
@@ -237,47 +262,58 @@ pub fn int_inclusive(prng: *PRNG, Int: anytype, max: Int) Int {
     var x = prng.int(Int);
     var m = math.mulWide(Int, x, less_than);
     var l: Int = @truncate(m);
+
     if (l < less_than) {
         var t = -%less_than;
 
         if (t >= less_than) {
             t -= less_than;
+
             if (t >= less_than) {
                 t %= less_than;
             }
         }
+
         while (l < t) {
             x = prng.int(Int);
             m = math.mulWide(Int, x, less_than);
             l = @truncate(m);
         }
     }
+
     return @intCast(m >> bits);
 }
 
 test int_inclusive {
     var prng = from_seed(92);
+
     for (0..8) |max_usize| {
         const max: u8 = @intCast(max_usize);
         var distribution: [8]u32 = @splat(0);
+
         for (0..100) |_| {
             distribution[prng.int_inclusive(u8, max)] += 1;
         }
+
         for (distribution[0 .. max + 1]) |d| assert(d > 0);
         for (distribution[max + 1 ..]) |d| assert(d == 0);
     }
 
     var distribution: [8]u32 = @splat(0);
+
     for (0..1000) |_| {
         const n = prng.int_inclusive(u128, 7);
+
         distribution[@intCast(n)] += 1;
     }
+
     try snap(@src(),
         \\{ 123, 127, 115, 125, 125, 139, 111, 135 }
     ).diff_fmt("{d}", .{distribution});
 
     var large: u32 = 0;
     var small: u32 = 0;
+
     for (0..1000) |_| {
         if (prng.int_inclusive(u64, math.maxInt(u64) / 2) > math.maxInt(u64) / 4) {
             large += 1;
@@ -285,6 +321,7 @@ test int_inclusive {
             small += 1;
         }
     }
+
     try snap(@src(),
         \\large=506 small=494
     ).diff_fmt("large={} small={}", .{ large, small });
@@ -300,16 +337,18 @@ pub const int_exclusive = @compileError("intentionally not implemented");
 /// Given a slice, generates a random valid index for the slice.
 pub fn index(prng: *PRNG, slice: anytype) usize {
     assert(slice.len > 0);
+
     return prng.int_inclusive(usize, slice.len - 1);
 }
 
 test index {
     var prng = from_seed(92);
-
     var distribution: [8]u32 = @splat(0);
+
     for (0..100) |_| {
         distribution[index(&prng, &distribution)] += 1;
     }
+
     try snap(@src(),
         \\{ 9, 13, 13, 11, 10, 16, 16, 12 }
     ).diff_fmt("{d}", .{distribution});
@@ -319,17 +358,21 @@ test index {
 pub fn range_inclusive(prng: *PRNG, Int: type, min: Int, max: Int) Int {
     comptime assert(@typeInfo(Int).int.signedness == .unsigned);
     assert(min <= max);
+
     return min + prng.int_inclusive(Int, max - min);
 }
 
 test range_inclusive {
     var prng = from_seed(92);
+
     for (0..8) |min| {
         for (min..8) |max| {
             var distribution: [8]u32 = @splat(0);
+
             for (0..100) |_| {
                 distribution[prng.range_inclusive(usize, min, max)] += 1;
             }
+
             for (distribution, 0..) |d, i| {
                 assert((d > 0) == (min <= i and i <= max));
             }
@@ -342,10 +385,14 @@ test range_inclusive {
 /// That is, fills @sizeOf(T) bytes with random bits.
 pub fn int(prng: *PRNG, Int: type) Int {
     comptime assert(@typeInfo(Int).int.signedness == .unsigned);
+
     if (Int == u64) return prng.next();
     if (@sizeOf(Int) < @sizeOf(u64)) return @truncate(prng.next());
+
     var result: Int = undefined;
+
     prng.fill(std.mem.asBytes(&result));
+
     return result;
 }
 
@@ -353,9 +400,11 @@ test int {
     try test_bytes_int(u8, snap(@src(),
         \\{ 134, 134, 117, 121, 117, 128, 131, 118 }
     ));
+
     try test_bytes_int(u64, snap(@src(),
         \\{ 134, 134, 117, 121, 117, 128, 131, 118 }
     ));
+
     try test_bytes_int(u128, snap(@src(),
         \\{ 130, 143, 107, 135, 111, 119, 132, 123 }
     ));
@@ -364,9 +413,11 @@ test int {
 fn test_bytes_int(Int: type, want: Snap) !void {
     var prng = PRNG.from_seed(92);
     var distribution: [8]u32 = @splat(0);
+
     for (0..1000) |_| {
         distribution[@intCast(prng.int(Int) % 8)] += 1;
     }
+
     try want.diff_fmt("{d}", .{distribution});
 }
 
@@ -379,9 +430,11 @@ test boolean {
     var prng = PRNG.from_seed(92);
     var heads: u32 = 0;
     var tails: u32 = 0;
+
     for (0..1000) |_| {
         if (prng.boolean()) heads += 1 else tails += 1;
     }
+
     try snap(@src(),
         \\heads = 501 tails = 499
     ).diff_fmt("heads = {} tails = {}", .{ heads, tails });
@@ -391,17 +444,22 @@ test boolean {
 pub fn bit(prng: *PRNG, comptime Word: type) Word {
     comptime assert(@typeInfo(Word) == .int);
     comptime assert(@typeInfo(Word).int.signedness == .unsigned);
+
     return @as(Word, 1) << prng.int_inclusive(std.math.Log2Int(Word), @bitSizeOf(Word) - 1);
 }
 
 test bit {
     var prng = PRNG.from_seed(92);
     var hits: [8]u32 = @splat(0);
+
     for (0..1000) |_| {
         const word = prng.bit(u8);
+
         assert(@popCount(word) == 1);
+
         hits[@ctz(word)] += 1;
     }
+
     try snap(@src(),
         \\{ 134, 134, 117, 121, 117, 128, 131, 118 }
     ).diff_fmt("{any}", .{hits});
@@ -411,16 +469,19 @@ test bit {
 pub fn chance(prng: *PRNG, probability: Ratio) bool {
     assert(probability.denominator > 0);
     assert(probability.numerator <= probability.denominator);
+
     return prng.int_inclusive(u64, probability.denominator - 1) < probability.numerator;
 }
 
 test chance {
     var prng = PRNG.from_seed(92);
     var balance: i32 = 0;
+
     for (0..1000) |_| {
         if (prng.chance(ratio(2, 7))) balance += 1 else balance -= 1;
         if (prng.chance(ratio(5, 7))) balance += 1 else balance -= 1;
     }
+
     try snap(@src(),
         \\balance = 46
     ).diff_fmt("balance = {d}", .{balance});
@@ -429,17 +490,20 @@ test chance {
 /// Like enum_weighted, but doesn't require specifying the enum up-front.
 pub fn chances(prng: *PRNG, weights: anytype) std.meta.FieldEnum(@TypeOf(weights)) {
     const Enum = std.meta.FieldEnum(@TypeOf(weights));
+
     return enum_weighted_impl(prng, Enum, weights);
 }
 
 test chances {
     var prng = from_seed(92);
     var count: struct { a: u32 = 0, b: u32 = 0, c: u32 = 0 } = .{};
+
     for (0..1000) |_| {
         switch (prng.chances(.{ .a = 1, .b = 3, .c = 2 })) {
             inline else => |tag| @field(count, @tagName(tag)) += 1,
         }
     }
+
     try snap(@src(),
         \\a=166 b=475 c=359
     ).diff_fmt("a={} b={} c={}", .{ count.a, count.b, count.c });
@@ -447,6 +511,7 @@ test chances {
 
 pub fn error_uniform(prng: *PRNG, Error: type) Error {
     const errors = @typeInfo(Error).error_set.?;
+
     return switch (prng.index(errors)) {
         inline 0...(errors.len - 1) => |i| @field(Error, errors[i].name),
         else => unreachable,
@@ -456,14 +521,15 @@ pub fn error_uniform(prng: *PRNG, Error: type) Error {
 /// Returns a random value of an enum.
 pub fn enum_uniform(prng: *PRNG, Enum: type) Enum {
     const values = std.enums.values(Enum);
+
     return values[prng.index(values)];
 }
 
 test enum_uniform {
     const E = enum(u8) { a, b, c = 8 }; // 8 tests that the discriminant is used properly.
-
     var prng = from_seed(92);
     var count: struct { a: u32 = 0, b: u32 = 0, c: u32 = 0 } = .{};
+
     for (0..1000) |_| {
         switch (prng.enum_uniform(E)) {
             inline else => |tag| @field(count, @tagName(tag)) += 1,
@@ -487,24 +553,31 @@ pub fn enum_weighted(prng: *PRNG, Enum: type, weights: EnumWeightsType(Enum)) En
 fn enum_weighted_impl(prng: *PRNG, Enum: type, weights: anytype) Enum {
     const fields = @typeInfo(Enum).@"enum".fields;
     var total: u64 = 0;
+
     inline for (fields) |field| {
         total += @field(weights, field.name);
     }
+
     assert(total > 0);
+
     var pick = prng.int_inclusive(u64, total - 1);
+
     inline for (fields) |field| {
         const weight = @field(weights, field.name);
+
         if (pick < weight) return @as(Enum, @enumFromInt(field.value));
+
         pick -= weight;
     }
+
     unreachable;
 }
 
 test enum_weighted {
     const E = enum(u8) { a, b, c = 8 }; // 8 tests that the discriminant is used properly.
-
     var prng = from_seed(92);
     var count: struct { a: u32 = 0, b: u32 = 0, c: u32 = 0 } = .{};
+
     for (0..1000) |_| {
         switch (prng.enum_weighted(E, .{ .a = 0, .b = 1, .c = 2 })) {
             inline else => |tag| @field(count, @tagName(tag)) += 1,
@@ -530,9 +603,11 @@ pub fn enum_weights(
         .total = fields.len,
         .sample = prng.range_inclusive(u32, 1, fields.len),
     });
+
     defer assert(combination.done());
 
     var weights: PRNG.EnumWeightsType(Enum) = undefined;
+
     inline for (fields) |field| {
         @field(weights, field) = if (combination.take(prng))
             prng.range_inclusive(u64, 1, 100)
@@ -547,12 +622,12 @@ pub fn enum_weights(
 pub const Combination = struct {
     total: u32,
     sample: u32,
-
     taken: u32,
     seen: u32,
 
     pub fn init(options: struct { total: u32, sample: u32 }) Combination {
         assert(options.sample <= options.total);
+
         return .{
             .total = options.total,
             .sample = options.sample,
@@ -575,28 +650,32 @@ pub const Combination = struct {
         const result = prng.chance(ratio(k, n));
 
         combination.seen += 1;
+
         if (result) combination.taken += 1;
+
         return result;
     }
 };
 
 test Combination {
     var prng = from_seed(92);
-
     const pool: [7]u8 = "abcdefg".*;
     var result: [3]u8 = undefined;
     var result_count: usize = 0;
-
     var e_taken_count: u32 = 0;
+
     for (0..1000) |_| {
         result_count = 0;
+
         var combination = Combination.init(.{ .total = pool.len, .sample = 3 });
+
         for (pool) |x| {
             if (combination.take(&prng)) {
                 result[result_count] = x;
                 result_count += 1;
             }
         }
+
         assert(combination.done());
         assert(result_count == 3);
 
@@ -619,6 +698,7 @@ pub const Reservoir = struct {
 
     pub fn replace(reservoir: *Reservoir, prng: *PRNG, weight: u64) bool {
         reservoir.total += weight;
+
         return prng.chance(ratio(weight, reservoir.total));
     }
 };
@@ -631,15 +711,20 @@ test Reservoir {
     for (0..1000) |_| {
         var reservoir = Reservoir.init();
         var pick: ?[]const u8 = null;
+
         for (animals) |animal| {
             if (reservoir.replace(&prng, animal.len)) pick = animal;
         }
+
         assert(pick != null);
+
         kiwi_count += @intFromBool(std.mem.eql(u8, pick.?, "kiwi"));
     }
 
     var total_weight: u64 = 0;
+
     for (animals) |animal| total_weight += animal.len;
+
     const expected_value = 1000 * "kiwi".len / total_weight;
 
     try snap(@src(),
@@ -650,6 +735,7 @@ test Reservoir {
 pub fn shuffle(prng: *PRNG, T: type, slice: []T) void {
     for (0..slice.len) |i| {
         const j = prng.int_inclusive(u64, i);
+
         std.mem.swap(T, &slice[i], &slice[j]);
     }
 }
@@ -660,7 +746,9 @@ test shuffle {
 
     for (0..1000) |_| {
         var buffer = "abcdefg".*;
+
         shuffle(&prng, u8, &buffer);
+
         g_first_count += @intFromBool(buffer[0] == 'g');
     }
 
@@ -674,9 +762,11 @@ test "no floating point please" {
         module_path,
         @src().file,
     });
+
     defer std.testing.allocator.free(path);
 
     const file_text = try std.fs.cwd().readFileAlloc(std.testing.allocator, path, 64 * KiB);
+
     defer std.testing.allocator.free(file_text);
 
     assert(std.mem.indexOf(u8, file_text, "f" ++ "32") == null);
@@ -694,6 +784,7 @@ pub const FuzzIterations = struct {
 
     pub fn more(clock: *FuzzIterations) bool {
         comptime assert(builtin.is_test);
+
         if (clock.timer == null) {
             clock.timer = std.time.Timer.start() catch @panic("timer failed");
         }
@@ -705,6 +796,7 @@ pub const FuzzIterations = struct {
         }
 
         clock.iteration += 1;
+
         return true;
     }
 };

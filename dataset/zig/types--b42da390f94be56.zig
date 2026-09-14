@@ -20,6 +20,7 @@ pub const ConnectionProperties = struct {
     product: []const u8,
     version: []const u8,
     platform: []const u8,
+
     capabilities: *const ClientCapabilities,
 
     pub const default: ConnectionProperties = .{
@@ -39,8 +40,10 @@ pub const ConnectionProperties = struct {
             .write = &struct {
                 fn write(context: *const anyopaque, encoder: *Encoder.TableEncoder) void {
                     const properties: *const ConnectionProperties = @ptrCast(@alignCast(context));
+
                     inline for (std.meta.fields(ConnectionProperties)) |field| {
                         const value = @field(properties, field.name);
+
                         encoder.put(field.name, switch (field.type) {
                             []const u8 => .{ .string = value },
                             *const ClientCapabilities => .{ .field_table = value.table() },
@@ -50,6 +53,7 @@ pub const ConnectionProperties = struct {
                 }
             }.write,
         };
+
         return .{ .context = self, .vtable = &vtable };
     }
 };
@@ -82,36 +86,46 @@ pub const ClientCapabilities = struct {
             .write = &struct {
                 fn write(context: *const anyopaque, encoder: *Encoder.TableEncoder) void {
                     const capabilities: *const ClientCapabilities = @ptrCast(@alignCast(context));
+
                     encoder.put("publisher_confirms", .{
                         .boolean = capabilities.publisher_confirms,
                     });
+
                     encoder.put("exchange_exchange_bindings", .{
                         .boolean = capabilities.exchange_exchange_bindings,
                     });
+
                     encoder.put("basic.nack", .{
                         .boolean = capabilities.basic_nack,
                     });
+
                     encoder.put("consumer_cancel_notify", .{
                         .boolean = capabilities.consumer_cancel_notify,
                     });
+
                     encoder.put("connection.blocked", .{
                         .boolean = capabilities.connection_blocked,
                     });
+
                     encoder.put("consumer_priorities", .{
                         .boolean = capabilities.consumer_priorities,
                     });
+
                     encoder.put("authentication_failure_close", .{
                         .boolean = capabilities.authentication_failure_close,
                     });
+
                     encoder.put("per_consumer_qos", .{
                         .boolean = capabilities.per_consumer_qos,
                     });
+
                     encoder.put("direct_reply_to", .{
                         .boolean = capabilities.direct_reply_to,
                     });
                 }
             }.write,
         };
+
         return .{ .context = self, .vtable = &vtable };
     }
 };
@@ -130,14 +144,17 @@ pub const SASLPlainAuth = struct {
                 fn write(context: *const anyopaque, buffer: []u8) usize {
                     const auth: *const SASLPlainAuth = @ptrCast(@alignCast(context));
                     var fbs = std.io.fixedBufferStream(buffer);
+
                     fbs.writer().print("\x00{s}\x00{s}", .{
                         auth.user_name,
                         auth.password,
                     }) catch unreachable;
+
                     return fbs.pos;
                 }
             }.write,
         };
+
         return .{ .context = self, .vtable = &vtable };
     }
 };
@@ -186,12 +203,15 @@ pub const QueueDeclareArguments = struct {
             .write = &struct {
                 fn write(context: *const anyopaque, encoder: *Encoder.TableEncoder) void {
                     const arguments: *const QueueDeclareArguments = @ptrCast(@alignCast(context));
+
                     inline for (std.meta.fields(QueueDeclareArguments)) |field| {
                         if (@field(arguments, field.name)) |value| {
                             const FieldType = @TypeOf(value);
+
                             // Keys are follow the pattern "x-max-length":
                             const key = comptime "x-" ++
                                 vsr.stdx.to_case(field.name, .@"kebab-case");
+
                             switch (FieldType) {
                                 []const u8 => encoder.put(key, .{ .string = value }),
                                 QueueOverflow => encoder.put(key, .{ .string = switch (value) {
@@ -207,6 +227,7 @@ pub const QueueDeclareArguments = struct {
                 }
             }.write,
         };
+
         return .{ .context = self, .vtable = &vtable };
     }
 };

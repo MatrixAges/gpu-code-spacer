@@ -18,12 +18,15 @@ pub fn deinit(self: *Encoder) void {
 /// Encode any value.
 pub fn any(self: *Encoder, val: anytype) !void {
     const T = @TypeOf(val);
+
     try self.anyTag(Tag.fromZig(T), val);
 }
 
 fn anyTag(self: *Encoder, tag_: Tag, val: anytype) !void {
     const T = @TypeOf(val);
+
     if (std.meta.hasFn(T, "encodeDer")) return try val.encodeDer(self);
+
     const start = self.buffer.data.len;
     const merged_tag = self.mergedTag(tag_);
 
@@ -38,19 +41,24 @@ fn anyTag(self: *Encoder, tag_: Tag, val: anytype) !void {
                 // > component value which is equal to its default value.
                 const is_default = if (f.is_comptime) false else if (f.default_value_ptr) |v| brk: {
                     const default_val: *const f.type = @ptrCast(@alignCast(v));
+
                     break :brk std.mem.eql(u8, std.mem.asBytes(default_val), std.mem.asBytes(&field_val));
                 } else false;
 
                 if (!is_default) {
                     const start2 = self.buffer.data.len;
+
                     self.field_tag = field_tag;
+
                     // will merge with self.field_tag.
                     // may mutate self.field_tag.
                     try self.anyTag(Tag.fromZig(f.type), field_val);
+
                     if (field_tag) |ft| {
                         if (ft.explicit) {
                             try self.length(self.buffer.data.len - start2);
                             try self.tag(ft.toTag());
+
                             self.field_tag = null;
                         }
                     }
@@ -78,34 +86,43 @@ fn anyTag(self: *Encoder, tag_: Tag, val: anytype) !void {
 /// Encode a tag.
 pub fn tag(self: *Encoder, tag_: Tag) !void {
     const t = self.mergedTag(tag_);
+
     try t.encode(self.writer());
 }
 
 fn mergedTag(self: *Encoder, tag_: Tag) Tag {
     var res = tag_;
+
     if (self.field_tag) |ft| {
         if (!ft.explicit) {
             res.number = @enumFromInt(ft.number);
+
             res.class = ft.class;
         }
     }
+
     return res;
 }
 
 /// Encode a length.
 pub fn length(self: *Encoder, len: usize) !void {
     const writer_ = self.writer();
+
     if (len < 128) {
         try writer_.writeInt(u8, @intCast(len), .big);
+
         return;
     }
+
     inline for ([_]type{ u8, u16, u32 }) |T| {
         if (len < std.math.maxInt(T)) {
             try writer_.writeInt(T, @intCast(len), .big);
             try writer_.writeInt(u8, @sizeOf(T) | 0x80, .big);
+
             return;
         }
     }
+
     return error.InvalidLength;
 }
 
@@ -126,23 +143,29 @@ fn int(self: *Encoder, comptime T: type, value: T) !void {
     const big_bytes = std.mem.asBytes(&big);
 
     const bits_needed = @bitSizeOf(T) - @clz(value);
+
     const needs_padding: u1 = if (value == 0)
         1
     else if (bits_needed > 8) brk: {
         const RightShift = std.meta.Int(.unsigned, @bitSizeOf(@TypeOf(bits_needed)) - 1);
         const right_shift: RightShift = @intCast(bits_needed - 9);
+
         break :brk if (value >> right_shift == 0x1ff) 1 else 0;
     } else 0;
+
     const bytes_needed = try std.math.divCeil(usize, bits_needed, 8) + needs_padding;
 
     const writer_ = self.writer();
+
     for (0..bytes_needed - needs_padding) |i| try writer_.writeByte(big_bytes[big_bytes.len - i - 1]);
+
     if (needs_padding == 1) try writer_.writeByte(0);
 }
 
 test int {
     const allocator = std.testing.allocator;
     var encoder = Encoder.init(allocator);
+
     defer encoder.deinit();
 
     try encoder.int(u8, 0);

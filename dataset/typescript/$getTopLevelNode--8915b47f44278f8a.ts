@@ -10,6 +10,7 @@ export default (n: LexicalNode) => {
 		}
 
 		node = parent
+
 		parent = node.getParent()
 	}
 

@@ -7,6 +7,7 @@ const expectEqual = std.testing.expectEqual;
 pub fn FloatRepr(comptime Float: type) type {
     const fractional_bits = floatFractionalBits(Float);
     const exponent_bits = floatExponentBits(Float);
+
     return packed struct {
         const Repr = @This();
 
@@ -17,6 +18,7 @@ pub fn FloatRepr(comptime Float: type) type {
         pub const StoredMantissa = @Int(.unsigned, floatMantissaBits(Float));
         pub const Mantissa = @Int(.unsigned, 1 + fractional_bits);
         pub const Exponent = @Int(.signed, exponent_bits);
+
         pub const BiasedExponent = enum(@Int(.unsigned, exponent_bits)) {
             denormal = 0,
             min_normal = 1,
@@ -55,7 +57,9 @@ pub fn FloatRepr(comptime Float: type) type {
                     .exponent = .infinite,
                     .sign = sign,
                 });
+
                 const mantissa = @as(Mantissa, 1 << fractional_bits) | normalized.fraction;
+
                 if (normalized.exponent < BiasedExponent.min_normal.unbias()) return @bitCast(Repr{
                     .mantissa = @truncate(std.math.shr(
                         Mantissa,
@@ -65,6 +69,7 @@ pub fn FloatRepr(comptime Float: type) type {
                     .exponent = .denormal,
                     .sign = sign,
                 });
+
                 return @bitCast(Repr{
                     .mantissa = @truncate(mantissa),
                     .exponent = .bias(@intCast(normalized.exponent)),
@@ -74,11 +79,13 @@ pub fn FloatRepr(comptime Float: type) type {
         };
 
         pub const Classified = union(enum) { normalized: Normalized, infinity, nan, invalid };
+
         fn classify(repr: Repr) Classified {
             return switch (repr.exponent) {
                 .denormal => {
                     const mantissa: Mantissa = repr.mantissa;
                     const shift = @clz(mantissa);
+
                     return .{ .normalized = .{
                         .fraction = @truncate(mantissa << shift),
                         .exponent = @as(Normalized.Exponent, comptime BiasedExponent.min_normal.unbias()) - shift,
@@ -106,6 +113,7 @@ inline fn mantissaOne(comptime T: type) comptime_int {
 inline fn reconstructFloat(comptime T: type, comptime exponent: comptime_int, comptime mantissa: comptime_int) T {
     const TBits = @Int(.unsigned, @bitSizeOf(T));
     const biased_exponent = @as(TBits, exponent + floatExponentMax(T));
+
     return @as(T, @bitCast((biased_exponent << floatMantissaBits(T)) | @as(TBits, mantissa)));
 }
 
@@ -179,6 +187,7 @@ pub inline fn floatMin(comptime T: type) T {
 /// Returns the largest normal number representable in floating point type T.
 pub inline fn floatMax(comptime T: type) T {
     const all1s_mantissa = (1 << floatMantissaBits(T)) - 1;
+
     return reconstructFloat(T, floatExponentMax(T), all1s_mantissa);
 }
 
@@ -194,6 +203,7 @@ pub inline fn floatEpsAt(comptime T: type, x: T) T {
             const U: type = @Int(.unsigned, F.bits);
             const u: U = @bitCast(x);
             const y: T = @bitCast(u ^ 1);
+
             return @abs(x - y);
         },
         else => @compileError("floatEpsAt only supports floats"),
@@ -206,6 +216,7 @@ pub inline fn inf(comptime Type: type) Type {
         else => Type,
         comptime_float => f128, // any float type will do
     };
+
     return reconstructFloat(RuntimeType, floatExponentMax(RuntimeType) + 1, mantissaOne(RuntimeType));
 }
 
@@ -215,6 +226,7 @@ pub inline fn nan(comptime Type: type) Type {
         else => Type,
         comptime_float => f128, // any float type will do
     };
+
     return reconstructFloat(
         RuntimeType,
         floatExponentMax(RuntimeType) + 1,
@@ -231,6 +243,7 @@ pub inline fn snan(comptime Type: type) Type {
         else => Type,
         comptime_float => f128, // any float type will do
     };
+
     return reconstructFloat(
         RuntimeType,
         floatExponentMax(RuntimeType) + 1,
@@ -241,6 +254,7 @@ pub inline fn snan(comptime Type: type) Type {
 fn floatBits(comptime Type: type) !void {
     // (1 +) for the sign bit, since it is separate from the other bits
     const size = 1 + floatExponentBits(Type) + floatMantissaBits(Type);
+
     try expect(@bitSizeOf(Type) == size);
     try expect(floatFractionalBits(Type) <= floatMantissaBits(Type));
 
@@ -248,6 +262,7 @@ fn floatBits(comptime Type: type) !void {
     try expect(floatExponentMin(Type) <= -floatFractionalBits(Type));
     try expect(-floatFractionalBits(Type) <= floatExponentMax(Type));
 }
+
 test floatBits {
     try floatBits(f16);
     try floatBits(f32);
@@ -263,6 +278,7 @@ test inf {
     const inf_u64: u64 = 0x7FF0000000000000;
     const inf_u80: u80 = 0x7FFF8000000000000000;
     const inf_u128: u128 = 0x7FFF0000000000000000000000000000;
+
     try expectEqual(inf_u16, @as(u16, @bitCast(inf(f16))));
     try expectEqual(inf_u32, @as(u32, @bitCast(inf(f32))));
     try expectEqual(inf_u64, @as(u64, @bitCast(inf(f64))));
@@ -276,6 +292,7 @@ test nan {
     const qnan_u64: u64 = 0x7FF8000000000000;
     const qnan_u80: u80 = 0x7FFFC000000000000000;
     const qnan_u128: u128 = 0x7FFF8000000000000000000000000000;
+
     try expectEqual(qnan_u16, @as(u16, @bitCast(nan(f16))));
     try expectEqual(qnan_u32, @as(u32, @bitCast(nan(f32))));
     try expectEqual(qnan_u64, @as(u64, @bitCast(nan(f64))));
@@ -289,6 +306,7 @@ test snan {
     const snan_u64: u64 = 0x7FF4000000000000;
     const snan_u80: u80 = 0x7FFFA000000000000000;
     const snan_u128: u128 = 0x7FFF4000000000000000000000000000;
+
     try expectEqual(snan_u16, @as(u16, @bitCast(snan(f16))));
     try expectEqual(snan_u32, @as(u32, @bitCast(snan(f32))));
     try expectEqual(snan_u64, @as(u64, @bitCast(snan(f64))));

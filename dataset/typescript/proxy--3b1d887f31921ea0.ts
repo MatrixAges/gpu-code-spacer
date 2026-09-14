@@ -32,6 +32,7 @@ export interface ProxyOptions extends httpProxy.ServerOptions {
     | false
     | string
     | Promise<void | null | undefined | boolean | string>
+
   /**
    * rewrite the Origin header of a WebSocket request to match the target
    *
@@ -58,6 +59,7 @@ const rewriteOriginHeader = (
           `Unable to rewrite Origin header as headers are already sent.`,
         ),
       )
+
       return
     }
 
@@ -83,8 +85,10 @@ type ProxyContextEntry = {
 function createProxyContextMatcher(context: string): (url: string) => boolean {
   if (context[0] === '^') {
     const regex = new RegExp(context)
+
     return (url) => regex.test(url)
   }
+
   return (url) => url.startsWith(context)
 }
 
@@ -98,12 +102,15 @@ export function proxyMiddleware(
 
   Object.keys(options).forEach((context) => {
     let opts = options[context]
+
     if (!opts) {
       return
     }
+
     if (typeof opts === 'string') {
       opts = { target: opts, changeOrigin: true }
     }
+
     const proxy = httpProxy.createProxyServer(opts)
 
     if (opts.configure) {
@@ -120,6 +127,7 @@ export function proxyMiddleware(
             error: err,
           },
         )
+
         if (!res.headersSent && !res.writableEnded) {
           res
             .writeHead(502, {
@@ -132,6 +140,7 @@ export function proxyMiddleware(
           timestamp: true,
           error: err,
         })
+
         res.end()
       }
     })
@@ -161,8 +170,10 @@ export function proxyMiddleware(
   if (httpServer) {
     httpServer.on('upgrade', async (req, socket, head) => {
       const url = req.url!
+
       for (const context in proxies) {
         const { proxy, options: opts, match } = proxies[context]
+
         if (match(url)) {
           if (
             opts.ws ||
@@ -172,14 +183,20 @@ export function proxyMiddleware(
             if (opts.bypass) {
               try {
                 const bypassResult = await opts.bypass(req, undefined, opts)
+
                 if (typeof bypassResult === 'string') {
                   debug?.(`bypass: ${req.url} -> ${bypassResult}`)
+
                   req.url = bypassResult
+
                   return
                 }
+
                 if (bypassResult === false) {
                   debug?.(`bypass: ${req.url} -> 404`)
+
                   socket.end('HTTP/1.1 404 Not Found\r\n\r\n', '')
+
                   return
                 }
               } catch (err) {
@@ -190,6 +207,7 @@ export function proxyMiddleware(
                     error: err,
                   },
                 )
+
                 return
               }
             }
@@ -197,8 +215,11 @@ export function proxyMiddleware(
             if (opts.rewrite) {
               req.url = opts.rewrite(url)
             }
+
             debug?.(`${req.url} -> ws ${opts.target}`)
+
             proxy.ws(req, socket, head)
+
             return
           }
         }
@@ -209,41 +230,55 @@ export function proxyMiddleware(
   // Keep the named function. The name is visible in debug logs via `DEBUG=connect:dispatcher ...`
   return async function viteProxyMiddleware(req, res, next) {
     const url = req.url!
+
     for (const context in proxies) {
       const { proxy, options: opts, match } = proxies[context]
+
       if (match(url)) {
         const options: httpProxy.ServerOptions = {}
 
         if (opts.bypass) {
           try {
             const bypassResult = await opts.bypass(req, res, opts)
+
             if (typeof bypassResult === 'string') {
               debug?.(`bypass: ${req.url} -> ${bypassResult}`)
+
               req.url = bypassResult
+
               if (res.writableEnded) {
                 return
               }
+
               return next()
             }
+
             if (bypassResult === false) {
               debug?.(`bypass: ${req.url} -> 404`)
+
               res.statusCode = 404
+
               return res.end()
             }
           } catch (e) {
             debug?.(`bypass: ${req.url} -> ${e}`)
+
             return next(e)
           }
         }
 
         debug?.(`${req.url} -> ${opts.target || opts.forward}`)
+
         if (opts.rewrite) {
           req.url = opts.rewrite(req.url!)
         }
+
         proxy.web(req, res, options)
+
         return
       }
     }
+
     next()
   }
 }

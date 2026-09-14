@@ -8,6 +8,7 @@ const Error = Status.Error;
 
 pub const SimpleFileSystem = extern struct {
     revision: u64,
+
     _open_volume: *const fn (*const SimpleFileSystem, **File) callconv(cc) Status,
 
     pub const OpenVolumeError = uefi.UnexpectedError || error{
@@ -22,6 +23,7 @@ pub const SimpleFileSystem = extern struct {
 
     pub fn openVolume(self: *const SimpleFileSystem) OpenVolumeError!*File {
         var root: *File = undefined;
+
         switch (self._open_volume(self, &root)) {
             .success => return root,
             .unsupported => return Error.Unsupported,

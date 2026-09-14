@@ -1,7 +1,6 @@
 //! File System.
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
-
 const std = @import("std.zig");
 const Io = std.Io;
 const root = @import("root");
@@ -12,7 +11,6 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const posix = std.posix;
 const windows = std.os.windows;
-
 const is_darwin = native_os.isDarwin();
 
 pub const AtomicFile = @import("fs/AtomicFile.zig");
@@ -111,7 +109,9 @@ pub fn copyFileAbsolute(
 ) !void {
     assert(path.isAbsolute(source_path));
     assert(path.isAbsolute(dest_path));
+
     const my_cwd = cwd();
+
     return Dir.copyFile(my_cwd, source_path, my_cwd, dest_path, args);
 }
 
@@ -125,6 +125,7 @@ test copyFileAbsolute {}
 /// On other platforms, `absolute_path` is an opaque sequence of bytes with no particular encoding.
 pub fn makeDirAbsolute(absolute_path: []const u8) !void {
     assert(path.isAbsolute(absolute_path));
+
     return posix.mkdir(absolute_path, Dir.default_mode);
 }
 
@@ -133,6 +134,7 @@ test makeDirAbsolute {}
 /// Same as `makeDirAbsolute` except the parameter is null-terminated.
 pub fn makeDirAbsoluteZ(absolute_path_z: [*:0]const u8) !void {
     assert(path.isAbsoluteZ(absolute_path_z));
+
     return posix.mkdirZ(absolute_path_z, Dir.default_mode);
 }
 
@@ -144,12 +146,14 @@ test makeDirAbsoluteZ {}
 /// On other platforms, `dir_path` is an opaque sequence of bytes with no particular encoding.
 pub fn deleteDirAbsolute(dir_path: []const u8) !void {
     assert(path.isAbsolute(dir_path));
+
     return posix.rmdir(dir_path);
 }
 
 /// Same as `deleteDirAbsolute` except the path parameter is null-terminated.
 pub fn deleteDirAbsoluteZ(dir_path: [*:0]const u8) !void {
     assert(path.isAbsoluteZ(dir_path));
+
     return posix.rmdirZ(dir_path);
 }
 
@@ -160,6 +164,7 @@ pub fn deleteDirAbsoluteZ(dir_path: [*:0]const u8) !void {
 pub fn renameAbsolute(old_path: []const u8, new_path: []const u8) !void {
     assert(path.isAbsolute(old_path));
     assert(path.isAbsolute(new_path));
+
     return posix.rename(old_path, new_path);
 }
 
@@ -167,6 +172,7 @@ pub fn renameAbsolute(old_path: []const u8, new_path: []const u8) !void {
 pub fn renameAbsoluteZ(old_path: [*:0]const u8, new_path: [*:0]const u8) !void {
     assert(path.isAbsoluteZ(old_path));
     assert(path.isAbsoluteZ(new_path));
+
     return posix.renameZ(old_path, new_path);
 }
 
@@ -206,14 +212,17 @@ pub fn defaultWasiCwd() std.os.wasi.fd_t {
 /// On other platforms, `absolute_path` is an opaque sequence of bytes with no particular encoding.
 pub fn openDirAbsolute(absolute_path: []const u8, flags: Dir.OpenOptions) File.OpenError!Dir {
     assert(path.isAbsolute(absolute_path));
+
     return cwd().openDir(absolute_path, flags);
 }
 
 /// Same as `openDirAbsolute` but the path parameter is null-terminated.
 pub fn openDirAbsoluteZ(absolute_path_c: [*:0]const u8, flags: Dir.OpenOptions) File.OpenError!Dir {
     assert(path.isAbsoluteZ(absolute_path_c));
+
     return cwd().openDirZ(absolute_path_c, flags);
 }
+
 /// Opens a file for reading or writing, without attempting to create a new file, based on an absolute path.
 /// Call `File.close` to release the resource.
 /// Asserts that the path is absolute. See `Dir.openFile` for a function that
@@ -225,6 +234,7 @@ pub fn openDirAbsoluteZ(absolute_path_c: [*:0]const u8, flags: Dir.OpenOptions) 
 /// On other platforms, `absolute_path` is an opaque sequence of bytes with no particular encoding.
 pub fn openFileAbsolute(absolute_path: []const u8, flags: File.OpenFlags) File.OpenError!File {
     assert(path.isAbsolute(absolute_path));
+
     return cwd().openFile(absolute_path, flags);
 }
 
@@ -238,8 +248,10 @@ pub fn openFileAbsolute(absolute_path: []const u8, flags: File.OpenFlags) File.O
 /// On other platforms, `absolute_path` is an opaque sequence of bytes with no particular encoding.
 pub fn accessAbsolute(absolute_path: []const u8, flags: Io.Dir.AccessOptions) Dir.AccessError!void {
     assert(path.isAbsolute(absolute_path));
+
     try cwd().access(absolute_path, flags);
 }
+
 /// Creates, opens, or overwrites a file with write access, based on an absolute path.
 /// Call `File.close` to release the resource.
 /// Asserts that the path is absolute. See `Dir.createFile` for a function that
@@ -251,6 +263,7 @@ pub fn accessAbsolute(absolute_path: []const u8, flags: Io.Dir.AccessOptions) Di
 /// On other platforms, `absolute_path` is an opaque sequence of bytes with no particular encoding.
 pub fn createFileAbsolute(absolute_path: []const u8, flags: File.CreateFlags) File.OpenError!File {
     assert(path.isAbsolute(absolute_path));
+
     return cwd().createFile(absolute_path, flags);
 }
 
@@ -263,6 +276,7 @@ pub fn createFileAbsolute(absolute_path: []const u8, flags: File.CreateFlags) Fi
 /// On other platforms, `absolute_path` is an opaque sequence of bytes with no particular encoding.
 pub fn deleteFileAbsolute(absolute_path: []const u8) Dir.DeleteFileError!void {
     assert(path.isAbsolute(absolute_path));
+
     return cwd().deleteFile(absolute_path);
 }
 
@@ -276,6 +290,7 @@ pub fn deleteFileAbsolute(absolute_path: []const u8) Dir.DeleteFileError!void {
 /// On other platforms, `absolute_path` is an opaque sequence of bytes with no particular encoding.
 pub fn deleteTreeAbsolute(absolute_path: []const u8) !void {
     assert(path.isAbsolute(absolute_path));
+
     const dirname = path.dirname(absolute_path) orelse return error{
         /// Attempt to remove the root file system path.
         /// This error is unreachable if `absolute_path` is relative.
@@ -283,6 +298,7 @@ pub fn deleteTreeAbsolute(absolute_path: []const u8) !void {
     }.CannotDeleteRootDirectory;
 
     var dir = try cwd().openDir(dirname, .{});
+
     defer dir.close();
 
     return dir.deleteTree(path.basename(absolute_path));
@@ -294,6 +310,7 @@ pub fn deleteTreeAbsolute(absolute_path: []const u8) !void {
 /// On other platforms, `pathname` is an opaque sequence of bytes with no particular encoding.
 pub fn readLinkAbsolute(pathname: []const u8, buffer: *[max_path_bytes]u8) ![]u8 {
     assert(path.isAbsolute(pathname));
+
     return posix.readlink(pathname, buffer);
 }
 
@@ -312,11 +329,14 @@ pub fn symLinkAbsolute(
 ) !void {
     assert(path.isAbsolute(target_path));
     assert(path.isAbsolute(sym_link_path));
+
     if (native_os == .windows) {
         const target_path_w = try windows.sliceToPrefixedFileW(null, target_path);
         const sym_link_path_w = try windows.sliceToPrefixedFileW(null, sym_link_path);
+
         return windows.CreateSymbolicLink(null, sym_link_path_w.span(), target_path_w.span(), flags.is_directory);
     }
+
     return posix.symlink(target_path, sym_link_path);
 }
 
@@ -331,6 +351,7 @@ pub fn symLinkAbsoluteW(
 ) !void {
     assert(path.isAbsoluteWindowsW(target_path_w));
     assert(path.isAbsoluteWindowsW(sym_link_path_w));
+
     return windows.CreateSymbolicLink(null, mem.span(sym_link_path_w), mem.span(target_path_w), flags.is_directory);
 }
 
@@ -341,13 +362,17 @@ pub fn openSelfExe(flags: File.OpenFlags) OpenSelfExeError!File {
     if (native_os == .linux or native_os == .serenity or native_os == .windows) {
         var threaded: Io.Threaded = .init_single_threaded;
         const io = threaded.ioBasic();
+
         return .adaptFromNewApi(try Io.File.openSelfExe(io, flags));
     }
+
     // Use of max_path_bytes here is valid as the resulting path is immediately
     // opened with no modification.
     var buf: [max_path_bytes]u8 = undefined;
     const self_exe_path = try selfExePath(&buf);
+
     buf[self_exe_path.len] = 0;
+
     return openFileAbsolute(buf[0..self_exe_path.len :0], flags);
 }
 
@@ -389,7 +414,6 @@ pub const SelfExePathError = error{
     /// On Windows, the volume does not contain a recognized file system. File
     /// system drivers might not be loaded, or the volume may be corrupt.
     UnrecognizedVolume,
-
     Canceled,
 } || posix.SysCtlError;
 
@@ -404,6 +428,7 @@ pub fn selfExePathAlloc(allocator: Allocator) ![]u8 {
     // TODO(#4812): Investigate other systems and whether it is possible to get
     // this path by trying larger and larger buffers until one succeeds.
     var buf: [max_path_bytes]u8 = undefined;
+
     return allocator.dupe(u8, try selfExePath(&buf));
 }
 
@@ -426,18 +451,25 @@ pub fn selfExePath(out_buffer: []u8) SelfExePathError![]u8 {
         var symlink_path_buf: [max_path_bytes:0]u8 = undefined;
         var u32_len: u32 = max_path_bytes + 1; // include the sentinel
         const rc = std.c._NSGetExecutablePath(&symlink_path_buf, &u32_len);
+
         if (rc != 0) return error.NameTooLong;
 
         var real_path_buf: [max_path_bytes]u8 = undefined;
+
         const real_path = std.posix.realpathZ(&symlink_path_buf, &real_path_buf) catch |err| switch (err) {
             error.NetworkNotFound => unreachable, // Windows-only
             else => |e| return e,
         };
+
         if (real_path.len > out_buffer.len) return error.NameTooLong;
+
         const result = out_buffer[0..real_path.len];
+
         @memcpy(result, real_path);
+
         return result;
     }
+
     switch (native_os) {
         .linux, .serenity => return posix.readlinkZ("/proc/self/exe", out_buffer) catch |err| switch (err) {
             error.UnsupportedReparsePointType => unreachable, // Windows-only
@@ -452,14 +484,18 @@ pub fn selfExePath(out_buffer: []u8) SelfExePathError![]u8 {
         .freebsd, .dragonfly => {
             var mib = [4]c_int{ posix.CTL.KERN, posix.KERN.PROC, posix.KERN.PROC_PATHNAME, -1 };
             var out_len: usize = out_buffer.len;
+
             try posix.sysctl(&mib, out_buffer.ptr, &out_len, null, 0);
+
             // TODO could this slice from 0 to out_len instead?
             return mem.sliceTo(out_buffer, 0);
         },
         .netbsd => {
             var mib = [4]c_int{ posix.CTL.KERN, posix.KERN.PROC_ARGS, -1, posix.KERN.PROC_PATHNAME };
             var out_len: usize = out_buffer.len;
+
             try posix.sysctl(&mib, out_buffer.ptr, &out_len, null, 0);
+
             // TODO could this slice from 0 to out_len instead?
             return mem.sliceTo(out_buffer, 0);
         },
@@ -469,24 +505,32 @@ pub fn selfExePath(out_buffer: []u8) SelfExePathError![]u8 {
                 return error.FileNotFound;
 
             const argv0 = mem.span(std.os.argv[0]);
+
             if (mem.indexOf(u8, argv0, "/") != null) {
                 // argv[0] is a path (relative or absolute): use realpath(3) directly
                 var real_path_buf: [max_path_bytes]u8 = undefined;
+
                 const real_path = posix.realpathZ(std.os.argv[0], &real_path_buf) catch |err| switch (err) {
                     error.NetworkNotFound => unreachable, // Windows-only
                     else => |e| return e,
                 };
+
                 if (real_path.len > out_buffer.len)
                     return error.NameTooLong;
+
                 const result = out_buffer[0..real_path.len];
+
                 @memcpy(result, real_path);
+
                 return result;
             } else if (argv0.len != 0) {
                 // argv[0] is not empty (and not a path): search it inside PATH
                 const PATH = posix.getenvZ("PATH") orelse return error.FileNotFound;
                 var path_it = mem.tokenizeScalar(u8, PATH, path.delimiter);
+
                 while (path_it.next()) |a_path| {
                     var resolved_path_buf: [max_path_bytes - 1:0]u8 = undefined;
+
                     const resolved_path = std.fmt.bufPrintSentinel(&resolved_path_buf, "{s}/{s}", .{
                         a_path,
                         std.os.argv[0],
@@ -494,16 +538,21 @@ pub fn selfExePath(out_buffer: []u8) SelfExePathError![]u8 {
                     }) catch continue;
 
                     var real_path_buf: [max_path_bytes]u8 = undefined;
+
                     if (posix.realpathZ(resolved_path, &real_path_buf)) |real_path| {
                         // found a file, and hope it is the right file
                         if (real_path.len > out_buffer.len)
                             return error.NameTooLong;
+
                         const result = out_buffer[0..real_path.len];
+
                         @memcpy(result, real_path);
+
                         return result;
                     } else |_| continue;
                 }
             }
+
             return error.FileNotFound;
         },
         .windows => {
@@ -514,14 +563,14 @@ pub fn selfExePath(out_buffer: []u8) SelfExePathError![]u8 {
             // symlink, not the path that the symlink points to. We want the path
             // that the symlink points to, though, so we need to get the realpath.
             var pathname_w = try windows.wToPrefixedFileW(null, image_path_name);
-
             const wide_slice = try std.fs.cwd().realpathW2(pathname_w.span(), &pathname_w.data);
-
             const len = std.unicode.calcWtf8Len(wide_slice);
+
             if (len > out_buffer.len)
                 return error.NameTooLong;
 
             const end_index = std.unicode.wtf16LeToWtf8(out_buffer, wide_slice);
+
             return out_buffer[0..end_index];
         },
         else => @compileError("std.fs.selfExePath not supported for this target"),
@@ -539,6 +588,7 @@ pub fn selfExeDirPathAlloc(allocator: Allocator) ![]u8 {
     // TODO(#4812): Investigate other systems and whether it is possible to get
     // this path by trying larger and larger buffers until one succeeds.
     var buf: [max_path_bytes]u8 = undefined;
+
     return allocator.dupe(u8, try selfExeDirPath(&buf));
 }
 
@@ -548,6 +598,7 @@ pub fn selfExeDirPathAlloc(allocator: Allocator) ![]u8 {
 /// On other platforms, the result is an opaque sequence of bytes with no particular encoding.
 pub fn selfExeDirPath(out_buffer: []u8) SelfExePathError![]const u8 {
     const self_exe_path = try selfExePath(out_buffer);
+
     // Assume that the OS APIs return absolute paths, and therefore dirname
     // will not return null.
     return path.dirname(self_exe_path).?;
@@ -565,6 +616,7 @@ pub fn realpathAlloc(allocator: Allocator, pathname: []const u8) ![]u8 {
     // paths. musl supports passing NULL but restricts the output to PATH_MAX
     // anyway.
     var buf: [max_path_bytes]u8 = undefined;
+
     return allocator.dupe(u8, try posix.realpath(pathname, &buf));
 }
 

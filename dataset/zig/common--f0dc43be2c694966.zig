@@ -15,11 +15,13 @@ const is_linux = builtin.target.os.tag == .linux;
 pub const TCPOptions = struct {
     rcvbuf: c_int,
     sndbuf: c_int,
+
     keepalive: ?struct {
         keepidle: c_int,
         keepintvl: c_int,
         keepcnt: c_int,
     },
+
     user_timeout_ms: c_int,
     nodelay: bool,
 };
@@ -36,13 +38,16 @@ pub fn listen(
     options: ListenOptions,
 ) !stdx.SocketAddress {
     const address_std = address.to_std();
+
     try setsockopt(fd, posix.SOL.SOCKET, posix.SO.REUSEADDR, 1);
     try posix.bind(fd, &address_std.any, address_std.getOsSockLen());
 
     // Resolve port 0 to an actual port picked by the OS.
     var address_resolved_std: std.net.Address = .{ .any = undefined };
     var addrlen: posix.socklen_t = @sizeOf(std.net.Address);
+
     try posix.getsockname(fd, &address_resolved_std.any, &addrlen);
+
     assert(address_resolved_std.getOsSockLen() == addrlen);
     assert(address_resolved_std.any.family == address_std.any.family);
 
@@ -55,6 +60,7 @@ pub fn listen(
 
     assert(address.ip.family() == address_resolved.ip.family());
     assert(std.meta.eql(address.ip, address_resolved.ip));
+
     if (address.port != address_resolved.port) assert(address.port == 0);
 
     return address_resolved;
@@ -77,6 +83,7 @@ pub fn tcp_options(
 
     if (options.keepalive) |keepalive| {
         try setsockopt(fd, posix.SOL.SOCKET, posix.SO.KEEPALIVE, 1);
+
         if (is_linux) {
             try setsockopt(fd, posix.IPPROTO.TCP, posix.TCP.KEEPIDLE, keepalive.keepidle);
             try setsockopt(fd, posix.IPPROTO.TCP, posix.TCP.KEEPINTVL, keepalive.keepintvl);
@@ -87,6 +94,7 @@ pub fn tcp_options(
     if (options.user_timeout_ms > 0) {
         if (is_linux) {
             const timeout_ms = options.user_timeout_ms;
+
             try setsockopt(fd, posix.IPPROTO.TCP, posix.TCP.USER_TIMEOUT, timeout_ms);
         }
     }
@@ -116,6 +124,7 @@ const SocketBuffer = enum {
 
     fn option_force(buffer: SocketBuffer) u32 {
         assert(is_linux);
+
         return switch (buffer) {
             .receive => posix.SO.RCVBUFFORCE,
             .send => posix.SO.SNDBUFFORCE,
@@ -136,6 +145,7 @@ fn set_socket_buffer(fd: posix.socket_t, buffer: SocketBuffer, requested: c_int)
                 else => |e| return e,
             }
         }
+
         try setsockopt(fd, posix.SOL.SOCKET, buffer.option(), requested);
     }
 
@@ -171,6 +181,7 @@ fn getsockopt(
 
     if (builtin.target.os.tag == .windows) {
         var value_size: i32 = @sizeOf(c_int);
+
         const rc = std.os.windows.ws2_32.getsockopt(
             fd,
             level,
@@ -178,6 +189,7 @@ fn getsockopt(
             std.mem.asBytes(&value),
             &value_size,
         );
+
         if (rc != 0) {
             switch (std.os.windows.ws2_32.WSAGetLastError()) {
                 .WSAEACCES => return error.AccessDenied,
@@ -190,11 +202,14 @@ fn getsockopt(
                 else => |err| return std.os.windows.unexpectedWSAError(err),
             }
         }
+
         assert(value_size == @sizeOf(c_int));
+
         return value;
     }
 
     var value_size: posix.socklen_t = @sizeOf(c_int);
+
     switch (posix.errno(posix.system.getsockopt(
         fd,
         level,
@@ -212,21 +227,25 @@ fn getsockopt(
         .ACCES => return error.AccessDenied,
         else => |errno| return stdx.unexpected_errno("getsockopt", errno),
     }
+
     return value;
 }
 
 pub fn aof_blocking_write_all(fd: posix.fd_t, buffer: []const u8) posix.WriteError!void {
     const file = std.fs.File{ .handle = fd };
+
     return file.writeAll(buffer);
 }
 
 pub fn aof_blocking_pread_all(fd: posix.fd_t, buffer: []u8, offset: u64) posix.PReadError!usize {
     const file = std.fs.File{ .handle = fd };
+
     return file.preadAll(buffer, offset);
 }
 
 pub fn aof_blocking_close(fd: posix.fd_t) void {
     const file = std.fs.File{ .handle = fd };
+
     file.close();
 }
 
@@ -236,6 +255,7 @@ pub fn aof_blocking_stat(path: []const u8) std.fs.Dir.StatFileError!std.fs.File.
 
 pub fn aof_blocking_fstat(fd: posix.fd_t) std.fs.Dir.StatError!std.fs.File.Stat {
     const file = std.fs.File{ .handle = fd };
+
     return file.stat();
 }
 
@@ -250,6 +270,7 @@ pub fn aof_blocking_open(dir_fd: posix.fd_t, path: []const u8) !posix.fd_t {
         .exclusive = false,
         .lock = .exclusive,
     });
+
     errdefer file.close();
 
     try file.sync();
@@ -289,7 +310,9 @@ pub const Stats = struct {
             tracer.timing(.loop_callbacks, stats.window.time_callbacks);
             tracer.timing(.loop_kernel, stats.window.time_kernel);
         }
+
         stats.total.add(stats.window);
+
         stats.window = .{};
     }
 };

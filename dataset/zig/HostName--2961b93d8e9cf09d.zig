@@ -27,25 +27,30 @@ pub const ValidateError = error{
 pub fn validate(bytes: []const u8) ValidateError!void {
     if (bytes.len > max_len) return error.NameTooLong;
     if (!std.unicode.utf8ValidateSlice(bytes)) return error.InvalidHostName;
+
     for (bytes) |byte| {
         if (!std.ascii.isAscii(byte) or byte == '.' or byte == '-' or std.ascii.isAlphanumeric(byte)) {
             continue;
         }
+
         return error.InvalidHostName;
     }
 }
 
 pub fn init(bytes: []const u8) ValidateError!HostName {
     try validate(bytes);
+
     return .{ .bytes = bytes };
 }
 
 pub fn sameParentDomain(parent_host: HostName, child_host: HostName) bool {
     const parent_bytes = parent_host.bytes;
     const child_bytes = child_host.bytes;
+
     if (!std.ascii.endsWithIgnoreCase(child_bytes, parent_bytes)) return false;
     if (child_bytes.len == parent_bytes.len) return true;
     if (parent_bytes.len > child_bytes.len) return false;
+
     return child_bytes[child_bytes.len - parent_bytes.len - 1] == '.';
 }
 
@@ -118,21 +123,30 @@ pub fn expand(noalias packet: []const u8, start_i: usize, noalias dest_buffer: [
         if (i >= packet.len) return error.InvalidDnsPacket;
 
         const c = packet[i];
+
         if ((c & 0xc0) != 0) {
             if (i + 1 >= packet.len) return error.InvalidDnsPacket;
+
             const j: usize = (@as(usize, c & 0x3F) << 8) | packet[i + 1];
+
             if (j >= packet.len) return error.InvalidDnsPacket;
             if (len == null) len = (i + 2) - start_i;
+
             i = j;
         } else if (c != 0) {
             if (dest_i != 0) {
                 dest[dest_i] = '.';
+
                 dest_i += 1;
             }
+
             const label_len: usize = c;
+
             if (i + 1 + label_len > packet.len) return error.InvalidDnsPacket;
             if (dest_i + label_len + 1 > dest.len) return error.InvalidDnsPacket;
+
             @memcpy(dest[dest_i..][0..label_len], packet[i + 1 ..][0..label_len]);
+
             dest_i += label_len;
             i += 1 + label_len;
         } else {
@@ -142,6 +156,7 @@ pub fn expand(noalias packet: []const u8, start_i: usize, noalias dest_buffer: [
             };
         }
     }
+
     return error.InvalidDnsPacket;
 }
 
@@ -169,13 +184,18 @@ pub const DnsResponse = struct {
     pub fn init(r: []const u8) Error!DnsResponse {
         if (r.len < 12) return error.InvalidDnsPacket;
         if ((r[3] & 15) != 0) return .{ .bytes = r, .bytes_index = 3, .answers_remaining = 0 };
+
         var i: u32 = 12;
         var query_count = std.mem.readInt(u16, r[4..6], .big);
+
         while (query_count != 0) : (query_count -= 1) {
             while (i < r.len and r[i] -% 1 < 127) i += 1;
+
             if (r.len - i < 6) return error.InvalidDnsPacket;
+
             i = i + 5 + @intFromBool(r[i] != 0);
         }
+
         return .{
             .bytes = r,
             .bytes_index = i,
@@ -185,15 +205,24 @@ pub const DnsResponse = struct {
 
     pub fn next(dr: *DnsResponse) Error!?Answer {
         if (dr.answers_remaining == 0) return null;
+
         dr.answers_remaining -= 1;
+
         const r = dr.bytes;
         var i = dr.bytes_index;
+
         while (i < r.len and r[i] -% 1 < 127) i += 1;
+
         if (r.len - i < 12) return error.InvalidDnsPacket;
+
         i = i + 1 + @intFromBool(r[i] != 0);
+
         const len = std.mem.readInt(u16, r[i + 8 ..][0..2], .big);
+
         if (i + 10 + len > r.len) return error.InvalidDnsPacket;
+
         defer dr.bytes_index = i + 10 + len;
+
         return .{
             .rr = @enumFromInt(r[i + 1]),
             .packet = r,
@@ -216,8 +245,10 @@ pub fn connect(
 
     var connect_many = io.async(connectMany, .{ host_name, io, port, &connect_many_queue, options });
     var saw_end = false;
+
     defer {
         connect_many.cancel(io);
+
         if (!saw_end) while (true) switch (connect_many_queue.getOneUncancelable(io)) {
             .connection => |loser| if (loser) |s| s.close(io) else |_| continue,
             .end => break,
@@ -241,7 +272,9 @@ pub fn connect(
         },
         .end => |end| {
             saw_end = true;
+
             try end;
+
             return aggregate_error;
         },
     } else |err| switch (err) {
@@ -267,6 +300,7 @@ pub fn connectMany(
     var lookup_buffer: [32]HostName.LookupResult = undefined;
     var lookup_queue: Io.Queue(LookupResult) = .init(&lookup_buffer);
     var group: Io.Group = .init;
+
     defer group.cancel(io);
 
     group.async(io, lookup, .{ host_name, io, &lookup_queue, .{
@@ -280,6 +314,7 @@ pub fn connectMany(
         .end => |lookup_result| {
             group.wait(io);
             results.putOneUncancelable(io, .{ .end = lookup_result });
+
             return;
         },
     } else |err| switch (err) {
@@ -330,19 +365,23 @@ pub const ResolvConf = struct {
             error.AccessDenied,
             => {
                 try addNumeric(&rc, io, "127.0.0.1", 53);
+
                 return rc;
             },
 
             else => |e| return e,
         };
+
         defer file.close(io);
 
         var line_buf: [512]u8 = undefined;
         var file_reader = file.reader(io, &line_buf);
+
         parse(&rc, io, &file_reader.interface) catch |err| switch (err) {
             error.ReadFailed => return file_reader.err.?,
             else => |e| return e,
         };
+
         return rc;
     }
 
@@ -353,20 +392,25 @@ pub const ResolvConf = struct {
         while (reader.takeSentinel('\n')) |line_with_comment| {
             const line = line: {
                 var split = std.mem.splitScalar(u8, line_with_comment, '#');
+
                 break :line split.first();
             };
+
             var line_it = std.mem.tokenizeAny(u8, line, " \t");
 
             const token = line_it.next() orelse continue;
+
             switch (std.meta.stringToEnum(Directive, token) orelse continue) {
                 .options => while (line_it.next()) |sub_tok| {
                     var colon_it = std.mem.splitScalar(u8, sub_tok, ':');
                     const name = colon_it.first();
                     const value_txt = colon_it.next() orelse continue;
+
                     const value = std.fmt.parseInt(u8, value_txt, 10) catch |err| switch (err) {
                         error.Overflow => 255,
                         error.InvalidCharacter => continue,
                     };
+
                     switch (std.meta.stringToEnum(Option, name) orelse continue) {
                         .ndots => rc.ndots = @min(value, 15),
                         .attempts => rc.attempts = @min(value, 10),
@@ -375,11 +419,14 @@ pub const ResolvConf = struct {
                 },
                 .nameserver => {
                     const ip_txt = line_it.next() orelse continue;
+
                     try addNumeric(rc, io, ip_txt, 53);
                 },
                 .domain, .search => {
                     const rest = line_it.rest();
+
                     @memcpy(rc.search_buffer[0..rest.len], rest);
+
                     rc.search_len = rest.len;
                 },
             }
@@ -396,6 +443,7 @@ pub const ResolvConf = struct {
     fn addNumeric(rc: *ResolvConf, io: Io, name: []const u8, port: u16) !void {
         if (rc.nameservers_len < rc.nameservers_buffer.len) {
             rc.nameservers_buffer[rc.nameservers_len] = try .resolve(io, name, port);
+
             rc.nameservers_len += 1;
         }
     }
@@ -414,6 +462,7 @@ test ResolvConf {
         \\options edns0
         \\
     ;
+
     var reader: Io.Reader = .fixed(input);
 
     var rc: ResolvConf = .{

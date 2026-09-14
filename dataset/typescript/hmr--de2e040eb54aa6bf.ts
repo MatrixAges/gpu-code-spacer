@@ -5,36 +5,44 @@ import colors from 'picocolors'
 import type { RollupError } from 'rolldown'
 import type { CustomPayload, HotPayload, Update } from '#types/hmrPayload'
 import type { InferCustomEventPayload, ViteDevServer } from '..'
+
 import type {
   InvokeMethods,
   InvokeResponseData,
   InvokeSendData,
 } from '../../shared/invokeMethods'
+
 import { withTrailingSlash } from '../../shared/utils'
 import { CLIENT_DIR } from '../constants'
+
 import {
   ignoreDeprecationWarnings,
   warnFutureDeprecation,
 } from '../deprecations'
+
 import { getEnvFilesForMode } from '../env'
 import type { Environment } from '../environment'
 import type { Plugin } from '../plugin'
 import { getHookHandler } from '../plugins'
 import { isExplicitImportRequired } from '../plugins/importAnalysis'
+
 import {
   createDebugger,
   formatAndTruncateFileList,
   monotonicDateNow,
   normalizePath,
 } from '../utils'
+
 import type { DevEnvironment } from './environment'
 import { prepareError } from './middlewares/error'
 import type { ModuleNode } from './mixedModuleGraph'
 import type { EnvironmentModuleNode } from './moduleGraph'
+
 import {
   BasicMinimalPluginContext,
   basePluginContextMeta,
 } from './pluginContainer'
+
 import type { HttpServer } from '.'
 import { restartServerWithUrls } from '.'
 
@@ -186,6 +194,7 @@ export interface NormalizedHotChannel<Api = any> {
       client: NormalizedHotChannelClient,
     ) => void,
   ): void
+
   /**
    * @deprecated use `vite:client:connect` event instead
    */
@@ -218,15 +227,18 @@ export const normalizeHotChannel = (
     (data: any, client: NormalizedHotChannelClient) => void | Promise<void>,
     (data: any, client: HotChannelClient) => void | Promise<void>
   >()
+
   const normalizedClients = new WeakMap<
     HotChannelClient,
     NormalizedHotChannelClient
   >()
 
   let invokeHandlers: InvokeMethods | undefined
+
   let listenerForInvokeHandler:
     | ((data: InvokeSendData, client: HotChannelClient) => void)
     | undefined
+
   const handleInvoke = async <T extends keyof InvokeMethods>(
     payload: HotPayload,
   ) => {
@@ -241,11 +253,14 @@ export const normalizeHotChannel = (
     }
 
     const data: InvokeSendData<T> = (payload as CustomPayload).data
+
     const { name, data: args } = data
+
     try {
       const invokeHandler = invokeHandlers[name]
       // @ts-expect-error `invokeHandler` is `InvokeMethods[T]`, so passing the args is fine
       const result = await invokeHandler(...args)
+
       return { result }
     } catch (error) {
       return {
@@ -267,6 +282,7 @@ export const normalizeHotChannel = (
     ) => {
       if (event === 'connection' || !normalizeClient) {
         channel.on?.(event, fn as () => void)
+
         return
       }
 
@@ -278,6 +294,7 @@ export const normalizeHotChannel = (
           normalizedClients.set(client, {
             send: (...args) => {
               let payload: HotPayload
+
               if (typeof args[0] === 'string') {
                 payload = {
                   type: 'custom',
@@ -287,12 +304,15 @@ export const normalizeHotChannel = (
               } else {
                 payload = args[0]
               }
+
               client.send(payload)
             },
           })
         }
+
         fn(data, normalizedClients.get(client)!)
       }
+
       normalizedListenerMap.set(fn, listenerWithNormalizedClient)
 
       channel.on?.(event, listenerWithNormalizedClient)
@@ -300,20 +320,24 @@ export const normalizeHotChannel = (
     off: (event: string, fn: () => void) => {
       if (event === 'connection' || !normalizeClient) {
         channel.off?.(event, fn as () => void)
+
         return
       }
 
       const normalizedListener = normalizedListenerMap.get(fn)
+
       if (normalizedListener) {
         channel.off?.(event, normalizedListener)
       }
     },
     setInvokeHandler(_invokeHandlers) {
       invokeHandlers = _invokeHandlers
+
       if (!_invokeHandlers) {
         if (listenerForInvokeHandler) {
           channel.off?.('vite:invoke', listenerForInvokeHandler)
         }
+
         return
       }
 
@@ -321,6 +345,7 @@ export const normalizeHotChannel = (
         const responseInvoke = payload.id.replace('send', 'response') as
           | 'response'
           | `response:${string}`
+
         client.send({
           type: 'custom',
           event: 'vite:invoke',
@@ -335,11 +360,13 @@ export const normalizeHotChannel = (
           } satisfies InvokeResponseData,
         })
       }
+
       channel.on?.('vite:invoke', listenerForInvokeHandler)
     },
     handleInvoke,
     send: (...args: any[]) => {
       let payload: HotPayload
+
       if (typeof args[0] === 'string') {
         payload = {
           type: 'custom',
@@ -378,19 +405,25 @@ export function getSortedPluginsByHotUpdateHook(
   let pre = 0,
     normal = 0,
     post = 0
+
   for (const plugin of plugins) {
     const hook = plugin.hotUpdate ?? plugin.handleHotUpdate
+
     if (hook) {
       if (typeof hook === 'object') {
         if (hook.order === 'pre') {
           sortedPlugins.splice(pre++, 0, plugin)
+
           continue
         }
+
         if (hook.order === 'post') {
           sortedPlugins.splice(pre + normal + post++, 0, plugin)
+
           continue
         }
       }
+
       sortedPlugins.splice(pre + normal++, 0, plugin)
     }
   }
@@ -399,12 +432,16 @@ export function getSortedPluginsByHotUpdateHook(
 }
 
 const sortedHotUpdatePluginsCache = new WeakMap<Environment, Plugin[]>()
+
 function getSortedHotUpdatePlugins(environment: Environment): Plugin[] {
   let sortedPlugins = sortedHotUpdatePluginsCache.get(environment)
+
   if (!sortedPlugins) {
     sortedPlugins = getSortedPluginsByHotUpdateHook(environment.plugins)
+
     sortedHotUpdatePluginsCache.set(environment, sortedPlugins)
   }
+
   return sortedPlugins
 }
 
@@ -414,6 +451,7 @@ export async function handleHMRUpdate(
   server: ViteDevServer,
 ): Promise<void> {
   const { config } = server
+
   const mixedModuleGraph = ignoreDeprecationWarnings(() => server.moduleGraph)
 
   const environmentSnapshot = server.environments
@@ -424,6 +462,7 @@ export async function handleHMRUpdate(
   const shortFile = getShortName(file, config.root)
 
   const isConfig = file === config.configFile
+
   const isConfigDependency = config.configFileDependencies.some(
     (name) => file === name,
   )
@@ -431,9 +470,11 @@ export async function handleHMRUpdate(
   const isEnv =
     config.envDir !== false &&
     getEnvFilesForMode(config.mode, config.envDir).includes(file)
+
   if (isConfig || isConfigDependency || isEnv) {
     // auto restart server
     debugHmr?.(`[config change] ${colors.dim(shortFile)}`)
+
     config.logger.info(
       colors.green(
         `${normalizePath(
@@ -442,11 +483,13 @@ export async function handleHMRUpdate(
       ),
       { clear: true, timestamp: true },
     )
+
     try {
       await restartServerWithUrls(server)
     } catch (e) {
       config.logger.error(colors.red(e))
     }
+
     return
   }
 
@@ -461,6 +504,7 @@ export async function handleHMRUpdate(
         triggeredBy: path.resolve(config.root, file),
       }),
     )
+
     return
   }
 
@@ -470,6 +514,7 @@ export async function handleHMRUpdate(
   }
 
   const timestamp = monotonicDateNow()
+
   const contextMeta = {
     type,
     file,
@@ -477,6 +522,7 @@ export async function handleHMRUpdate(
     read: () => readModifiedFile(file),
     server,
   }
+
   const hotMap = new Map<
     Environment,
     { options: HotUpdateOptions; error?: Error }
@@ -484,15 +530,18 @@ export async function handleHMRUpdate(
 
   for (const environment of environments) {
     const mods = new Set(environment.moduleGraph.getModulesByFile(file))
+
     if (type === 'create') {
       for (const mod of environment.moduleGraph._hasResolveFailedErrorModules) {
         mods.add(mod)
       }
     }
+
     const options = {
       ...contextMeta,
       modules: [...mods],
     }
+
     hotMap.set(environment, { options })
   }
 
@@ -507,11 +556,13 @@ export async function handleHMRUpdate(
     { ...basePluginContextMeta, watchMode: true },
     config.logger,
   )
+
   const clientEnvironment = server.environments.client
   const ssrEnvironment = server.environments.ssr
   const clientContext = clientEnvironment.pluginContainer.minimalContext
   const clientHotUpdateOptions = hotMap.get(clientEnvironment)!.options
   const ssrHotUpdateOptions = hotMap.get(ssrEnvironment)?.options
+
   try {
     for (const plugin of getSortedHotUpdatePlugins(clientEnvironment)) {
       if (plugin.hotUpdate) {
@@ -519,9 +570,12 @@ export async function handleHMRUpdate(
           clientContext,
           clientHotUpdateOptions,
         )
+
         if (isStale()) return
+
         if (filteredModules) {
           clientHotUpdateOptions.modules = filteredModules
+
           // Invalidate the hmrContext to force compat modules to be updated
           mixedHmrContext.modules = mixedHmrContext.modules.filter(
             (mixedMod) =>
@@ -530,6 +584,7 @@ export async function handleHMRUpdate(
                 (ssrMod) => ssrMod.id === mixedMod.id,
               ),
           )
+
           mixedHmrContext.modules.push(
             ...filteredModules
               .filter(
@@ -550,18 +605,23 @@ export async function handleHMRUpdate(
           `Used in plugin "${plugin.name}".`,
           false,
         )
+
         // later on, we'll need: if (runtime === 'client')
         // Backward compatibility with mixed client and ssr moduleGraph
         const filteredModules = await getHookHandler(
           plugin.handleHotUpdate!,
         ).call(contextForHandleHotUpdate, mixedHmrContext)
+
         if (isStale()) return
+
         if (filteredModules) {
           mixedHmrContext.modules = filteredModules
+
           clientHotUpdateOptions.modules =
             clientHotUpdateOptions.modules.filter((mod) =>
               filteredModules.some((mixedMod) => mod.id === mixedMod.id),
             )
+
           clientHotUpdateOptions.modules.push(
             ...(filteredModules
               .filter(
@@ -573,11 +633,13 @@ export async function handleHMRUpdate(
               .map((mixedMod) => mixedMod._clientModule)
               .filter(Boolean) as EnvironmentModuleNode[]),
           )
+
           if (ssrHotUpdateOptions) {
             ssrHotUpdateOptions.modules = ssrHotUpdateOptions.modules.filter(
               (mod) =>
                 filteredModules.some((mixedMod) => mod.id === mixedMod.id),
             )
+
             ssrHotUpdateOptions.modules.push(
               ...(filteredModules
                 .filter(
@@ -595,13 +657,16 @@ export async function handleHMRUpdate(
     }
   } catch (error) {
     if (isStale()) return
+
     hotMap.get(clientEnvironment)!.error = error
   }
 
   for (const environment of environments) {
     if (environment.name === 'client') continue
+
     const hot = hotMap.get(environment)!
     const context = environment.pluginContainer.minimalContext
+
     try {
       for (const plugin of getSortedHotUpdatePlugins(environment)) {
         if (plugin.hotUpdate) {
@@ -609,7 +674,9 @@ export async function handleHMRUpdate(
             context,
             hot.options,
           )
+
           if (isStale()) return
+
           if (filteredModules) {
             hot.options.modules = filteredModules
           }
@@ -617,17 +684,21 @@ export async function handleHMRUpdate(
       }
     } catch (error) {
       if (isStale()) return
+
       hot.error = error
     }
   }
 
   async function hmr(environment: DevEnvironment) {
     if (isStale()) return
+
     try {
       const { options, error } = hotMap.get(environment)!
+
       if (error) {
         throw error
       }
+
       if (!options.modules.length) {
         // html file cannot be hot updated
         if (file.endsWith('.html') && environment.name === 'client') {
@@ -638,6 +709,7 @@ export async function handleHMRUpdate(
               timestamp: true,
             },
           )
+
           environment.hot.send({
             type: 'full-reload',
             path: config.server.middlewareMode
@@ -650,6 +722,7 @@ export async function handleHMRUpdate(
             `(${environment.name}) [no modules matched] ${colors.dim(shortFile)}`,
           )
         }
+
         return
       }
 
@@ -688,7 +761,9 @@ export function updateModules(
   firstInvalidatedBy?: string,
 ): void {
   const { hot } = environment
+
   const updates: Update[] = []
+
   const invalidatedModules = new Set<EnvironmentModuleNode>()
   const traversedModules = new Set<EnvironmentModuleNode>()
   // Modules could be empty if a root module is invalidated via import.meta.hot.invalidate()
@@ -711,6 +786,7 @@ export function updateModules(
 
     if (hasDeadEnd) {
       needFullReload = hasDeadEnd
+
       continue
     }
 
@@ -723,6 +799,7 @@ export function updateModules(
       )
     ) {
       needFullReload = 'circular import invalidate'
+
       continue
     }
 
@@ -758,10 +835,12 @@ export function updateModules(
       typeof needFullReload === 'string'
         ? colors.dim(` (${needFullReload})`)
         : ''
+
     environment.logger.info(
       colors.green(`page reload `) + colors.dim(file) + reason,
       { clear: !firstInvalidatedBy, timestamp: true },
     )
+
     hot.send({
       type: 'full-reload',
       triggeredBy: path.resolve(environment.config.root, file),
@@ -772,21 +851,27 @@ export function updateModules(
           ? '*'
           : '/' + file,
     })
+
     return
   }
 
   if (updates.length === 0) {
     debugHmr?.(colors.yellow(`no update happened `) + colors.dim(file))
+
     return
   }
 
   const filePaths = [...new Set(updates.map((u) => u.path))]
+
   const { formatted, truncated } = formatAndTruncateFileList(filePaths)
+
   if (truncated) debugHmr?.(`hmr update ${filePaths.join(', ')}`)
+
   environment.logger.info(colors.green(`hmr update `) + colors.dim(formatted), {
     clear: !firstInvalidatedBy,
     timestamp: true,
   })
+
   hot.send({
     type: 'update',
     updates,
@@ -802,6 +887,7 @@ function areAllImportsAccepted(
       return false
     }
   }
+
   return true
 }
 
@@ -814,6 +900,7 @@ function propagateUpdate(
   if (traversedModules.has(node)) {
     return false
   }
+
   traversedModules.add(node)
 
   // #7561
@@ -825,17 +912,20 @@ function propagateUpdate(
         node.id,
       )}`,
     )
+
     return false
   }
 
   if (node.isSelfAccepting) {
     // isSelfAccepting is only true for js and css
     const boundary = node as EnvironmentModuleNode & { type: 'js' | 'css' }
+
     boundaries.push({
       boundary,
       acceptedVia: boundary,
       isWithinCircularImport: isNodeWithinCircularImports(node, currentChain),
     })
+
     return false
   }
 
@@ -847,6 +937,7 @@ function propagateUpdate(
   if (node.acceptedHmrExports) {
     // acceptedHmrExports is only true for js and css
     const boundary = node as EnvironmentModuleNode & { type: 'js' | 'css' }
+
     boundaries.push({
       boundary,
       acceptedVia: boundary,
@@ -866,16 +957,19 @@ function propagateUpdate(
       const boundary = importer as EnvironmentModuleNode & {
         type: 'js' | 'css'
       }
+
       boundaries.push({
         boundary,
         acceptedVia: node,
         isWithinCircularImport: isNodeWithinCircularImports(importer, subChain),
       })
+
       continue
     }
 
     if (node.id && node.acceptedHmrExports && importer.importedBindings) {
       const importedBindingsFromNode = importer.importedBindings.get(node.id)
+
       if (
         importedBindingsFromNode &&
         areAllImportsAccepted(importedBindingsFromNode, node.acceptedHmrExports)
@@ -891,6 +985,7 @@ function propagateUpdate(
       return true
     }
   }
+
   return false
 }
 
@@ -929,6 +1024,7 @@ function isNodeWithinCircularImports(
   if (traversedModules.has(node)) {
     return false
   }
+
   traversedModules.add(node)
 
   for (const importer of node.importers) {
@@ -937,6 +1033,7 @@ function isNodeWithinCircularImports(
 
     // Check circular imports
     const importerIndex = nodeChain.indexOf(importer)
+
     if (importerIndex > -1) {
       // Log extra debug information so users can fix and remove the circular imports
       if (debugHmr) {
@@ -950,11 +1047,13 @@ function isNodeWithinCircularImports(
           ...currentChain.toReversed(),
           ...nodeChain.slice(importerIndex, -1).reverse(),
         ]
+
         debugHmr(
           colors.yellow(`circular imports detected: `) +
             importChain.map((m) => colors.dim(m.url)).join(' -> '),
         )
       }
+
       return true
     }
 
@@ -966,9 +1065,11 @@ function isNodeWithinCircularImports(
         [...currentChain, importer],
         traversedModules,
       )
+
       if (result) return result
     }
   }
+
   return false
 }
 
@@ -980,11 +1081,14 @@ export function handlePrunedModules(
   // since if it's re-imported, it should re-apply side effects
   // and without the timestamp the browser will not re-import it!
   const t = monotonicDateNow()
+
   mods.forEach((mod) => {
     mod.lastHMRTimestamp = t
     mod.lastHMRInvalidationReceived = false
+
     debugHmr?.(`[dispose] ${colors.dim(mod.file)}`)
   })
+
   hot.send({
     type: 'prune',
     paths: [...mods].map((m) => m.url),
@@ -1022,11 +1126,13 @@ export function lexAcceptedHmrDeps(
       start: index - currentDep.length - 1,
       end: index + 1,
     })
+
     currentDep = ''
   }
 
   for (let i = start; i < code.length; i++) {
     const char = code.charAt(i)
+
     switch (state) {
       case LexerState.inCall:
       case LexerState.inArray:
@@ -1061,10 +1167,12 @@ export function lexAcceptedHmrDeps(
             }
           }
         }
+
         break
       case LexerState.inSingleQuoteString:
         if (char === `'`) {
           addDep(i)
+
           if (prevState === LexerState.inCall) {
             // accept('foo', ...)
             return false
@@ -1074,10 +1182,12 @@ export function lexAcceptedHmrDeps(
         } else {
           currentDep += char
         }
+
         break
       case LexerState.inDoubleQuoteString:
         if (char === `"`) {
           addDep(i)
+
           if (prevState === LexerState.inCall) {
             // accept('foo', ...)
             return false
@@ -1087,10 +1197,12 @@ export function lexAcceptedHmrDeps(
         } else {
           currentDep += char
         }
+
         break
       case LexerState.inTemplateString:
         if (char === '`') {
           addDep(i)
+
           if (prevState === LexerState.inCall) {
             // accept('foo', ...)
             return false
@@ -1102,11 +1214,13 @@ export function lexAcceptedHmrDeps(
         } else {
           currentDep += char
         }
+
         break
       default:
         throw new Error('unknown import.meta.hot lexer state')
     }
   }
+
   return false
 }
 
@@ -1116,10 +1230,13 @@ export function lexAcceptedHmrExports(
   exportNames: Set<string>,
 ): boolean {
   const urls = new Set<{ url: string; start: number; end: number }>()
+
   lexAcceptedHmrDeps(code, start, urls)
+
   for (const { url } of urls) {
     exportNames.add(url)
   }
+
   return urls.size > 0
 }
 
@@ -1128,7 +1245,9 @@ function error(pos: number) {
     `import.meta.hot.accept() can only accept string literals or an ` +
       `Array of string literals.`,
   ) as RollupError
+
   err.pos = pos
+
   throw err
 }
 
@@ -1137,12 +1256,15 @@ function error(pos: number) {
 // Poll until the file's modified time has changed before reading again.
 async function readModifiedFile(file: string): Promise<string> {
   const content = await fsp.readFile(file, 'utf-8')
+
   if (!content) {
     const mtime = (await fsp.stat(file)).mtimeMs
 
     for (let n = 0; n < 10; n++) {
       await new Promise((r) => setTimeout(r, 10))
+
       const newMtime = (await fsp.stat(file)).mtimeMs
+
       if (newMtime !== mtime) {
         break
       }
@@ -1160,6 +1282,7 @@ export type ServerHotChannelApi = {
 }
 
 export type ServerHotChannel = HotChannel<ServerHotChannelApi>
+
 export type NormalizedServerHotChannel =
   NormalizedHotChannel<ServerHotChannelApi>
 

@@ -53,12 +53,15 @@ fn ScanMergeType(
                 if (self.current == null) {
                     self.current = try self.scan.next();
                 }
+
                 maybe(self.current == null);
+
                 return self.current;
             }
 
             fn pop(self: *MergeScanStream) u64 {
                 assert(self.current != null);
+
                 defer self.current = null;
 
                 return self.current.?;
@@ -76,11 +79,13 @@ fn ScanMergeType(
                         //  - `A` needs to move to a key >= 2;
                         //  - `B` is already positioned at key >= 2, no probing is required;
                         assert(self.scan.state() == .seeking);
+
                         return;
                     }
                 }
 
                 self.current = null;
+
                 self.scan.probe(timestamp);
             }
         };
@@ -139,6 +144,7 @@ fn ScanMergeType(
             /// The scan was aborted and will not yield any more values.
             aborted,
         },
+
         streams: stdx.BoundedArrayType(MergeScanStream, constants.lsm_scans_max),
 
         merge_iterator: ?switch (merge) {
@@ -177,6 +183,7 @@ fn ScanMergeType(
 
                 // Mark this scan as `assigned`, so it can't be used to compose other merges.
                 scan.assigned = true;
+
                 self.streams.push(.{ .scan = scan });
             }
         }
@@ -186,6 +193,7 @@ fn ScanMergeType(
             assert(self.streams.count() > 0);
 
             const state_before = self.state;
+
             self.state = .{
                 .buffering = .{
                     .context = context,
@@ -203,8 +211,10 @@ fn ScanMergeType(
                 }
 
                 self.state.buffering.pending_count += 1;
+
                 stream.scan.read(&self.scan_context);
             }
+
             assert(self.state.buffering.pending_count > 0);
         }
 
@@ -216,11 +226,13 @@ fn ScanMergeType(
             switch (self.state) {
                 .idle => {
                     assert(self.merge_iterator == null);
+
                     return error.Pending;
                 },
                 .seeking => return self.merge_iterator.?.pop() catch |err| switch (err) {
                     error.Pending => {
                         self.state = .needs_data;
+
                         return error.Pending;
                     },
                 },
@@ -279,6 +291,7 @@ fn ScanMergeType(
 
         fn scan_read_callback(context: *Scan.Context, scan: *Scan) void {
             const self: *ScanMerge = @alignCast(@fieldParentPtr("scan_context", context));
+
             assert(self.state == .buffering);
             assert(self.state.buffering.pending_count > 0);
             assert(self.state.buffering.pending_count <= self.streams.count());
@@ -292,9 +305,11 @@ fn ScanMergeType(
             }
 
             self.state.buffering.pending_count -= 1;
+
             if (self.state.buffering.pending_count == 0) {
                 const context_outer = self.state.buffering.context;
                 const callback = self.state.buffering.callback;
+
                 self.state = .seeking;
 
                 if (self.merge_iterator == null) {
@@ -312,6 +327,7 @@ fn ScanMergeType(
                         .merge_difference => unreachable,
                     };
                 }
+
                 callback(context_outer, self);
             }
         }
@@ -327,6 +343,7 @@ fn ScanMergeType(
             assert(stream_index < self.streams.count());
 
             var stream = &self.streams.slice()[stream_index];
+
             return stream.peek();
         }
 
@@ -337,6 +354,7 @@ fn ScanMergeType(
             assert(stream_index < self.streams.count());
 
             var stream = &self.streams.slice()[stream_index];
+
             return stream.pop();
         }
 
@@ -348,6 +366,7 @@ fn ScanMergeType(
             assert(stream_index < self.streams.count());
 
             var stream = &self.streams.slice()[stream_index];
+
             stream.probe(timestamp);
         }
     };

@@ -74,6 +74,7 @@ const TransferPlan = struct {
     fn outcome(self: TransferPlan) TransferOutcome {
         if (!self.valid) return .failure;
         if (self.limit) return .unknown;
+
         return switch (self.method) {
             .single_phase, .pending => .success,
             .post_pending, .void_pending => .unknown,
@@ -91,6 +92,7 @@ const TransferBatchQueue = PriorityQueue(TransferBatch, void, struct {
     fn compare(_: void, a: TransferBatch, b: TransferBatch) std.math.Order {
         assert(a.min != b.min);
         assert(a.max != b.max);
+
         return std.math.order(a.min, b.min);
     }
 }.compare);
@@ -118,6 +120,7 @@ const transfer_templates = table: {
         bool,
         false,
     );
+
     const two_phase_ok: InitValues = .{
         .created = true,
         .pending_transfer_already_posted = true,
@@ -133,7 +136,9 @@ const transfer_templates = table: {
     const either = struct {
         fn either(a: Result, b: Result) Result {
             var c = a;
+
             c.setUnion(b);
+
             return c;
         }
     }.either;
@@ -155,12 +160,10 @@ const transfer_templates = table: {
     templates[0][0][PEND] = template(0, result(.{ .ledger_must_not_be_zero = true }));
     templates[0][0][POST] = template(9, result(.{ .pending_transfer_has_different_ledger = true }));
     templates[0][0][VOID] = template(9, result(.{ .pending_transfer_has_different_ledger = true }));
-
     templates[0][1][SNGL] = template(0, result(.{ .ledger_must_not_be_zero = true }));
     templates[0][1][PEND] = template(0, result(.{ .ledger_must_not_be_zero = true }));
     templates[0][1][POST] = template(9, result(.{ .pending_transfer_has_different_ledger = true }));
     templates[0][1][VOID] = template(9, result(.{ .pending_transfer_has_different_ledger = true }));
-
     templates[1][0][SNGL] = template(1, result(.{ .created = true }));
     templates[1][0][PEND] = template(1, result(.{ .created = true }));
     templates[1][0][POST] = template(1, result(two_phase_ok));
@@ -270,16 +273,22 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
         ) !Workload {
             assert(options.accounts_batch_size_span + options.accounts_batch_size_min <=
                 AccountingStateMachine.batch_max.create_accounts);
+
             assert(options.accounts_batch_size_span >= 1);
+
             assert(options.transfers_batch_size_span + options.transfers_batch_size_min <=
                 AccountingStateMachine.batch_max.create_transfers);
+
             assert(options.transfers_batch_size_span >= 1);
 
             var auditor = try Auditor.init(allocator, prng, options.auditor_options);
+
             errdefer auditor.deinit(allocator);
 
             var transfers_delivered_recently = TransferBatchQueue.init(allocator, {});
+
             errdefer transfers_delivered_recently.deinit();
+
             try transfers_delivered_recently.ensureTotalCapacity(
                 options.auditor_options.client_count * constants.client_request_queue_max,
             );
@@ -298,6 +307,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
 
                 if (prng.chance(options.account_limit_probability)) {
                     const b = prng.boolean();
+
                     account.flags.debits_must_not_exceed_credits = b;
                     account.flags.credits_must_not_exceed_debits = !b;
                 }
@@ -306,16 +316,19 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             }
 
             var transfers_retry_failed: std.AutoArrayHashMapUnmanaged(u128, void) = .{};
+
             try transfers_retry_failed.ensureTotalCapacity(
                 allocator,
                 options.transfers_retry_failed_max,
             );
+
             errdefer transfers_retry_failed.deinit(allocator);
 
             var transfers_retry_exists: std.ArrayListUnmanaged(tb.Transfer) = try .initCapacity(
                 allocator,
                 options.transfers_retry_exists_max,
             );
+
             errdefer transfers_retry_exists.deinit(allocator);
 
             return .{
@@ -338,6 +351,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
 
         pub fn done(self: *const Workload) bool {
             if (self.transfers_delivered_recently.len != 0) return false;
+
             return self.auditor.done();
         }
 
@@ -357,6 +371,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 if (!self.accounts_sent and self.prng.boolean()) {
                     // Early in the test make sure some accounts get created.
                     self.accounts_sent = true;
+
                     break :action .create_accounts;
                 }
 
@@ -366,12 +381,15 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             const operation: Operation = @enumFromInt(@intFromEnum(action));
             const event_size: u32 = operation.event_size();
             const event_max: u32 = operation.event_max(self.options.batch_size_limit);
+
             assert(event_max > 0);
             assert(body_buffer.len >= event_size * event_max);
 
             const result_size: u32 = operation.result_size();
             const result_max = operation.result_max(self.options.batch_size_limit);
+
             assert(result_max > 0);
+
             assert(constants.message_body_size_max >=
                 result_size * result_max);
 
@@ -382,12 +400,15 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     body_buffer,
                     event_max,
                 );
+
                 assert(size <= body_buffer.len);
+
                 return .{
                     .operation = operation,
                     .size = size,
                 };
             }
+
             assert(operation.is_multi_batch());
 
             var body_encoder = vsr.multi_batch.MultiBatchEncoder.init(
@@ -396,10 +417,13 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     .element_size = event_size,
                 },
             );
+
             var event_count: u32 = 0;
             var result_count: u32 = 0;
+
             for (0..self.options.multi_batch_per_request_limit) |_| {
                 const writable = body_encoder.writable() orelse break;
+
                 if (writable.len == 0) break;
 
                 const event_count_remain: u32 =
@@ -407,12 +431,14 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                         event_max - event_count
                     else
                         1;
+
                 const batch_size = self.build_request_batch(
                     client_index,
                     action,
                     writable,
                     event_count_remain,
                 );
+
                 assert(batch_size <= writable.len);
 
                 // Checking if the expected result will fit in the multi-batch reply.
@@ -420,10 +446,13 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     .element_size = result_size,
                     .batch_count = body_encoder.batch_count + 1,
                 });
+
                 const result_count_expected: u32 =
                     operation.result_count_expected(writable[0..batch_size]);
+
                 const reply_message_size: u32 =
                     ((result_count + result_count_expected) * result_size) + reply_trailer_size;
+
                 if (reply_message_size > constants.message_body_size_max) {
                     // For operations that produce 1:1 result per event
                     // (e.g., `create_*` and `lookup_*`), this was already validated
@@ -431,26 +460,33 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     // For queries, this means the reply size cannot fit within the same message.
                     assert(body_encoder.batch_count > 0);
                     assert(!operation.is_batchable());
+
                     break;
                 }
+
                 assert(result_count + result_count_expected <= result_max);
 
                 body_encoder.add(@intCast(batch_size));
+
                 event_count += @intCast(@divExact(batch_size, event_size));
+
                 assert(event_count <= event_max);
 
                 result_count += result_count_expected;
+
                 assert(result_count <= result_max);
 
                 // Maybe single-batch request.
                 if (body_encoder.batch_count == 1 and self.prng.boolean()) break;
             }
+
             maybe(event_count == 0);
             assert(result_count == 0 or event_count > 0);
             assert(body_encoder.batch_count > 0);
             assert(body_encoder.batch_count <= self.options.multi_batch_per_request_limit);
 
             const bytes_written = body_encoder.finish();
+
             assert(bytes_written <= self.options.batch_size_limit);
 
             return .{
@@ -471,14 +507,17 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     const operation_comptime: Operation = comptime @enumFromInt(@intFromEnum(
                         action_comptime,
                     ));
+
                     const Event = operation_comptime.EventType();
                     const event_size: u32 = operation_comptime.event_size();
+
                     const batchable: []Event = self.batch(
                         Event,
                         action_comptime,
                         body,
                         batch_limit,
                     );
+
                     assert(batchable.len <= batch_limit);
 
                     const count = switch (action_comptime) {
@@ -525,12 +564,15 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                             batchable,
                         ),
                     };
+
                     assert(count <= batchable.len);
                     assert(count <= batch_limit);
 
                     const batch_size: usize = count * event_size;
+
                     assert(batch_size <= body.len);
                     maybe(batch_size == 0);
+
                     return batch_size;
                 },
             }
@@ -558,17 +600,22 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     reply_body,
                 );
             }
+
             assert(operation.is_multi_batch());
 
             const event_size: u32 = operation.event_size();
             const result_size: u32 = operation.result_size();
+
             var body_decoder = vsr.multi_batch.MultiBatchDecoder.init(request_body, .{
                 .element_size = event_size,
             }) catch unreachable;
+
             assert(body_decoder.batch_count() > 0);
+
             var reply_decoder = vsr.multi_batch.MultiBatchDecoder.init(reply_body, .{
                 .element_size = result_size,
             }) catch unreachable;
+
             assert(reply_decoder.batch_count() > 0);
             assert(body_decoder.batch_count() == reply_decoder.batch_count());
 
@@ -599,18 +646,22 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     };
                 }
             }.prepare_nanoseconds;
+
             var batch_timestamp: u64 = timestamp - prepare_nanoseconds(
                 operation,
                 body_decoder.payload.len,
                 self.options.batch_size_limit,
             );
+
             while (body_decoder.pop()) |batch_body| {
                 const batch_reply = reply_decoder.pop().?;
+
                 batch_timestamp += prepare_nanoseconds(
                     operation,
                     batch_body.len,
                     self.options.batch_size_limit,
                 );
+
                 self.on_reply_batch(
                     client_index,
                     operation,
@@ -619,6 +670,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     batch_reply,
                 );
             }
+
             assert(reply_decoder.pop() == null);
         }
 
@@ -737,8 +789,10 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             accounts: []tb.Account,
         ) usize {
             const results = self.auditor.expect_create_accounts(client_index);
+
             for (accounts, 0..) |*account, i| {
                 const account_index = self.prng.index(self.auditor.accounts);
+
                 account.* = self.auditor.accounts[account_index];
                 account.debits_pending = 0;
                 account.debits_posted = 0;
@@ -749,6 +803,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
 
                 if (self.prng.chance(self.options.create_account_invalid_probability)) {
                     account.ledger = 0;
+
                     // The result depends on whether the id already exists:
                     results[i].insert(.exists_with_different_ledger);
                     results[i].insert(.ledger_must_not_be_zero);
@@ -756,11 +811,14 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     if (!self.auditor.accounts_state[account_index].created) {
                         results[i].insert(.created);
                     }
+
                     // Even if the account doesn't exist yet, we may race another request.
                     results[i].insert(.exists);
                 }
+
                 assert(results[i].count() > 0);
             }
+
             return accounts.len;
         }
 
@@ -770,13 +828,17 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             transfers: []tb.Transfer,
         ) usize {
             const results = self.auditor.expect_create_transfers(client_index);
+
             assert(results.len >= transfers.len);
+
             var transfers_count: usize = transfers.len;
             var i: usize = 0;
+
             while (i < transfers_count) {
                 const transfer_index = self.transfers_sent;
                 const transfer_plan = self.transfer_index_to_plan(transfer_index);
                 const transfer_id = self.transfer_index_to_id(transfer_index);
+
                 results[i] = self.build_transfer(
                     transfer_id,
                     transfer_plan,
@@ -785,6 +847,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     // This transfer index can't be built; stop with what we have so far.
                     // Hopefully it will be unblocked before the next `create_transfers`.
                     transfers_count = i;
+
                     break;
                 };
 
@@ -809,23 +872,28 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                             .limit = false,
                             .method = .single_phase,
                         }, &transfers[i - 1]);
+
                         if (result_set_opt) |result_set| {
                             assert(result_set.count() == 1);
                             assert(result_set.contains(.created));
 
                             transfers[i - 1].flags.linked = true;
+
                             results[i - 1] = accounting_auditor.CreateTransferStatusSet.init(.{
                                 .linked_event_failed = true,
                             });
                         }
                     }
                 }
+
                 assert(results[i].count() > 0);
 
                 if (transfers[i].flags.pending) self.transfers_pending_in_flight += 1;
+
                 i += 1;
                 self.transfers_sent += 1;
             }
+
             assert(transfers_count == i);
             assert(transfers_count <= transfers.len);
 
@@ -851,6 +919,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             // `transfers_delivered_recently` and `transfers_delivered_past` logic.
             // So we must insert retries in the middle of the batch.
             if (transfers.len <= 1) return;
+
             for (1..transfers.len - 1) |i| {
                 if (self.transfers_retry_exists.items.len == 0 and
                     self.transfers_retry_failed.count() == 0) break;
@@ -859,9 +928,11 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 // without altering the outcome for this specific `transfer_index`.
                 const transfer_index = self.transfer_id_to_index(transfers[i].id);
                 const transfer_plan = self.transfer_index_to_plan(transfer_index);
+
                 const can_retry = !transfer_plan.valid and
                     !transfers[i].flags.linked and
                     !transfers[i - 1].flags.linked;
+
                 if (can_retry and
                     self.prng.chance(self.options.create_transfer_retry_probability))
                 {
@@ -872,6 +943,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                         .exists => {
                             // Retry a successfully completed transfer, result == `exists`.
                             const index = self.prng.index(self.transfers_retry_exists.items);
+
                             transfers[i] = self.transfers_retry_exists.swapRemove(index);
                             results[i] = .initOne(.exists);
                         },
@@ -879,7 +951,9 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                             // Retry a failed transfer ID, result == `id_already_failed`.
                             const index = self.prng.index(self.transfers_retry_failed.keys());
                             const id_failed = self.transfers_retry_failed.keys()[index];
+
                             self.transfers_retry_failed.swapRemoveAt(index);
+
                             transfers[i] = std.mem.zeroInit(tb.Transfer, .{ .id = id_failed });
                             results[i] = .initOne(.id_already_failed);
                         },
@@ -896,15 +970,18 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     id.* = self.auditor.account_index_to_id(self.prng.int(usize));
                 } else {
                     const account_index = self.prng.index(self.auditor.accounts);
+
                     id.* = self.auditor.accounts[account_index].id;
                 }
             }
+
             return lookup_ids.len;
         }
 
         fn build_lookup_transfers(self: *const Workload, lookup_ids: []u128) usize {
             const delivered = self.transfers_delivered_past;
             const lookup_window = self.prng.enum_weighted(Lookup, self.options.lookup_transfer);
+
             const lookup_window_start = switch (lookup_window) {
                 .delivered => self.prng.int_inclusive(usize, delivered),
                 .sending => self.prng.range_inclusive(
@@ -923,6 +1000,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 ),
                 self.transfers_sent - lookup_window_start,
             );
+
             if (lookup_window_size == 0) return 0;
 
             for (lookup_ids) |*lookup_id| {
@@ -930,6 +1008,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     lookup_window_start + self.prng.int_inclusive(usize, lookup_window_size - 1),
                 );
             }
+
             return lookup_ids.len;
         }
 
@@ -940,12 +1019,16 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             body: []tb.AccountFilter,
         ) usize {
             _ = client_index;
+
             comptime assert(action == .get_account_transfers or
                 action == .get_account_balances or
                 action == .deprecated_get_account_transfers_unbatched or
                 action == .deprecated_get_account_balances_unbatched);
+
             assert(body.len == 1);
+
             const account_filter = &body[0];
+
             account_filter.* = tb.AccountFilter{
                 .account_id = 0,
                 .user_data_128 = 0,
@@ -989,10 +1072,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             {
                 account_filter.flags.credits = true;
                 account_filter.flags.debits = true;
+
                 account_filter.limit = @min(
                     account_state.?.transfers_count(account_filter.flags),
                     batch_result_max,
                 );
+
                 account_filter.timestamp_min = account_state.?.transfer_timestamp_min;
                 account_filter.timestamp_max = account_state.?.transfer_timestamp_max;
 
@@ -1034,15 +1119,19 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             body: []tb.QueryFilter,
         ) usize {
             _ = client_index;
+
             comptime assert(action == .query_accounts or
                 action == .query_transfers or
                 action == .deprecated_query_accounts_unbatched or
                 action == .deprecated_query_transfers_unbatched);
+
             assert(body.len == 1);
+
             const query_filter = &body[0];
 
             const operation = comptime std.enums.nameCast(Operation, action);
             const batch_result_max = operation.result_max(self.options.batch_size_limit);
+
             const limit: u32 = switch (self.prng.enum_uniform(enum {
                 zero,
                 one,
@@ -1071,6 +1160,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 };
             } else {
                 const query_intersection_index = self.prng.index(self.auditor.query_intersections);
+
                 const query_intersection =
                     self.auditor.query_intersections[query_intersection_index];
 
@@ -1110,6 +1200,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                         query_filter.timestamp_min = state.timestamp_min + 1;
                         query_filter.timestamp_max = state.timestamp_max;
                     }
+
                     // Later we can assert that results.len == count - 1:
                     query_filter.limit = state.count;
                 }
@@ -1124,7 +1215,9 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             body: []tb.ChangeEventsFilter,
         ) usize {
             _ = client_index;
+
             assert(body.len == 1);
+
             const filter = &body[0];
 
             const snapshot = self.auditor.changes_tracker.acquire_snapshot() orelse {
@@ -1145,6 +1238,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                             TimestampRange.timestamp_min,
                             TimestampRange.timestamp_max,
                         );
+
                         break :filter .{
                             .limit = self.prng.int(u32),
                             .timestamp_min = timestamp + 1,
@@ -1152,8 +1246,10 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                         };
                     },
                 };
+
                 return 1;
             };
+
             assert(snapshot.count_total() > 0);
 
             const limit: u32 = switch (self.prng.enum_uniform(enum {
@@ -1165,11 +1261,13 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     self.options.batch_size_limit,
                 ),
             };
+
             filter.* = .{
                 .limit = limit,
                 .timestamp_min = snapshot.timestamp_min,
                 .timestamp_max = snapshot.timestamp_max,
             };
+
             return 1;
         }
 
@@ -1189,6 +1287,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             // but never broaden it (success→unknown, success→failure).
             const method = method: {
                 const default = transfer_plan.method;
+
                 if (default == .pending and
                     self.auditor.pending_expiries.count() + self.transfers_pending_in_flight ==
                         self.auditor.options.transfers_pending_max)
@@ -1201,6 +1300,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                         break :method .single_phase;
                     }
                 }
+
                 break :method default;
             };
 
@@ -1211,6 +1311,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
 
             const limit_debits = transfer_plan.limit and self.prng.boolean();
             const limit_credits = transfer_plan.limit and (self.prng.boolean() or !limit_debits);
+
             assert(transfer_plan.limit == (limit_debits or limit_credits));
 
             const debit_account = self.auditor.pick_account(.{
@@ -1218,6 +1319,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 .debits_must_not_exceed_credits = limit_debits,
                 .credits_must_not_exceed_debits = null,
             }) orelse return null;
+
             assert(!limit_debits or debit_account.flags.debits_must_not_exceed_credits);
 
             const credit_account = self.auditor.pick_account(.{
@@ -1226,11 +1328,13 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 .credits_must_not_exceed_debits = limit_credits,
                 .exclude = debit_account.id,
             }) orelse return null;
+
             assert(!limit_credits or credit_account.flags.credits_must_not_exceed_debits);
 
             const query_intersection_index = self.prng.index(
                 self.auditor.query_intersections,
             );
+
             const query_intersection = self.auditor.query_intersections[query_intersection_index];
 
             transfer.* = .{
@@ -1254,6 +1358,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 .single_phase => {},
                 .pending => {
                     transfer.flags = .{ .pending = true };
+
                     // Bound the timeout to ensure we never hit `overflows_timeout`.
                     transfer.timeout = 1 + @as(u32, @min(
                         std.math.maxInt(u32) / 2,
@@ -1268,8 +1373,11 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     // Don't depend on `HashMap.keyIterator()` being deterministic.
                     // Pick a random "target" key, then post/void the id it is nearest to.
                     const target = self.prng.int(u128);
+
                     var previous: ?u128 = null;
+
                     var iterator = self.auditor.pending_transfers.keyIterator();
+
                     while (iterator.next()) |id| {
                         if (previous == null or
                             @max(target, id.*) - @min(target, id.*) <
@@ -1284,30 +1392,38 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     const pending_transfer = self.auditor.pending_transfers.getPtr(previous.?).?;
                     const dr = pending_transfer.debit_account_index;
                     const cr = pending_transfer.credit_account_index;
+
                     const pending_query_intersection = self.auditor
                         .query_intersections[pending_transfer.query_intersection_index];
+
                     // Don't use the default '0' parameters because the StateMachine overwrites 0s
                     // with the pending transfer's values, invalidating the post/void transfer
                     // checksum.
                     transfer.debit_account_id = self.auditor.account_index_to_id(dr);
                     transfer.credit_account_id = self.auditor.account_index_to_id(cr);
+
                     transfer.user_data_64 = pending_query_intersection.user_data_64;
                     transfer.user_data_32 = pending_query_intersection.user_data_32;
                     transfer.code = pending_query_intersection.code;
+
                     if (method == .post_pending) {
                         transfer.amount =
                             self.prng.range_inclusive(u128, 0, pending_transfer.amount);
                     } else {
                         transfer.amount = pending_transfer.amount;
                     }
+
                     transfer.pending_id = pending_id;
+
                     transfer.flags = .{
                         .post_pending_transfer = method == .post_pending,
                         .void_pending_transfer = method == .void_pending,
                     };
                 },
             }
+
             assert(transfer_template.result.count() > 0);
+
             return transfer_template.result;
         }
 
@@ -1342,6 +1458,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 .get_change_events,
                 => 1,
             };
+
             const batch_span = switch (action) {
                 .create_accounts,
                 .lookup_accounts,
@@ -1368,6 +1485,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             };
 
             const slice = stdx.bytes_as_slice(.inexact, T, body);
+
             const batch_size = @min(
                 batch_min + self.prng.int_inclusive(usize, batch_span),
                 event_count_remain,
@@ -1391,18 +1509,23 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
         /// * the transfer `index`.
         fn transfer_index_to_plan(self: *const Workload, index: usize) TransferPlan {
             var prng = stdx.PRNG.from_seed(self.transfer_plan_seed ^ @as(u64, index));
+
             const method: TransferPlan.Method = blk: {
                 if (prng.chance(self.options.create_transfer_pending_probability)) {
                     break :blk .pending;
                 }
+
                 if (prng.chance(self.options.create_transfer_post_probability)) {
                     break :blk .post_pending;
                 }
+
                 if (prng.chance(self.options.create_transfer_void_probability)) {
                     break :blk .void_pending;
                 }
+
                 break :blk .single_phase;
             };
+
             return .{
                 .valid = !prng.chance(self.options.create_transfer_invalid_probability),
                 .limit = prng.chance(self.options.create_transfer_limit_probability),
@@ -1423,10 +1546,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 transfers,
                 results_sparse,
             );
+
             if (transfers.len == 0) return;
 
             const transfer_index_min = self.transfer_id_to_index(transfers[0].id);
             const transfer_index_max = self.transfer_id_to_index(transfers[transfers.len - 1].id);
+
             assert(transfer_index_min <= transfer_index_max);
 
             self.transfers_delivered_recently.add(.{
@@ -1437,9 +1562,11 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             while (self.transfers_delivered_recently.peek()) |delivered| {
                 if (self.transfers_delivered_past == delivered.min) {
                     self.transfers_delivered_past = delivered.max + 1;
+
                     _ = self.transfers_delivered_recently.remove();
                 } else {
                     assert(self.transfers_delivered_past < delivered.min);
+
                     break;
                 }
             }
@@ -1447,8 +1574,10 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             var iterator: ResultsSparseIteratorType(tb.CreateTransferErrorResult) = .init(
                 results_sparse,
             );
+
             for (transfers, 0..) |*transfer, i| {
                 const result: tb.CreateTransferStatus = iterator.take(i) orelse .created;
+
                 if (transfer.flags.pending and result != .exists) {
                     self.transfers_pending_in_flight -= 1;
                 }
@@ -1460,10 +1589,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     self.prng.chance(self.options.create_transfer_retry_probability))
                 {
                     var transfer_exists = transfer.*;
+
                     assert(transfer_exists.timestamp == 0);
                     assert(transfer_exists.user_data_128 != 0);
 
                     transfer_exists.user_data_128 = 0; // This will be replaced by the checksum.
+
                     self.transfers_retry_exists.appendAssumeCapacity(transfer_exists);
                 }
 
@@ -1493,10 +1624,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 transfers,
                 results,
             );
+
             if (transfers.len == 0) return;
 
             const transfer_index_min = self.transfer_id_to_index(transfers[0].id);
             const transfer_index_max = self.transfer_id_to_index(transfers[transfers.len - 1].id);
+
             assert(transfer_index_min <= transfer_index_max);
 
             self.transfers_delivered_recently.add(.{
@@ -1507,15 +1640,18 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             while (self.transfers_delivered_recently.peek()) |delivered| {
                 if (self.transfers_delivered_past == delivered.min) {
                     self.transfers_delivered_past = delivered.max + 1;
+
                     _ = self.transfers_delivered_recently.remove();
                 } else {
                     assert(self.transfers_delivered_past < delivered.min);
+
                     break;
                 }
             }
 
             for (transfers, results) |*transfer, *result| {
                 assert(result.reserved == 0);
+
                 if (transfer.flags.pending and result.status != .exists) {
                     self.transfers_pending_in_flight -= 1;
                 }
@@ -1527,10 +1663,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     self.prng.chance(self.options.create_transfer_retry_probability))
                 {
                     var transfer_exists = transfer.*;
+
                     assert(transfer_exists.timestamp == 0);
                     assert(transfer_exists.user_data_128 != 0);
 
                     transfer_exists.user_data_128 = 0; // This will be replaced by the checksum.
+
                     self.transfers_retry_exists.appendAssumeCapacity(transfer_exists);
                 }
 
@@ -1557,6 +1695,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             self.auditor.on_lookup_transfers(client_index, timestamp, ids, results);
 
             var transfers = accounting_auditor.IteratorForLookupType(tb.Transfer).init(results);
+
             for (ids) |transfer_id| {
                 const transfer_index = self.transfer_id_to_index(transfer_id);
                 const transfer_outcome = self.transfer_index_to_plan(transfer_index).outcome();
@@ -1567,6 +1706,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 if (transfer_index >= self.transfers_sent) {
                     // This transfer hasn't been created yet.
                     assert(result == null);
+
                     continue;
                 }
 
@@ -1577,12 +1717,14 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                             assert(result != null);
                         } else {
                             var it = self.transfers_delivered_recently.iterator();
+
                             while (it.next()) |delivered| {
                                 if (transfer_index >= delivered.min and
                                     transfer_index <= delivered.max)
                                 {
                                     // The transfer was delivered recently; it must exist.
                                     assert(result != null);
+
                                     break;
                                 }
                             } else {
@@ -1607,12 +1749,15 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             results: []const tb.Transfer,
         ) void {
             _ = timestamp;
+
             comptime assert(operation == .get_account_transfers or
                 operation == .deprecated_get_account_transfers_unbatched);
+
             assert(body.len == 1);
 
             const batch_result_max = operation.result_max(self.options.batch_size_limit);
             const account_filter = &body[0];
+
             assert(results.len <= account_filter.limit);
             assert(results.len <= batch_result_max);
 
@@ -1621,6 +1766,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             ) orelse {
                 // Invalid account id.
                 assert(results.len == 0);
+
                 return;
             };
 
@@ -1628,9 +1774,11 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 (account_filter.flags.credits or account_filter.flags.debits) and
                 account_filter.limit > 0 and
                 account_filter.timestamp_min <= account_filter.timestamp_max;
+
             if (!filter_valid) {
                 // Invalid filter.
                 assert(results.len == 0);
+
                 return;
             }
 
@@ -1652,37 +1800,48 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 } else {
                     assert(transfer.timestamp > timestamp_previous);
                 }
+
                 timestamp_previous = transfer.timestamp;
 
                 assert(account_filter.timestamp_min == 0 or
                     transfer.timestamp >= account_filter.timestamp_min);
+
                 assert(account_filter.timestamp_max == 0 or
                     transfer.timestamp <= account_filter.timestamp_max);
 
                 validate_transfer_checksum(transfer);
 
                 const transfer_index = self.transfer_id_to_index(transfer.id);
+
                 assert(transfer_index < self.transfers_sent);
 
                 const transfer_plan = self.transfer_index_to_plan(transfer_index);
+
                 assert(transfer_plan.valid);
                 assert(transfer_plan.outcome() != .failure);
+
                 if (transfer.flags.pending) assert(transfer_plan.method == .pending);
+
                 if (transfer.flags.post_pending_transfer) {
                     assert(transfer_plan.method == .post_pending);
                 }
+
                 if (transfer.flags.void_pending_transfer) {
                     assert(transfer_plan.method == .void_pending);
                 }
+
                 if (transfer_plan.method == .single_phase) assert(!transfer.flags.pending and
                     !transfer.flags.post_pending_transfer and
                     !transfer.flags.void_pending_transfer);
 
                 assert(transfer.debit_account_id == account_filter.account_id or
                     transfer.credit_account_id == account_filter.account_id);
+
                 assert(account_filter.flags.credits or account_filter.flags.debits);
+
                 assert(account_filter.flags.credits or
                     transfer.debit_account_id == account_filter.account_id);
+
                 assert(account_filter.flags.debits or
                     transfer.credit_account_id == account_filter.account_id);
 
@@ -1691,10 +1850,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     // or voiding pending transfers.
                     const post_or_void_pending_transfer = transfer.flags.post_pending_transfer or
                         transfer.flags.void_pending_transfer;
+
                     assert(post_or_void_pending_transfer == (transfer.pending_id != 0));
 
                     const dr_account = self.auditor.get_account(transfer.debit_account_id).?;
                     const cr_account = self.auditor.get_account(transfer.credit_account_id).?;
+
                     assert(
                         post_or_void_pending_transfer or
                             dr_account.flags.debits_must_not_exceed_credits or
@@ -1712,12 +1873,15 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             results: []const tb.AccountBalance,
         ) void {
             _ = timestamp;
+
             comptime assert(operation == .get_account_balances or
                 operation == .deprecated_get_account_balances_unbatched);
+
             assert(body.len == 1);
 
             const batch_result_max = operation.result_max(self.options.batch_size_limit);
             const account_filter = &body[0];
+
             assert(results.len <= account_filter.limit);
             assert(results.len <= batch_result_max);
 
@@ -1726,6 +1890,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             ) orelse {
                 // Invalid account id.
                 assert(results.len == 0);
+
                 return;
             };
 
@@ -1734,9 +1899,11 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 (account_filter.flags.credits or account_filter.flags.debits) and
                 account_filter.limit > 0 and
                 account_filter.timestamp_min <= account_filter.timestamp_max;
+
             if (!filter_valid) {
                 // Invalid filter.
                 assert(results.len == 0);
+
                 return;
             }
 
@@ -1757,10 +1924,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     balance.timestamp < timestamp_last
                 else
                     balance.timestamp > timestamp_last);
+
                 timestamp_last = balance.timestamp;
 
                 assert(account_filter.timestamp_min == 0 or
                     balance.timestamp >= account_filter.timestamp_min);
+
                 assert(account_filter.timestamp_max == 0 or
                     balance.timestamp <= account_filter.timestamp_max);
             }
@@ -1777,12 +1946,15 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 operation == .get_account_balances or
                 operation == .deprecated_get_account_transfers_unbatched or
                 operation == .deprecated_get_account_balances_unbatched);
+
             maybe(account_filter.limit == 0);
 
             const batch_result_max = operation.result_max(self.options.batch_size_limit);
             const transfer_count = account_state.transfers_count(account_filter.flags);
+
             if (account_filter.timestamp_min == 0 and account_filter.timestamp_max == 0) {
                 assert(account_filter.limit <= batch_result_max);
+
                 assert(result_count ==
                     @min(account_filter.limit, batch_result_max, transfer_count));
             } else {
@@ -1791,6 +1963,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 // inserted since then.
                 assert(account_filter.limit <= transfer_count);
                 assert(account_filter.timestamp_max >= account_filter.timestamp_min);
+
                 if (account_filter.flags.reversed) {
                     // This filter is only set if there is at least one transfer, so the first
                     // transfer timestamp never changes.
@@ -1820,10 +1993,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             results: []const operation.ResultType(),
         ) void {
             _ = timestamp;
+
             comptime assert(operation == .query_accounts or
                 operation == .query_transfers or
                 operation == .deprecated_query_accounts_unbatched or
                 operation == .deprecated_query_transfers_unbatched);
+
             assert(body.len == 1);
 
             const batch_result_max: u32 = operation.result_max(self.options.batch_size_limit);
@@ -1832,6 +2007,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             if (filter.ledger != 0) {
                 // No results expected.
                 assert(results.len == 0);
+
                 return;
             }
 
@@ -1846,6 +2022,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
 
             const query_intersection_index = filter.code - 1;
             const query_intersection = self.auditor.query_intersections[query_intersection_index];
+
             const state = switch (operation) {
                 .query_accounts,
                 .deprecated_query_accounts_unbatched,
@@ -1886,11 +2063,13 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 } else {
                     assert(result.timestamp > timestamp_previous);
                 }
+
                 timestamp_previous = result.timestamp;
 
                 if (filter.timestamp_min > 0) {
                     assert(result.timestamp >= filter.timestamp_min);
                 }
+
                 if (filter.timestamp_max > 0) {
                     assert(result.timestamp <= filter.timestamp_max);
                 }
@@ -1914,10 +2093,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
             results: []const tb.ChangeEvent,
         ) void {
             assert(body.len == 1);
+
             self.auditor.on_get_change_events(timestamp, body[0], results);
 
             for (results) |*result| {
                 assert(stdx.zeroed(&result.reserved));
+
                 switch (result.type) {
                     .single_phase => {
                         assert(result.timestamp == result.transfer_timestamp);
@@ -1955,8 +2136,10 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                     },
                     .two_phase_expired => {
                         assert(result.transfer_timeout > 0);
+
                         const timeout_ns: u64 =
                             @as(u64, result.transfer_timeout) * std.time.ns_per_s;
+
                         assert(result.timestamp >= result.transfer_timestamp + timeout_ns);
                         assert(result.transfer_flags.pending);
                         assert(!result.transfer_flags.post_pending_transfer);
@@ -1964,8 +2147,10 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                         assert(result.transfer_pending_id == 0);
                     },
                 }
+
                 assert(result.transfer_flags.closing_debit == result.debit_account_flags.closed);
                 assert(result.transfer_flags.closing_credit == result.credit_account_flags.closed);
+
                 validate_get_event_checksum(result);
             }
         }
@@ -1974,9 +2159,12 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
         fn validate_transfer_checksum(transfer: *const tb.Transfer) void {
             const checksum_actual = transfer.user_data_128;
             var check = transfer.*;
+
             check.user_data_128 = 0;
             check.timestamp = 0;
+
             const checksum_expect = vsr.checksum(std.mem.asBytes(&check));
+
             assert(checksum_expect == checksum_actual);
         }
 
@@ -1996,6 +2184,7 @@ pub fn WorkloadType(comptime AccountingStateMachine: type) type {
                 .flags = event.transfer_flags,
                 .timestamp = event.timestamp,
             };
+
             validate_transfer_checksum(&transfer);
         }
     };
@@ -2023,10 +2212,8 @@ fn OptionsType(
         create_transfer_void_probability: Ratio,
         create_transfer_retry_probability: Ratio,
         lookup_account_invalid_probability: Ratio,
-
         account_filter_invalid_account_probability: Ratio,
         account_filter_timestamp_range_probability: Ratio,
-
         query_filter_not_found_probability: Ratio,
         query_filter_timestamp_range_probability: Ratio,
         lookup_transfer: stdx.PRNG.EnumWeightsType(Lookup),
@@ -2043,7 +2230,6 @@ fn OptionsType(
         linked_invalid_probability: Ratio,
 
         pending_timeout_mean: u32,
-
         accounts_batch_size_min: usize,
         accounts_batch_size_span: usize, // inclusive
         transfers_batch_size_min: usize,
@@ -2073,7 +2259,9 @@ fn OptionsType(
                 Operation.deprecated_create_accounts_sparse.event_max(options.batch_size_limit),
                 Operation.deprecated_create_accounts_unbatched.event_max(options.batch_size_limit),
             );
+
             assert(batch_create_accounts_limit > 0);
+
             assert(batch_create_accounts_limit <=
                 AccountingStateMachine.batch_max.create_accounts);
 
@@ -2084,9 +2272,12 @@ fn OptionsType(
                     options.batch_size_limit,
                 ),
             );
+
             assert(batch_create_transfers_limit > 0);
+
             assert(batch_create_transfers_limit <=
                 AccountingStateMachine.batch_max.create_transfers);
+
             return .{
                 .batch_size_limit = options.batch_size_limit,
                 .multi_batch_per_request_limit = options.multi_batch_per_request_limit,

@@ -20,6 +20,7 @@ export {
   type RefUnwrapBailTypes,
   type CustomRefFactory,
 } from './ref'
+
 export {
   reactive,
   readonly,
@@ -40,6 +41,7 @@ export {
   type Reactive,
   type ReactiveMarker,
 } from './reactive'
+
 export {
   computed,
   type ComputedRef,
@@ -49,6 +51,7 @@ export {
   type ComputedSetter,
   type ComputedRefImpl,
 } from './computed'
+
 export {
   effect,
   stop,
@@ -65,6 +68,7 @@ export {
   type DebuggerEvent,
   type DebuggerEventExtraInfo,
 } from './effect'
+
 export {
   trigger,
   track,
@@ -72,14 +76,17 @@ export {
   ARRAY_ITERATE_KEY,
   MAP_KEY_ITERATE_KEY,
 } from './dep'
+
 export {
   effectScope,
   EffectScope,
   getCurrentScope,
   onScopeDispose,
 } from './effectScope'
+
 export { reactiveReadArray, shallowReadArray } from './arrayInstrumentations'
 export { TrackOpTypes, TriggerOpTypes, ReactiveFlags } from './constants'
+
 export {
   watch,
   getCurrentWatcher,

@@ -17,13 +17,17 @@ pub const featureSetHasAll = CpuFeature.FeatureSetFns(Feature).featureSetHasAll;
 
 pub const all_features = blk: {
     const len = @typeInfo(Feature).@"enum".fields.len;
+
     std.debug.assert(len <= CpuFeature.Set.needed_bit_count);
+
     var result: [len]CpuFeature = undefined;
+
     result[@intFromEnum(Feature.v3_1)] = .{
         .llvm_name = null,
         .description = "Enable ISA v3.1",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.v3_2)] = .{
         .llvm_name = null,
         .description = "Enable ISA v3.2",
@@ -31,6 +35,7 @@ pub const all_features = blk: {
             .v3_1,
         }),
     };
+
     result[@intFromEnum(Feature.v4_1)] = .{
         .llvm_name = null,
         .description = "Enable ISA v4.1",
@@ -38,11 +43,14 @@ pub const all_features = blk: {
             .v3_2,
         }),
     };
+
     const ti = @typeInfo(Feature);
+
     for (&result, 0..) |*elem, i| {
         elem.index = i;
         elem.name = ti.@"enum".fields[i].name;
     }
+
     break :blk result;
 };
 
@@ -54,6 +62,7 @@ pub const cpu = struct {
             .v3_1,
         }),
     };
+
     pub const coolidge_v2: CpuModel = .{
         .name = "coolidge_v2",
         .llvm_name = null,

@@ -24,6 +24,7 @@ export default class Index extends MenuOption {
 		this.icon = icon!
 		this.shortcut = shortcut!
 		this.keyboard = keyboard
+
 		this.onSelect = onSelect.bind(this)
 	}
 }

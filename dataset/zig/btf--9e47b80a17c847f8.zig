@@ -36,6 +36,7 @@ pub const max_vlen = 0xffff;
 
 pub const Type = extern struct {
     name_off: u32,
+
     info: packed struct(u32) {
         /// number of struct's members
         vlen: u16,
@@ -85,11 +86,13 @@ pub const IntInfo = packed struct(u32) {
     bits: u8,
     reserved_1: u8,
     offset: u8,
+
     encoding: enum(u4) {
         signed = 1 << 0,
         char = 1 << 1,
         boolean = 1 << 2,
     },
+
     reserved_2: u4,
 };
 

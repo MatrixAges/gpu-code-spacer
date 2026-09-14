@@ -290,6 +290,7 @@ pub const ContentEncoding = enum {
             .{ "x-compress", .compress },
             .{ "identity", .identity },
         });
+
         return map.get(s);
     }
 
@@ -387,13 +388,17 @@ pub const Reader = struct {
     /// the input stream.
     pub fn receiveHead(reader: *Reader) HeadError![]const u8 {
         reader.trailers = &.{};
+
         const in = reader.in;
         const max_head_len = reader.max_head_len;
         var hp: HeadParser = .{};
         var head_len: usize = 0;
+
         while (true) {
             if (head_len >= max_head_len) return error.HttpHeadersOversize;
+
             const remaining = in.buffered()[head_len..];
+
             if (remaining.len == 0) {
                 in.fillMore() catch |err| switch (err) {
                     error.EndOfStream => switch (head_len) {
@@ -402,13 +407,19 @@ pub const Reader = struct {
                     },
                     error.ReadFailed => return error.ReadFailed,
                 };
+
                 continue;
             }
+
             head_len += hp.feed(remaining);
+
             if (hp.state == .finished) {
                 reader.state = .received_head;
+
                 const head_buffer = in.buffered()[0..head_len];
+
                 in.toss(head_len);
+
                 return head_buffer;
             }
         }
@@ -427,9 +438,11 @@ pub const Reader = struct {
         content_length: ?u64,
     ) *std.Io.Reader {
         assert(reader.state == .received_head);
+
         switch (transfer_encoding) {
             .chunked => {
                 reader.state = .{ .body_remaining_chunk_len = .head };
+
                 reader.interface = .{
                     .buffer = transfer_buffer,
                     .seek = 0,
@@ -439,11 +452,13 @@ pub const Reader = struct {
                         .discard = chunkedDiscard,
                     },
                 };
+
                 return &reader.interface;
             },
             .none => {
                 if (content_length) |len| {
                     reader.state = .{ .body_remaining_content_length = len };
+
                     reader.interface = .{
                         .buffer = transfer_buffer,
                         .seek = 0,
@@ -453,9 +468,11 @@ pub const Reader = struct {
                             .discard = contentLengthDiscard,
                         },
                     };
+
                     return &reader.interface;
                 } else {
                     reader.state = .body_none;
+
                     return reader.in;
                 }
             },
@@ -479,27 +496,34 @@ pub const Reader = struct {
     ) *std.Io.Reader {
         if (transfer_encoding == .none and content_length == null) {
             assert(reader.state == .received_head);
+
             reader.state = .body_none;
+
             switch (content_encoding) {
                 .identity => {
                     return reader.in;
                 },
                 .deflate => {
                     decompress.* = .{ .flate = .init(reader.in, .zlib, decompress_buffer) };
+
                     return &decompress.flate.reader;
                 },
                 .gzip => {
                     decompress.* = .{ .flate = .init(reader.in, .gzip, decompress_buffer) };
+
                     return &decompress.flate.reader;
                 },
                 .zstd => {
                     decompress.* = .{ .zstd = .init(reader.in, decompress_buffer, .{ .verify_checksum = false }) };
+
                     return &decompress.zstd.reader;
                 },
                 .compress => unreachable,
             }
         }
+
         const transfer_reader = bodyReader(reader, transfer_buffer, transfer_encoding, content_length);
+
         return decompress.init(transfer_reader, decompress_buffer, content_encoding);
     }
 
@@ -511,12 +535,17 @@ pub const Reader = struct {
         const reader: *Reader = @alignCast(@fieldParentPtr("interface", io_r));
         const remaining_content_length = &reader.state.body_remaining_content_length;
         const remaining = remaining_content_length.*;
+
         if (remaining == 0) {
             reader.state = .ready;
+
             return error.EndOfStream;
         }
+
         const n = try reader.in.stream(w, limit.min(.limited64(remaining)));
+
         remaining_content_length.* = remaining - n;
+
         return n;
     }
 
@@ -524,31 +553,40 @@ pub const Reader = struct {
         const reader: *Reader = @alignCast(@fieldParentPtr("interface", io_r));
         const remaining_content_length = &reader.state.body_remaining_content_length;
         const remaining = remaining_content_length.*;
+
         if (remaining == 0) {
             reader.state = .ready;
+
             return error.EndOfStream;
         }
+
         const n = try reader.in.discard(limit.min(.limited64(remaining)));
+
         remaining_content_length.* = remaining - n;
+
         return n;
     }
 
     fn chunkedStream(io_r: *std.Io.Reader, w: *Writer, limit: std.Io.Limit) std.Io.Reader.StreamError!usize {
         const reader: *Reader = @alignCast(@fieldParentPtr("interface", io_r));
+
         const chunk_len_ptr = switch (reader.state) {
             .ready => return error.EndOfStream,
             .body_remaining_chunk_len => |*x| x,
             else => unreachable,
         };
+
         return chunkedReadEndless(reader, w, limit, chunk_len_ptr) catch |err| switch (err) {
             error.ReadFailed => return error.ReadFailed,
             error.WriteFailed => return error.WriteFailed,
             error.EndOfStream => {
                 reader.body_err = error.HttpChunkTruncated;
+
                 return error.ReadFailed;
             },
             else => |e| {
                 reader.body_err = e;
+
                 return error.ReadFailed;
             },
         };
@@ -561,43 +599,59 @@ pub const Reader = struct {
         chunk_len_ptr: *RemainingChunkLen,
     ) (BodyError || std.Io.Reader.StreamError)!usize {
         const in = reader.in;
+
         len: switch (chunk_len_ptr.*) {
             .head => {
                 var cp: ChunkParser = .init;
+
                 while (true) {
                     const i = cp.feed(in.buffered());
+
                     switch (cp.state) {
                         .invalid => return error.HttpChunkInvalid,
                         .data => {
                             in.toss(i);
+
                             break;
                         },
                         else => {
                             in.toss(i);
                             try in.fillMore();
+
                             continue;
                         },
                     }
                 }
+
                 if (cp.chunk_len == 0) return parseTrailers(reader, 0);
+
                 const n = try in.stream(w, limit.min(.limited64(cp.chunk_len)));
+
                 chunk_len_ptr.* = .init(cp.chunk_len + 2 - n);
+
                 return n;
             },
             .n => {
                 if ((try in.peekByte()) != '\n') return error.HttpChunkInvalid;
+
                 in.toss(1);
+
                 continue :len .head;
             },
             .rn => {
                 const rn = try in.peekArray(2);
+
                 if (rn[0] != '\r' or rn[1] != '\n') return error.HttpChunkInvalid;
+
                 in.toss(2);
+
                 continue :len .head;
             },
             else => |remaining_chunk_len| {
                 const n = try in.stream(w, limit.min(.limited64(@intFromEnum(remaining_chunk_len) - 2)));
+
                 chunk_len_ptr.* = .init(@intFromEnum(remaining_chunk_len) - n);
+
                 return n;
             },
         }
@@ -605,19 +659,23 @@ pub const Reader = struct {
 
     fn chunkedDiscard(io_r: *std.Io.Reader, limit: std.Io.Limit) std.Io.Reader.Error!usize {
         const reader: *Reader = @alignCast(@fieldParentPtr("interface", io_r));
+
         const chunk_len_ptr = switch (reader.state) {
             .ready => return error.EndOfStream,
             .body_remaining_chunk_len => |*x| x,
             else => unreachable,
         };
+
         return chunkedDiscardEndless(reader, limit, chunk_len_ptr) catch |err| switch (err) {
             error.ReadFailed => return error.ReadFailed,
             error.EndOfStream => {
                 reader.body_err = error.HttpChunkTruncated;
+
                 return error.ReadFailed;
             },
             else => |e| {
                 reader.body_err = e;
+
                 return error.ReadFailed;
             },
         };
@@ -629,43 +687,59 @@ pub const Reader = struct {
         chunk_len_ptr: *RemainingChunkLen,
     ) (BodyError || std.Io.Reader.Error)!usize {
         const in = reader.in;
+
         len: switch (chunk_len_ptr.*) {
             .head => {
                 var cp: ChunkParser = .init;
+
                 while (true) {
                     const i = cp.feed(in.buffered());
+
                     switch (cp.state) {
                         .invalid => return error.HttpChunkInvalid,
                         .data => {
                             in.toss(i);
+
                             break;
                         },
                         else => {
                             in.toss(i);
                             try in.fillMore();
+
                             continue;
                         },
                     }
                 }
+
                 if (cp.chunk_len == 0) return parseTrailers(reader, 0);
+
                 const n = try in.discard(limit.min(.limited64(cp.chunk_len)));
+
                 chunk_len_ptr.* = .init(cp.chunk_len + 2 - n);
+
                 return n;
             },
             .n => {
                 if ((try in.peekByte()) != '\n') return error.HttpChunkInvalid;
+
                 in.toss(1);
+
                 continue :len .head;
             },
             .rn => {
                 const rn = try in.peekArray(2);
+
                 if (rn[0] != '\r' or rn[1] != '\n') return error.HttpChunkInvalid;
+
                 in.toss(2);
+
                 continue :len .head;
             },
             else => |remaining_chunk_len| {
                 const n = try in.discard(limit.min(.limited64(remaining_chunk_len.int() - 2)));
+
                 chunk_len_ptr.* = .init(remaining_chunk_len.int() - n);
+
                 return n;
             },
         }
@@ -676,26 +750,40 @@ pub const Reader = struct {
     fn parseTrailers(reader: *Reader, amt_read: usize) (BodyError || std.Io.Reader.Error)!usize {
         const in = reader.in;
         const rn = try in.peekArray(2);
+
         if (rn[0] == '\r' and rn[1] == '\n') {
             in.toss(2);
+
             reader.state = .ready;
+
             assert(reader.trailers.len == 0);
+
             return amt_read;
         }
+
         var hp: HeadParser = .{ .state = .seen_rn };
         var trailers_len: usize = 2;
+
         while (true) {
             if (in.buffer.len - trailers_len == 0) return error.HttpHeadersOversize;
+
             const remaining = in.buffered()[trailers_len..];
+
             if (remaining.len == 0) {
                 try in.fillMore();
+
                 continue;
             }
+
             trailers_len += hp.feed(remaining);
+
             if (hp.state == .finished) {
                 reader.state = .ready;
+
                 reader.trailers = in.buffered()[0..trailers_len];
+
                 in.toss(trailers_len);
+
                 return amt_read;
             }
         }
@@ -716,18 +804,22 @@ pub const Decompress = union(enum) {
         switch (content_encoding) {
             .identity => {
                 decompress.* = .{ .none = transfer_reader };
+
                 return transfer_reader;
             },
             .deflate => {
                 decompress.* = .{ .flate = .init(transfer_reader, .zlib, buffer) };
+
                 return &decompress.flate.reader;
             },
             .gzip => {
                 decompress.* = .{ .flate = .init(transfer_reader, .gzip, buffer) };
+
                 return &decompress.flate.reader;
             },
             .zstd => {
                 decompress.* = .{ .zstd = .init(transfer_reader, buffer, .{ .verify_checksum = false }) };
+
                 return &decompress.zstd.reader;
             },
             .compress => unreachable,
@@ -777,6 +869,7 @@ pub const BodyWriter = struct {
     /// Sends all buffered data across `BodyWriter.http_protocol_output`.
     pub fn flush(w: *BodyWriter) Error!void {
         const out = w.http_protocol_output;
+
         switch (w.state) {
             .end, .none, .content_length, .chunk_len => return out.flush(),
         }
@@ -796,6 +889,7 @@ pub const BodyWriter = struct {
     /// * `endChunked`
     pub fn end(w: *BodyWriter) Error!void {
         try endUnflushed(w);
+
         try w.http_protocol_output.flush();
     }
 
@@ -814,10 +908,12 @@ pub const BodyWriter = struct {
     /// * `endChunked`
     pub fn endUnflushed(w: *BodyWriter) Error!void {
         try w.writer.flush();
+
         switch (w.state) {
             .end => unreachable,
             .content_length => |len| {
                 assert(len == 0); // Trips when end() called before all bytes written.
+
                 w.state = .end;
             },
             .none => {},
@@ -841,6 +937,7 @@ pub const BodyWriter = struct {
     /// * `end`
     pub fn endChunked(w: *BodyWriter, options: EndChunkedOptions) Error!void {
         try endChunkedUnflushed(w, options);
+
         try w.http_protocol_output.flush();
     }
 
@@ -859,40 +956,54 @@ pub const BodyWriter = struct {
     pub fn endChunkedUnflushed(w: *BodyWriter, options: EndChunkedOptions) Error!void {
         if (w.isEliding()) {
             w.state = .end;
+
             return;
         }
+
         const bw = w.http_protocol_output;
+
         switch (w.state.chunk_len) {
             0 => {},
             1 => unreachable, // Wrote more data than specified in chunk header.
             2 => try bw.writeAll("\r\n"),
             else => unreachable, // An earlier write call indicated more data would follow.
         }
+
         try bw.writeAll("0\r\n");
+
         for (options.trailers) |trailer| {
             try bw.writeAll(trailer.name);
             try bw.writeAll(": ");
             try bw.writeAll(trailer.value);
             try bw.writeAll("\r\n");
         }
+
         try bw.writeAll("\r\n");
+
         w.state = .end;
     }
 
     pub fn contentLengthDrain(w: *Writer, data: []const []const u8, splat: usize) Error!usize {
         const bw: *BodyWriter = @alignCast(@fieldParentPtr("writer", w));
+
         assert(!bw.isEliding());
+
         const out = bw.http_protocol_output;
         const n = try out.writeSplatHeader(w.buffered(), data, splat);
+
         bw.state.content_length -= n;
+
         return w.consume(n);
     }
 
     pub fn noneDrain(w: *Writer, data: []const []const u8, splat: usize) Error!usize {
         const bw: *BodyWriter = @alignCast(@fieldParentPtr("writer", w));
+
         assert(!bw.isEliding());
+
         const out = bw.http_protocol_output;
         const n = try out.writeSplatHeader(w.buffered(), data, splat);
+
         return w.consume(n);
     }
 
@@ -901,33 +1012,46 @@ pub const BodyWriter = struct {
         const slice = data[0 .. data.len - 1];
         const pattern = data[slice.len];
         var written: usize = pattern.len * splat;
+
         for (slice) |bytes| written += bytes.len;
+
         switch (bw.state) {
             .content_length => |*len| len.* -= written + w.end,
             else => {},
         }
+
         w.end = 0;
+
         return written;
     }
 
     pub fn elidingSendFile(w: *Writer, file_reader: *File.Reader, limit: std.Io.Limit) Writer.FileError!usize {
         const bw: *BodyWriter = @alignCast(@fieldParentPtr("writer", w));
+
         if (File.Handle == void) return error.Unimplemented;
         if (builtin.zig_backend == .stage2_aarch64) return error.Unimplemented;
+
         switch (bw.state) {
             .content_length => |*len| len.* -= w.end,
             else => {},
         }
+
         w.end = 0;
+
         if (limit == .nothing) return 0;
+
         if (file_reader.getSize()) |size| {
             const n = limit.minInt64(size - file_reader.pos);
+
             if (n == 0) return error.EndOfStream;
+
             file_reader.seekBy(@intCast(n)) catch return error.Unimplemented;
+
             switch (bw.state) {
                 .content_length => |*len| len.* -= n,
                 else => {},
             }
+
             return n;
         } else |_| {
             // Error is observable on `file_reader` instance, and it is better to
@@ -939,52 +1063,73 @@ pub const BodyWriter = struct {
     /// Returns `null` if size cannot be computed without making any syscalls.
     pub fn noneSendFile(w: *Writer, file_reader: *File.Reader, limit: std.Io.Limit) Writer.FileError!usize {
         const bw: *BodyWriter = @alignCast(@fieldParentPtr("writer", w));
+
         assert(!bw.isEliding());
+
         const out = bw.http_protocol_output;
         const n = try out.sendFileHeader(w.buffered(), file_reader, limit);
+
         return w.consume(n);
     }
 
     pub fn contentLengthSendFile(w: *Writer, file_reader: *File.Reader, limit: std.Io.Limit) Writer.FileError!usize {
         const bw: *BodyWriter = @alignCast(@fieldParentPtr("writer", w));
+
         assert(!bw.isEliding());
+
         const out = bw.http_protocol_output;
         const n = try out.sendFileHeader(w.buffered(), file_reader, limit);
+
         bw.state.content_length -= n;
+
         return w.consume(n);
     }
 
     pub fn chunkedSendFile(w: *Writer, file_reader: *File.Reader, limit: std.Io.Limit) Writer.FileError!usize {
         const bw: *BodyWriter = @alignCast(@fieldParentPtr("writer", w));
+
         assert(!bw.isEliding());
+
         const data_len = Writer.countSendFileLowerBound(w.end, file_reader, limit) orelse {
             // If the file size is unknown, we cannot lower to a `sendFile` since we would
             // have to flush the chunk header before knowing the chunk length.
             return error.Unimplemented;
         };
+
         if (data_len == 0) return error.EndOfStream;
+
         const out = bw.http_protocol_output;
+
         l: switch (bw.state.chunk_len) {
             0 => {
                 const header_buf = try out.writableArray(chunk_header_template.len);
+
                 @memcpy(header_buf, chunk_header_template);
+
                 writeHex(header_buf[0..chunk_len_digits], data_len);
+
                 bw.state.chunk_len = data_len + 2;
+
                 continue :l bw.state.chunk_len;
             },
             1 => unreachable, // Wrote more data than specified in chunk header.
             2 => {
                 try out.writeAll("\r\n");
+
                 bw.state.chunk_len = 0;
+
                 continue :l 0;
             },
             else => {
                 const chunk_limit: std.Io.Limit = .limited(bw.state.chunk_len - 2);
+
                 const n = if (chunk_limit.subtract(w.buffered().len)) |sendfile_limit|
                     try out.sendFileHeader(w.buffered(), file_reader, sendfile_limit.min(limit))
                 else
                     try out.write(chunk_limit.slice(w.buffered()));
+
                 bw.state.chunk_len -= n;
+
                 return w.consume(n);
             },
         }
@@ -992,26 +1137,37 @@ pub const BodyWriter = struct {
 
     pub fn chunkedDrain(w: *Writer, data: []const []const u8, splat: usize) Error!usize {
         const bw: *BodyWriter = @alignCast(@fieldParentPtr("writer", w));
+
         assert(!bw.isEliding());
+
         const out = bw.http_protocol_output;
         const data_len = w.end + Writer.countSplat(data, splat);
+
         l: switch (bw.state.chunk_len) {
             0 => {
                 const header_buf = try out.writableArray(chunk_header_template.len);
+
                 @memcpy(header_buf, chunk_header_template);
+
                 writeHex(header_buf[0..chunk_len_digits], data_len);
+
                 bw.state.chunk_len = data_len + 2;
+
                 continue :l bw.state.chunk_len;
             },
             1 => unreachable, // Wrote more data than specified in chunk header.
             2 => {
                 try out.writeAll("\r\n");
+
                 bw.state.chunk_len = 0;
+
                 continue :l 0;
             },
             else => {
                 const n = try out.writeSplatHeaderLimit(w.buffered(), data, splat, .limited(bw.state.chunk_len - 2));
+
                 bw.state.chunk_len -= n;
+
                 return w.consume(n);
             },
         }
@@ -1021,13 +1177,18 @@ pub const BodyWriter = struct {
     /// buffer has already been filled with zeroes.
     fn writeHex(buf: []u8, x: usize) void {
         assert(std.mem.allEqual(u8, buf, '0'));
+
         const base = 16;
         var index: usize = buf.len;
         var a = x;
+
         while (a > 0) {
             const digit = a % base;
+
             index -= 1;
+
             buf[index] = std.fmt.digitToChar(@intCast(digit), .lower);
+
             a /= base;
         }
     }

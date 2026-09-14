@@ -1,10 +1,12 @@
 import type { VNode } from './vnode'
+
 import {
   type ComponentInternalInstance,
   type ConcreteComponent,
   type Data,
   formatComponentName,
 } from './component'
+
 import { isFunction, isString } from '@vue/shared'
 import { isRef, pauseTracking, resetTracking, toRaw } from '@vue/reactivity'
 import { ErrorCodes, callWithErrorHandling } from './errorHandling'
@@ -34,6 +36,7 @@ let isWarning = false
 
 export function warn(msg: string, ...args: any[]): void {
   if (isWarning) return
+
   isWarning = true
 
   // avoid props formatting or warn handler tracking deps that might be mutated
@@ -63,6 +66,7 @@ export function warn(msg: string, ...args: any[]): void {
     )
   } else {
     const warnArgs = [`[Vue warn]: ${msg}`, ...args]
+
     if (
       trace.length &&
       // avoid spamming console during tests
@@ -71,15 +75,18 @@ export function warn(msg: string, ...args: any[]): void {
       /* v8 ignore next 2 */
       warnArgs.push(`\n`, ...formatTrace(trace))
     }
+
     console.warn(...warnArgs)
   }
 
   resetTracking()
+
   isWarning = false
 }
 
 export function getComponentTrace(): ComponentTraceStack {
   let currentVNode: VNode | null = stack[stack.length - 1]
+
   if (!currentVNode) {
     return []
   }
@@ -91,6 +98,7 @@ export function getComponentTrace(): ComponentTraceStack {
 
   while (currentVNode) {
     const last = normalizedStack[0]
+
     if (last && last.vnode === currentVNode) {
       last.recurseCount++
     } else {
@@ -99,8 +107,10 @@ export function getComponentTrace(): ComponentTraceStack {
         recurseCount: 0,
       })
     }
+
     const parentInstance: ComponentInternalInstance | null =
       currentVNode.component && currentVNode.component.parent
+
     currentVNode = parentInstance && parentInstance.vnode
   }
 
@@ -110,22 +120,28 @@ export function getComponentTrace(): ComponentTraceStack {
 /* v8 ignore start */
 function formatTrace(trace: ComponentTraceStack): any[] {
   const logs: any[] = []
+
   trace.forEach((entry, i) => {
     logs.push(...(i === 0 ? [] : [`\n`]), ...formatTraceEntry(entry))
   })
+
   return logs
 }
 
 function formatTraceEntry({ vnode, recurseCount }: TraceEntry): any[] {
   const postfix =
     recurseCount > 0 ? `... (${recurseCount} recursive calls)` : ``
+
   const isRoot = vnode.component ? vnode.component.parent == null : false
+
   const open = ` at <${formatComponentName(
     vnode.component,
     vnode.type,
     isRoot,
   )}`
+
   const close = `>` + postfix
+
   return vnode.props
     ? [open, ...formatProps(vnode.props), close]
     : [open + close]
@@ -134,20 +150,25 @@ function formatTraceEntry({ vnode, recurseCount }: TraceEntry): any[] {
 function formatProps(props: Data): any[] {
   const res: any[] = []
   const keys = Object.keys(props)
+
   keys.slice(0, 3).forEach(key => {
     res.push(...formatProp(key, props[key]))
   })
+
   if (keys.length > 3) {
     res.push(` ...`)
   }
+
   return res
 }
 
 function formatProp(key: string, value: unknown): any[]
 function formatProp(key: string, value: unknown, raw: true): any
+
 function formatProp(key: string, value: unknown, raw?: boolean): any {
   if (isString(value)) {
     value = JSON.stringify(value)
+
     return raw ? value : [`${key}=${value}`]
   } else if (
     typeof value === 'number' ||
@@ -157,11 +178,13 @@ function formatProp(key: string, value: unknown, raw?: boolean): any {
     return raw ? value : [`${key}=${value}`]
   } else if (isRef(value)) {
     value = formatProp(key, toRaw(value.value), true)
+
     return raw ? value : [`${key}=Ref<`, value, `>`]
   } else if (isFunction(value)) {
     return [`${key}=fn${value.name ? `<${value.name}>` : ``}`]
   } else {
     value = toRaw(value)
+
     return raw ? value : [`${key}=`, value]
   }
 }
@@ -171,6 +194,7 @@ function formatProp(key: string, value: unknown, raw?: boolean): any {
  */
 export function assertNumber(val: unknown, type: string): void {
   if (!__DEV__) return
+
   if (val === undefined) {
     return
   } else if (typeof val !== 'number') {

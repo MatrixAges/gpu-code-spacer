@@ -20,8 +20,11 @@ import type { Note, ArgsKV } from '@/types'
 
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
+
 	page_width = ''
+
 	container = null as unknown as HTMLElement
 	ref = null as unknown as HTMLElement
 	observer = null as unknown as ResizeObserver
@@ -31,6 +34,7 @@ export default class Index {
 	visible_mini_nav = false
 	minimize = false
 	scroll = false
+
 	style = null as unknown as CSSProperties
 	visible_items = [] as Array<string>
 	active_items = [] as Array<string>
@@ -61,6 +65,7 @@ export default class Index {
 		this.id = id
 		this.editor = editor
 		this.page_width = page_width
+
 		this.container = document.getElementById(this.id)!
 
 		this.on()
@@ -110,6 +115,7 @@ export default class Index {
 				if (!el) return
 
 				const { top } = el.getBoundingClientRect()
+
 				const level = $getHeadingLevel($getNodeByKey(node_key)!)
 
 				if (level < list_max_level) {
@@ -136,7 +142,9 @@ export default class Index {
 
 			const prev_items = this.items.slice(0, target_index!)
 			const next_items = this.items.slice(target_index!)
+
 			const target_key = this.items[target_index!][0]
+
 			const target_node = $getNodeByKey(target_key) as HeadingNode
 			const target_level = $getHeadingLevel(target_node)
 
@@ -258,7 +266,6 @@ export default class Index {
 
 	addEventListener() {
 		this.removeEventListener()
-
 		this.container.addEventListener('scroll', this.onScroll)
 	}
 
@@ -282,7 +289,6 @@ export default class Index {
 	off() {
 		this.unregister()
 		this.removeEventListener()
-
 		this.observer.unobserve(this.container)
 		this.observer.disconnect()
 	}

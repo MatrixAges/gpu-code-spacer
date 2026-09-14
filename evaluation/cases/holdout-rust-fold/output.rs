@@ -4,6 +4,7 @@ fn lengths(words: &[&str]) -> (usize, usize) {
 
     for word in words {
         count += 1;
+
         total += word.len();
     }
 

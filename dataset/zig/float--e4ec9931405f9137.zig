@@ -13,6 +13,7 @@ pub const min_buffer_size = 53;
 /// Returns the minimum buffer size needed to print every float of a specific type and format.
 pub fn bufferSize(comptime mode: Mode, comptime T: type) comptime_int {
     comptime std.debug.assert(@typeInfo(T) == .float);
+
     return switch (mode) {
         .scientific => 53,
         // Based on minimum subnormal values.
@@ -60,10 +61,13 @@ pub fn render(buf: []u8, value: anytype, options: Options) Error![]const u8 {
     };
 
     const T = @TypeOf(v);
+
     comptime std.debug.assert(@typeInfo(T) == .float);
+
     const I = @Int(.unsigned, @bitSizeOf(T));
 
     const DT = if (@bitSizeOf(T) <= 64) u64 else u128;
+
     const tables = switch (DT) {
         u64 => if (@import("builtin").mode == .ReleaseSmall) &Backend64_TablesSmall else &Backend64_TablesFull,
         u128 => &Backend128_Tables,
@@ -81,6 +85,7 @@ pub fn render(buf: []u8, value: anytype, options: Options) Error![]const u8 {
 
 pub fn FloatDecimal(comptime T: type) type {
     comptime std.debug.assert(T == u64 or T == u128);
+
     return struct {
         mantissa: T,
         exponent: i32,
@@ -92,12 +97,17 @@ fn copySpecialStr(buf: []u8, f: anytype) []const u8 {
     if (f.sign) {
         buf[0] = '-';
     }
+
     const offset: usize = @intFromBool(f.sign);
+
     if (f.mantissa != 0) {
         @memcpy(buf[offset..][0..3], "nan");
+
         return buf[0 .. 3 + offset];
     }
+
     @memcpy(buf[offset..][0..3], "inf");
+
     return buf[0 .. 3 + offset];
 }
 
@@ -106,14 +116,18 @@ fn writeDecimal(buf: []u8, value: anytype, count: usize) void {
 
     while (i + 2 < count) : (i += 2) {
         const c: u8 = @intCast(value.* % 100);
+
         value.* /= 100;
+
         const d = std.fmt.digits2(c);
+
         buf[count - i - 1] = d[1];
         buf[count - i - 2] = d[0];
     }
 
     while (i < count) : (i += 1) {
         const c: u8 = @intCast(value.* % 10);
+
         value.* /= 10;
         buf[count - i - 1] = '0' + c;
     }
@@ -121,9 +135,11 @@ fn writeDecimal(buf: []u8, value: anytype, count: usize) void {
 
 fn isPowerOf10(n_: u128) bool {
     var n = n_;
+
     while (n != 0) : (n /= 10) {
         if (n % 10 != 0) return false;
     }
+
     return true;
 }
 
@@ -146,6 +162,7 @@ fn round(comptime T: type, f: FloatDecimal(T), mode: RoundMode, precision: usize
                 round_digit = (olength - 1) + precision + @as(usize, @intCast(f.exponent));
             } else {
                 const min_exp_required = @as(usize, @intCast(-f.exponent));
+
                 if (precision + olength > min_exp_required) {
                     round_digit = precision + olength - min_exp_required;
                 }
@@ -158,6 +175,7 @@ fn round(comptime T: type, f: FloatDecimal(T), mode: RoundMode, precision: usize
 
     if (round_digit < olength) {
         var nlength = olength;
+
         for (round_digit + 1..olength) |_| {
             output /= 10;
             exp += 1;
@@ -194,6 +212,7 @@ fn round(comptime T: type, f: FloatDecimal(T), mode: RoundMode, precision: usize
 /// It is recommended to bound decimal formatting with an exact precision.
 pub fn formatScientific(comptime T: type, buf: []u8, f_: FloatDecimal(T), precision: ?usize) Error![]const u8 {
     std.debug.assert(buf.len >= min_buffer_size);
+
     var f = f_;
 
     if (f.exponent == special_exponent) {
@@ -210,6 +229,7 @@ pub fn formatScientific(comptime T: type, buf: []u8, f_: FloatDecimal(T), precis
     if (precision) |prec| {
         // fixed bound: sign(1) + leading_digit(1) + point(1) + exp_sign(1) + exp_max(4)
         const req_bytes = 8 + prec;
+
         if (buf.len < req_bytes) {
             return error.BufferTooSmall;
         }
@@ -217,6 +237,7 @@ pub fn formatScientific(comptime T: type, buf: []u8, f_: FloatDecimal(T), precis
 
     // Step 5: Print the scientific representation
     var index: usize = 0;
+
     if (f.sign) {
         buf[index] = '-';
         index += 1;
@@ -224,17 +245,23 @@ pub fn formatScientific(comptime T: type, buf: []u8, f_: FloatDecimal(T), precis
 
     // 1.12345
     writeDecimal(buf[index + 2 ..], &output, olength - 1);
+
     buf[index] = '0' + @as(u8, @intCast(output % 10));
     buf[index + 1] = '.';
     index += 2;
+
     const dp_index = index;
+
     if (olength > 1) index += olength - 1 else index -= 1;
 
     if (precision) |prec| {
         index += @intFromBool(olength == 1);
+
         if (prec > olength - 1) {
             const len = prec - (olength - 1);
+
             @memset(buf[index..][0..len], '0');
+
             index += len;
         } else {
             index = dp_index + prec - @intFromBool(prec == 0);
@@ -244,15 +271,20 @@ pub fn formatScientific(comptime T: type, buf: []u8, f_: FloatDecimal(T), precis
     // e100
     buf[index] = 'e';
     index += 1;
+
     var exp = f.exponent + @as(i32, @intCast(olength)) - 1;
+
     if (exp < 0) {
         buf[index] = '-';
         index += 1;
         exp = -exp;
     }
+
     var uexp: u32 = @intCast(exp);
     const elength = decimalLength(uexp);
+
     writeDecimal(buf[index..], &uexp, elength);
+
     index += elength;
 
     return buf[0..index];
@@ -265,6 +297,7 @@ pub fn formatScientific(comptime T: type, buf: []u8, f_: FloatDecimal(T), precis
 /// always be written.
 pub fn formatDecimal(comptime T: type, buf: []u8, f_: FloatDecimal(T), precision: ?usize) Error![]const u8 {
     std.debug.assert(buf.len >= min_buffer_size);
+
     var f = f_;
 
     if (f.exponent == special_exponent) {
@@ -283,68 +316,89 @@ pub fn formatDecimal(comptime T: type, buf: []u8, f_: FloatDecimal(T), precision
         @as(usize, 2) + @abs(f.exponent) + olength + (precision orelse 0)
     else
         @as(usize, 2) + @max(@abs(f.exponent) + olength, precision orelse 0);
+
     if (buf.len < req_bytes) {
         return error.BufferTooSmall;
     }
 
     // Step 5: Print the decimal representation
     var index: usize = 0;
+
     if (f.sign) {
         buf[index] = '-';
         index += 1;
     }
 
     const dp_offset = f.exponent + cast_i32(olength);
+
     if (dp_offset <= 0) {
         // 0.000001234
         buf[index] = '0';
         buf[index + 1] = '.';
         index += 2;
-        const dp_index = index;
 
+        const dp_index = index;
         const dp_poffset: u32 = @intCast(-dp_offset);
+
         @memset(buf[index..][0..dp_poffset], '0');
+
         index += dp_poffset;
+
         writeDecimal(buf[index..], &output, olength);
+
         index += olength;
 
         if (precision) |prec| {
             const dp_written = index - dp_index;
+
             if (prec > dp_written) {
                 @memset(buf[index..][0 .. prec - dp_written], '0');
             }
+
             index = dp_index + prec - @intFromBool(prec == 0);
         }
     } else {
         // 123456000
         const dp_uoffset: usize = @intCast(dp_offset);
+
         if (dp_uoffset >= olength) {
             writeDecimal(buf[index..], &output, olength);
+
             index += olength;
+
             @memset(buf[index..][0 .. dp_uoffset - olength], '0');
+
             index += dp_uoffset - olength;
 
             if (precision) |prec| {
                 if (prec != 0) {
                     buf[index] = '.';
                     index += 1;
+
                     @memset(buf[index..][0..prec], '0');
+
                     index += prec;
                 }
             }
         } else {
             // 12345.6789
             writeDecimal(buf[index + dp_uoffset + 1 ..], &output, olength - dp_uoffset);
+
             buf[index + dp_uoffset] = '.';
+
             const dp_index = index + dp_uoffset + 1;
+
             writeDecimal(buf[index..], &output, dp_uoffset);
+
             index += olength + 1;
 
             if (precision) |prec| {
                 const dp_written = olength - dp_uoffset;
+
                 if (prec > dp_written) {
                     @memset(buf[index..][0 .. prec - dp_written], '0');
                 }
+
                 index = dp_index + prec - @intFromBool(prec == 0);
             }
         }
@@ -375,6 +429,7 @@ pub fn binaryToDecimal(comptime T: type, bits: T, mantissa_bits: std.math.Log2In
             .sign = ieee_sign,
         };
     }
+
     if (ieee_exponent == ((@as(u32, 1) << exponent_bits) - 1)) {
         return .{
             .mantissa = if (explicit_leading_bit) ieee_mantissa & ((@as(T, 1) << (mantissa_bits - 1)) - 1) else ieee_mantissa,
@@ -385,12 +440,14 @@ pub fn binaryToDecimal(comptime T: type, bits: T, mantissa_bits: std.math.Log2In
 
     var e2: i32 = undefined;
     var m2: T = undefined;
+
     if (explicit_leading_bit) {
         if (ieee_exponent == 0) {
             e2 = 1 - cast_i32(bias) - cast_i32(mantissa_bits) + 1 - 2;
         } else {
             e2 = cast_i32(ieee_exponent) - cast_i32(bias) - cast_i32(mantissa_bits) + 1 - 2;
         }
+
         m2 = ieee_mantissa;
     } else {
         if (ieee_exponent == 0) {
@@ -401,6 +458,7 @@ pub fn binaryToDecimal(comptime T: type, bits: T, mantissa_bits: std.math.Log2In
             m2 = (@as(T, 1) << mantissa_bits) | ieee_mantissa;
         }
     }
+
     const even = (m2 & 1) == 0;
     const accept_bounds = even;
 
@@ -415,13 +473,16 @@ pub fn binaryToDecimal(comptime T: type, bits: T, mantissa_bits: std.math.Log2In
     var e10: i32 = undefined;
     var vm_is_trailing_zeros = false;
     var vr_is_trailing_zeros = false;
+
     if (e2 >= 0) {
         const q: u32 = log10Pow2(@intCast(e2)) - @intFromBool(e2 > 3);
+
         e10 = cast_i32(q);
+
         const k: i32 = @intCast(tables.POW5_INV_BITCOUNT + pow5Bits(q) - 1);
         const i: u32 = @intCast(-e2 + cast_i32(q) + k);
-
         const pow5 = tables.computeInvPow5(q);
+
         vr = tables.mulShift(4 * m2, &pow5, i);
         vp = tables.mulShift(4 * m2 + 2, &pow5, i);
         vm = tables.mulShift(4 * m2 - 1 - mm_shift, &pow5, i);
@@ -437,18 +498,21 @@ pub fn binaryToDecimal(comptime T: type, bits: T, mantissa_bits: std.math.Log2In
         }
     } else {
         const q: u32 = log10Pow5(@intCast(-e2)) - @intFromBool(-e2 > 1);
+
         e10 = cast_i32(q) + e2;
+
         const i: i32 = -e2 - cast_i32(q);
         const k: i32 = cast_i32(pow5Bits(@intCast(i))) - tables.POW5_BITCOUNT;
         const j: u32 = @intCast(cast_i32(q) - k);
-
         const pow5 = tables.computePow5(@intCast(i));
+
         vr = tables.mulShift(4 * m2, &pow5, j);
         vp = tables.mulShift(4 * m2 + 2, &pow5, j);
         vm = tables.mulShift(4 * m2 - 1 - mm_shift, &pow5, j);
 
         if (q <= 1) {
             vr_is_trailing_zeros = true;
+
             if (accept_bounds) {
                 vm_is_trailing_zeros = mm_shift == 1;
             } else {
@@ -499,6 +563,7 @@ fn decimalLength(v: anytype) u32 {
     switch (@TypeOf(v)) {
         u32, u64 => {
             std.debug.assert(v < 100000000000000000);
+
             if (v >= 10000000000000000) return 17;
             if (v >= 1000000000000000) return 16;
             if (v >= 100000000000000) return 15;
@@ -515,16 +580,20 @@ fn decimalLength(v: anytype) u32 {
             if (v >= 1000) return 4;
             if (v >= 100) return 3;
             if (v >= 10) return 2;
+
             return 1;
         },
         u128 => {
             const LARGEST_POW10 = (@as(u128, 5421010862427522170) << 64) | 687399551400673280;
             var p10 = LARGEST_POW10;
             var i: u32 = 39;
+
             while (i > 0) : (i -= 1) {
                 if (v >= p10) return i;
+
                 p10 /= 10;
             }
+
             return 1;
         },
         else => unreachable,
@@ -534,49 +603,60 @@ fn decimalLength(v: anytype) u32 {
 // floor(log_10(2^e))
 fn log10Pow2(e: u32) u32 {
     std.debug.assert(e <= 1 << 15);
+
     return @intCast((@as(u64, @intCast(e)) * 169464822037455) >> 49);
 }
 
 // floor(log_10(5^e))
 fn log10Pow5(e: u32) u32 {
     std.debug.assert(e <= 1 << 15);
+
     return @intCast((@as(u64, @intCast(e)) * 196742565691928) >> 48);
 }
 
 // if (e == 0) 1 else ceil(log_2(5^e))
 fn pow5Bits(e: u32) u32 {
     std.debug.assert(e <= 1 << 15);
+
     return @intCast(((@as(u64, @intCast(e)) * 163391164108059) >> 46) + 1);
 }
 
 fn pow5Factor(value_: anytype) u32 {
     var count: u32 = 0;
     var value = value_;
+
     while (value > 0) : ({
         count += 1;
         value /= 5;
     }) {
         if (value % 5 != 0) return count;
     }
+
     return 0;
 }
 
 fn multipleOfPowerOf5(value: anytype, p: u32) bool {
     const T = @TypeOf(value);
+
     std.debug.assert(@typeInfo(T) == .int);
+
     return pow5Factor(value) >= p;
 }
 
 fn multipleOfPowerOf2(value: anytype, p: u32) bool {
     const T = @TypeOf(value);
+
     std.debug.assert(@typeInfo(T) == .int);
+
     return (value & ((@as(T, 1) << @as(std.math.Log2Int(T), @intCast(p))) - 1)) == 0;
 }
 
 fn mulShift128(m: u128, mul: *const [4]u64, j: u32) u128 {
     std.debug.assert(j > 128);
+
     const a: [2]u64 = .{ @truncate(m), @truncate(m >> 64) };
     const r = mul_128_256_shift(&a, mul, j, 0);
+
     return (@as(u128, r[1]) << 64) | r[0];
 }
 
@@ -592,7 +672,6 @@ fn mul_128_256_shift(a: *const [2]u64, b: *const [4]u64, shift: u32, corr: u32) 
     const b11 = @as(u128, a[1]) * b[1];
     const b12 = @as(u128, a[1]) * b[2];
     const b13 = @as(u128, a[1]) * b[3];
-
     const s0 = b00;
     const s1 = b01 +% b10;
     const c1: u128 = @intFromBool(s1 < b01);
@@ -600,7 +679,6 @@ fn mul_128_256_shift(a: *const [2]u64, b: *const [4]u64, shift: u32, corr: u32) 
     const c2: u128 = @intFromBool(s2 < b02);
     const s3 = b03 +% b12;
     const c3: u128 = @intFromBool(s3 < b03);
-
     const p0 = s0 +% (s1 << 64);
     const d0: u128 = @intFromBool(p0 < b00);
     const q1 = s2 +% (s1 >> 64) +% (s3 << 64);
@@ -611,9 +689,11 @@ fn mul_128_256_shift(a: *const [2]u64, b: *const [4]u64, shift: u32, corr: u32) 
 
     var r0: u128 = undefined;
     var r1: u128 = undefined;
+
     if (shift < 128) {
         const cshift: u7 = @intCast(shift);
         const sshift: u7 = @intCast(128 - shift);
+
         r0 = corr +% ((p0 >> cshift) | (p1 << sshift));
         r1 = ((p1 >> cshift) | (p2 << sshift)) +% @intFromBool(r0 < corr);
     } else if (shift == 128) {
@@ -622,6 +702,7 @@ fn mul_128_256_shift(a: *const [2]u64, b: *const [4]u64, shift: u32, corr: u32) 
     } else {
         const ashift: u7 = @intCast(shift - 128);
         const sshift: u7 = @intCast(256 - shift);
+
         r0 = corr +% ((p1 >> ashift) | (p2 << sshift));
         r1 = (p2 >> ashift) +% @intFromBool(r0 < corr);
     }
@@ -634,7 +715,6 @@ pub const Backend128_Tables = struct {
     const mulShift = mulShift128;
     const POW5_INV_BITCOUNT = FLOAT128_POW5_INV_BITCOUNT;
     const POW5_BITCOUNT = FLOAT128_POW5_BITCOUNT;
-
     const bound1 = 55;
     const bound2 = 127;
     const adjust_q = true;
@@ -643,15 +723,16 @@ pub const Backend128_Tables = struct {
         const base = i / FLOAT128_POW5_TABLE_SIZE;
         const base2 = base * FLOAT128_POW5_TABLE_SIZE;
         const mul = &FLOAT128_POW5_SPLIT[base];
+
         if (i == base2) {
             return mul.*;
         } else {
             const offset = i - base2;
             const m = &FLOAT128_POW5_TABLE[offset];
             const delta = pow5Bits(i) - pow5Bits(base2);
-
             const shift: u6 = @intCast(2 * (i % 32));
             const corr: u32 = @intCast((FLOAT128_POW5_ERRORS[i / 32] >> shift) & 3);
+
             return mul_128_256_shift(m, mul, delta, corr);
         }
     }
@@ -660,15 +741,16 @@ pub const Backend128_Tables = struct {
         const base = (i + FLOAT128_POW5_TABLE_SIZE - 1) / FLOAT128_POW5_TABLE_SIZE;
         const base2 = base * FLOAT128_POW5_TABLE_SIZE;
         const mul = &FLOAT128_POW5_INV_SPLIT[base]; // 1 / 5^base2
+
         if (i == base2) {
             return .{ mul[0] + 1, mul[1], mul[2], mul[3] };
         } else {
             const offset = base2 - i;
             const m = &FLOAT128_POW5_TABLE[offset]; // 5^offset
             const delta = pow5Bits(base2) - pow5Bits(i);
-
             const shift: u6 = @intCast(2 * (i % 32));
             const corr: u32 = @intCast(((FLOAT128_POW5_INV_ERRORS[i / 32] >> shift) & 3) + 1);
+
             return mul_128_256_shift(m, mul, delta, corr);
         }
     }
@@ -676,11 +758,13 @@ pub const Backend128_Tables = struct {
 
 fn mulShift64(m: u64, mul: *const [2]u64, j: u32) u64 {
     std.debug.assert(j > 64);
+
     const b0 = @as(u128, m) * mul[0];
     const b2 = @as(u128, m) * mul[1];
 
     if (j < 128) {
         const shift: u6 = @intCast(j - 64);
+
         return @intCast(((b0 >> 64) + b2) >> shift);
     } else {
         return 0;
@@ -692,7 +776,6 @@ pub const Backend64_TablesFull = struct {
     const mulShift = mulShift64;
     const POW5_INV_BITCOUNT = FLOAT64_POW5_INV_BITCOUNT;
     const POW5_BITCOUNT = FLOAT64_POW5_BITCOUNT;
-
     const bound1 = 21;
     const bound2 = 63;
     const adjust_q = false;
@@ -711,7 +794,6 @@ pub const Backend64_TablesSmall = struct {
     const mulShift = mulShift64;
     const POW5_INV_BITCOUNT = FLOAT64_POW5_INV_BITCOUNT;
     const POW5_BITCOUNT = FLOAT64_POW5_BITCOUNT;
-
     const bound1 = 21;
     const bound2 = 63;
     const adjust_q = false;
@@ -720,6 +802,7 @@ pub const Backend64_TablesSmall = struct {
         const base = i / FLOAT64_POW5_TABLE_SIZE;
         const base2 = base * FLOAT64_POW5_TABLE_SIZE;
         const mul = &FLOAT64_POW5_SPLIT2[base];
+
         if (i == base2) {
             return .{ mul[0], mul[1] };
         } else {
@@ -730,6 +813,7 @@ pub const Backend64_TablesSmall = struct {
             const delta: u7 = @intCast(pow5Bits(i) - pow5Bits(base2));
             const shift: u5 = @intCast((i % 16) << 1);
             const shifted_sum = ((b0 >> delta) + (b2 << (64 - delta))) + 1 + ((FLOAT64_POW5_OFFSETS[i / 16] >> shift) & 3);
+
             return .{ @truncate(shifted_sum), @truncate(shifted_sum >> 64) };
         }
     }
@@ -738,6 +822,7 @@ pub const Backend64_TablesSmall = struct {
         const base = (i + FLOAT64_POW5_TABLE_SIZE - 1) / FLOAT64_POW5_TABLE_SIZE;
         const base2 = base * FLOAT64_POW5_TABLE_SIZE;
         const mul = &FLOAT64_POW5_INV_SPLIT2[base]; // 1 / 5^base2
+
         if (i == base2) {
             return .{ mul[0], mul[1] };
         } else {
@@ -748,6 +833,7 @@ pub const Backend64_TablesSmall = struct {
             const delta: u7 = @intCast(pow5Bits(base2) - pow5Bits(i));
             const shift: u5 = @intCast((i % 16) << 1);
             const shifted_sum = ((b0 >> delta) + (b2 << (64 - delta))) + 1 + ((FLOAT64_POW5_INV_OFFSETS[i / 16] >> shift) & 3);
+
             return .{ @truncate(shifted_sum), @truncate(shifted_sum >> 64) };
         }
     }
@@ -828,7 +914,6 @@ const FLOAT64_POW5_INV_OFFSETS: [19]u32 = .{
     0x51655554, 0x40004000, 0x01000001, 0x00010500,
     0x51515411, 0x05555554, 0x00000000,
 };
-
 
 // zig fmt: off
 
@@ -1521,6 +1606,7 @@ fn check(comptime T: type, value: T, comptime expected: []const u8) !void {
     var buf: [6000]u8 = undefined;
     const value_bits: I = @bitCast(value);
     const s = try render(&buf, value, .{});
+
     try std.testing.expectEqualStrings(expected, s);
 
     if (T == f80 and builtin.target.os.tag == .windows and builtin.target.cpu.arch == .x86_64) return;
@@ -1584,7 +1670,6 @@ test "format f32" {
     try check(f32, 1.00014165e-36, "1.00014165e-36");
     try check(f32, 200.0, "2e2");
     try check(f32, 3.3554432e7, "3.3554432e7");
-
     try check(f32, 1.0, "1e0");
     try check(f32, 1.2, "1.2e0");
     try check(f32, 1.23, "1.23e0");
@@ -1619,7 +1704,6 @@ test "format f64" {
     try check(f64, @bitCast(@as(u64, 0x4830f0cf064dd592)), "5.764607523034235e39");
     try check(f64, @bitCast(@as(u64, 0x4840f0cf064dd592)), "1.152921504606847e40");
     try check(f64, @bitCast(@as(u64, 0x4850f0cf064dd592)), "2.305843009213694e40");
-
     try check(f64, 1, "1e0");
     try check(f64, 1.2, "1.2e0");
     try check(f64, 1.23, "1.23e0");
@@ -1637,7 +1721,6 @@ test "format f64" {
     try check(f64, 1.23456789012345, "1.23456789012345e0");
     try check(f64, 1.234567890123456, "1.234567890123456e0");
     try check(f64, 1.2345678901234567, "1.2345678901234567e0");
-
     try check(f64, 4.294967294, "4.294967294e0");
     try check(f64, 4.294967295, "4.294967295e0");
     try check(f64, 4.294967296, "4.294967296e0");
@@ -1653,7 +1736,6 @@ test "format f80" {
     try check(f80, std.math.nan(f80), "nan");
     try check(f80, std.math.inf(f80), "inf");
     try check(f80, -std.math.inf(f80), "-inf");
-
     try check(f80, 2.2250738585072014e-308, "2.2250738585072014e-308");
     try check(f80, 2.98023223876953125e-8, "2.98023223876953125e-8");
     try check(f80, -2.109808898695963e16, "-2.109808898695963e16");
@@ -1674,7 +1756,6 @@ test "format f128" {
     try check(f128, std.math.nan(f128), "nan");
     try check(f128, std.math.inf(f128), "inf");
     try check(f128, -std.math.inf(f128), "-inf");
-
     try check(f128, 2.2250738585072014e-308, "2.2250738585072014e-308");
     try check(f128, 2.98023223876953125e-8, "2.98023223876953125e-8");
     try check(f128, -2.109808898695963e16, "-2.109808898695963e16");

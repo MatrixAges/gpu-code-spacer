@@ -49,13 +49,17 @@ pub const ClientSessions = struct {
 
     pub fn init(allocator: mem.Allocator) !ClientSessions {
         var entries_by_client: EntriesByClient = .{};
+
         errdefer entries_by_client.deinit(allocator);
 
         try entries_by_client.ensureTotalCapacity(allocator, @intCast(constants.clients_max));
+
         assert(entries_by_client.capacity() >= constants.clients_max);
 
         const entries = try allocator.alloc(Entry, constants.clients_max);
+
         errdefer allocator.free(entries);
+
         @memset(entries, std.mem.zeroes(Entry));
 
         return ClientSessions{
@@ -71,7 +75,9 @@ pub const ClientSessions = struct {
 
     pub fn reset(client_sessions: *ClientSessions) void {
         @memset(client_sessions.entries, std.mem.zeroes(Entry));
+
         client_sessions.entries_by_client.clearRetainingCapacity();
+
         client_sessions.entries_present = .{};
     }
 
@@ -83,11 +89,13 @@ pub const ClientSessions = struct {
         // First goes the vsr headers for the entries.
         // This takes advantage of the buffer alignment to avoid adding padding for the headers.
         assert(@alignOf(vsr.Header) == 16);
+
         size_max = std.mem.alignForward(usize, size_max, 16);
         size_max += @sizeOf(vsr.Header) * constants.clients_max;
 
         // Then follows the session values for the entries.
         assert(@alignOf(u64) == 8);
+
         size_max = std.mem.alignForward(usize, size_max, 8);
         size_max += @sizeOf(u64) * constants.clients_max;
 
@@ -107,27 +115,36 @@ pub const ClientSessions = struct {
 
         // Write all headers:
         comptime assert(@alignOf(vsr.Header) == 16);
+
         var new_size = std.mem.alignForward(usize, size, @alignOf(vsr.Header));
+
         @memset(target[size..new_size], 0);
+
         size = new_size;
 
         for (client_sessions.entries) |*entry| {
             stdx.copy_disjoint(.inexact, u8, target[size..], mem.asBytes(&entry.header));
+
             size += @sizeOf(vsr.Header);
         }
 
         // Write all sessions:
         comptime assert(@alignOf(u64) == 8);
+
         new_size = std.mem.alignForward(usize, size, @alignOf(u64));
+
         @memset(target[size..new_size], 0);
+
         size = new_size;
 
         for (client_sessions.entries) |*entry| {
             stdx.copy_disjoint(.inexact, u8, target[size..], mem.asBytes(&entry.session));
+
             size += @sizeOf(u64);
         }
 
         assert(size == encode_size);
+
         return size;
     }
 
@@ -137,35 +154,44 @@ pub const ClientSessions = struct {
     ) void {
         assert(client_sessions.count() == 0);
         assert(client_sessions.entries_present.empty());
+
         for (client_sessions.entries) |*entry| {
             assert(entry.session == 0);
             assert(stdx.zeroed(std.mem.asBytes(&entry.header)));
         }
 
         var size: u64 = 0;
+
         assert(source.len > 0);
         assert(source.len <= encode_size);
 
         comptime assert(@alignOf(vsr.Header) == 16);
+
         size = std.mem.alignForward(usize, size, @alignOf(vsr.Header));
+
         const headers: []const vsr.Header.Reply = @alignCast(mem.bytesAsSlice(
             vsr.Header.Reply,
             source[size..][0 .. constants.clients_max * @sizeOf(vsr.Header)],
         ));
+
         size += mem.sliceAsBytes(headers).len;
 
         comptime assert(@alignOf(u64) == 8);
+
         size = std.mem.alignForward(usize, size, @alignOf(u64));
+
         const sessions = mem.bytesAsSlice(
             u64,
             source[size..][0 .. constants.clients_max * @sizeOf(u64)],
         );
+
         size += mem.sliceAsBytes(sessions).len;
 
         assert(size == encode_size);
 
         for (headers, 0..) |*header, i| {
             const session = sessions[i];
+
             if (session == 0) {
                 assert(stdx.zeroed(std.mem.asBytes(header)));
             } else {
@@ -175,6 +201,7 @@ pub const ClientSessions = struct {
 
                 client_sessions.entries_by_client.putAssumeCapacityNoClobber(header.client, i);
                 client_sessions.entries_present.set(i);
+
                 client_sessions.entries[i] = .{
                     .session = session,
                     .header = header.*,
@@ -193,20 +220,24 @@ pub const ClientSessions = struct {
 
     pub fn capacity(client_sessions: *const ClientSessions) usize {
         _ = client_sessions;
+
         return constants.clients_max;
     }
 
     pub fn get(client_sessions: *ClientSessions, client: u128) ?*Entry {
         const entry_index = client_sessions.entries_by_client.get(client) orelse return null;
         const entry = &client_sessions.entries[entry_index];
+
         assert(entry.session != 0);
         assert(entry.header.command == .reply);
         assert(entry.header.client == client);
+
         return entry;
     }
 
     pub fn get_slot_for_client(client_sessions: *const ClientSessions, client: u128) ?ReplySlot {
         const index = client_sessions.entries_by_client.get(client) orelse return null;
+
         return ReplySlot{ .index = index };
     }
 
@@ -216,10 +247,12 @@ pub const ClientSessions = struct {
     ) ?ReplySlot {
         if (client_sessions.entries_by_client.get(header.client)) |entry_index| {
             const entry = &client_sessions.entries[entry_index];
+
             if (entry.header.checksum == header.checksum) {
                 return ReplySlot{ .index = entry_index };
             }
         }
+
         return null;
     }
 
@@ -232,33 +265,41 @@ pub const ClientSessions = struct {
     ) ReplySlot {
         assert(session != 0);
         assert(header.command == .reply);
+
         const client = header.client;
 
         defer assert(client_sessions.entries_by_client.contains(client));
 
         const entry_gop = client_sessions.entries_by_client.getOrPutAssumeCapacity(client);
+
         if (entry_gop.found_existing) {
             const entry_index = entry_gop.value_ptr.*;
+
             assert(client_sessions.entries_present.is_set(entry_index));
 
             const existing = &client_sessions.entries[entry_index];
+
             assert(existing.session == session);
             assert(existing.header.cluster == header.cluster);
             assert(existing.header.client == header.client);
             assert(existing.header.commit < header.commit);
 
             existing.header = header.*;
+
             return ReplySlot{ .index = entry_index };
         } else {
             const entry_index = client_sessions.entries_present.first_unset().?;
+
             client_sessions.entries_present.set(entry_index);
 
             const e = &client_sessions.entries[entry_index];
+
             assert(e.session == 0);
 
             entry_gop.value_ptr.* = entry_index;
             e.session = session;
             e.header = header.*;
+
             return ReplySlot{ .index = entry_index };
         }
     }
@@ -279,6 +320,7 @@ pub const ClientSessions = struct {
         var evictee_: ?*const vsr.Header.Reply = null;
         var iterated: usize = 0;
         var entries = client_sessions.iterator();
+
         while (entries.next()) |entry| : (iterated += 1) {
             assert(entry.header.command == .reply);
             assert(entry.header.op == entry.header.commit);
@@ -295,6 +337,7 @@ pub const ClientSessions = struct {
                 evictee_ = &entry.header;
             }
         }
+
         assert(iterated == constants.clients_max);
 
         return evictee_.?.client;
@@ -304,9 +347,11 @@ pub const ClientSessions = struct {
         const entry_index = client_sessions.entries_by_client.fetchRemove(client).?.value;
 
         assert(client_sessions.entries_present.is_set(entry_index));
+
         client_sessions.entries_present.unset(entry_index);
 
         assert(client_sessions.entries[entry_index].header.client == client);
+
         client_sessions.entries[entry_index] = std.mem.zeroes(Entry);
 
         assert(!client_sessions.entries_by_client.contains(client));
@@ -321,13 +366,16 @@ pub const ClientSessions = struct {
                 defer it.index += 1;
 
                 const entry = &it.client_sessions.entries[it.index];
+
                 if (entry.session == 0) {
                     assert(!it.client_sessions.entries_present.is_set(it.index));
                 } else {
                     assert(it.client_sessions.entries_present.is_set(it.index));
+
                     return entry;
                 }
             }
+
             return null;
         }
     };

@@ -15,14 +15,18 @@ import type { RxDocument, MangoQuerySelector } from 'rxdb'
 @injectable()
 export default class Index {
 	editor = null as unknown as LexicalEditor
+
 	node_key = ''
 
 	module = 'todo' as App.ModuleType
 	latest_files = [] as Array<DirTree.Item>
 	latest_items = [] as Array<{ item: any; file: DirTree.Item }>
+
 	only_files = false
 	compositing = false
+
 	search_type = 'file' as 'item' | 'file'
+
 	search_mode = false
 
 	constructor(public utils: Utils) {
@@ -68,6 +72,7 @@ export default class Index {
 				this.only_files = false
 
 				this.getTodoLatestItems()
+
 				break
 			case 'note':
 				this.only_files = true
@@ -78,6 +83,7 @@ export default class Index {
 				this.only_files = false
 
 				this.getScheduleLatestItems()
+
 				break
 		}
 
@@ -94,9 +100,11 @@ export default class Index {
 		switch (this.module) {
 			case 'todo':
 				this.getTodoLatestItems(v)
+
 				break
 			case 'schedule':
 				this.getScheduleLatestItems(v)
+
 				break
 		}
 	}

@@ -14,21 +14,25 @@ import {
   looseToNumber,
   toHandlerKey,
 } from '@vue/shared'
+
 import {
   type ComponentInternalInstance,
   type ComponentOptions,
   type ConcreteComponent,
   formatComponentName,
 } from './component'
+
 import { ErrorCodes, callWithAsyncErrorHandling } from './errorHandling'
 import { warn } from './warning'
 import { devtoolsComponentEmit } from './devtools'
 import type { AppContext } from './apiCreateApp'
 import { emit as compatInstanceEmit } from './compat/instanceEventEmitter'
+
 import {
   compatModelEmit,
   compatModelEventPrefix,
 } from './compat/componentVModel'
+
 import type { ComponentTypeEmits } from './apiSetupHelpers'
 import { getModelModifiers } from './helpers/useModel'
 import type { ComponentPublicInstance } from './componentPublicInstance'
@@ -116,6 +120,7 @@ export function emit(
   ...rawArgs: any[]
 ): ComponentPublicInstance | null | undefined {
   if (instance.isUnmounted) return
+
   const props = instance.vnode.props || EMPTY_OBJ
 
   if (__DEV__) {
@@ -123,6 +128,7 @@ export function emit(
       emitsOptions,
       propsOptions: [propsOptions],
     } = instance
+
     if (emitsOptions) {
       if (
         !(event in emitsOptions) &&
@@ -140,8 +146,10 @@ export function emit(
         }
       } else {
         const validator = emitsOptions[event]
+
         if (isFunction(validator)) {
           const isValid = validator(...rawArgs)
+
           if (!isValid) {
             warn(
               `Invalid event arguments: event validation failed for event "${event}".`,
@@ -153,9 +161,12 @@ export function emit(
   }
 
   let args = rawArgs
+
   const isCompatModelListener =
     __COMPAT__ && compatModelEventPrefix + event in props
+
   const isModelListener = isCompatModelListener || event.startsWith('update:')
+
   const modifiers = isCompatModelListener
     ? props.modelModifiers
     : isModelListener && getModelModifiers(props, event.slice(7))
@@ -165,6 +176,7 @@ export function emit(
     if (modifiers.trim) {
       args = rawArgs.map(a => (isString(a) ? a.trim() : a))
     }
+
     if (modifiers.number) {
       args = args.map(looseToNumber)
     }
@@ -176,6 +188,7 @@ export function emit(
 
   if (__DEV__) {
     const lowerCaseEvent = event.toLowerCase()
+
     if (lowerCaseEvent !== event && props[toHandlerKey(lowerCaseEvent)]) {
       warn(
         `Event "${lowerCaseEvent}" is emitted in component ` +
@@ -193,10 +206,12 @@ export function emit(
   }
 
   let handlerName
+
   let handler =
     props[(handlerName = toHandlerKey(event))] ||
     // also try camelCase event handler (#2249)
     props[(handlerName = toHandlerKey(camelize(event)))]
+
   // for v-model update:xxx events, also trigger kebab-case equivalent
   // for props passed via kebab-case
   if (!handler && isModelListener) {
@@ -213,13 +228,16 @@ export function emit(
   }
 
   const onceHandler = props[handlerName + `Once`]
+
   if (onceHandler) {
     if (!instance.emitted) {
       instance.emitted = {}
     } else if (instance.emitted[handlerName]) {
       return
     }
+
     instance.emitted[handlerName] = true
+
     callWithAsyncErrorHandling(
       onceHandler,
       instance,
@@ -230,11 +248,13 @@ export function emit(
 
   if (__COMPAT__) {
     compatModelEmit(instance, event, args)
+
     return compatInstanceEmit(instance, event, args)
   }
 }
 
 const mixinEmitsCache = new WeakMap<ConcreteComponent, ObjectEmitsOptions>()
+
 export function normalizeEmitsOptions(
   comp: ConcreteComponent,
   appContext: AppContext,
@@ -242,30 +262,39 @@ export function normalizeEmitsOptions(
 ): ObjectEmitsOptions | null {
   const cache =
     __FEATURE_OPTIONS_API__ && asMixin ? mixinEmitsCache : appContext.emitsCache
+
   const cached = cache.get(comp)
+
   if (cached !== undefined) {
     return cached
   }
 
   const raw = comp.emits
+
   let normalized: ObjectEmitsOptions = {}
 
   // apply mixin/extends props
   let hasExtends = false
+
   if (__FEATURE_OPTIONS_API__ && !isFunction(comp)) {
     const extendEmits = (raw: ComponentOptions) => {
       const normalizedFromExtend = normalizeEmitsOptions(raw, appContext, true)
+
       if (normalizedFromExtend) {
         hasExtends = true
+
         extend(normalized, normalizedFromExtend)
       }
     }
+
     if (!asMixin && appContext.mixins.length) {
       appContext.mixins.forEach(extendEmits)
     }
+
     if (comp.extends) {
       extendEmits(comp.extends)
     }
+
     if (comp.mixins) {
       comp.mixins.forEach(extendEmits)
     }
@@ -275,6 +304,7 @@ export function normalizeEmitsOptions(
     if (isObject(comp)) {
       cache.set(comp, null)
     }
+
     return null
   }
 
@@ -287,6 +317,7 @@ export function normalizeEmitsOptions(
   if (isObject(comp)) {
     cache.set(comp, normalized)
   }
+
   return normalized
 }
 
@@ -304,10 +335,12 @@ export function isEmitListener(
   if (__COMPAT__ && key.startsWith(compatModelEventPrefix)) {
     return true
   }
+
   key = key.slice(2)
   // #8342 the `.once` modifier appends a `Once` suffix. Preserve the exact event
   // name `once`, while still stripping the suffix from `onOnceOnce`.
   key = key === 'Once' ? key : key.replace(/Once$/, '')
+
   return (
     hasOwn(options, key[0].toLowerCase() + key.slice(1)) ||
     hasOwn(options, hyphenate(key)) ||

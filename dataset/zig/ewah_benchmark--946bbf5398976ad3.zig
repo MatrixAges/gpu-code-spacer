@@ -2,7 +2,6 @@ const std = @import("std");
 const assert = std.debug.assert;
 const ewah = @import("ewah.zig").ewah(usize);
 const stdx = @import("stdx");
-
 const log = std.log;
 
 const BitSetConfig = struct {
@@ -35,6 +34,7 @@ var prng = stdx.PRNG.from_seed(42);
 test "benchmark: ewah" {
     for (configs) |config| {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
         defer arena.deinit();
 
         const allocator = arena.allocator();
@@ -43,42 +43,54 @@ test "benchmark: ewah" {
         var bitsets_encoded: [samples][]align(@alignOf(usize)) u8 = undefined;
         var bitsets_decoded: [samples][]usize = undefined;
         var bitset_lengths: [samples]usize = undefined;
+
         while (i < samples) : (i += 1) {
             bitsets[i] = try make_bitset(allocator, config);
+
             bitsets_encoded[i] = try allocator.alignedAlloc(
                 u8,
                 @alignOf(usize),
                 ewah.encode_size_max(bitsets[i].len),
             );
+
             bitsets_decoded[i] = try allocator.alloc(usize, config.words);
         }
 
         // Benchmark encoding.
         var encode_timer = try std.time.Timer.start();
+
         i = 0;
+
         while (i < samples) : (i += 1) {
             var j: usize = 0;
             var size: usize = undefined;
+
             while (j < repeats) : (j += 1) {
                 size = ewah.encode_all(bitsets[i], bitsets_encoded[i]);
             }
+
             bitset_lengths[i] = size;
         }
-        const encode_time = encode_timer.read() / samples / repeats;
 
+        const encode_time = encode_timer.read() / samples / repeats;
         var decode_timer = try std.time.Timer.start();
+
         // Benchmark decoding.
         i = 0;
+
         while (i < samples) : (i += 1) {
             const bitset_encoded = bitsets_encoded[i][0..bitset_lengths[i]];
             var j: usize = 0;
+
             while (j < repeats) : (j += 1) {
                 _ = ewah.decode_all(bitset_encoded, bitsets_decoded[i]);
             }
         }
+
         const decode_time = decode_timer.read() / samples / repeats;
 
         i = 0;
+
         while (i < samples) : (i += 1) {
             assert(std.mem.eql(usize, bitsets[i], bitsets_decoded[i]));
         }
@@ -86,7 +98,9 @@ test "benchmark: ewah" {
         // Compute compression ratio.
         var total_uncompressed: f64 = 0.0;
         var total_compressed: f64 = 0.0;
+
         i = 0;
+
         while (i < samples) : (i += 1) {
             total_uncompressed += @as(f64, @floatFromInt(bitsets[i].len * @sizeOf(usize)));
             total_compressed += @as(f64, @floatFromInt(bitset_lengths[i]));
@@ -109,20 +123,24 @@ fn make_bitset(allocator: std.mem.Allocator, config: BitSetConfig) ![]usize {
     var words = try allocator.alloc(usize, config.words);
     var w: usize = 0;
     var literal: usize = 1;
+
     while (w < words.len) : (w += 1) {
         const run_length = prng.int_inclusive(usize, (2 * config.run_length_e) - 1);
         const literals_length = prng.int_inclusive(usize, (2 * config.literals_length_e) - 1);
         const run_bit = prng.boolean();
-
         const run_end = @min(w + run_length, words.len);
+
         while (w < run_end) : (w += 1) {
             words[w] = if (run_bit) std.math.maxInt(usize) else 0;
         }
+
         const literals_end = @min(w + literals_length, words.len);
+
         while (w < literals_end) : (w += 1) {
             words[w] = literal;
             literal += 1;
         }
     }
+
     return words;
 }

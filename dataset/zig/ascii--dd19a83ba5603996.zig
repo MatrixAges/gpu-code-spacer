@@ -155,6 +155,7 @@ test whitespace {
     for (whitespace) |char| try std.testing.expect(isWhitespace(char));
 
     var i: u8 = 0;
+
     while (isAscii(i)) : (i += 1) {
         if (isWhitespace(i)) try std.testing.expect(std.mem.indexOfScalar(u8, &whitespace, i) != null);
     }
@@ -184,12 +185,14 @@ pub fn isAscii(c: u8) bool {
 /// Uppercases the character and returns it as-is if already uppercase or not a letter.
 pub fn toUpper(c: u8) u8 {
     const mask = @as(u8, @intFromBool(isLower(c))) << 5;
+
     return c ^ mask;
 }
 
 /// Lowercases the character and returns it as-is if already lowercase or not a letter.
 pub fn toLower(c: u8) u8 {
     const mask = @as(u8, @intFromBool(isUpper(c))) << 5;
+
     return c | mask;
 }
 
@@ -270,15 +273,18 @@ test "ASCII character classes" {
 /// Asserts `output.len >= ascii_string.len`.
 pub fn lowerString(output: []u8, ascii_string: []const u8) []u8 {
     std.debug.assert(output.len >= ascii_string.len);
+
     for (ascii_string, 0..) |c, i| {
         output[i] = toLower(c);
     }
+
     return output[0..ascii_string.len];
 }
 
 test lowerString {
     var buf: [1024]u8 = undefined;
     const result = lowerString(&buf, "aBcDeFgHiJkLmNOPqrst0234+💩!");
+
     try std.testing.expectEqualStrings("abcdefghijklmnopqrst0234+💩!", result);
 }
 
@@ -286,12 +292,15 @@ test lowerString {
 /// Caller owns returned string and must free with `allocator`.
 pub fn allocLowerString(allocator: std.mem.Allocator, ascii_string: []const u8) ![]u8 {
     const result = try allocator.alloc(u8, ascii_string.len);
+
     return lowerString(result, ascii_string);
 }
 
 test allocLowerString {
     const result = try allocLowerString(std.testing.allocator, "aBcDeFgHiJkLmNOPqrst0234+💩!");
+
     defer std.testing.allocator.free(result);
+
     try std.testing.expectEqualStrings("abcdefghijklmnopqrst0234+💩!", result);
 }
 
@@ -299,15 +308,18 @@ test allocLowerString {
 /// Asserts `output.len >= ascii_string.len`.
 pub fn upperString(output: []u8, ascii_string: []const u8) []u8 {
     std.debug.assert(output.len >= ascii_string.len);
+
     for (ascii_string, 0..) |c, i| {
         output[i] = toUpper(c);
     }
+
     return output[0..ascii_string.len];
 }
 
 test upperString {
     var buf: [1024]u8 = undefined;
     const result = upperString(&buf, "aBcDeFgHiJkLmNOPqrst0234+💩!");
+
     try std.testing.expectEqualStrings("ABCDEFGHIJKLMNOPQRST0234+💩!", result);
 }
 
@@ -315,21 +327,26 @@ test upperString {
 /// Caller owns returned string and must free with `allocator`.
 pub fn allocUpperString(allocator: std.mem.Allocator, ascii_string: []const u8) ![]u8 {
     const result = try allocator.alloc(u8, ascii_string.len);
+
     return upperString(result, ascii_string);
 }
 
 test allocUpperString {
     const result = try allocUpperString(std.testing.allocator, "aBcDeFgHiJkLmNOPqrst0234+💩!");
+
     defer std.testing.allocator.free(result);
+
     try std.testing.expectEqualStrings("ABCDEFGHIJKLMNOPQRST0234+💩!", result);
 }
 
 /// Compares strings `a` and `b` case-insensitively and returns whether they are equal.
 pub fn eqlIgnoreCase(a: []const u8, b: []const u8) bool {
     if (a.len != b.len) return false;
+
     for (a, 0..) |a_c, i| {
         if (toLower(a_c) != toLower(b[i])) return false;
     }
+
     return true;
 }
 
@@ -372,11 +389,14 @@ pub fn indexOfIgnoreCasePos(haystack: []const u8, start_index: usize, needle: []
         return indexOfIgnoreCasePosLinear(haystack, start_index, needle);
 
     var skip_table: [256]usize = undefined;
+
     boyerMooreHorspoolPreprocessIgnoreCase(needle, skip_table[0..]);
 
     var i: usize = start_index;
+
     while (i <= haystack.len - needle.len) {
         if (eqlIgnoreCase(haystack[i .. i + needle.len], needle)) return i;
+
         i += skip_table[toLower(haystack[i + needle.len - 1])];
     }
 
@@ -388,9 +408,11 @@ pub fn indexOfIgnoreCasePos(haystack: []const u8, start_index: usize, needle: []
 pub fn indexOfIgnoreCasePosLinear(haystack: []const u8, start_index: usize, needle: []const u8) ?usize {
     var i: usize = start_index;
     const end = haystack.len - needle.len;
+
     while (i <= end) : (i += 1) {
         if (eqlIgnoreCase(haystack[i .. i + needle.len], needle)) return i;
     }
+
     return null;
 }
 
@@ -400,6 +422,7 @@ fn boyerMooreHorspoolPreprocessIgnoreCase(pattern: []const u8, table: *[256]usiz
     }
 
     var i: usize = 0;
+
     // The last item is intentionally ignored and the skip size will be pattern.len.
     // This is the standard way Boyer-Moore-Horspool is implemented.
     while (i < pattern.len - 1) : (i += 1) {
@@ -423,6 +446,7 @@ pub fn orderIgnoreCase(lhs: []const u8, rhs: []const u8) std.math.Order {
     if (lhs.ptr != rhs.ptr) {
         const n = @min(lhs.len, rhs.len);
         var i: usize = 0;
+
         while (i < n) : (i += 1) {
             switch (std.math.order(toLower(lhs[i]), toLower(rhs[i]))) {
                 .eq => continue,
@@ -431,6 +455,7 @@ pub fn orderIgnoreCase(lhs: []const u8, rhs: []const u8) std.math.Order {
             }
         }
     }
+
     return std.math.order(lhs.len, rhs.len);
 }
 
@@ -450,6 +475,7 @@ pub const HexEscape = struct {
         const charset = se.charset;
 
         var buf: [4]u8 = undefined;
+
         buf[0] = '\\';
         buf[1] = 'x';
 
@@ -459,6 +485,7 @@ pub const HexEscape = struct {
             } else {
                 buf[2] = charset[c >> 4];
                 buf[3] = charset[c & 15];
+
                 try w.writeAll(&buf);
             }
         }

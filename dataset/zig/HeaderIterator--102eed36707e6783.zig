@@ -12,6 +12,7 @@ pub fn init(bytes: []const u8) HeaderIterator {
 
 pub fn next(it: *HeaderIterator) ?std.http.Header {
     const end = std.mem.indexOfPosLinear(u8, it.bytes, it.index, "\r\n").?;
+
     if (it.index == end) { // found the trailer boundary (\r\n\r\n)
         if (it.is_trailer) return null;
 
@@ -24,6 +25,7 @@ pub fn next(it: *HeaderIterator) ?std.http.Header {
 
         it.is_trailer = true;
         it.index = next_end + 2;
+
         if (name.len == 0)
             return null;
 
@@ -37,6 +39,7 @@ pub fn next(it: *HeaderIterator) ?std.http.Header {
         const value = kv_it.rest();
 
         it.index = end + 2;
+
         if (name.len == 0)
             return null;
 
@@ -49,45 +52,60 @@ pub fn next(it: *HeaderIterator) ?std.http.Header {
 
 test next {
     var it = HeaderIterator.init("200 OK\r\na: b\r\nc:  \r\nd:e\r\n\r\nf: g\r\n\r\n");
+
     try std.testing.expect(!it.is_trailer);
+
     {
         const header = it.next().?;
+
         try std.testing.expect(!it.is_trailer);
         try std.testing.expectEqualStrings("a", header.name);
         try std.testing.expectEqualStrings("b", header.value);
     }
+
     {
         const header = it.next().?;
+
         try std.testing.expect(!it.is_trailer);
         try std.testing.expectEqualStrings("c", header.name);
         try std.testing.expectEqualStrings("", header.value);
     }
+
     {
         const header = it.next().?;
+
         try std.testing.expect(!it.is_trailer);
         try std.testing.expectEqualStrings("d", header.name);
         try std.testing.expectEqualStrings("e", header.value);
     }
+
     {
         const header = it.next().?;
+
         try std.testing.expect(it.is_trailer);
         try std.testing.expectEqualStrings("f", header.name);
         try std.testing.expectEqualStrings("g", header.value);
     }
+
     try std.testing.expectEqual(null, it.next());
 
     it = HeaderIterator.init("200 OK\r\n: ss\r\n\r\n");
+
     try std.testing.expect(!it.is_trailer);
     try std.testing.expectEqual(null, it.next());
 
     it = HeaderIterator.init("200 OK\r\na:b\r\n\r\n: ss\r\n\r\n");
+
     try std.testing.expect(!it.is_trailer);
+
     {
         const header = it.next().?;
+
         try std.testing.expect(!it.is_trailer);
         try std.testing.expectEqualStrings("a", header.name);
         try std.testing.expectEqualStrings("b", header.value);
     }
+
     try std.testing.expectEqual(null, it.next());
     try std.testing.expect(it.is_trailer);
 }

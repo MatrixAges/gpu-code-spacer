@@ -6,7 +6,9 @@ import { escapeRegex, isCSSRequest } from '../utils'
 import { isHTMLRequest } from './html'
 
 const nonJsRe = /\.json(?:$|\?)/
+
 const isNonJsRequest = (request: string): boolean => nonJsRe.test(request)
+
 const escapedDotRE = /(?<!\\)\\\./g
 
 export function definePlugin(config: ResolvedConfig): Plugin {
@@ -15,8 +17,10 @@ export function definePlugin(config: ResolvedConfig): Plugin {
 
   // ignore replace process.env in lib build
   const processEnv: Record<string, string> = {}
+
   if (!isBuildLib) {
     const nodeEnv = process.env.NODE_ENV || config.mode
+
     Object.assign(processEnv, {
       'process.env': `{}`,
       'global.process.env': `{}`,
@@ -35,15 +39,19 @@ export function definePlugin(config: ResolvedConfig): Plugin {
     const importMetaKeys: Record<string, string> = {}
     const importMetaEnvKeys: Record<string, string> = {}
     const importMetaFallbackKeys: Record<string, string> = {}
+
     if (isBuild) {
       importMetaKeys['import.meta.hot'] = `undefined`
     }
+
     if (isBundled) {
       for (const key in config.env) {
         const val = JSON.stringify(config.env[key])
+
         importMetaKeys[`import.meta.env.${key}`] = val
         importMetaEnvKeys[key] = val
       }
+
       // these will be set to a proper value below
       importMetaKeys['import.meta.env.SSR'] = `undefined`
       importMetaFallbackKeys['import.meta.env'] = `undefined`
@@ -51,6 +59,7 @@ export function definePlugin(config: ResolvedConfig): Plugin {
 
     const userDefine: Record<string, string> = {}
     const userDefineEnv: Record<string, any> = {}
+
     for (const key in environment.config.define) {
       userDefine[key] = handleDefineValue(environment.config.define[key])
 
@@ -82,12 +91,15 @@ export function definePlugin(config: ResolvedConfig): Plugin {
 
     // Create regex pattern as a fast check before running esbuild
     const patternKeys = Object.keys(userDefine)
+
     if (!keepProcessEnv && Object.keys(processEnv).length) {
       patternKeys.push('process.env')
     }
+
     if (Object.keys(importMetaKeys).length) {
       patternKeys.push('import.meta.env', 'import.meta.hot')
     }
+
     const pattern = patternKeys.length
       ? new RegExp(
           patternKeys
@@ -104,12 +116,16 @@ export function definePlugin(config: ResolvedConfig): Plugin {
     Environment,
     readonly [Record<string, string>, RegExp | null, string]
   >()
+
   function getPattern(environment: Environment) {
     let pattern = patternsCache.get(environment)
+
     if (!pattern) {
       pattern = generatePattern(environment)
+
       patternsCache.set(environment, pattern)
     }
+
     return pattern
   }
 
@@ -124,13 +140,17 @@ export function definePlugin(config: ResolvedConfig): Plugin {
             const [define, _pattern, importMetaEnvVal] = getPattern(
               this.environment,
             )
+
             define['import.meta.env'] = importMetaEnvVal
             define['import.meta.env.*'] = 'undefined'
+
             option.transform ??= {}
+
             option.transform.define = { ...option.transform.define, ...define }
           },
         }
       }
+
       return true
     },
 
@@ -154,13 +174,16 @@ export function definePlugin(config: ResolvedConfig): Plugin {
         }
 
         const [define, pattern] = getPattern(this.environment)
+
         if (!pattern) return
 
         // Check if our code needs any replacements before running esbuild
         pattern.lastIndex = 0
+
         if (!pattern.test(code)) return
 
         const result = replaceDefine(this.environment, code, id, define)
+
         return result
       },
     },
@@ -205,19 +228,24 @@ export function replaceDefine(
 export function serializeDefine(define: Record<string, any>): string {
   let res = `{`
   const keys = Object.keys(define).sort()
+
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]
     const val = define[key]
+
     res += `${JSON.stringify(key)}: ${handleDefineValue(val)}`
+
     if (i !== keys.length - 1) {
       res += `, `
     }
   }
+
   return res + `}`
 }
 
 function handleDefineValue(value: any): string {
   if (typeof value === 'undefined') return 'undefined'
   if (typeof value === 'string') return value
+
   return JSON.stringify(value)
 }

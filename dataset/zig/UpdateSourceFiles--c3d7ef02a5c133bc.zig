@@ -28,6 +28,7 @@ pub const Contents = union(enum) {
 
 pub fn create(owner: *std.Build) *UpdateSourceFiles {
     const usf = owner.allocator.create(UpdateSourceFiles) catch @panic("OOM");
+
     usf.* = .{
         .step = Step.init(.{
             .id = base_id,
@@ -37,6 +38,7 @@ pub fn create(owner: *std.Build) *UpdateSourceFiles {
         }),
         .output_source_files = .{},
     };
+
     return usf;
 }
 
@@ -48,10 +50,12 @@ pub fn create(owner: *std.Build) *UpdateSourceFiles {
 /// those changes to version control.
 pub fn addCopyFileToSource(usf: *UpdateSourceFiles, source: std.Build.LazyPath, sub_path: []const u8) void {
     const b = usf.step.owner;
+
     usf.output_source_files.append(b.allocator, .{
         .contents = .{ .copy = source },
         .sub_path = sub_path,
     }) catch @panic("OOM");
+
     source.addStepDependencies(&usf.step);
 }
 
@@ -63,6 +67,7 @@ pub fn addCopyFileToSource(usf: *UpdateSourceFiles, source: std.Build.LazyPath, 
 /// those changes to version control.
 pub fn addBytesToSource(usf: *UpdateSourceFiles, bytes: []const u8, sub_path: []const u8) void {
     const b = usf.step.owner;
+
     usf.output_source_files.append(b.allocator, .{
         .contents = .{ .bytes = bytes },
         .sub_path = sub_path,
@@ -71,17 +76,20 @@ pub fn addBytesToSource(usf: *UpdateSourceFiles, bytes: []const u8, sub_path: []
 
 fn make(step: *Step, options: Step.MakeOptions) !void {
     _ = options;
+
     const b = step.owner;
     const io = b.graph.io;
     const usf: *UpdateSourceFiles = @fieldParentPtr("step", step);
 
     var any_miss = false;
+
     for (usf.output_source_files.items) |output_source_file| {
         if (fs.path.dirname(output_source_file.sub_path)) |dirname| {
             b.build_root.handle.makePath(dirname) catch |err| {
                 return step.fail("unable to make path '{f}{s}': {t}", .{ b.build_root, dirname, err });
             };
         }
+
         switch (output_source_file.contents) {
             .bytes => |bytes| {
                 b.build_root.handle.writeFile(.{ .sub_path = output_source_file.sub_path, .data = bytes }) catch |err| {
@@ -89,12 +97,14 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                         b.build_root, output_source_file.sub_path, err,
                     });
                 };
+
                 any_miss = true;
             },
             .copy => |file_source| {
                 if (!step.inputs.populated()) try step.addWatchInput(file_source);
 
                 const source_path = file_source.getPath2(b, step);
+
                 const prev_status = Io.Dir.updateFile(
                     .cwd(),
                     io,
@@ -107,6 +117,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                         source_path, b.build_root, output_source_file.sub_path, err,
                     });
                 };
+
                 any_miss = any_miss or prev_status == .stale;
             },
         }

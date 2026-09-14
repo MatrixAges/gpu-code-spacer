@@ -23,6 +23,7 @@ pub const Udp6 = extern struct {
         NotStarted,
         InvalidParameter,
     };
+
     pub const ConfigureError = uefi.UnexpectedError || error{
         NoMapping,
         InvalidParameter,
@@ -31,6 +32,7 @@ pub const Udp6 = extern struct {
         OutOfResources,
         DeviceError,
     };
+
     pub const GroupsError = uefi.UnexpectedError || error{
         NotStarted,
         OutOfResources,
@@ -39,6 +41,7 @@ pub const Udp6 = extern struct {
         NotFound,
         DeviceError,
     };
+
     pub const TransmitError = uefi.UnexpectedError || error{
         NotStarted,
         NoMapping,
@@ -50,6 +53,7 @@ pub const Udp6 = extern struct {
         BadBufferSize,
         NoMedia,
     };
+
     pub const ReceiveError = uefi.UnexpectedError || error{
         NotStarted,
         NoMapping,
@@ -60,11 +64,13 @@ pub const Udp6 = extern struct {
         NotReady,
         NoMedia,
     };
+
     pub const CancelError = uefi.UnexpectedError || error{
         InvalidParameter,
         NotStarted,
         NotFound,
     };
+
     pub const PollError = uefi.UnexpectedError || error{
         InvalidParameter,
         DeviceError,
@@ -73,6 +79,7 @@ pub const Udp6 = extern struct {
 
     pub fn getModeData(self: *const Udp6) GetModeDataError!ModeData {
         var data: ModeData = undefined;
+
         switch (self._get_mode_data(
             self,
             &data.udp6_config_data,
@@ -211,6 +218,7 @@ pub const Udp6 = extern struct {
     pub const CompletionToken = extern struct {
         event: Event,
         status: usize,
+
         packet: extern union {
             rx_data: *ReceiveData,
             tx_data: *TransmitData,
@@ -248,6 +256,7 @@ pub const Udp6 = extern struct {
 
     pub const Fragment = extern struct {
         fragment_length: u32,
+
         fragment_buffer: [*]u8,
     };
 };

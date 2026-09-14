@@ -32,6 +32,7 @@ pub const Marzullo = struct {
         /// An identifier, the index of the clock source in the list of clock sources:
         source: u8,
         offset: i64,
+
         bound: enum {
             lower,
             upper,
@@ -66,6 +67,7 @@ pub const Marzullo = struct {
             // Verify that our sort implementation is correct:
             if (previous) |p| {
                 assert(p.offset <= tuple.offset);
+
                 if (p.offset == tuple.offset) {
                     if (p.bound != tuple.bound) {
                         assert(p.bound == .lower and tuple.bound == .upper);
@@ -74,6 +76,7 @@ pub const Marzullo = struct {
                     }
                 }
             }
+
             previous = tuple;
 
             // Update the current number of overlapping intervals:
@@ -81,6 +84,7 @@ pub const Marzullo = struct {
                 .lower => count += 1,
                 .upper => count -= 1,
             }
+
             // The last upper bound tuple will have a count of one less than the lower bound.
             // Therefore, we should never see count >= best for the last tuple:
             if (count > best) {
@@ -91,19 +95,23 @@ pub const Marzullo = struct {
                 // This is a tie for best overlap. Both intervals have the same number of sources.
                 // We want to choose the smaller of the two intervals:
                 const alternative = tuples[i + 1].offset - tuple.offset;
+
                 if (alternative < interval.upper_bound - interval.lower_bound) {
                     interval.lower_bound = tuple.offset;
                     interval.upper_bound = tuples[i + 1].offset;
                 }
             }
         }
+
         assert(previous.?.bound == .upper);
 
         // The number of false sources (ones which do not overlap the optimal interval) is the
         // number of sources minus the value of `best`:
         assert(best <= sources);
+
         interval.sources_true = @intCast(best);
         interval.sources_false = @as(u8, @intCast(sources - @as(u8, @intCast(best))));
+
         assert(interval.sources_true + interval.sources_false == sources);
 
         return interval;
@@ -126,17 +134,20 @@ pub const Marzullo = struct {
         // so that different sort algorithms sort the same way:
         if (a.source < b.source) return true;
         if (b.source < a.source) return false;
+
         return false;
     }
 };
 
 fn test_smallest_interval(bounds: []const i64, smallest_interval: Marzullo.Interval) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
 
     const allocator = arena.allocator();
 
     var tuples = try allocator.alloc(Marzullo.Tuple, bounds.len);
+
     for (bounds, 0..) |bound, i| {
         tuples[i] = .{
             .source = @intCast(@divTrunc(i, 2)),
@@ -146,6 +157,7 @@ fn test_smallest_interval(bounds: []const i64, smallest_interval: Marzullo.Inter
     }
 
     const interval = Marzullo.smallest_interval(tuples);
+
     try std.testing.expectEqual(smallest_interval, interval);
 }
 

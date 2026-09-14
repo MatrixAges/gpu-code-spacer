@@ -1,5 +1,6 @@
 import { TrackOpTypes } from './constants'
 import { endBatch, pauseTracking, resetTracking, startBatch } from './effect'
+
 import {
   isProxy,
   isReactive,
@@ -9,6 +10,7 @@ import {
   toReactive,
   toReadonly,
 } from './reactive'
+
 import { ARRAY_ITERATE_KEY, track } from './dep'
 import { isArray } from '@vue/shared'
 
@@ -19,8 +21,11 @@ import { isArray } from '@vue/shared'
  */
 export function reactiveReadArray<T>(array: T[]): T[] {
   const raw = toRaw(array)
+
   if (raw === array) return raw
+
   track(raw, TrackOpTypes.ITERATE, ARRAY_ITERATE_KEY)
+
   return isShallow(array) ? raw : raw.map(toReactive)
 }
 
@@ -29,6 +34,7 @@ export function reactiveReadArray<T>(array: T[]): T[] {
  */
 export function shallowReadArray<T>(arr: T[]): T[] {
   track((arr = toRaw(arr)), TrackOpTypes.ITERATE, ARRAY_ITERATE_KEY)
+
   return arr
 }
 
@@ -36,6 +42,7 @@ function toWrapped(target: unknown, item: unknown) {
   if (isReadonly(target)) {
     return isReactive(target) ? toReadonly(toReactive(item)) : toReadonly(item)
   }
+
   return toReactive(item)
 }
 
@@ -55,6 +62,7 @@ export const arrayInstrumentations: Record<string | symbol, Function> = <any>{
   entries() {
     return iterator(this, 'entries', (value: [number, unknown]) => {
       value[1] = toWrapped(this, value[1])
+
       return value
     })
   },
@@ -244,19 +252,25 @@ function iterator(
   // given that JS iterator can only be read once, this doesn't seem like
   // a plausible use-case, so this tracking simplification seems ok.
   const arr = shallowReadArray(self)
+
   const iter = (arr[method] as any)() as IterableIterator<unknown> & {
     _next: IterableIterator<unknown>['next']
   }
+
   if (arr !== self && !isShallow(self)) {
     iter._next = iter.next
+
     iter.next = () => {
       const result = iter._next()
+
       if (!result.done) {
         result.value = wrapValue(result.value)
       }
+
       return result
     }
   }
+
   return iter
 }
 
@@ -265,6 +279,7 @@ function iterator(
 type ArrayMethods = keyof Array<any> | 'findLast' | 'findLastIndex'
 
 const arrayProto = Array.prototype
+
 // instrument functions that read (potentially) all items
 // to take ARRAY_ITERATE dependency
 function apply(
@@ -286,10 +301,12 @@ function apply(
   // handling and directly call apply with self.
   if (methodFn !== arrayProto[method as any]) {
     const result = methodFn.apply(self, args)
+
     return needsWrap ? toReactive(result) : result
   }
 
   let wrappedFn = fn
+
   if (arr !== self) {
     if (needsWrap) {
       wrappedFn = function (this: unknown, item, index) {
@@ -301,7 +318,9 @@ function apply(
       }
     }
   }
+
   const result = methodFn.call(arr, wrappedFn, thisArg)
+
   return needsWrap && wrappedRetFn ? wrappedRetFn(result) : result
 }
 
@@ -314,16 +333,21 @@ function reduce(
 ) {
   const arr = shallowReadArray(self)
   const needsWrap = arr !== self && !isShallow(self)
+
   let wrappedFn = fn
   let wrapInitialAccumulator = false
+
   if (arr !== self) {
     if (needsWrap) {
       wrapInitialAccumulator = args.length === 0
+
       wrappedFn = function (this: unknown, acc, item, index) {
         if (wrapInitialAccumulator) {
           wrapInitialAccumulator = false
+
           acc = toWrapped(self, acc)
         }
+
         return fn.call(this, acc, toWrapped(self, item), index, self)
       }
     } else if (fn.length > 3) {
@@ -332,7 +356,9 @@ function reduce(
       }
     }
   }
+
   const result = (arr[method] as any)(wrappedFn, ...args)
+
   return wrapInitialAccumulator ? toWrapped(self, result) : result
 }
 
@@ -343,13 +369,16 @@ function searchProxy(
   args: unknown[],
 ) {
   const arr = toRaw(self) as any
+
   track(arr, TrackOpTypes.ITERATE, ARRAY_ITERATE_KEY)
+
   // we run the method using the original args first (which may be reactive)
   const res = arr[method](...args)
 
   // if that didn't work, run it again using raw values.
   if ((res === -1 || res === false) && isProxy(args[0])) {
     args[0] = toRaw(args[0])
+
     return arr[method](...args)
   }
 
@@ -365,8 +394,11 @@ function noTracking(
 ) {
   pauseTracking()
   startBatch()
+
   const res = (toRaw(self) as any)[method].apply(self, args)
+
   endBatch()
   resetTracking()
+
   return res
 }

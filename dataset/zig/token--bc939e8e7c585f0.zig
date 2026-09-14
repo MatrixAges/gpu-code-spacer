@@ -3,7 +3,6 @@ const builtin = @import("builtin");
 
 pub const min_length = 3;
 pub const max_length = 258;
-
 pub const min_distance = 1;
 pub const max_distance = std.compress.flate.history_len;
 
@@ -21,31 +20,41 @@ pub const codegen_order: [19]u8 = .{
 
 pub const fixed_lit_codes = fixed_lit[0];
 pub const fixed_lit_bits = fixed_lit[1];
+
 const fixed_lit = blk: {
     var codes: [286]u16 = undefined;
     var bits: [286]u4 = undefined;
 
     for (0..143 + 1, 0b00110000..0b10111111 + 1) |i, v| {
         codes[i] = @bitReverse(@as(u8, v));
+
         bits[i] = 8;
     }
+
     for (144..255 + 1, 0b110010000..0b111111111 + 1) |i, v| {
         codes[i] = @bitReverse(@as(u9, v));
+
         bits[i] = 9;
     }
+
     for (256..279 + 1, 0b0000000..0b0010111 + 1) |i, v| {
         codes[i] = @bitReverse(@as(u7, v));
+
         bits[i] = 7;
     }
+
     for (280..287 - 2 + 1, 0b11000000..0b11000111 - 2 + 1) |i, v| {
         codes[i] = @bitReverse(@as(u8, v));
+
         bits[i] = 8;
     }
+
     break :blk .{ codes, bits };
 };
 
 pub const fixed_dist_codes = fixed_dist[0];
 pub const fixed_dist_bits = fixed_dist[1];
+
 const fixed_dist = blk: {
     var codes: [30]u16 = undefined;
     const bits: [30]u4 = @splat(5);
@@ -53,6 +62,7 @@ const fixed_dist = blk: {
     for (0..30) |i| {
         codes[i] = @bitReverse(@as(u5, i));
     }
+
     break :blk .{ codes, bits };
 };
 
@@ -62,6 +72,7 @@ pub const LenCode = if (builtin.mode != .ReleaseSmall) LookupLenCode else ShortL
 pub const DistCode = if (builtin.mode != .ReleaseSmall) LookupDistCode else ShortDistCode;
 const ShortLenCode = ShortCode(u8, u2, u3, true);
 const ShortDistCode = ShortCode(u15, u1, u4, false);
+
 /// For length and distance codes, they having this format.
 ///
 /// For example, length code 0b1101 (13 or literal 270) has high_bits=0b01 and high_log2=3
@@ -79,10 +90,14 @@ fn ShortCode(Value: type, HighBits: type, HighLog2: type, len_special: bool) typ
 
         pub fn fromVal(v: Value) @This() {
             if (len_special and v == 255) return .fromInt(28);
+
             const high_bits = @bitSizeOf(HighBits) + 1;
             const bits = @bitSizeOf(Value) - @clz(v);
+
             if (bits <= high_bits) return @bitCast(@as(u5, @intCast(v)));
+
             const high = v >> @intCast(bits - high_bits);
+
             return .{ .high_bits = @truncate(high), .high_log2 = @intCast(bits - high_bits + 1) };
         }
 
@@ -90,14 +105,18 @@ fn ShortCode(Value: type, HighBits: type, HighLog2: type, len_special: bool) typ
         pub fn base(c: @This()) Value {
             if (len_special and c.toInt() == 28) return 255;
             if (c.high_log2 <= 1) return @as(u5, @bitCast(c));
+
             const high_value = (@as(Value, @intFromBool(c.high_log2 != 0)) << @bitSizeOf(HighBits)) | c.high_bits;
             const high_start = @as(std.math.Log2Int(Value), c.high_log2 - 1);
+
             return @shlExact(high_value, high_start);
         }
 
         const max_extra = @bitSizeOf(Value) - (1 + @bitSizeOf(HighLog2));
+
         pub fn extraBits(c: @This()) std.math.IntFittingRange(0, max_extra) {
             if (len_special and c.toInt() == 28) return 0;
+
             return @intCast(c.high_log2 -| 1);
         }
 
@@ -116,17 +135,21 @@ const LookupLenCode = packed struct(u5) {
 
     const code_table = table: {
         var codes: [256]ShortLenCode = undefined;
+
         for (0.., &codes) |v, *c| {
             c.* = .fromVal(v);
         }
+
         break :table codes;
     };
 
     const base_table = table: {
         var bases: [29]u8 = undefined;
+
         for (0.., &bases) |c, *b| {
             b.* = ShortLenCode.fromInt(c).base();
         }
+
         break :table bases;
     };
 
@@ -157,9 +180,11 @@ const LookupDistCode = packed struct(u5) {
 
     const base_table = table: {
         var bases: [30]u15 = undefined;
+
         for (0.., &bases) |c, *b| {
             b.* = ShortDistCode.fromInt(c).base();
         }
+
         break :table bases;
     };
 
@@ -225,8 +250,10 @@ test LenCode {
         }) |code, params| {
             // zig fmt: on
             const c: u5 = @intCast(code);
+
             try std.testing.expectEqual(params.extra_bits, Code.extraBits(.fromInt(@intCast(c))));
             try std.testing.expectEqual(params.base, Code.base(.fromInt(@intCast(c))));
+
             for (params.base..params.base + @shlExact(@as(u16, 1), params.extra_bits) -
                 @intFromBool(c == 27)) |v|
             {
@@ -276,8 +303,10 @@ test DistCode {
         }) |code, params| {
             // zig fmt: on
             const c: u5 = @intCast(code);
+
             try std.testing.expectEqual(params.extra_bits, Code.extraBits(.fromInt(@intCast(c))));
             try std.testing.expectEqual(params.base, Code.base(.fromInt(@intCast(c))));
+
             for (params.base..params.base + @shlExact(@as(u16, 1), params.extra_bits)) |v| {
                 try std.testing.expectEqual(c, Code.fromVal(@intCast(v)).toInt());
             }

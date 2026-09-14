@@ -11,6 +11,7 @@ import { insertDefault as insertDefaultNote } from '@/actions/note'
 import { insertDefault as insertDefaultSchedule } from '@/actions/schedule'
 import { keyCompression } from '@/config'
 import { migration_schedule_items, migration_todo_items } from '@/migrations'
+
 import {
 	schema_dirtree_items,
 	schema_kv,
@@ -20,6 +21,7 @@ import {
 	schema_schedule_items,
 	schema_todo_items
 } from '@/schemas'
+
 import { statics } from '@/utils/rxdb'
 import { local } from '@openages/stk/storage'
 
@@ -28,6 +30,7 @@ import type { RxCollection } from 'rxdb'
 
 export default class Index {
 	ready = false
+
 	instance = null as RxDB.DBContent | null
 
 	constructor() {

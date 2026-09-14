@@ -27,8 +27,10 @@ pub const Wyhash = struct {
         };
 
         self.state[0] = seed ^ mix(seed ^ secret[0], secret[1]);
+
         self.state[1] = self.state[0];
         self.state[2] = self.state[0];
+
         return self;
     }
 
@@ -39,7 +41,9 @@ pub const Wyhash = struct {
 
         if (input.len <= 48 - self.buf_len) {
             @memcpy(self.buf[self.buf_len..][0..input.len], input);
+
             self.buf_len += input.len;
+
             return;
         }
 
@@ -47,8 +51,11 @@ pub const Wyhash = struct {
 
         if (self.buf_len > 0) {
             i = 48 - self.buf_len;
+
             @memcpy(self.buf[self.buf_len..][0..i], input[0..i]);
+
             self.round(&self.buf);
+
             self.buf_len = 0;
         }
 
@@ -57,11 +64,15 @@ pub const Wyhash = struct {
         }
 
         const remaining_bytes = input[i..];
+
         if (remaining_bytes.len < 16 and i >= 48) {
             const rem = 16 - remaining_bytes.len;
+
             @memcpy(self.buf[self.buf.len - rem ..], input[i - rem .. i]);
         }
+
         @memcpy(self.buf[0..remaining_bytes.len], remaining_bytes);
+
         self.buf_len = remaining_bytes.len;
     }
 
@@ -74,8 +85,10 @@ pub const Wyhash = struct {
         } else {
             var offset: usize = 0;
             var scratch: [16]u8 = undefined;
+
             if (self.buf_len < 16) {
                 const rem = 16 - self.buf_len;
+
                 @memcpy(scratch[0..rem], self.buf[self.buf.len - rem ..][0..rem]);
                 @memcpy(scratch[rem..][0..self.buf_len], self.buf[0..self.buf_len]);
 
@@ -109,10 +122,12 @@ pub const Wyhash = struct {
         if (input.len >= 4) {
             const end = input.len - 4;
             const quarter = (input.len >> 3) << 2;
+
             self.a = (read(4, input[0..]) << 32) | read(4, input[quarter..]);
             self.b = (read(4, input[end..]) << 32) | read(4, input[end - quarter ..]);
         } else if (input.len > 0) {
             self.a = (@as(u64, input[0]) << 16) | (@as(u64, input[input.len >> 1]) << 8) | input[input.len - 1];
+
             self.b = 0;
         } else {
             self.a = 0;
@@ -124,18 +139,22 @@ pub const Wyhash = struct {
         inline for (0..3) |i| {
             const a = read(8, input[8 * (2 * i) ..]);
             const b = read(8, input[8 * (2 * i + 1) ..]);
+
             self.state[i] = mix(a ^ secret[i + 1], b ^ self.state[i]);
         }
     }
 
     inline fn read(comptime bytes: usize, data: []const u8) u64 {
         std.debug.assert(bytes <= 8);
+
         const T = std.meta.Int(.unsigned, 8 * bytes);
+
         return @as(u64, std.mem.readInt(T, data[0..bytes], .little));
     }
 
     inline fn mum(a: *u64, b: *u64) void {
         const x = @as(u128, a.*) *% b.*;
+
         a.* = @as(u64, @truncate(x));
         b.* = @as(u64, @truncate(x >> 64));
     }
@@ -143,7 +162,9 @@ pub const Wyhash = struct {
     inline fn mix(a_: u64, b_: u64) u64 {
         var a = a_;
         var b = b_;
+
         mum(&a, &b);
+
         return a ^ b;
     }
 
@@ -157,9 +178,11 @@ pub const Wyhash = struct {
     inline fn final1(self: *Wyhash, input_lb: []const u8, start_pos: usize) void {
         std.debug.assert(input_lb.len >= 16);
         std.debug.assert(input_lb.len - start_pos <= 48);
+
         const input = input_lb[start_pos..];
 
         var i: usize = 0;
+
         while (i + 16 < input.len) : (i += 16) {
             self.state[0] = mix(read(8, input[i..]) ^ secret[1], read(8, input[i + 8 ..]) ^ self.state[0]);
         }
@@ -171,7 +194,9 @@ pub const Wyhash = struct {
     inline fn final2(self: *Wyhash) u64 {
         self.a ^= secret[1];
         self.b ^= self.state[0];
+
         mum(&self.a, &self.b);
+
         return mix(self.a ^ secret[0] ^ self.total_len, self.b ^ secret[1]);
     }
 
@@ -182,16 +207,20 @@ pub const Wyhash = struct {
             self.smallKey(input);
         } else {
             var i: usize = 0;
+
             if (input.len >= 48) {
                 while (i + 48 < input.len) : (i += 48) {
                     self.round(input[i..][0..48]);
                 }
+
                 self.final0();
             }
+
             self.final1(input, i);
         }
 
         self.total_len = input.len;
+
         return self.final2();
     }
 };
@@ -236,8 +265,11 @@ test "smhasher" {
             try expectEqual(verify.smhasher(Wyhash.hash), 0xBD5E840C);
         }
     };
+
     try Test.do();
+
     @setEvalBranchQuota(50000);
+
     try comptime Test.do();
 }
 
@@ -247,8 +279,11 @@ test "iterative api" {
             try verify.iterativeApi(Wyhash);
         }
     };
+
     try Test.do();
+
     @setEvalBranchQuota(50000);
+
     try comptime Test.do();
 }
 
@@ -261,7 +296,9 @@ test "iterative maintains last sixteen" {
         const non_iterative_hash = Wyhash.hash(seed, payload);
 
         var wh = Wyhash.init(seed);
+
         wh.update(payload);
+
         const iterative_hash = wh.final();
 
         try expectEqual(non_iterative_hash, iterative_hash);

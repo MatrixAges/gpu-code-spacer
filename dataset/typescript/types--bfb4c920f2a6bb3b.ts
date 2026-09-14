@@ -11,6 +11,7 @@ export interface IPropsFiles {
 	search_mode: Model['search_mode']
 	onItem: Model['onItem']
 }
+
 export interface IPropsFileItem {
 	module: Model['module']
 	item: Model['latest_files'][number]

@@ -10,20 +10,24 @@ import { transformSync } from 'rolldown/utils'
 import { glob } from 'tinyglobby'
 import { cleanUrl } from '../../shared/utils'
 import { BaseEnvironment } from '../baseEnvironment'
+
 import {
   CSS_LANGS_RE,
   JS_TYPES_RE,
   KNOWN_ASSET_TYPES,
   SPECIAL_QUERY_RE,
 } from '../constants'
+
 import { transformGlobImport } from '../plugins/importMetaGlob'
 import { getRollupJsxPresets } from '../plugins/oxc'
 import type { DevEnvironment } from '../server/environment'
 import type { EnvironmentPluginContainer } from '../server/pluginContainer'
+
 import {
   ERR_CLOSED_SERVER,
   createEnvironmentPluginContainer,
 } from '../server/pluginContainer'
+
 import {
   arraify,
   asyncFlatten,
@@ -50,8 +54,10 @@ export class ScanEnvironment extends BaseEnvironment {
       throw new Error(
         `${this.name} environment.pluginContainer called before initialized`,
       )
+
     return this._pluginContainer
   }
+
   /**
    * @internal
    */
@@ -61,7 +67,9 @@ export class ScanEnvironment extends BaseEnvironment {
     if (this._initiated) {
       return
     }
+
     this._initiated = true
+
     this._pluginContainer = await createEnvironmentPluginContainer(
       this,
       this.plugins,
@@ -124,12 +132,14 @@ export function scanImports(environment: ScanEnvironment): {
   const { config } = environment
 
   const scanContext = { cancelled: false }
+
   async function cancel() {
     scanContext.cancelled = true
   }
 
   async function scan() {
     const entries = await computeEntries(environment)
+
     if (!entries.length) {
       if (
         !config.optimizeDeps.entries &&
@@ -144,8 +154,10 @@ export function scanImports(environment: ScanEnvironment): {
           ),
         )
       }
+
       return
     }
+
     if (scanContext.cancelled) return
 
     debug?.(
@@ -153,6 +165,7 @@ export function scanImports(environment: ScanEnvironment): {
         .map((entry) => `\n  ${colors.dim(entry)}`)
         .join('')}`,
     )
+
     const deps: Record<string, string> = {}
     const missing: Record<string, string> = {}
 
@@ -162,10 +175,12 @@ export function scanImports(environment: ScanEnvironment): {
       deps,
       missing,
     )
+
     if (scanContext.cancelled) return
 
     try {
       await context.build()
+
       return {
         // Ensure a fixed order so hashes are stable and improve logs
         deps: orderedDependencies(deps),
@@ -183,25 +198,31 @@ export function scanImports(environment: ScanEnvironment): {
       ) {
         return
       }
+
       const prependMessage = colors.red(`\
   Failed to scan for dependencies from entries:
   ${entries.join('\n')}
 
   `)
+
       e.message = prependMessage + e.message
+
       throw e
     } finally {
       if (debug) {
         const duration = (performance.now() - start).toFixed(2)
+
         const depsStr =
           Object.keys(orderedDependencies(deps))
             .sort()
             .map((id) => `\n  ${colors.cyan(id)} -> ${colors.dim(deps[id])}`)
             .join('') || colors.dim('no dependencies found')
+
         debug(`Scan completed in ${duration}ms: ${depsStr}`)
       }
     }
   }
+
   const result = scan()
 
   return {
@@ -214,6 +235,7 @@ async function computeEntries(environment: ScanEnvironment) {
   let entries: string[] = []
 
   const explicitEntryPatterns = environment.config.optimizeDeps.entries
+
   const input =
     environment.config.input ?? environment.config.build.rolldownOptions.input
 
@@ -227,13 +249,16 @@ async function computeEntries(environment: ScanEnvironment) {
           scan: true,
         })
       )?.id
+
       if (id === undefined) {
         throw new Error(
           `failed to resolve rolldownOptions.input value: ${JSON.stringify(p)}.`,
         )
       }
+
       return id
     }
+
     if (typeof input === 'string') {
       entries = [await resolvePath(input)]
     } else if (Array.isArray(input)) {
@@ -268,6 +293,7 @@ async function prepareRolldownScanner(
     environment.config.optimizeDeps.rolldownOptions ?? {}
 
   const transformOptions = deepClone(rolldownOptions.transform) ?? {}
+
   if (transformOptions.jsx === undefined) {
     transformOptions.jsx = {}
   } else if (
@@ -276,13 +302,16 @@ async function prepareRolldownScanner(
   ) {
     transformOptions.jsx = getRollupJsxPresets(transformOptions.jsx)
   }
+
   if (typeof transformOptions.jsx === 'object') {
     transformOptions.jsx.development ??= !environment.config.isProduction
   }
+
   const transformSyncJsxOptions: OxcTransformOptions['jsx'] =
     transformOptions.jsx === false ? undefined : transformOptions.jsx
 
   const plugins = await asyncFlatten(arraify(pluginsFromConfig))
+
   plugins.push(
     ...rolldownScanPlugin(
       environment,
@@ -308,8 +337,10 @@ async function prepareRolldownScanner(
 
 function orderedDependencies(deps: Record<string, string>) {
   const depsList = Object.entries(deps)
+
   // Ensure the same browserHash for the same set of dependencies
   depsList.sort((a, b) => a[0].localeCompare(b[0]))
+
   return Object.fromEntries(depsList)
 }
 
@@ -355,12 +386,15 @@ type Loader = 'js' | 'ts' | 'jsx' | 'tsx'
 
 export const scriptRE: RegExp =
   /(<script(?:\s+[a-z_:][-\w:]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^"'<>=\s]+))?)*\s*>)(.*?)<\/script>/gis
+
 export const commentRE: RegExp = /<!--.*?-->/gs
 const srcRE = /\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/i
 const typeRE = /\btype\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/i
 const langRE = /\blang\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/i
+
 const svelteScriptModuleRE =
   /\bcontext\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s'">]+))/i
+
 const svelteModuleRE = /\smodule\b/i
 
 function rolldownScanPlugin(
@@ -371,6 +405,7 @@ function rolldownScanPlugin(
   jsxOptions: OxcTransformOptions['jsx'],
 ): Plugin[] {
   const seen = new Map<string, string | undefined>()
+
   async function resolveId(
     id: string,
     importer?: string,
@@ -382,6 +417,7 @@ function rolldownScanPlugin(
       { scan: true, ...options },
     )
   }
+
   const resolve = async (
     id: string,
     importer?: string,
@@ -392,17 +428,22 @@ function rolldownScanPlugin(
       importer && path.dirname(importer),
       options,
     ])
+
     if (seen.has(key)) {
       return seen.get(key)
     }
+
     const resolved = await resolveId(id, importer, options)
     const res = resolved?.id
+
     seen.set(key, res)
+
     return res
   }
 
   const optimizeDepsOptions = environment.config.optimizeDeps
   const include = optimizeDepsOptions.include
+
   const exclude = [
     ...(optimizeDepsOptions.exclude ?? []),
     '@vite/client',
@@ -420,6 +461,7 @@ function rolldownScanPlugin(
     loader: Loader,
   ) => {
     let transpiledContents: string
+
     // transpile because `transformGlobImport` only expects js
     if (loader !== 'js') {
       const result = transformSync(id, contents, {
@@ -427,9 +469,11 @@ function rolldownScanPlugin(
         lang: loader,
         tsconfig: false,
       })
+
       if (result.errors.length > 0) {
         throw new AggregateError(result.errors, 'oxc transform error')
       }
+
       transpiledContents = result.code
     } else {
       transpiledContents = contents
@@ -455,21 +499,28 @@ function rolldownScanPlugin(
 
   const htmlTypeOnLoadCallback = async (id: string): Promise<string> => {
     let raw = await fsp.readFile(id, 'utf-8')
+
     // Avoid matching the content of the comment
     raw = raw.replace(commentRE, '<!---->')
+
     const isHtml = id.endsWith('.html')
+
     let js = ''
     let scriptId = 0
+
     const matches = raw.matchAll(scriptRE)
+
     for (const [, openTag, content] of matches) {
       const typeMatch = typeRE.exec(openTag)
       const type = typeMatch && (typeMatch[1] || typeMatch[2] || typeMatch[3])
       const langMatch = langRE.exec(openTag)
       const lang = langMatch && (langMatch[1] || langMatch[2] || langMatch[3])
+
       // skip non type module script
       if (isHtml && type !== 'module') {
         continue
       }
+
       // skip type="application/ld+json" and other non-JS types
       if (
         type &&
@@ -481,15 +532,20 @@ function rolldownScanPlugin(
       ) {
         continue
       }
+
       let loader: Loader = 'js'
+
       if (lang === 'ts' || lang === 'tsx' || lang === 'jsx') {
         loader = lang
       } else if (id.endsWith('.astro')) {
         loader = 'ts'
       }
+
       const srcMatch = srcRE.exec(openTag)
+
       if (srcMatch) {
         const src = srcMatch[1] || srcMatch[2] || srcMatch[3]
+
         js += `import ${JSON.stringify(src)}\n`
       } else if (content.trim()) {
         // The reason why virtual modules are needed:
@@ -504,6 +560,7 @@ function rolldownScanPlugin(
           content + (loader.startsWith('ts') ? extractImportPaths(content) : '')
 
         const key = `${id}?id=${scriptId++}`
+
         if (contents.includes('import.meta.glob')) {
           scripts[key] = {
             loader: 'js', // since it is transpiled
@@ -525,16 +582,21 @@ function rolldownScanPlugin(
         // star exports, we need to ignore exports in <script>
         if (id.endsWith('.svelte')) {
           let isModule = svelteModuleRE.test(openTag) // test for svelte5 <script module> syntax
+
           if (!isModule) {
             // fallback, test for svelte4 <script context="module"> syntax
             const contextMatch = svelteScriptModuleRE.exec(openTag)
+
             const context =
               contextMatch &&
               (contextMatch[1] || contextMatch[2] || contextMatch[3])
+
             isModule = context === 'module'
           }
+
           if (!isModule) {
             addedImport = true
+
             js += `import ${virtualModulePath}\n`
           }
         }
@@ -586,6 +648,7 @@ function rolldownScanPlugin(
         filter: { id: virtualModuleRE },
         handler(id) {
           const script = scripts[id.replace(virtualModulePrefix, '')]
+
           return {
             code: script.contents,
             moduleType: script.loader,
@@ -606,7 +669,9 @@ function rolldownScanPlugin(
         // html types: extract script contents -----------------------------------
         if (htmlTypesRE.test(id)) {
           const resolved = await resolve(id, importer)
+
           if (!resolved) return
+
           // It is possible for the scanner to scan html types in node_modules.
           // If we can optimize this html type, skip it so it's handled by the
           // bare import resolve, and recorded as optimization dep.
@@ -615,9 +680,11 @@ function rolldownScanPlugin(
             isOptimizable(resolved, optimizeDepsOptions)
           )
             return
+
           if (shouldExternalizeDep(resolved, id)) {
             return externalUnlessEntry({ path: id })
           }
+
           return resolved
         }
 
@@ -627,19 +694,24 @@ function rolldownScanPlugin(
           if (moduleListContains(exclude, id)) {
             return externalUnlessEntry({ path: id })
           }
+
           if (depImports[id]) {
             return externalUnlessEntry({ path: id })
           }
+
           const resolved = await resolve(id, importer)
+
           if (resolved) {
             if (shouldExternalizeDep(resolved, id)) {
               return externalUnlessEntry({ path: id })
             }
+
             if (isInNodeModules(resolved) || include?.includes(id)) {
               // dependency or forced included, externalize and stop crawling
               if (isOptimizable(resolved, optimizeDepsOptions)) {
                 depImports[id] = resolved
               }
+
               return externalUnlessEntry({ path: id })
             } else if (isScannable(resolved, optimizeDepsOptions.extensions)) {
               // linked package, keep crawling
@@ -685,6 +757,7 @@ function rolldownScanPlugin(
 
         // use vite resolver to support urls and omitted extensions
         const resolved = await resolve(id, importer)
+
         if (resolved) {
           if (
             shouldExternalizeDep(resolved, id) ||
@@ -692,6 +765,7 @@ function rolldownScanPlugin(
           ) {
             return externalUnlessEntry({ path: id })
           }
+
           return path.resolve(cleanUrl(resolved))
         }
 
@@ -725,9 +799,11 @@ function rolldownScanPlugin(
               },
               handler(code) {
                 const esbuildConfig = environment.config.esbuild
+
                 if (esbuildConfig && esbuildConfig.jsxInject) {
                   code = esbuildConfig.jsxInject + `\n` + code
                 }
+
                 return code
               },
             },
@@ -743,8 +819,11 @@ function rolldownScanPlugin(
         async handler(code, id) {
           if (JS_TYPES_RE.test(id)) {
             let ext = path.extname(id).slice(1)
+
             if (ext === 'mjs') ext = 'js'
+
             const loader = ext as 'js' | 'ts' | 'jsx' | 'tsx'
+
             return {
               moduleType: 'js',
               code: await doTransformGlobImport(code, id, loader),
@@ -771,10 +850,13 @@ function extractImportPaths(code: string) {
 
   let js = ''
   let m
+
   importsRE.lastIndex = 0
+
   while ((m = importsRE.exec(code)) != null) {
     js += `\nimport ${m[1]}`
   }
+
   return js
 }
 
@@ -783,10 +865,12 @@ function shouldExternalizeDep(resolvedId: string, rawId: string): boolean {
   if (!path.isAbsolute(resolvedId)) {
     return true
   }
+
   // virtual id
   if (resolvedId === rawId || resolvedId.includes('\0')) {
     return true
   }
+
   return false
 }
 

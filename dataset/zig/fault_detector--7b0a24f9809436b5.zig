@@ -31,7 +31,6 @@ const Duration = stdx.Duration;
 
 interval_min: Duration,
 interval_max: Duration,
-
 signal_last: Instant,
 interval_ewma: Duration,
 
@@ -45,10 +44,10 @@ pub fn init(options: struct {
     assert(options.interval_min.ns < options.interval_max.ns);
     // Sanity check and overflow protection for ewma.
     assert(options.interval_max.ns <= 10 * std.time.ns_per_hour);
+
     return .{
         .interval_min = options.interval_min,
         .interval_max = options.interval_max,
-
         .signal_last = options.now,
         .interval_ewma = options.interval_max,
     };
@@ -56,12 +55,15 @@ pub fn init(options: struct {
 
 pub fn signal(detector: *FaultDetector, now: Instant) void {
     const past = detector.signal_last;
+
     assert(past.ns <= now.ns);
+
     const elapsed = past.elapsed(now)
         // Clamp first, then ewma_add, to avoid overflows.
         .clamp(detector.interval_min, detector.interval_max);
 
     detector.interval_ewma = ewma_add_duration(detector.interval_ewma, elapsed);
+
     detector.signal_last = now;
 }
 
@@ -85,23 +87,31 @@ pub fn signal(detector: *FaultDetector, now: Instant) void {
 /// will not give us the optimal answer, but it should work in variety of different contexts!
 pub fn tardy(detector: *FaultDetector, now: Instant) enum { green, yellow, red } {
     const past = detector.signal_last;
+
     assert(past.ns <= now.ns);
+
     const elapsed = past.elapsed(now);
 
     if (elapsed.ns *| 2 <= detector.interval_ewma.ns * 3) { // interval <= 1.5 * interval_ewma
         return .green;
     }
+
     assert(elapsed.ns >= detector.interval_ewma.ns);
+
     if (elapsed.ns <= detector.interval_ewma.ns * 3) {
         return .yellow;
     }
+
     assert(elapsed.ns > detector.interval_ewma.ns);
+
     return .red;
 }
 
 pub fn reset(detector: *FaultDetector, now: Instant) void {
     const past = detector.signal_last;
+
     assert(past.ns <= now.ns);
+
     detector.* = FaultDetector.init(.{
         .now = now,
         .interval_min = detector.interval_min,
@@ -119,49 +129,65 @@ test "FaultDetector: smoke" {
     // Test that computed ewma interval tracks actual interval,
     // clamped to limits.
     var now: Instant = .{ .ns = 1_000 };
+
     var detector = FaultDetector.init(.{
         .now = now,
         .interval_min = .ms(100),
         .interval_max = .ms(2_000),
     });
+
     assert(detector.tardy(now) == .green);
     assert(detector.interval_ewma.to_ms() == 2_000);
 
     for (0..100) |_| {
         now = now.add(.ms(200));
+
         detector.signal(now);
     }
+
     now = now.add(.ms(200));
+
     assert(detector.tardy(now) == .green);
     assert(detector.interval_ewma.to_ms() == 200);
 
     now = now.add(.ms(200));
+
     assert(detector.tardy(now) == .yellow);
 
     now = now.add(.ms(250));
+
     assert(detector.tardy(now) == .red);
 
     for (0..100) |_| {
         now = now.add(.ms(1_000));
+
         detector.signal(now);
     }
+
     now = now.add(.ms(1_000));
+
     assert(detector.tardy(now) == .green);
     assert(detector.interval_ewma.to_ms() == 999);
 
     for (0..100) |_| {
         now = now.add(.ms(10));
+
         detector.signal(now);
     }
+
     now = now.add(.ms(10));
+
     assert(detector.tardy(now) == .green);
     assert(detector.interval_ewma.to_ms() == 100);
 
     for (0..100) |_| {
         now = now.add(.ms(10_000));
+
         detector.signal(now);
     }
+
     now = now.add(.ms(10_000));
+
     assert(detector.tardy(now) == .red);
     assert(detector.interval_ewma.to_ms() == 1_999);
 }
@@ -171,6 +197,7 @@ test "FaultDetector: smoothing" {
     // the primary can gradually reduce the arrival interval,
     // without triggering a view change.
     var now: Instant = .{ .ns = 1_000 };
+
     var primary = FaultDetector.init(.{
         .now = now,
         .interval_min = .ms(50),
@@ -178,6 +205,7 @@ test "FaultDetector: smoothing" {
     });
 
     const backup_delay: Duration = .ms(100);
+
     var backup = FaultDetector.init(.{
         .now = now,
         .interval_min = .ms(50),
@@ -196,19 +224,24 @@ test "FaultDetector: smoothing" {
         // Primary broadcasts commit message every 500ms.
         if (commit_timer.elapsed(now).ns > commit_interval.ns) {
             commit_timer = now;
+
             primary.signal(now);
             backup.signal(now.add(backup_delay));
         }
+
         assert(primary.tardy(now) == .green);
 
         // Primary converts a request into prepare every 100ms.
         if (request_timer.elapsed(now).ns > request_interval.ns) {
             request_timer = now;
+
             primary.signal(now);
             backup.signal(now.add(backup_delay));
         }
+
         assert(backup.tardy(now.add(backup_delay)) == .green);
     }
+
     assert(primary.interval_ewma.to_ms() == 95);
     assert(backup.interval_ewma.to_ms() == 95);
 
@@ -217,9 +250,11 @@ test "FaultDetector: smoothing" {
 
         if (commit_timer.elapsed(now).ns > commit_interval.ns) {
             commit_timer = now;
+
             primary.signal(now);
             backup.signal(now.add(backup_delay));
         }
+
         switch (primary.tardy(now)) {
             .green => {},
             .yellow => {
@@ -269,11 +304,13 @@ test "FaultDetector: smoothing" {
             },
             .red => unreachable,
         }
+
         switch (backup.tardy(now.add(backup_delay))) {
             .green, .yellow => {},
             .red => unreachable,
         }
     }
+
     assert(primary.interval_ewma.to_ms() == 499);
     assert(backup.interval_ewma.to_ms() == 499);
 }

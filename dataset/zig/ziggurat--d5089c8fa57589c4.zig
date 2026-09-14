@@ -23,10 +23,12 @@ pub fn next_f64(random: Random, comptime tables: ZigTable) f64 {
             if (tables.is_symmetric) {
                 // Generate a value in the range [2, 4) and scale into [-1, 1)
                 const repr = ((0x3ff + 1) << 52) | (bits >> 12);
+
                 break :blk @as(f64, @bitCast(repr)) - 3.0;
             } else {
                 // Generate a value in the range [1, 2) and scale into (0, 1)
                 const repr = (0x3ff << 52) | (bits >> 12);
+
                 break :blk @as(f64, @bitCast(repr)) - (1.0 - math.floatEps(f64) / 2.0);
             }
         };
@@ -84,8 +86,10 @@ pub fn ZigTableGen(
 
     for (tables.x[2..256], 0..) |*entry, i| {
         const last = tables.x[2 + i - 1];
+
         entry.* = f_inv(v / last + f(last));
     }
+
     tables.x[256] = 0;
 
     for (tables.f[0..], 0..) |*entry, i| {
@@ -98,6 +102,7 @@ pub fn ZigTableGen(
 // N(0, 1)
 pub const NormDist = blk: {
     @setEvalBranchQuota(30000);
+
     break :blk ZigTableGen(true, norm_r, norm_v, norm_f, norm_f_inv, norm_zero_case);
 };
 
@@ -107,9 +112,11 @@ pub const norm_v = 0.00492867323399;
 pub fn norm_f(x: f64) f64 {
     return @exp(-x * x / 2.0);
 }
+
 pub fn norm_f_inv(y: f64) f64 {
     return @sqrt(-2.0 * @log(y));
 }
+
 pub fn norm_zero_case(random: Random, u: f64) f64 {
     var x: f64 = 1;
     var y: f64 = 0;
@@ -133,6 +140,7 @@ test "normal dist smoke test" {
     const random = prng.random();
 
     var i: usize = 0;
+
     while (i < 1000) : (i += 1) {
         _ = random.floatNorm(f64);
     }
@@ -141,6 +149,7 @@ test "normal dist smoke test" {
 // Exp(1)
 pub const ExpDist = blk: {
     @setEvalBranchQuota(30000);
+
     break :blk ZigTableGen(false, exp_r, exp_v, exp_f, exp_f_inv, exp_zero_case);
 };
 
@@ -150,9 +159,11 @@ pub const exp_v = 0.0039496598225815571993;
 pub fn exp_f(x: f64) f64 {
     return @exp(-x);
 }
+
 pub fn exp_f_inv(y: f64) f64 {
     return -@log(y);
 }
+
 pub fn exp_zero_case(random: Random, _: f64) f64 {
     return exp_r - @log(random.float(f64));
 }
@@ -162,6 +173,7 @@ test "exp dist smoke test" {
     const random = prng.random();
 
     var i: usize = 0;
+
     while (i < 1000) : (i += 1) {
         _ = random.floatExp(f64);
     }

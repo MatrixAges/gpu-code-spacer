@@ -9,6 +9,7 @@ pub fn sin(z: anytype) Complex(@TypeOf(z.re, z.im)) {
     const T = @TypeOf(z.re, z.im);
     const p = Complex(T).init(-z.im, z.re);
     const q = cmath.sinh(p);
+
     return Complex(T).init(q.im, -q.re);
 }
 

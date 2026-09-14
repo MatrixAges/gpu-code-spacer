@@ -3,6 +3,7 @@ import { $createParagraphNode, $isParagraphNode, $isTextNode } from 'lexical'
 import TableCellNode from '../plugins/Table/TableCellNode'
 import TableNode from '../plugins/Table/TableNode'
 import TableRowNode from '../plugins/Table/TableRowNode'
+
 import {
 	$createTableCellNode,
 	$createTableNode,
@@ -10,6 +11,7 @@ import {
 	$isTableNode,
 	$isTableRowNode
 } from '../plugins/Table/utils'
+
 import { $convertFromMarkdownString, $convertToMarkdownString } from '../utils'
 import transformers from './'
 
@@ -51,12 +53,15 @@ export default {
 		if (!$isTableNode(_node)) return null
 
 		const node = _node as TableNode
+
 		const output = [] as Array<string>
+
 		const rows = node.getChildren() as Array<TableRowNode>
 		const cols = node.__cols!
 
 		rows.forEach((row, row_index) => {
 			const row_output = [] as Array<string>
+
 			const cells = row.getChildren() as Array<TableCellNode>
 
 			cells.forEach(cell => {

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import type { Equal, ExpectTrue } from '@type-challenges/utils'
+
 import {
   type UserConfig,
   type UserConfigExport,
@@ -9,17 +10,20 @@ import {
   type UserConfigFnPromise,
   defineConfig,
 } from '../config'
+
 import { mergeConfig } from '../utils'
 
 const configObjectDefined = defineConfig({})
 const configObjectPromiseDefined = defineConfig(Promise.resolve({}))
 const configFnObjectDefined = defineConfig(() => ({}))
 const configFnPromiseDefined = defineConfig(async () => ({}))
+
 const configFnDefined = defineConfig(() =>
   // TypeScript requires both non-promise config and
   // promise config to have at least one property
   Math.random() > 0.5 ? { base: '' } : Promise.resolve({ base: '/' }),
 )
+
 const configExportDefined = defineConfig({} as UserConfigExport)
 
 export type cases1 = [
@@ -94,6 +98,7 @@ defineConfig(async () => ({
 }))
 
 mergeConfig(defineConfig({}), defineConfig({}))
+
 mergeConfig(
   // @ts-expect-error
   defineConfig(() => ({})),

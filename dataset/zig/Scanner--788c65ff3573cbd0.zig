@@ -66,6 +66,7 @@ pub fn initStreaming(allocator: Allocator) @This() {
         .stack = BitStack.init(allocator),
     };
 }
+
 /// Use this if your input is a single slice.
 /// This is effectively equivalent to:
 /// ```
@@ -80,8 +81,10 @@ pub fn initCompleteInput(allocator: Allocator, complete_input: []const u8) @This
         .is_end_of_input = true,
     };
 }
+
 pub fn deinit(self: *@This()) void {
     self.stack.deinit();
+
     self.* = undefined;
 }
 
@@ -94,16 +97,19 @@ pub fn enableDiagnostics(self: *@This(), diagnostics: *Diagnostics) void {
 /// When there is no more input to provide, call `endInput()`.
 pub fn feedInput(self: *@This(), input: []const u8) void {
     assert(self.cursor == self.input.len); // Not done with the last input slice.
+
     if (self.diagnostics) |diag| {
         diag.total_bytes_before_current_input += self.input.len;
         // This usually goes "negative" to measure how far before the beginning
         // of the new buffer the current line started.
         diag.line_start_cursor -%= self.cursor;
     }
+
     self.input = input;
     self.cursor = 0;
     self.value_start = 0;
 }
+
 /// Call this when you will no longer call `feedInput()` anymore.
 /// This can be called either immediately after the last `feedInput()`,
 /// or at any time afterward, such as when getting `error.BufferUnderrun` from `next()`.
@@ -129,16 +135,20 @@ pub fn nextAlloc(self: *@This(), allocator: Allocator, when: AllocWhen) AllocErr
 /// See also `std.json.Token` for documentation of `nextAlloc*()` function behavior.
 pub fn nextAllocMax(self: *@This(), allocator: Allocator, when: AllocWhen, max_value_len: usize) AllocError!Token {
     assert(self.is_end_of_input); // This function is not available in streaming mode.
+
     const token_type = self.peekNextTokenType() catch |e| switch (e) {
         error.BufferUnderrun => unreachable,
         else => |err| return err,
     };
+
     switch (token_type) {
         .number, .string => {
             var value_list = std.array_list.Managed(u8).init(allocator);
+
             errdefer {
                 value_list.deinit();
             }
+
             if (self.allocNextIntoArrayListMax(&value_list, when, max_value_len) catch |e| switch (e) {
                 error.BufferUnderrun => unreachable,
                 else => |err| return err,
@@ -175,6 +185,7 @@ pub fn nextAllocMax(self: *@This(), allocator: Allocator, when: AllocWhen, max_v
 pub fn allocNextIntoArrayList(self: *@This(), value_list: *std.array_list.Managed(u8), when: AllocWhen) AllocIntoArrayListError!?[]const u8 {
     return self.allocNextIntoArrayListMax(value_list, when, default_max_value_len);
 }
+
 /// The next token type must be either `.number` or `.string`. See `peekNextTokenType()`.
 /// When allocation is not necessary with `.alloc_if_needed`,
 /// this method returns the content slice from the input buffer, and `value_list` is not touched.
@@ -188,6 +199,7 @@ pub fn allocNextIntoArrayList(self: *@This(), value_list: *std.array_list.Manage
 pub fn allocNextIntoArrayListMax(self: *@This(), value_list: *std.array_list.Managed(u8), when: AllocWhen, max_value_len: usize) AllocIntoArrayListError!?[]const u8 {
     while (true) {
         const token = try self.next();
+
         switch (token) {
             // Accumulate partial values.
             .partial_number, .partial_string => |slice| {
@@ -212,7 +224,9 @@ pub fn allocNextIntoArrayListMax(self: *@This(), value_list: *std.array_list.Man
                     // No alloc necessary.
                     return slice;
                 }
+
                 try appendSlice(value_list, slice, max_value_len);
+
                 // The token is complete.
                 return null;
             },
@@ -221,7 +235,9 @@ pub fn allocNextIntoArrayListMax(self: *@This(), value_list: *std.array_list.Man
                     // No alloc necessary.
                     return slice;
                 }
+
                 try appendSlice(value_list, slice, max_value_len);
+
                 // The token is complete.
                 return null;
             },
@@ -251,6 +267,7 @@ pub fn allocNextIntoArrayListMax(self: *@This(), value_list: *std.array_list.Man
 /// see `peekNextTokenType()`.
 pub fn skipValue(self: *@This()) SkipError!void {
     assert(self.is_end_of_input); // This function is not available in streaming mode.
+
     switch (self.peekNextTokenType() catch |e| switch (e) {
         error.BufferUnderrun => unreachable,
         else => |err| return err,
@@ -326,14 +343,18 @@ pub fn next(self: *@This()) NextError!Token {
                     // Object, Array
                     '{' => {
                         try self.stack.push(OBJECT_MODE);
+
                         self.cursor += 1;
                         self.state = .object_start;
+
                         return .object_begin;
                     },
                     '[' => {
                         try self.stack.push(ARRAY_MODE);
+
                         self.cursor += 1;
                         self.state = .array_start;
+
                         return .array_begin;
                     },
 
@@ -342,6 +363,7 @@ pub fn next(self: *@This()) NextError!Token {
                         self.cursor += 1;
                         self.value_start = self.cursor;
                         self.state = .string;
+
                         continue :state_loop;
                     },
 
@@ -350,18 +372,21 @@ pub fn next(self: *@This()) NextError!Token {
                         self.value_start = self.cursor;
                         self.cursor += 1;
                         self.state = .number_int;
+
                         continue :state_loop;
                     },
                     '0' => {
                         self.value_start = self.cursor;
                         self.cursor += 1;
                         self.state = .number_leading_zero;
+
                         continue :state_loop;
                     },
                     '-' => {
                         self.value_start = self.cursor;
                         self.cursor += 1;
                         self.state = .number_minus;
+
                         continue :state_loop;
                     },
 
@@ -369,16 +394,19 @@ pub fn next(self: *@This()) NextError!Token {
                     't' => {
                         self.cursor += 1;
                         self.state = .literal_t;
+
                         continue :state_loop;
                     },
                     'f' => {
                         self.cursor += 1;
                         self.state = .literal_f;
+
                         continue :state_loop;
                     },
                     'n' => {
                         self.cursor += 1;
                         self.state = .literal_n;
+
                         continue :state_loop;
                     },
 
@@ -390,12 +418,15 @@ pub fn next(self: *@This()) NextError!Token {
                 if (try self.skipWhitespaceCheckEnd()) return .end_of_document;
 
                 const c = self.input[self.cursor];
+
                 if (self.string_is_object_key) {
                     self.string_is_object_key = false;
+
                     switch (c) {
                         ':' => {
                             self.cursor += 1;
                             self.state = .value;
+
                             continue :state_loop;
                         },
                         else => return error.SyntaxError,
@@ -405,13 +436,17 @@ pub fn next(self: *@This()) NextError!Token {
                 switch (c) {
                     '}' => {
                         if (self.stack.pop() != OBJECT_MODE) return error.SyntaxError;
+
                         self.cursor += 1;
+
                         // stay in .post_value state.
                         return .object_end;
                     },
                     ']' => {
                         if (self.stack.pop() != ARRAY_MODE) return error.SyntaxError;
+
                         self.cursor += 1;
+
                         // stay in .post_value state.
                         return .array_end;
                     },
@@ -424,7 +459,9 @@ pub fn next(self: *@This()) NextError!Token {
                                 self.state = .value;
                             },
                         }
+
                         self.cursor += 1;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -438,12 +475,16 @@ pub fn next(self: *@This()) NextError!Token {
                         self.value_start = self.cursor;
                         self.state = .string;
                         self.string_is_object_key = true;
+
                         continue :state_loop;
                     },
                     '}' => {
                         self.cursor += 1;
+
                         _ = self.stack.pop();
+
                         self.state = .post_value;
+
                         return .object_end;
                     },
                     else => return error.SyntaxError,
@@ -456,6 +497,7 @@ pub fn next(self: *@This()) NextError!Token {
                         self.value_start = self.cursor;
                         self.state = .string;
                         self.string_is_object_key = true;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -466,12 +508,16 @@ pub fn next(self: *@This()) NextError!Token {
                 switch (try self.skipWhitespaceExpectByte()) {
                     ']' => {
                         self.cursor += 1;
+
                         _ = self.stack.pop();
+
                         self.state = .post_value;
+
                         return .array_end;
                     },
                     else => {
                         self.state = .value;
+
                         continue :state_loop;
                     },
                 }
@@ -479,15 +525,18 @@ pub fn next(self: *@This()) NextError!Token {
 
             .number_minus => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInNumber(false);
+
                 switch (self.input[self.cursor]) {
                     '0' => {
                         self.cursor += 1;
                         self.state = .number_leading_zero;
+
                         continue :state_loop;
                     },
                     '1'...'9' => {
                         self.cursor += 1;
                         self.state = .number_int;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -495,19 +544,23 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .number_leading_zero => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInNumber(true);
+
                 switch (self.input[self.cursor]) {
                     '.' => {
                         self.cursor += 1;
                         self.state = .number_post_dot;
+
                         continue :state_loop;
                     },
                     'e', 'E' => {
                         self.cursor += 1;
                         self.state = .number_post_e;
+
                         continue :state_loop;
                     },
                     else => {
                         self.state = .post_value;
+
                         return Token{ .number = self.takeValueSlice() };
                     },
                 }
@@ -519,27 +572,33 @@ pub fn next(self: *@This()) NextError!Token {
                         '.' => {
                             self.cursor += 1;
                             self.state = .number_post_dot;
+
                             continue :state_loop;
                         },
                         'e', 'E' => {
                             self.cursor += 1;
                             self.state = .number_post_e;
+
                             continue :state_loop;
                         },
                         else => {
                             self.state = .post_value;
+
                             return Token{ .number = self.takeValueSlice() };
                         },
                     }
                 }
+
                 return self.endOfBufferInNumber(true);
             },
             .number_post_dot => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInNumber(false);
+
                 switch (self.input[self.cursor]) {
                     '0'...'9' => {
                         self.cursor += 1;
                         self.state = .number_frac;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -552,27 +611,33 @@ pub fn next(self: *@This()) NextError!Token {
                         'e', 'E' => {
                             self.cursor += 1;
                             self.state = .number_post_e;
+
                             continue :state_loop;
                         },
                         else => {
                             self.state = .post_value;
+
                             return Token{ .number = self.takeValueSlice() };
                         },
                     }
                 }
+
                 return self.endOfBufferInNumber(true);
             },
             .number_post_e => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInNumber(false);
+
                 switch (self.input[self.cursor]) {
                     '0'...'9' => {
                         self.cursor += 1;
                         self.state = .number_exp;
+
                         continue :state_loop;
                     },
                     '+', '-' => {
                         self.cursor += 1;
                         self.state = .number_post_e_sign;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -580,10 +645,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .number_post_e_sign => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInNumber(false);
+
                 switch (self.input[self.cursor]) {
                     '0'...'9' => {
                         self.cursor += 1;
                         self.state = .number_exp;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -595,10 +662,12 @@ pub fn next(self: *@This()) NextError!Token {
                         '0'...'9' => continue,
                         else => {
                             self.state = .post_value;
+
                             return Token{ .number = self.takeValueSlice() };
                         },
                     }
                 }
+
                 return self.endOfBufferInNumber(true);
             },
 
@@ -613,15 +682,20 @@ pub fn next(self: *@This()) NextError!Token {
                         // Special characters.
                         '"' => {
                             const result = Token{ .string = self.takeValueSlice() };
+
                             self.cursor += 1;
                             self.state = .post_value;
+
                             return result;
                         },
                         '\\' => {
                             const slice = self.takeValueSlice();
+
                             self.cursor += 1;
                             self.state = .string_backslash;
+
                             if (slice.len > 0) return Token{ .partial_string = slice };
+
                             continue :state_loop;
                         },
 
@@ -630,48 +704,60 @@ pub fn next(self: *@This()) NextError!Token {
                         0xC2...0xDF => {
                             self.cursor += 1;
                             self.state = .string_utf8_last_byte;
+
                             continue :state_loop;
                         },
                         0xE0 => {
                             self.cursor += 1;
                             self.state = .string_utf8_second_to_last_byte_guard_against_overlong;
+
                             continue :state_loop;
                         },
                         0xE1...0xEC, 0xEE...0xEF => {
                             self.cursor += 1;
                             self.state = .string_utf8_second_to_last_byte;
+
                             continue :state_loop;
                         },
                         0xED => {
                             self.cursor += 1;
                             self.state = .string_utf8_second_to_last_byte_guard_against_surrogate_half;
+
                             continue :state_loop;
                         },
                         0xF0 => {
                             self.cursor += 1;
                             self.state = .string_utf8_third_to_last_byte_guard_against_overlong;
+
                             continue :state_loop;
                         },
                         0xF1...0xF3 => {
                             self.cursor += 1;
                             self.state = .string_utf8_third_to_last_byte;
+
                             continue :state_loop;
                         },
                         0xF4 => {
                             self.cursor += 1;
                             self.state = .string_utf8_third_to_last_byte_guard_against_too_large;
+
                             continue :state_loop;
                         },
                         0x80...0xC1, 0xF5...0xFF => return error.SyntaxError, // Invalid UTF-8.
                     }
                 }
+
                 if (self.is_end_of_input) return error.UnexpectedEndOfInput;
+
                 const slice = self.takeValueSlice();
+
                 if (slice.len > 0) return Token{ .partial_string = slice };
+
                 return error.BufferUnderrun;
             },
             .string_backslash => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     '"', '\\', '/' => {
                         // Since these characters now represent themselves literally,
@@ -679,41 +765,48 @@ pub fn next(self: *@This()) NextError!Token {
                         self.value_start = self.cursor;
                         self.cursor += 1;
                         self.state = .string;
+
                         continue :state_loop;
                     },
                     'b' => {
                         self.cursor += 1;
                         self.value_start = self.cursor;
                         self.state = .string;
+
                         return Token{ .partial_string_escaped_1 = [_]u8{0x08} };
                     },
                     'f' => {
                         self.cursor += 1;
                         self.value_start = self.cursor;
                         self.state = .string;
+
                         return Token{ .partial_string_escaped_1 = [_]u8{0x0c} };
                     },
                     'n' => {
                         self.cursor += 1;
                         self.value_start = self.cursor;
                         self.state = .string;
+
                         return Token{ .partial_string_escaped_1 = [_]u8{'\n'} };
                     },
                     'r' => {
                         self.cursor += 1;
                         self.value_start = self.cursor;
                         self.state = .string;
+
                         return Token{ .partial_string_escaped_1 = [_]u8{'\r'} };
                     },
                     't' => {
                         self.cursor += 1;
                         self.value_start = self.cursor;
                         self.state = .string;
+
                         return Token{ .partial_string_escaped_1 = [_]u8{'\t'} };
                     },
                     'u' => {
                         self.cursor += 1;
                         self.state = .string_backslash_u;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -721,7 +814,9 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_backslash_u => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 const c = self.input[self.cursor];
+
                 switch (c) {
                     '0'...'9' => {
                         self.utf16_code_units[0] = @as(u16, c - '0') << 12;
@@ -734,13 +829,17 @@ pub fn next(self: *@This()) NextError!Token {
                     },
                     else => return error.SyntaxError,
                 }
+
                 self.cursor += 1;
                 self.state = .string_backslash_u_1;
+
                 continue :state_loop;
             },
             .string_backslash_u_1 => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 const c = self.input[self.cursor];
+
                 switch (c) {
                     '0'...'9' => {
                         self.utf16_code_units[0] |= @as(u16, c - '0') << 8;
@@ -753,13 +852,17 @@ pub fn next(self: *@This()) NextError!Token {
                     },
                     else => return error.SyntaxError,
                 }
+
                 self.cursor += 1;
                 self.state = .string_backslash_u_2;
+
                 continue :state_loop;
             },
             .string_backslash_u_2 => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 const c = self.input[self.cursor];
+
                 switch (c) {
                     '0'...'9' => {
                         self.utf16_code_units[0] |= @as(u16, c - '0') << 4;
@@ -772,13 +875,17 @@ pub fn next(self: *@This()) NextError!Token {
                     },
                     else => return error.SyntaxError,
                 }
+
                 self.cursor += 1;
                 self.state = .string_backslash_u_3;
+
                 continue :state_loop;
             },
             .string_backslash_u_3 => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 const c = self.input[self.cursor];
+
                 switch (c) {
                     '0'...'9' => {
                         self.utf16_code_units[0] |= c - '0';
@@ -791,24 +898,30 @@ pub fn next(self: *@This()) NextError!Token {
                     },
                     else => return error.SyntaxError,
                 }
+
                 self.cursor += 1;
+
                 if (std.unicode.utf16IsHighSurrogate(self.utf16_code_units[0])) {
                     self.state = .string_surrogate_half;
+
                     continue :state_loop;
                 } else if (std.unicode.utf16IsLowSurrogate(self.utf16_code_units[0])) {
                     return error.SyntaxError; // Unexpected low surrogate half.
                 } else {
                     self.value_start = self.cursor;
                     self.state = .string;
+
                     return partialStringCodepoint(self.utf16_code_units[0]);
                 }
             },
             .string_surrogate_half => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     '\\' => {
                         self.cursor += 1;
                         self.state = .string_surrogate_half_backslash;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Expected low surrogate half.
@@ -816,10 +929,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_surrogate_half_backslash => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     'u' => {
                         self.cursor += 1;
                         self.state = .string_surrogate_half_backslash_u;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Expected low surrogate half.
@@ -827,11 +942,13 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_surrogate_half_backslash_u => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     'D', 'd' => {
                         self.cursor += 1;
                         self.utf16_code_units[1] = 0xD << 12;
                         self.state = .string_surrogate_half_backslash_u_1;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Expected low surrogate half.
@@ -839,18 +956,22 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_surrogate_half_backslash_u_1 => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 const c = self.input[self.cursor];
+
                 switch (c) {
                     'C'...'F' => {
                         self.cursor += 1;
                         self.utf16_code_units[1] |= @as(u16, c - 'A' + 10) << 8;
                         self.state = .string_surrogate_half_backslash_u_2;
+
                         continue :state_loop;
                     },
                     'c'...'f' => {
                         self.cursor += 1;
                         self.utf16_code_units[1] |= @as(u16, c - 'a' + 10) << 8;
                         self.state = .string_surrogate_half_backslash_u_2;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Expected low surrogate half.
@@ -858,24 +979,29 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_surrogate_half_backslash_u_2 => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 const c = self.input[self.cursor];
+
                 switch (c) {
                     '0'...'9' => {
                         self.cursor += 1;
                         self.utf16_code_units[1] |= @as(u16, c - '0') << 4;
                         self.state = .string_surrogate_half_backslash_u_3;
+
                         continue :state_loop;
                     },
                     'A'...'F' => {
                         self.cursor += 1;
                         self.utf16_code_units[1] |= @as(u16, c - 'A' + 10) << 4;
                         self.state = .string_surrogate_half_backslash_u_3;
+
                         continue :state_loop;
                     },
                     'a'...'f' => {
                         self.cursor += 1;
                         self.utf16_code_units[1] |= @as(u16, c - 'a' + 10) << 4;
                         self.state = .string_surrogate_half_backslash_u_3;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -883,7 +1009,9 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_surrogate_half_backslash_u_3 => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 const c = self.input[self.cursor];
+
                 switch (c) {
                     '0'...'9' => {
                         self.utf16_code_units[1] |= c - '0';
@@ -896,19 +1024,24 @@ pub fn next(self: *@This()) NextError!Token {
                     },
                     else => return error.SyntaxError,
                 }
+
                 self.cursor += 1;
                 self.value_start = self.cursor;
                 self.state = .string;
+
                 const code_point = std.unicode.utf16DecodeSurrogatePair(&self.utf16_code_units) catch unreachable;
+
                 return partialStringCodepoint(code_point);
             },
 
             .string_utf8_last_byte => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     0x80...0xBF => {
                         self.cursor += 1;
                         self.state = .string;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Invalid UTF-8.
@@ -916,10 +1049,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_utf8_second_to_last_byte => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     0x80...0xBF => {
                         self.cursor += 1;
                         self.state = .string_utf8_last_byte;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Invalid UTF-8.
@@ -927,10 +1062,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_utf8_second_to_last_byte_guard_against_overlong => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     0xA0...0xBF => {
                         self.cursor += 1;
                         self.state = .string_utf8_last_byte;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Invalid UTF-8.
@@ -938,10 +1075,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_utf8_second_to_last_byte_guard_against_surrogate_half => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     0x80...0x9F => {
                         self.cursor += 1;
                         self.state = .string_utf8_last_byte;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Invalid UTF-8.
@@ -949,10 +1088,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_utf8_third_to_last_byte => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     0x80...0xBF => {
                         self.cursor += 1;
                         self.state = .string_utf8_second_to_last_byte;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Invalid UTF-8.
@@ -960,10 +1101,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_utf8_third_to_last_byte_guard_against_overlong => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     0x90...0xBF => {
                         self.cursor += 1;
                         self.state = .string_utf8_second_to_last_byte;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Invalid UTF-8.
@@ -971,10 +1114,12 @@ pub fn next(self: *@This()) NextError!Token {
             },
             .string_utf8_third_to_last_byte_guard_against_too_large => {
                 if (self.cursor >= self.input.len) return self.endOfBufferInString();
+
                 switch (self.input[self.cursor]) {
                     0x80...0x8F => {
                         self.cursor += 1;
                         self.state = .string_utf8_second_to_last_byte;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError, // Invalid UTF-8.
@@ -986,6 +1131,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'r' => {
                         self.cursor += 1;
                         self.state = .literal_tr;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -996,6 +1142,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'u' => {
                         self.cursor += 1;
                         self.state = .literal_tru;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -1006,6 +1153,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'e' => {
                         self.cursor += 1;
                         self.state = .post_value;
+
                         return .true;
                     },
                     else => return error.SyntaxError,
@@ -1016,6 +1164,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'a' => {
                         self.cursor += 1;
                         self.state = .literal_fa;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -1026,6 +1175,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'l' => {
                         self.cursor += 1;
                         self.state = .literal_fal;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -1036,6 +1186,7 @@ pub fn next(self: *@This()) NextError!Token {
                     's' => {
                         self.cursor += 1;
                         self.state = .literal_fals;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -1046,6 +1197,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'e' => {
                         self.cursor += 1;
                         self.state = .post_value;
+
                         return .false;
                     },
                     else => return error.SyntaxError,
@@ -1056,6 +1208,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'u' => {
                         self.cursor += 1;
                         self.state = .literal_nu;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -1066,6 +1219,7 @@ pub fn next(self: *@This()) NextError!Token {
                     'l' => {
                         self.cursor += 1;
                         self.state = .literal_nul;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -1076,12 +1230,14 @@ pub fn next(self: *@This()) NextError!Token {
                     'l' => {
                         self.cursor += 1;
                         self.state = .post_value;
+
                         return .null;
                     },
                     else => return error.SyntaxError,
                 }
             },
         }
+
         unreachable;
     }
 }
@@ -1109,12 +1265,15 @@ pub fn peekNextTokenType(self: *@This()) PeekError!TokenType {
                 if (try self.skipWhitespaceCheckEnd()) return .end_of_document;
 
                 const c = self.input[self.cursor];
+
                 if (self.string_is_object_key) {
                     self.string_is_object_key = false;
+
                     switch (c) {
                         ':' => {
                             self.cursor += 1;
                             self.state = .value;
+
                             continue :state_loop;
                         },
                         else => return error.SyntaxError,
@@ -1133,7 +1292,9 @@ pub fn peekNextTokenType(self: *@This()) PeekError!TokenType {
                                 self.state = .value;
                             },
                         }
+
                         self.cursor += 1;
+
                         continue :state_loop;
                     },
                     else => return error.SyntaxError,
@@ -1159,6 +1320,7 @@ pub fn peekNextTokenType(self: *@This()) PeekError!TokenType {
                     ']' => return .array_end,
                     else => {
                         self.state = .value;
+
                         continue :state_loop;
                     },
                 }
@@ -1211,6 +1373,7 @@ pub fn peekNextTokenType(self: *@This()) PeekError!TokenType {
             .literal_nul,
             => return .null,
         }
+
         unreachable;
     }
 }
@@ -1271,8 +1434,10 @@ fn expectByte(self: *const @This()) !u8 {
     if (self.cursor < self.input.len) {
         return self.input[self.cursor];
     }
+
     // No byte.
     if (self.is_end_of_input) return error.UnexpectedEndOfInput;
+
     return error.BufferUnderrun;
 }
 
@@ -1288,6 +1453,7 @@ fn skipWhitespace(self: *@This()) void {
                     // which means a straight-forward subtraction will give a 1-based column number.
                     diag.line_start_cursor = self.cursor;
                 }
+
                 continue;
             },
             else => return,
@@ -1297,11 +1463,13 @@ fn skipWhitespace(self: *@This()) void {
 
 fn skipWhitespaceExpectByte(self: *@This()) !u8 {
     self.skipWhitespace();
+
     return self.expectByte();
 }
 
 fn skipWhitespaceCheckEnd(self: *@This()) !bool {
     self.skipWhitespace();
+
     if (self.cursor >= self.input.len) {
         // End of buffer.
         if (self.is_end_of_input) {
@@ -1310,44 +1478,60 @@ fn skipWhitespaceCheckEnd(self: *@This()) !bool {
                 // We did it!
                 return true;
             }
+
             return error.UnexpectedEndOfInput;
         }
+
         return error.BufferUnderrun;
     }
+
     if (self.stackHeight() == 0) return error.SyntaxError;
+
     return false;
 }
 
 fn takeValueSlice(self: *@This()) []const u8 {
     const slice = self.input[self.value_start..self.cursor];
+
     self.value_start = self.cursor;
+
     return slice;
 }
+
 fn takeValueSliceMinusTrailingOffset(self: *@This(), trailing_negative_offset: usize) []const u8 {
     // Check if the escape sequence started before the current input buffer.
     // (The algebra here is awkward to avoid unsigned underflow,
     //  but it's just making sure the slice on the next line isn't UB.)
     if (self.cursor <= self.value_start + trailing_negative_offset) return "";
+
     const slice = self.input[self.value_start .. self.cursor - trailing_negative_offset];
+
     // When trailing_negative_offset is non-zero, setting self.value_start doesn't matter,
     // because we always set it again while emitting the .partial_string_escaped_*.
     self.value_start = self.cursor;
+
     return slice;
 }
 
 fn endOfBufferInNumber(self: *@This(), allow_end: bool) !Token {
     const slice = self.takeValueSlice();
+
     if (self.is_end_of_input) {
         if (!allow_end) return error.UnexpectedEndOfInput;
+
         self.state = .post_value;
+
         return Token{ .number = slice };
     }
+
     if (slice.len == 0) return error.BufferUnderrun;
+
     return Token{ .partial_number = slice };
 }
 
 fn endOfBufferInString(self: *@This()) !Token {
     if (self.is_end_of_input) return error.UnexpectedEndOfInput;
+
     const slice = self.takeValueSliceMinusTrailingOffset(switch (self.state) {
         // Don't include the escape sequence in the partial string.
         .string_backslash => 1,
@@ -1375,12 +1559,15 @@ fn endOfBufferInString(self: *@This()) !Token {
 
         else => unreachable,
     });
+
     if (slice.len == 0) return error.BufferUnderrun;
+
     return Token{ .partial_string = slice };
 }
 
 fn partialStringCodepoint(code_point: u21) Token {
     var buf: [4]u8 = undefined;
+
     switch (std.unicode.utf8Encode(code_point, &buf) catch unreachable) {
         1 => return Token{ .partial_string_escaped_1 = buf[0..1].* },
         2 => return Token{ .partial_string_escaped_2 = buf[0..2].* },
@@ -1396,6 +1583,7 @@ fn partialStringCodepoint(code_point: u21) Token {
 /// but can be caused by extreme nesting depth in the input.
 pub fn validate(allocator: Allocator, s: []const u8) Allocator.Error!bool {
     var scanner = Scanner.initCompleteInput(allocator, s);
+
     defer scanner.deinit();
 
     while (true) {
@@ -1404,6 +1592,7 @@ pub fn validate(allocator: Allocator, s: []const u8) Allocator.Error!bool {
             error.OutOfMemory => return error.OutOfMemory,
             error.BufferUnderrun => unreachable,
         };
+
         if (token == .end_of_document) break;
     }
 
@@ -1553,10 +1742,12 @@ pub const Diagnostics = struct {
     pub fn getLine(self: *const @This()) u64 {
         return self.line_number;
     }
+
     /// Starts at 1.
     pub fn getColumn(self: *const @This()) u64 {
         return self.cursor_pointer.* -% self.line_start_cursor;
     }
+
     /// Starts at 0. Measures the byte offset since the start of the input.
     pub fn getByteOffset(self: *const @This()) u64 {
         return self.total_bytes_before_current_input + self.cursor_pointer.*;
@@ -1582,8 +1773,10 @@ pub const Reader = struct {
             .reader = io_reader,
         };
     }
+
     pub fn deinit(self: *@This()) void {
         self.scanner.deinit();
+
         self.* = undefined;
     }
 
@@ -1602,15 +1795,19 @@ pub const Reader = struct {
     pub fn nextAlloc(self: *@This(), allocator: Allocator, when: AllocWhen) Reader.AllocError!Token {
         return self.nextAllocMax(allocator, when, default_max_value_len);
     }
+
     /// See also `std.json.Token` for documentation of `nextAlloc*()` function behavior.
     pub fn nextAllocMax(self: *@This(), allocator: Allocator, when: AllocWhen, max_value_len: usize) Reader.AllocError!Token {
         const token_type = try self.peekNextTokenType();
+
         switch (token_type) {
             .number, .string => {
                 var value_list = std.array_list.Managed(u8).init(allocator);
+
                 errdefer {
                     value_list.deinit();
                 }
+
                 if (try self.allocNextIntoArrayListMax(&value_list, when, max_value_len)) |slice| {
                     return if (token_type == .number)
                         Token{ .number = slice }
@@ -1641,12 +1838,14 @@ pub const Reader = struct {
     pub fn allocNextIntoArrayList(self: *@This(), value_list: *std.array_list.Managed(u8), when: AllocWhen) Reader.AllocError!?[]const u8 {
         return self.allocNextIntoArrayListMax(value_list, when, default_max_value_len);
     }
+
     /// Calls `std.json.Scanner.allocNextIntoArrayListMax` and handles `error.BufferUnderrun`.
     pub fn allocNextIntoArrayListMax(self: *@This(), value_list: *std.array_list.Managed(u8), when: AllocWhen, max_value_len: usize) Reader.AllocError!?[]const u8 {
         while (true) {
             return self.scanner.allocNextIntoArrayListMax(value_list, when, max_value_len) catch |err| switch (err) {
                 error.BufferUnderrun => {
                     try self.refillBuffer();
+
                     continue;
                 },
                 else => |other_err| return other_err,
@@ -1684,12 +1883,14 @@ pub const Reader = struct {
             .object_end, .array_end, .end_of_document => unreachable, // Attempt to skip a non-value token.
         }
     }
+
     /// Like `std.json.Scanner.skipUntilStackHeight()` but handles `error.BufferUnderrun`.
     pub fn skipUntilStackHeight(self: *@This(), terminal_stack_height: usize) Reader.NextError!void {
         while (true) {
             return self.scanner.skipUntilStackHeight(terminal_stack_height) catch |err| switch (err) {
                 error.BufferUnderrun => {
                     try self.refillBuffer();
+
                     continue;
                 },
                 else => |other_err| return other_err,
@@ -1701,6 +1902,7 @@ pub const Reader = struct {
     pub fn stackHeight(self: *const @This()) usize {
         return self.scanner.stackHeight();
     }
+
     /// Calls `std.json.Scanner.ensureTotalStackCapacity`.
     pub fn ensureTotalStackCapacity(self: *@This(), height: usize) Allocator.Error!void {
         try self.scanner.ensureTotalStackCapacity(height);
@@ -1712,6 +1914,7 @@ pub const Reader = struct {
             return self.scanner.next() catch |err| switch (err) {
                 error.BufferUnderrun => {
                     try self.refillBuffer();
+
                     continue;
                 },
                 else => |other_err| return other_err,
@@ -1725,6 +1928,7 @@ pub const Reader = struct {
             return self.scanner.peekNextTokenType() catch |err| switch (err) {
                 error.BufferUnderrun => {
                     try self.refillBuffer();
+
                     continue;
                 },
                 else => |other_err| return other_err,
@@ -1737,6 +1941,7 @@ pub const Reader = struct {
             error.ReadFailed => return error.ReadFailed,
             error.EndOfStream => return self.scanner.endInput(),
         };
+
         self.reader.toss(input.len);
         self.scanner.feedInput(input);
     }
@@ -1747,7 +1952,9 @@ const ARRAY_MODE = 1;
 
 fn appendSlice(list: *std.array_list.Managed(u8), buf: []const u8, max_value_len: usize) !void {
     const new_len = std.math.add(usize, list.items.len, buf.len) catch return error.ValueTooLong;
+
     if (new_len > max_value_len) return error.ValueTooLong;
+
     try list.appendSlice(buf);
 }
 
@@ -1758,6 +1965,7 @@ fn appendSlice(list: *std.array_list.Managed(u8), buf: []const u8, max_value_len
 /// This function will not give meaningful results on non-numeric input.
 pub fn isNumberFormattedLikeAnInteger(value: []const u8) bool {
     if (std.mem.eql(u8, value, "-0")) return false;
+
     return std.mem.indexOfAny(u8, value, ".eE") == null;
 }
 

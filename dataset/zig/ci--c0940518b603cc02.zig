@@ -23,6 +23,7 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
         "src",
         @src().file,
     });
+
     const python_path_relative = try std.fs.path.join(shell.arena.allocator(), &.{
         std.fs.path.dirname(path_relative).?,
         "src",
@@ -37,17 +38,22 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
 
     {
         log.info("running pytest", .{});
+
         var tmp_beetle = try TmpTigerBeetle.init(gpa, .{
             .development = true,
         });
+
         defer tmp_beetle.deinit(gpa);
+
         errdefer tmp_beetle.log_stderr();
 
         const tigerbeetle_exe = comptime "tigerbeetle" ++ builtin.target.exeFileExt();
+
         const tigerbeetle_path = try shell.project_root.realpathAlloc(
             shell.arena.allocator(),
             tigerbeetle_exe,
         );
+
         try shell.env.put("TIGERBEETLE_BINARY", tigerbeetle_path);
 
         try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -58,12 +64,15 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
         log.info("testing sample '{s}'", .{sample});
 
         try shell.pushd("./samples/" ++ sample);
+
         defer shell.popd();
 
         var tmp_beetle = try TmpTigerBeetle.init(gpa, .{
             .development = true,
         });
+
         defer tmp_beetle.deinit(gpa);
+
         errdefer tmp_beetle.log_stderr();
 
         try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -88,6 +97,7 @@ pub fn validate_release_package(shell: *Shell, gpa: std.mem.Allocator, options: 
         "https://pypi.org/pypi/tigerbeetle/{s}/json",
         .{options.release},
     ), .{});
+
     const pypi_package = try std.json.parseFromSliceLeaky(
         PyPIPackage,
         shell.arena.allocator(),
@@ -99,18 +109,22 @@ pub fn validate_release_package(shell: *Shell, gpa: std.mem.Allocator, options: 
 
     const wheel_size_max = 8 * stdx.MiB;
     const wheel_filename = try shell.fmt("tigerbeetle-{s}-py3-none-any.whl", .{options.release});
+
     assert(std.mem.eql(u8, pypi_package.urls[0].filename, wheel_filename));
+
     const wheel_url = pypi_package.urls[0].url;
 
     const wheel_published = try shell.http_get(
         wheel_url,
         .{ .response_body_size_max = wheel_size_max },
     );
+
     const wheel_local = try shell.cwd.readFileAlloc(
         gpa,
         try shell.fmt("zig-out/dist/python/{s}", .{wheel_filename}),
         wheel_size_max,
     );
+
     defer gpa.free(wheel_local);
 
     if (!std.mem.eql(u8, wheel_published, wheel_local)) {
@@ -123,6 +137,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
     tigerbeetle: []const u8,
 }) !void {
     const tmp_dir = try shell.create_tmp_dir();
+
     defer shell.cwd.deleteTree(tmp_dir) catch {};
 
     try shell.exec("python3 -m venv {tmp_dir}", .{ .tmp_dir = tmp_dir });
@@ -137,6 +152,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
             log.warn("waiting for 5 minutes for the {s} version to appear in PyPi", .{
                 options.release,
             });
+
             std.time.sleep(5 * std.time.ns_per_min);
         }
     } else {
@@ -145,6 +161,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
             .release = options.release,
         }) catch |err| {
             log.err("package is not available in PyPi", .{});
+
             return err;
         };
     }
@@ -153,7 +170,9 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
         .development = true,
         .prebuilt = options.tigerbeetle,
     });
+
     defer tmp_beetle.deinit(gpa);
+
     errdefer tmp_beetle.log_stderr();
 
     try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -164,6 +183,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
         shell.cwd,
         "main.py",
     );
+
     try shell.exec("{tmp_dir}/bin/python3 main.py", .{ .tmp_dir = tmp_dir });
 }
 

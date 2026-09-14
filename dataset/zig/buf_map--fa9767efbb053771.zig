@@ -22,6 +22,7 @@ pub const BufMap = struct {
     /// of the stored keys and values.
     pub fn deinit(self: *BufMap) void {
         var it = self.hash_map.iterator();
+
         while (it.next()) |entry| {
             self.free(entry.key_ptr.*);
             self.free(entry.value_ptr.*);
@@ -35,27 +36,35 @@ pub const BufMap = struct {
     /// If `putMove` fails, the ownership of key and value does not transfer.
     pub fn putMove(self: *BufMap, key: []u8, value: []u8) !void {
         const get_or_put = try self.hash_map.getOrPut(key);
+
         if (get_or_put.found_existing) {
             self.free(get_or_put.key_ptr.*);
             self.free(get_or_put.value_ptr.*);
+
             get_or_put.key_ptr.* = key;
         }
+
         get_or_put.value_ptr.* = value;
     }
 
     /// `key` and `value` are copied into the BufMap.
     pub fn put(self: *BufMap, key: []const u8, value: []const u8) !void {
         const value_copy = try self.copy(value);
+
         errdefer self.free(value_copy);
+
         const get_or_put = try self.hash_map.getOrPut(key);
+
         if (get_or_put.found_existing) {
             self.free(get_or_put.value_ptr.*);
         } else {
             get_or_put.key_ptr.* = self.copy(key) catch |err| {
                 _ = self.hash_map.remove(key);
+
                 return err;
             };
         }
+
         get_or_put.value_ptr.* = value_copy;
     }
 
@@ -76,6 +85,7 @@ pub const BufMap = struct {
     /// This invalidates the value returned by get() for this key.
     pub fn remove(self: *BufMap, key: []const u8) void {
         const kv = self.hash_map.fetchRemove(key) orelse return;
+
         self.free(kv.key);
         self.free(kv.value);
     }
@@ -102,6 +112,7 @@ pub const BufMap = struct {
 test "BufMap" {
     const allocator = std.testing.allocator;
     var bufmap = BufMap.init(allocator);
+
     defer bufmap.deinit();
 
     try bufmap.put("x", "1");

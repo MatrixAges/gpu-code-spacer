@@ -1,5 +1,6 @@
 import path from 'node:path'
 import colors from 'picocolors'
+
 import type {
   ExternalOption,
   InputOption,
@@ -23,6 +24,7 @@ import type {
   WarningHandlerWithDefault,
   WatcherOptions,
 } from 'rolldown'
+
 import { viteLoadFallbackPlugin as nativeLoadFallbackPlugin } from 'rolldown/experimental'
 import { esmExternalRequirePlugin } from 'rolldown/plugins'
 import type { RollupCommonJSOptions } from '#dep-types/commonjs'
@@ -31,23 +33,28 @@ import type { EsbuildTarget } from '#types/internal/esbuildOptions'
 import type { AssetMetadata, ChunkMetadata } from '#types/metadata'
 import type { PartialEnvironment } from './baseEnvironment'
 import { BaseEnvironment } from './baseEnvironment'
+
 import type {
   EnvironmentOptions,
   InlineConfig,
   ResolvedConfig,
   ResolvedEnvironmentOptions,
 } from './config'
+
 import { resolveConfig } from './config'
+
 import {
   DEFAULT_ASSETS_INLINE_LIMIT,
   ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET,
   ROLLUP_HOOKS,
   VERSION,
 } from './constants'
+
 import {
   isFutureDeprecationEnabled,
   warnFutureDeprecation,
 } from './deprecations'
+
 import type { Environment } from './environment'
 import { type Logger } from './logger'
 import { findNearestMainPackageData, findNearestPackageData } from './packages'
@@ -63,12 +70,15 @@ import { prepareOutDirPlugin } from './plugins/prepareOutDir'
 import { buildReporterPlugin } from './plugins/reporter'
 import { type TerserOptions, terserPlugin } from './plugins/terser'
 import { webWorkerPostPlugin } from './plugins/worker'
+
 import {
   BasicMinimalPluginContext,
   basePluginContextMeta,
 } from './server/pluginContainer'
+
 import { ssrManifestPlugin } from './ssr/ssrManifestPlugin'
 import type { RollupPluginHooks } from './typeUtils'
+
 import {
   arraify,
   asyncFlatten,
@@ -82,6 +92,7 @@ import {
   setupRollupOptionCompat,
   unique,
 } from './utils'
+
 import {
   convertToWatcherOptions,
   getResolvedOutDirs,
@@ -143,6 +154,7 @@ export interface BuildEnvironmentOptions {
   assetsInlineLimit?:
     | number
     | ((filePath: string, content: Buffer) => boolean | undefined)
+
   /**
    * Whether to code-split CSS. When enabled, CSS in async chunks will be
    * inlined as strings in the chunk and inserted via dynamically created
@@ -361,6 +373,7 @@ export interface ModulePreloadOptions {
    */
   resolveDependencies?: ResolveModulePreloadDependenciesFn
 }
+
 export interface ResolvedModulePreloadOptions {
   polyfill: boolean
   resolveDependencies?: ResolveModulePreloadDependenciesFn
@@ -425,6 +438,7 @@ const _buildEnvironmentOptionsDefaults = Object.freeze({
   watch: null,
   // createEnvironment
 } satisfies BuildEnvironmentOptions)
+
 export const buildEnvironmentOptionsDefaults: Readonly<
   Partial<BuildEnvironmentOptions>
 > = _buildEnvironmentOptionsDefaults
@@ -438,13 +452,17 @@ export function resolveBuildEnvironmentOptions(
   isSsrTargetWebworkerEnvironment?: boolean,
 ): ResolvedBuildEnvironmentOptions {
   const deprecatedPolyfillModulePreload = raw.polyfillModulePreload
+
   const { polyfillModulePreload, ...rest } = raw
+
   raw = rest
+
   if (deprecatedPolyfillModulePreload !== undefined) {
     logger.warn(
       'polyfillModulePreload is deprecated. Use modulePreload.polyfill instead.',
     )
   }
+
   if (
     deprecatedPolyfillModulePreload === false &&
     raw.modulePreload === undefined
@@ -465,7 +483,9 @@ export function resolveBuildEnvironmentOptions(
     } satisfies BuildEnvironmentOptions,
     raw,
   )
+
   setupRollupOptionCompat(merged, 'build')
+
   merged.rolldownOptions = {
     platform:
       consumer === 'client' || isSsrTargetWebworkerEnvironment
@@ -473,6 +493,7 @@ export function resolveBuildEnvironmentOptions(
         : 'node',
     ...merged.rolldownOptions,
   }
+
   if (merged.lib && merged.lib.entry == null && input != null) {
     // avoid mutating the user-provided lib options object
     merged.lib = { ...merged.lib, entry: input }
@@ -482,6 +503,7 @@ export function resolveBuildEnvironmentOptions(
   if (merged.target === 'baseline-widely-available') {
     merged.target = ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET
   }
+
   // dedupe target
   if (Array.isArray(merged.target)) {
     // esbuild allowed duplicate targets but oxc does not
@@ -516,6 +538,7 @@ export function resolveBuildEnvironmentOptions(
               ...merged.modulePreload,
             },
   }
+
   // The object spread above evaluates the `rollupOptions` getter set up on
   // `merged` and copies it as a plain data property.
   setupRollupOptionCompat(resolved, 'build')
@@ -528,6 +551,7 @@ export function resolveBuildPlugins(config: ResolvedConfig): {
   post: Plugin[]
 } {
   const isBuild = config.command === 'build'
+
   return {
     pre: [
       ...(isBuild && !config.isWorker ? [prepareOutDirPlugin()] : []),
@@ -537,6 +561,7 @@ export function resolveBuildPlugins(config: ResolvedConfig): {
           if (!isBuild && !environment.config.isBundled) {
             return false
           }
+
           return (
             await asyncFlatten(
               arraify(environment.config.build.rolldownOptions.plugins),
@@ -574,7 +599,9 @@ export async function build(
 ): Promise<RolldownOutput | RolldownOutput[] | RolldownWatcher> {
   const builder = await createBuilder(inlineConfig, true)
   const environment = Object.values(builder.environments)[0]
+
   if (!environment) throw new Error('No environment found')
+
   return builder.build(environment)
 }
 
@@ -599,17 +626,22 @@ export function resolveRolldownOptions(
   chunkMetadataMap: ChunkMetadataMap,
 ): RolldownOptions {
   const { root, packageCache, base, build: options } = environment.config
+
   const libOptions = options.lib
+
   const { logger } = environment
+
   const ssr = environment.config.consumer === 'server'
 
   const resolve = (p: string) => path.resolve(root, p)
   const topLevelInput = environment.config.input
+
   if (libOptions && libOptions.entry == null) {
     throw new Error(
       `Either "build.lib.entry" or the top-level "input" option is required when "build.lib" is set.`,
     )
   }
+
   const input = libOptions
     ? options.rolldownOptions.input ||
       (typeof libOptions.entry === 'string'
@@ -633,6 +665,7 @@ export function resolveRolldownOptions(
         `Please specify a dedicated SSR entry.`,
     )
   }
+
   if (options.cssCodeSplit === false) {
     const inputs =
       typeof input === 'string'
@@ -640,6 +673,7 @@ export function resolveRolldownOptions(
         : Array.isArray(input)
           ? input
           : Object.values(input)
+
     if (inputs.some((input) => input.endsWith('.css'))) {
       throw new Error(
         `When "build.cssCodeSplit: false" is set, "rolldownOptions.input" should not include CSS files.`,
@@ -724,12 +758,14 @@ export function resolveRolldownOptions(
           `Please use "rolldownOptions.output" instead.`,
       )
     }
+
     if (output.file) {
       throw new Error(
         `Vite does not support "rolldownOptions.output.file". ` +
           `Please use "rolldownOptions.output.dir" and "rolldownOptions.output.entryFileNames" instead.`,
       )
     }
+
     if (output.sourcemap) {
       logger.warnOnce(
         colors.yellow(
@@ -740,6 +776,7 @@ export function resolveRolldownOptions(
     }
 
     const format = output.format || 'es'
+
     const jsExt =
       (ssr && !isSsrTargetWebworkerEnvironment) || libOptions
         ? resolveOutputJsExtension(
@@ -747,6 +784,7 @@ export function resolveRolldownOptions(
             findNearestPackageData(root, packageCache)?.data.type,
           )
         : 'js'
+
     return {
       dir: outDir,
       // Default format is 'es' for regular and for SSR builds
@@ -855,8 +893,10 @@ async function buildEnvironment(
 
   let bundle: RolldownBuild | undefined
   let startTime: number | undefined
+
   try {
     const chunkMetadataMap = new ChunkMetadataMap()
+
     const rolldownOptions = resolveRolldownOptions(
       environment,
       chunkMetadataMap,
@@ -871,12 +911,14 @@ async function buildEnvironment(
         options.outDir,
         options.rolldownOptions.output,
       )
+
       const emptyOutDir = resolveEmptyOutDir(
         options.emptyOutDir,
         root,
         resolvedOutDirs,
         logger,
       )
+
       const resolvedChokidarOptions = resolveChokidarOptions(
         {
           // @ts-expect-error chokidar option does not exist in rolldown but used for backward compat
@@ -890,6 +932,7 @@ async function buildEnvironment(
       )
 
       const { watch } = await import('rolldown')
+
       const watcher = watch({
         ...rolldownOptions,
         watch: {
@@ -908,8 +951,10 @@ async function buildEnvironment(
           logger.info(colors.cyan(`built in ${event.duration}ms.`))
         } else if (event.code === 'ERROR') {
           const e = event.error
+
           enhanceRollupError(e)
           clearLine()
+
           logger.error(e.message, { error: e })
         }
       })
@@ -919,31 +964,39 @@ async function buildEnvironment(
 
     // write or generate files with rolldown
     const { rolldown } = await import('rolldown')
+
     startTime = Date.now()
     bundle = await rolldown(rolldownOptions)
 
     const res: RolldownOutput[] = []
+
     for (const output of arraify(rolldownOptions.output!)) {
       res.push(await bundle[options.write ? 'write' : 'generate'](output))
     }
+
     for (const output of res) {
       for (const chunk of output.output) {
         injectChunkMetadata(chunkMetadataMap, chunk)
       }
     }
+
     logger.info(
       `${colors.green(`✓ built in ${displayTime(Date.now() - startTime)}`)}`,
     )
+
     return Array.isArray(rolldownOptions.output) ? res : res[0]
   } catch (e) {
     enhanceRollupError(e)
     clearLine()
+
     if (startTime) {
       logger.error(
         `${colors.red('✗')} Build failed in ${displayTime(Date.now() - startTime)}`,
       )
+
       startTime = undefined
     }
+
     throw e
   } finally {
     if (bundle) await bundle.close()
@@ -954,6 +1007,7 @@ export function enhanceRollupError(e: RollupError): void {
   const stackOnly = extractStack(e)
 
   let msg = colors.red((e.plugin ? `[${e.plugin}] ` : '') + e.message)
+
   if (e.loc && e.loc.file && e.loc.file !== e.id) {
     msg += `\nfile: ${colors.cyan(
       `${e.loc.file}:${e.loc.line}:${e.loc.column}` +
@@ -964,6 +1018,7 @@ export function enhanceRollupError(e: RollupError): void {
       e.id + (e.loc ? `:${e.loc.line}:${e.loc.column}` : ''),
     )}`
   }
+
   if (e.frame) {
     msg += `\n` + colors.yellow(normalizeCodeFrame(e.frame))
   }
@@ -993,6 +1048,7 @@ function extractStack(e: RollupError) {
   }
 
   const expectedPrefix = `${name}: ${message}\n`
+
   if (stack.startsWith(expectedPrefix)) {
     return stack.slice(expectedPrefix.length)
   }
@@ -1006,6 +1062,7 @@ function extractStack(e: RollupError) {
  */
 function normalizeCodeFrame(frame: string) {
   const trimmedPadding = frame.replace(/^\n|\n$/g, '')
+
   return `\n${trimmedPadding}\n`
 }
 
@@ -1035,6 +1092,7 @@ export function resolveLibFilename(
   }
 
   const packageJson = findNearestMainPackageData(root, packageCache)?.data
+
   const name =
     libOptions.fileName ||
     (packageJson && typeof libOptions.entry === 'string'
@@ -1065,6 +1123,7 @@ export function resolveBuildOutputs(
       typeof libOptions.entry !== 'string' &&
       libOptions.entry &&
       Object.values(libOptions.entry).length > 1
+
     const libFormats =
       libOptions.formats ||
       (libHasMultipleEntries ? ['es', 'cjs'] : ['es', 'umd'])
@@ -1112,6 +1171,7 @@ export function resolveBuildOutputs(
 }
 
 const warningIgnoreList = [`CIRCULAR_DEPENDENCY`, `THIS_IS_UNDEFINED`]
+
 const dynamicImportWarningIgnoreList = [
   `Unsupported expression`,
   `statically analyzed`,
@@ -1119,6 +1179,7 @@ const dynamicImportWarningIgnoreList = [
 
 export function clearLine(): void {
   const tty = process.stdout.isTTY && !process.env.CI
+
   if (tty) {
     process.stdout.clearLine(0)
     process.stdout.cursorTo(0)
@@ -1131,6 +1192,7 @@ export function onRollupLog(
   environment: Environment,
 ): void {
   const debugLogger = createDebugger('vite:build')
+
   const viteLog: LogOrStringHandler = (logLeveling, rawLogging) => {
     const logging =
       typeof rawLogging === 'object' ? rawLogging : { message: rawLogging }
@@ -1138,6 +1200,7 @@ export function onRollupLog(
     if (logging.code === 'UNRESOLVED_IMPORT') {
       const id = logging.id
       const exporter = logging.exporter
+
       // throw unless it's commonjs external...
       if (!id || !id.endsWith('?commonjs-external')) {
         throw new Error(
@@ -1166,6 +1229,7 @@ export function onRollupLog(
 
     // append plugin name to align with Rollup's behavior
     let message = logging.message
+
     if (logging.plugin) {
       message = `[plugin ${logging.plugin}] ${message}`
     }
@@ -1173,36 +1237,46 @@ export function onRollupLog(
     switch (logLeveling) {
       case 'info':
         environment.logger.info(message)
+
         return
       case 'warn':
         environment.logger.warn(colors.yellow(message))
+
         return
       case 'error':
         environment.logger.error(colors.red(message))
+
         return
       case 'debug':
         debugLogger?.(message)
+
         return
       default:
         logLeveling satisfies never
+
         // fallback to info if a unknown log level is passed
         environment.logger.info(message)
+
         return
     }
   }
 
   clearLine()
+
   const userOnLog = environment.config.build.rolldownOptions?.onLog
   const userOnWarn = environment.config.build.rolldownOptions?.onwarn
+
   if (userOnLog) {
     if (userOnWarn) {
       const normalizedUserOnWarn = normalizeUserOnWarn(userOnWarn, viteLog)
+
       userOnLog(level, log, normalizedUserOnWarn)
     } else {
       userOnLog(level, log, viteLog)
     }
   } else if (userOnWarn) {
     const normalizedUserOnWarn = normalizeUserOnWarn(userOnWarn, viteLog)
+
     normalizedUserOnWarn(level, log)
   } else {
     viteLog(level, log)
@@ -1281,15 +1355,18 @@ export class ChunkMetadataMap {
     chunk: RenderedChunk | OutputChunk | OutputAsset,
   ): ChunkMetadata | AssetMetadata {
     const key = this._getKey(chunk)
+
     if (!this._inner.has(key)) {
       this._inner.set(key, this._getDefaultValue(chunk))
     }
+
     return this._inner.get(key)!
   }
 
   // reset chunk metadata on the first RenderChunk call for watch mode
   reset(chunk: RenderedChunk | OutputChunk | OutputAsset): void {
     const key = this._getKey(chunk)
+
     if (this._resetChunks.has(key)) return
 
     this._resetChunks.add(key)
@@ -1322,9 +1399,11 @@ export function injectEnvironmentToHooks(
           resolveId,
           plugin.name,
         )
+
         break
       case 'load':
         clone[hook] = wrapEnvironmentLoad(environment, load, plugin.name)
+
         break
       case 'transform':
         clone[hook] = wrapEnvironmentTransform(
@@ -1332,6 +1411,7 @@ export function injectEnvironmentToHooks(
           transform,
           plugin.name,
         )
+
         break
       default:
         if (ROLLUP_HOOKS.includes(hook)) {
@@ -1342,6 +1422,7 @@ export function injectEnvironmentToHooks(
             hook,
           )
         }
+
         break
     }
   }
@@ -1354,10 +1435,12 @@ type AbstractHook<Handler extends Function> = {
   filter?: unknown
   order?: unknown
 }
+
 const wrappedHookMap = new WeakMap<
   AbstractHook<Function>,
   Array<AbstractHook<Function>>
 >()
+
 function wrapHookObject<
   Handler extends Function,
   Hook extends AbstractHook<Handler>,
@@ -1369,6 +1452,7 @@ function wrapHookObject<
 
   if (!wrappedHookMap.has(hook)) {
     wrappedHookMap.set(hook, [])
+
     Object.defineProperty(hook, 'filter', {
       get() {
         return wrappedHookMap.get(hook)![0].filter
@@ -1379,6 +1463,7 @@ function wrapHookObject<
         }
       },
     })
+
     Object.defineProperty(hook, 'order', {
       get() {
         return wrappedHookMap.get(hook)![0].order
@@ -1390,6 +1475,7 @@ function wrapHookObject<
       },
     })
   }
+
   wrappedHookMap.get(hook)!.push(newHook)
 
   return newHook
@@ -1403,6 +1489,7 @@ function wrapEnvironmentResolveId(
   if (!hook) return
 
   const fn = getHookHandler(hook)
+
   const handler: Plugin['resolveId'] = function (id, importer, options) {
     return fn.call(
       injectEnvironmentInContext(this, environment),
@@ -1427,6 +1514,7 @@ function wrapEnvironmentLoad(
   if (!hook) return
 
   const fn = getHookHandler(hook)
+
   const handler: Plugin['load'] = function (id, ...args) {
     return fn.call(
       injectEnvironmentInContext(this, environment),
@@ -1450,6 +1538,7 @@ function wrapEnvironmentTransform(
   if (!hook) return
 
   const fn = getHookHandler(hook)
+
   const handler: Plugin['transform'] = function (code, importer, ...args) {
     return fn.call(
       injectEnvironmentInContext(this, environment),
@@ -1473,9 +1562,11 @@ function wrapEnvironmentHook<HookName extends keyof Plugin>(
   hookName: HookName,
 ): Plugin[HookName] {
   const hook = plugin[hookName]
+
   if (!hook) return
 
   const fn = getHookHandler(hook)
+
   if (typeof fn !== 'function') return hook
 
   const handler: Plugin[HookName] = function (
@@ -1485,15 +1576,19 @@ function wrapEnvironmentHook<HookName extends keyof Plugin>(
     if (hookName === 'renderChunk') {
       injectChunkMetadata(chunkMetadataMap, args[1], true)
     }
+
     if (hookName === 'augmentChunkHash') {
       injectChunkMetadata(chunkMetadataMap, args[0])
     }
+
     if (hookName === 'generateBundle' || hookName === 'writeBundle') {
       const bundle = args[1] as OutputBundle
+
       for (const chunk of Object.values(bundle)) {
         injectChunkMetadata(chunkMetadataMap, chunk)
       }
     }
+
     return fn.call(injectEnvironmentInContext(this, environment), ...args)
   }
 
@@ -1512,12 +1607,14 @@ function injectChunkMetadata(
   if (resetChunkMetadata) {
     chunkMetadataMap.reset(chunk)
   }
+
   // define instead of assign to avoid detected as a change
   // https://github.com/rolldown/rolldown/blob/f4c5ff27799f2b0152c689c398e61bc7d30429ff/packages/rolldown/src/utils/transform-to-rollup-output.ts#L87
   Object.defineProperty(chunk, 'viteMetadata', {
     value: chunkMetadataMap.get(chunk),
     enumerable: true,
   })
+
   if (chunk.type === 'chunk') {
     Object.defineProperty(chunk, 'modules', {
       get() {
@@ -1534,6 +1631,7 @@ function injectEnvironmentInContext<Context extends MinimalPluginContext>(
 ) {
   context.meta.viteVersion ??= VERSION
   context.environment ??= environment
+
   return context
 }
 
@@ -1543,6 +1641,7 @@ function injectSsrFlag<T extends Record<string, any>>(
   pluginName: string,
 ): T & { ssr?: boolean } {
   let ssr = environment.config.consumer === 'server'
+
   const newOptions = { ...(options ?? {}), ssr } as T & {
     ssr?: boolean
   }
@@ -1560,6 +1659,7 @@ function injectSsrFlag<T extends Record<string, any>>(
           'removePluginHookSsrArgument',
           `Used in plugin "${pluginName}".`,
         )
+
         return ssr
       },
       set(v) {
@@ -1588,6 +1688,7 @@ const backSlashRegEx = /\\/g
 
 function escapeId(id: string): string {
   if (!needsEscapeRegEx.test(id)) return id
+
   return id.replace(backSlashRegEx, '\\\\').replace(quoteNewlineRegEx, '\\$1')
 }
 
@@ -1667,9 +1768,13 @@ export function toOutputFilePathInJS(
   ) => string | { runtime: string },
 ): string | { runtime: string } {
   const { experimental, base, decodedBase } = environment.config
+
   const ssr = environment.config.consumer === 'server' // was !!environment.config.build.ssr
+
   const { renderBuiltUrl } = experimental
+
   let relative = base === '' || base === './'
+
   if (renderBuiltUrl) {
     const result = renderBuiltUrl(filename, {
       hostId,
@@ -1677,10 +1782,12 @@ export function toOutputFilePathInJS(
       type,
       ssr,
     })
+
     if (typeof result === 'object') {
       if (result.runtime) {
         return { runtime: result.runtime }
       }
+
       if (typeof result.relative === 'boolean') {
         relative = result.relative
       }
@@ -1688,9 +1795,11 @@ export function toOutputFilePathInJS(
       return result
     }
   }
+
   if (relative && !ssr) {
     return toRelative(filename, hostId)
   }
+
   return joinUrlSegments(decodedBase, filename)
 }
 
@@ -1700,6 +1809,7 @@ export function createToImportMetaURLBasedRelativeRuntime(
 ): (filename: string, importer: string) => { runtime: string } {
   const formatLong = isWorker && format === 'iife' ? 'worker-iife' : format
   const toRelativePath = customRelativeUrlMechanisms[formatLong]
+
   return (filename, importer) => ({
     runtime: toRelativePath(
       path.posix.relative(path.dirname(importer), filename),
@@ -1716,7 +1826,9 @@ export function toOutputFilePathWithoutRuntime(
   toRelative: (filename: string, hostId: string) => string,
 ): string {
   const { renderBuiltUrl } = config.experimental
+
   let relative = config.base === '' || config.base === './'
+
   if (renderBuiltUrl) {
     const result = renderBuiltUrl(filename, {
       hostId,
@@ -1724,12 +1836,14 @@ export function toOutputFilePathWithoutRuntime(
       type,
       ssr: !!config.build.ssr,
     })
+
     if (typeof result === 'object') {
       if (result.runtime) {
         throw new Error(
           `{ runtime: "${result.runtime}" } is not supported for assets in ${hostType} files: ${filename}`,
         )
       }
+
       if (typeof result.relative === 'boolean') {
         relative = result.relative
       }
@@ -1737,6 +1851,7 @@ export function toOutputFilePathWithoutRuntime(
       return result
     }
   }
+
   if (relative && !config.build.ssr) {
     return toRelative(filename, hostId)
   } else {
@@ -1746,6 +1861,7 @@ export function toOutputFilePathWithoutRuntime(
 
 export const toOutputFilePathInCss: typeof toOutputFilePathWithoutRuntime =
   toOutputFilePathWithoutRuntime
+
 export const toOutputFilePathInHtml: typeof toOutputFilePathWithoutRuntime =
   toOutputFilePathWithoutRuntime
 
@@ -1753,6 +1869,7 @@ export class BuildEnvironment extends BaseEnvironment {
   mode = 'build' as const
 
   isBuilt = false
+
   constructor(
     name: string,
     config: ResolvedConfig,
@@ -1761,15 +1878,18 @@ export class BuildEnvironment extends BaseEnvironment {
     },
   ) {
     let options = config.environments[name]
+
     if (!options) {
       throw new Error(`Environment "${name}" is not defined in the config.`)
     }
+
     if (setup?.options) {
       options = mergeConfig(
         options,
         setup.options,
       ) as ResolvedEnvironmentOptions
     }
+
     super(name, config, options)
   }
 
@@ -1777,6 +1897,7 @@ export class BuildEnvironment extends BaseEnvironment {
     if (this._initiated) {
       return
     }
+
     this._initiated = true
   }
 }
@@ -1784,10 +1905,13 @@ export class BuildEnvironment extends BaseEnvironment {
 export interface ViteBuilder {
   environments: Record<string, BuildEnvironment>
   config: ResolvedConfig
+
   buildApp(): Promise<void>
+
   build(
     environment: BuildEnvironment,
   ): Promise<RolldownOutput | RolldownOutput[] | RolldownWatcher>
+
   runDevTools(): Promise<void>
 }
 
@@ -1814,6 +1938,7 @@ const _builderOptionsDefaults = Object.freeze({
   sharedPlugins: false,
   // buildApp
 } satisfies BuilderOptions)
+
 export const builderOptionsDefaults: Readonly<Partial<BuilderOptions>> =
   _builderOptionsDefaults
 
@@ -1821,6 +1946,7 @@ export function resolveBuilderOptions(
   options: BuilderOptions | undefined,
 ): ResolvedBuilderOptions | undefined {
   if (!options) return
+
   return mergeWithDefaults(
     { ..._builderOptionsDefaults, buildApp: async () => {} },
     options,
@@ -1845,12 +1971,16 @@ export async function createBuilder(
     // We can deprecate `config.build` in ResolvedConfig and push everyone to upgrade, and later
     // remove the default values that shouldn't be used at all once the config is resolved
     const environmentName = resolved.build.ssr ? 'ssr' : 'client'
+
     ;(resolved.build as ResolvedBuildOptions) = {
       ...resolved.environments[environmentName].build,
     }
   }
+
   const config = await resolveConfigToBuild(inlineConfig, patchConfig)
+
   useLegacyBuilder ??= !config.builder
+
   const configBuilder = config.builder ?? resolveBuilderOptions({})!
 
   const environments: Record<string, BuildEnvironment> = {}
@@ -1866,22 +1996,29 @@ export async function createBuilder(
 
       // order 'pre' and 'normal' hooks are run first, then config.builder.buildApp, then 'post' hooks
       let configBuilderBuildAppCalled = false
+
       for (const p of config.getSortedPlugins('buildApp')) {
         const hook = p.buildApp
+
         if (
           !configBuilderBuildAppCalled &&
           typeof hook === 'object' &&
           hook.order === 'post'
         ) {
           configBuilderBuildAppCalled = true
+
           await configBuilder.buildApp(builder)
         }
+
         const handler = getHookHandler(hook)
+
         await handler.call(pluginContext, builder)
       }
+
       if (!configBuilderBuildAppCalled) {
         await configBuilder.buildApp(builder)
       }
+
       // fallback to building all environments if no environments have been built
       if (
         Object.values(builder.environments).every(
@@ -1897,13 +2034,16 @@ export async function createBuilder(
       environment: BuildEnvironment,
     ): Promise<RolldownOutput | RolldownOutput[] | RolldownWatcher> {
       const output = await buildEnvironment(environment)
+
       environment.isBuilt = true
+
       return output
     },
     async runDevTools() {
       if (config.devtools) {
         try {
           const { runDevTools } = await import('@vitejs/devtools/integration')
+
           await runDevTools(builder)
         } catch (e) {
           config.logger.error(
@@ -1919,7 +2059,9 @@ export async function createBuilder(
 
   async function setupEnvironment(name: string, config: ResolvedConfig) {
     const environment = await config.build.createEnvironment(name, config)
+
     await environment.init()
+
     environments[name] = environment
   }
 
@@ -1927,6 +2069,7 @@ export async function createBuilder(
     await setupEnvironment(config.build.ssr ? 'ssr' : 'client', config)
   } else {
     const environmentConfigs: [string, ResolvedConfig][] = []
+
     for (const environmentName of Object.keys(config.environments)) {
       // We need to resolve the config again so we can properly merge options
       // and get a new set of plugins for each build environment. The ecosystem
@@ -1934,6 +2077,7 @@ export async function createBuilder(
       // and to process a single bundle at a time (contrary to dev mode where
       // plugins are built to handle multiple environments concurrently).
       let environmentConfig = config
+
       if (!configBuilder.sharedConfigBuild) {
         const patchConfig = (resolved: ResolvedConfig) => {
           // Until the ecosystem updates to use `environment.config.build` instead of `config.build`,
@@ -1944,11 +2088,14 @@ export async function createBuilder(
             ...resolved.environments[environmentName].build,
           }
         }
+
         const patchPlugins = (resolvedPlugins: Plugin[]) => {
           // Force opt-in shared plugins
           let j = 0
+
           for (let i = 0; i < resolvedPlugins.length; i++) {
             const environmentPlugin = resolvedPlugins[i]
+
             if (
               configBuilder.sharedPlugins ||
               environmentPlugin.sharedDuringBuild
@@ -1957,20 +2104,24 @@ export async function createBuilder(
                 if (environmentPlugin.name === config.plugins[k].name) {
                   resolvedPlugins[i] = config.plugins[k]
                   j = k + 1
+
                   break
                 }
               }
             }
           }
         }
+
         environmentConfig = await resolveConfigToBuild(
           inlineConfig,
           patchConfig,
           patchPlugins,
         )
       }
+
       environmentConfigs.push([environmentName, environmentConfig])
     }
+
     await Promise.all(
       environmentConfigs.map(
         async ([environmentName, environmentConfig]) =>

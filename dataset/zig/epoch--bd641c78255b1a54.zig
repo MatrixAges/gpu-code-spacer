@@ -24,7 +24,6 @@ pub const pickos = -63244800;
 pub const gps = 315964800;
 /// Jan 01, 0001 AD
 pub const clr = -62135769600;
-
 pub const unix = posix;
 pub const android = posix;
 pub const os2 = dos;
@@ -41,15 +40,16 @@ pub const go = clr;
 
 /// The type that holds the current year, i.e. 2016
 pub const Year = u16;
-
 pub const epoch_year = 1970;
 pub const secs_per_day: u17 = 24 * 60 * 60;
 
 pub fn isLeapYear(year: Year) bool {
     if (@mod(year, 4) != 0)
         return false;
+
     if (@mod(year, 100) != 0)
         return true;
+
     return (0 == @mod(year, 400));
 }
 
@@ -114,13 +114,17 @@ pub const YearAndDay = struct {
     pub fn calculateMonthDay(self: YearAndDay) MonthAndDay {
         var month: Month = .jan;
         var days_left = self.day;
+
         while (true) {
             const days_in_month = getDaysInMonth(self.year, month);
+
             if (days_left < days_in_month)
                 break;
+
             days_left -= days_in_month;
             month = @as(Month, @enumFromInt(@intFromEnum(month) + 1));
         }
+
         return .{ .month = month, .day_index = @as(u5, @intCast(days_left)) };
     }
 };
@@ -133,16 +137,21 @@ pub const MonthAndDay = struct {
 /// days since epoch Jan 1, 1970
 pub const EpochDay = struct {
     day: u47, // u47 = u64 - u17 (because day = sec(u64) / secs_per_day(u17)
+
     pub fn calculateYearDay(self: EpochDay) YearAndDay {
         var year_day = self.day;
         var year: Year = epoch_year;
+
         while (true) {
             const year_size = getDaysInYear(year);
+
             if (year_day < year_size)
                 break;
+
             year_day -= year_size;
             year += 1;
         }
+
         return .{ .year = year, .day = @as(u9, @intCast(year_day)) };
     }
 };
@@ -155,10 +164,12 @@ pub const DaySeconds = struct {
     pub fn getHoursIntoDay(self: DaySeconds) u5 {
         return @as(u5, @intCast(@divTrunc(self.secs, 3600)));
     }
+
     /// the number of minutes past the hour (0 to 59)
     pub fn getMinutesIntoHour(self: DaySeconds) u6 {
         return @as(u6, @intCast(@divTrunc(@mod(self.secs, 3600), 60)));
     }
+
     /// the number of seconds past the start of the minute (0 to 59)
     pub fn getSecondsIntoMinute(self: DaySeconds) u6 {
         return math.comptimeMod(self.secs, 60);
@@ -194,6 +205,7 @@ fn testEpoch(secs: u64, expected_year_day: YearAndDay, expected_month_day: Month
     const epoch_day = epoch_seconds.getEpochDay();
     const day_seconds = epoch_seconds.getDaySeconds();
     const year_day = epoch_day.calculateYearDay();
+
     try testing.expectEqual(expected_year_day, year_day);
     try testing.expectEqual(expected_month_day, year_day.calculateMonthDay());
     try testing.expectEqual(expected_day_seconds.hours_into_day, day_seconds.getHoursIntoDay());

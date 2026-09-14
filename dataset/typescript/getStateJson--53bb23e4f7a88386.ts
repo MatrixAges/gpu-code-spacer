@@ -3,6 +3,7 @@ import type { SerializedEditorState } from 'lexical'
 
 export default (nodes: Array<Note.Item>, gather: (key: Note.Item['id']) => void) => {
 	let head_id: string | undefined
+
 	let effect_items = [] as Array<Note.Item>
 
 	const next_ids = new Set()
@@ -26,6 +27,7 @@ export default (nodes: Array<Note.Item>, gather: (key: Note.Item['id']) => void)
 
 		if (head_id) {
 			const head_item = node_map.get(head_id)!
+
 			const target_head_item = { ...head_item, prev: undefined }
 
 			node_map.set(head_id, target_head_item)

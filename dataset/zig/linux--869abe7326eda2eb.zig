@@ -48,6 +48,7 @@ pub const IO = struct {
             },
             error.PermissionDenied => {
                 log.err("io_uring is not available", .{});
+
                 log.err("likely cause: the syscall is disabled by sysctl, " ++
                     "try 'sysctl -w kernel.io_uring_disabled=0'", .{});
             },
@@ -55,6 +56,7 @@ pub const IO = struct {
         };
 
         var ring = try IO_Uring.init(entries, flags);
+
         errdefer ring.deinit();
 
         // IORING_ENTER_EXT_ARG is the newest feature we currently use: it was added in 5.11.
@@ -91,15 +93,19 @@ pub const IO = struct {
     /// in the kernel_timespec struct.
     pub fn run_for_ns(self: *IO, nanoseconds: u63) !void {
         assert(!self.run_for_ns_active);
+
         self.run_for_ns_active = true;
+
         defer {
             assert(self.run_for_ns_active);
+
             self.run_for_ns_active = false;
         }
 
         defer self.stats.trace();
 
         const timer = self.time.monotonic();
+
         defer self.stats.window.time_run_for_ns.ns +=
             timer.elapsed(self.time.monotonic()).ns;
 
@@ -113,7 +119,6 @@ pub const IO = struct {
 
             try self.flush_submissions(@intCast(block_ns));
             try self.flush_completions(0);
-
             try self.run_callback();
         }
 
@@ -125,6 +130,7 @@ pub const IO = struct {
         // We guard against an io_uring_enter() syscall if we know we do not have any queued SQEs.
         // We cannot use `self.ring.sq_ready()` here since this counts flushed and unflushed SQEs.
         const queued = self.ring.sq.sqe_tail -% self.ring.sq.sqe_head;
+
         if (queued == 0 and wait_duration_ns == 0) {
             return;
         }
@@ -133,6 +139,7 @@ pub const IO = struct {
 
         while (true) {
             const timer = self.time.monotonic();
+
             // Doesn't account for flush_completions below; which indicates a bad assumption either
             // on our sizing of the loop, or a bug in the kernel.
             defer self.stats.window.time_kernel.ns +=
@@ -172,6 +179,7 @@ pub const IO = struct {
     /// Copy completions out of the ring and into `self.completed`.
     fn flush_completions(self: *IO, wait_nr: u32) !void {
         var cqes: [256]io_uring_cqe = undefined;
+
         while (true) {
             const completed = self.ring.copy_cqes(&cqes, wait_nr) catch |err| switch (err) {
                 error.SignalInterrupt => continue,
@@ -182,6 +190,7 @@ pub const IO = struct {
                 self.ios_in_kernel -= 1;
 
                 const completion: *Completion = @ptrFromInt(cqe.user_data);
+
                 completion.result = cqe.res;
 
                 // We do not run the completion here (instead appending to a linked list) to avoid:
@@ -199,6 +208,7 @@ pub const IO = struct {
         const completion = self.completed.pop() orelse return;
 
         const timer = self.time.monotonic();
+
         defer self.stats.window.time_callbacks.ns +=
             timer.elapsed(self.time.monotonic()).ns;
 
@@ -214,11 +224,13 @@ pub const IO = struct {
                 );
 
                 self.flush_submissions(0) catch unreachable;
+
                 break :blk self.ring.get_sqe() catch |err_inner| switch (err_inner) {
                     error.SubmissionQueueFull => unreachable,
                 };
             },
         };
+
         completion.prep(sqe);
 
         self.ios_queued += 1;
@@ -266,6 +278,7 @@ pub const IO = struct {
                 else => err,
             };
         }
+
         return submitted;
     }
 
@@ -349,12 +362,14 @@ pub const IO = struct {
             .callback = erase_types(Context, NextTickResult, callback),
             .operation = .{ .next_tick = .{ .source = source } },
         };
+
         self.completed.push(completion);
     }
 
     /// Remove all next_tick entries with the given source from the completed queue.
     pub fn reset_next_tick(self: *IO, source: NextTickSource) void {
         var completed = self.completed;
+
         self.completed.reset();
 
         while (completed.pop()) |completion| {
@@ -363,6 +378,7 @@ pub const IO = struct {
             {
                 continue;
             }
+
             self.completed.push(completion);
         }
     }
@@ -374,6 +390,7 @@ pub const IO = struct {
         link: QueueType(Completion).Link = .{},
         operation: Operation,
         context: *anyopaque,
+
         callback: *const fn (
             context: *anyopaque,
             completion: *Completion,
@@ -445,6 +462,7 @@ pub const IO = struct {
                 },
                 .next_tick => unreachable, // Never submitted to the kernel.
             }
+
             sqe.user_data = @intFromPtr(completion);
         }
 
@@ -456,6 +474,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .AGAIN => error.WouldBlock,
@@ -473,11 +492,13 @@ pub const IO = struct {
                                 .PROTO => error.ProtocolFailure,
                                 else => |errno| stdx.unexpected_errno("accept", errno),
                             };
+
                             break :blk err;
                         } else {
                             break :blk @intCast(completion.result);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .close => {
@@ -492,11 +513,13 @@ pub const IO = struct {
                                 .NOSPC => error.NoSpaceLeft,
                                 else => |errno| stdx.unexpected_errno("close", errno),
                             };
+
                             break :blk err;
                         } else {
                             assert(completion.result == 0);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .connect => {
@@ -505,6 +528,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .ACCES => error.AccessDenied,
@@ -528,11 +552,13 @@ pub const IO = struct {
                                 .TIMEDOUT => error.ConnectionTimedOut,
                                 else => |errno| stdx.unexpected_errno("connect", errno),
                             };
+
                             break :blk err;
                         } else {
                             assert(completion.result == 0);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .fsync => {
@@ -541,6 +567,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .BADF => error.FileDescriptorInvalid,
@@ -548,11 +575,13 @@ pub const IO = struct {
                                 .INVAL => unreachable,
                                 else => |errno| stdx.unexpected_errno("fsync", errno),
                             };
+
                             break :blk err;
                         } else {
                             assert(completion.result == 0);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .openat => {
@@ -561,6 +590,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .FAULT => unreachable,
@@ -587,11 +617,13 @@ pub const IO = struct {
                                 .TXTBSY => error.FileBusy,
                                 else => |errno| stdx.unexpected_errno("openat", errno),
                             };
+
                             break :blk err;
                         } else {
                             break :blk @intCast(completion.result);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .read => {
@@ -602,6 +634,7 @@ pub const IO = struct {
                                     // Some file systems, like XFS, can return EAGAIN even when
                                     // reading from a blocking file without flags like RWF_NOWAIT.
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .BADF => error.NotOpenForReading,
@@ -618,11 +651,13 @@ pub const IO = struct {
                                 .TIMEDOUT => error.ConnectionTimedOut,
                                 else => |errno| stdx.unexpected_errno("read", errno),
                             };
+
                             break :blk err;
                         } else {
                             break :blk @intCast(completion.result);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .recv => {
@@ -631,6 +666,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .AGAIN => error.WouldBlock,
@@ -647,11 +683,13 @@ pub const IO = struct {
                                 .OPNOTSUPP => error.OperationNotSupported,
                                 else => |errno| stdx.unexpected_errno("recv", errno),
                             };
+
                             break :blk err;
                         } else {
                             break :blk @intCast(completion.result);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .send => {
@@ -660,6 +698,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .ACCES => error.AccessDenied,
@@ -685,11 +724,13 @@ pub const IO = struct {
                                 .CANCELED => error.Canceled,
                                 else => |errno| stdx.unexpected_errno("send", errno),
                             };
+
                             break :blk err;
                         } else {
                             break :blk @intCast(completion.result);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .statx => {
@@ -698,6 +739,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .FAULT => unreachable,
@@ -711,25 +753,31 @@ pub const IO = struct {
                                 .NOTDIR => error.NotDir,
                                 else => |errno| stdx.unexpected_errno("statx", errno),
                             };
+
                             break :blk err;
                         } else {
                             assert(completion.result == 0);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .timeout => {
                     assert(completion.result < 0);
+
                     const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                         .INTR => {
                             completion.io.enqueue(completion);
+
                             return;
                         },
                         .CANCELED => error.Canceled,
                         .TIME => {}, // A success.
                         else => |errno| stdx.unexpected_errno("timeout", errno),
                     };
+
                     const result: TimeoutError!void = err;
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .write => {
@@ -738,6 +786,7 @@ pub const IO = struct {
                             const err = switch (@as(posix.E, @enumFromInt(-completion.result))) {
                                 .INTR => {
                                     completion.io.enqueue(completion);
+
                                     return;
                                 },
                                 .AGAIN => error.WouldBlock,
@@ -756,15 +805,18 @@ pub const IO = struct {
                                 .SPIPE => error.Unseekable,
                                 else => |errno| stdx.unexpected_errno("write", errno),
                             };
+
                             break :blk err;
                         } else {
                             break :blk @intCast(completion.result);
                         }
                     };
+
                     completion.callback(completion.context, completion, &result);
                 },
                 .next_tick => {
                     const result: NextTickResult = {};
+
                     completion.callback(completion.context, completion, &result);
                 },
             }
@@ -778,36 +830,44 @@ pub const IO = struct {
             address: posix.sockaddr = undefined,
             address_size: posix.socklen_t = @sizeOf(posix.sockaddr),
         },
+
         close: struct {
             fd: fd_t,
         },
+
         connect: struct {
             socket: socket_t,
             address: std.net.Address,
         },
+
         fsync: struct {
             fd: fd_t,
             flags: u32,
         },
+
         openat: struct {
             dir_fd: fd_t,
             file_path: [*:0]const u8,
             flags: posix.O,
             mode: posix.mode_t,
         },
+
         read: struct {
             fd: fd_t,
             buffer: []u8,
             offset: u64,
         },
+
         recv: struct {
             socket: socket_t,
             buffer: []u8,
         },
+
         send: struct {
             socket: socket_t,
             buffer: []const u8,
         },
+
         statx: struct {
             dir_fd: fd_t,
             file_path: [*:0]const u8,
@@ -815,14 +875,17 @@ pub const IO = struct {
             mask: u32,
             statxbuf: *std.os.linux.Statx,
         },
+
         timeout: struct {
             timespec: os.linux.kernel_timespec,
         },
+
         write: struct {
             fd: fd_t,
             buffer: []const u8,
             offset: u64,
         },
+
         next_tick: struct {
             source: NextTickSource,
         },
@@ -866,6 +929,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -896,6 +960,7 @@ pub const IO = struct {
                 .close = .{ .fd = fd },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -945,6 +1010,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -976,6 +1042,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -997,6 +1064,7 @@ pub const IO = struct {
         mode: posix.mode_t,
     ) void {
         var new_flags = flags;
+
         new_flags.CLOEXEC = true;
 
         completion.* = .{
@@ -1012,6 +1080,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -1053,6 +1122,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -1093,6 +1163,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -1138,12 +1209,14 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
     /// Best effort to synchronously transfer bytes to the kernel.
     pub fn send_now(self: *IO, socket: socket_t, buffer: []const u8) ?usize {
         _ = self;
+
         // posix.send is a thin wrapper around posix.sendto() that assumes the socket is connected
         // and has an `unreachable` on eg NetworkUnreachable and a few others. Tring to check this
         // before using the socket is race prone, so rather use sendto() directly to correctly
@@ -1198,6 +1271,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -1263,6 +1337,7 @@ pub const IO = struct {
     ) void {
         // Linux dsync is efficient - it's used on every write.
         assert(dsync_all);
+
         _ = options;
 
         completion.* = .{
@@ -1277,6 +1352,7 @@ pub const IO = struct {
                 },
             },
         };
+
         self.enqueue(completion);
     }
 
@@ -1294,7 +1370,9 @@ pub const IO = struct {
             => return error.SystemResources,
             error.Unexpected => return error.Unexpected,
         };
+
         assert(event_fd != INVALID_EVENT);
+
         errdefer os.close(event_fd);
 
         return event_fd;
@@ -1307,6 +1385,7 @@ pub const IO = struct {
         comptime on_event: fn (*Completion) void,
     ) void {
         assert(event != INVALID_EVENT);
+
         const Context = struct {
             const Context = @This();
             var buffer: u64 = undefined;
@@ -1317,7 +1396,9 @@ pub const IO = struct {
                 result: ReadError!usize,
             ) void {
                 const bytes = result catch unreachable; // eventfd reads should not fail.
+
                 assert(bytes == @sizeOf(u64));
+
                 on_event(completion_inner);
             }
         };
@@ -1335,16 +1416,19 @@ pub const IO = struct {
 
     pub fn event_trigger(self: *IO, event: Event, completion: *Completion) void {
         assert(event != INVALID_EVENT);
+
         _ = self;
         _ = completion;
 
         const value: u64 = 1;
         const bytes = posix.write(event, std.mem.asBytes(&value)) catch unreachable;
+
         assert(bytes == @sizeOf(u64));
     }
 
     pub fn close_event(self: *IO, event: Event) void {
         assert(event != INVALID_EVENT);
+
         _ = self;
 
         posix.close(event);
@@ -1363,15 +1447,18 @@ pub const IO = struct {
             posix.SOCK.STREAM | posix.SOCK.CLOEXEC,
             posix.IPPROTO.TCP,
         );
+
         errdefer self.close_socket(fd);
 
         try common.tcp_options(fd, options);
+
         return fd;
     }
 
     /// Creates a UDP socket that can be used for async operations with the IO instance.
     pub fn open_socket_udp(self: *IO, family: stdx.IPAddress.Family) !socket_t {
         _ = self;
+
         return try posix.socket(
             family.to_std(),
             std.posix.SOCK.DGRAM | posix.SOCK.CLOEXEC,
@@ -1382,6 +1469,7 @@ pub const IO = struct {
     /// Closes a socket opened by the IO instance.
     pub fn close_socket(self: *IO, socket: socket_t) void {
         _ = self;
+
         posix.close(socket);
     }
 
@@ -1410,6 +1498,7 @@ pub const IO = struct {
     pub const INVALID_FILE: fd_t = -1;
 
     pub const OpenDataFilePurpose = enum { format, open, inspect };
+
     /// Opens or creates a journal file:
     /// - For reading and writing.
     /// - For Direct I/O (if possible in development mode, but required in production mode).
@@ -1438,6 +1527,7 @@ pub const IO = struct {
             .ACCMODE = if (purpose == .inspect) .RDONLY else .RDWR,
             .DSYNC = true,
         };
+
         var mode: posix.mode_t = 0;
 
         const kind: enum { file, block_device } = blk: {
@@ -1458,12 +1548,14 @@ pub const IO = struct {
                 },
                 else => |err_| return err_,
             };
+
             if (posix.S.ISBLK(stat.mode)) {
                 break :blk .block_device;
             } else {
                 if (!posix.S.ISREG(stat.mode)) {
                     @panic("file path does not point to block device or regular file.");
                 }
+
                 break :blk .file;
             }
         };
@@ -1493,6 +1585,7 @@ pub const IO = struct {
                     // <https://github.com/torvalds/linux/blob/7da71072e1d6967c0482abcbb5991ffb5953fdf2/block/bdev.c#L932>
                     flags.EXCL = true;
                 }
+
                 log.info("opening block device \"{s}\"...", .{relative_path});
             },
             .file => {
@@ -1511,20 +1604,26 @@ pub const IO = struct {
                 // on tmpfs is very useful for removing disk speed from the equation.
                 if (direct_io != .direct_io_disabled and !dir_on_tmpfs) {
                     direct_io_supported = try fs_supports_direct_io(dir_fd);
+
                     if (direct_io_supported) {
                         flags.DIRECT = true;
                     } else if (direct_io == .direct_io_optional) {
                         log.warn("This file system does not support Direct I/O.", .{});
                     } else {
                         assert(direct_io == .direct_io_required);
+
                         // We require Direct I/O for safety to handle fsync failure correctly, and
                         // therefore panic in production if it is not supported.
                         log.err("This file system does not support Direct I/O.", .{});
+
                         log.err("TigerBeetle uses Direct I/O to bypass the kernel page cache, " ++
                             "to ensure that data is durable when writes complete.", .{});
+
                         log.err("If this is a production replica, Direct I/O is required.", .{});
+
                         log.err("If this is a development/testing replica, " ++
                             "re-run with --development set to bypass this error.", .{});
+
                         @panic("file system does not support Direct I/O");
                     }
                 }
@@ -1534,6 +1633,7 @@ pub const IO = struct {
                         flags.CREAT = true;
                         flags.EXCL = true;
                         mode = 0o600;
+
                         log.info("creating \"{s}\"...", .{relative_path});
                     },
                     .open, .inspect => {
@@ -1547,12 +1647,14 @@ pub const IO = struct {
         assert(flags.DSYNC and dsync_all);
 
         const fd = try posix.openat(dir_fd, relative_path, flags, mode);
+
         // TODO Return a proper error message when the path exists or does not exist (init/start).
         errdefer posix.close(fd);
 
         {
             // Make sure we're getting the type of file descriptor we expect.
             const stat = try posix.fstat(fd);
+
             switch (kind) {
                 .file => assert(posix.S.ISREG(stat.mode)),
                 .block_device => assert(posix.S.ISBLK(stat.mode)),
@@ -1575,16 +1677,19 @@ pub const IO = struct {
                 posix.flock(fd, posix.LOCK.EX | posix.LOCK.NB) catch |err| switch (err) {
                     error.WouldBlock => {
                         std.Thread.sleep(50 * std.time.ns_per_ms);
+
                         continue;
                     },
                     else => return err,
                 };
+
                 break :blk true;
             } else {
                 posix.flock(fd, posix.LOCK.EX | posix.LOCK.NB) catch |err| switch (err) {
                     error.WouldBlock => break :blk false,
                     else => return err,
                 };
+
                 break :blk true;
             }
         };
@@ -1610,9 +1715,11 @@ pub const IO = struct {
         // panic if we run out of disk space (ENOSPC).
         if (purpose == .format and kind == .file) {
             log.info("allocating {}...", .{std.fmt.fmtIntSizeBin(size)});
+
             fs_allocate(fd, size) catch |err| switch (err) {
                 error.OperationNotSupported => {
                     log.warn("file system does not support fallocate(), an ENOSPC will panic", .{});
+
                     log.info("allocating by writing to the last sector " ++
                         "of the file instead...", .{});
 
@@ -1623,6 +1730,7 @@ pub const IO = struct {
                     // less than a logical sector:
                     const write_offset = size - sector.len;
                     var written: usize = 0;
+
                     while (written < sector.len) {
                         written += try posix.pwrite(fd, sector[written..], write_offset + written);
                     }
@@ -1687,12 +1795,14 @@ pub const IO = struct {
                     //   TigerBeetle (/dev/sda2) it'll be blocked by the MBR/GPT existing.
                     const superblock_zone_size =
                         @import("../vsr/superblock.zig").superblock_zone_size;
+
                     var read_buf: [superblock_zone_size]u8 align(constants.sector_size) = undefined;
 
                     // We can do this without worrying about retrying partial reads because on
                     // linux, read(2) on block devices can not be interrupted by signals.
                     // See signal(7).
                     assert(superblock_zone_size == try posix.read(fd, &read_buf));
+
                     if (!std.mem.allEqual(u8, &read_buf, 0)) {
                         std.debug.panic(
                             "Superblock on block device not empty. " ++
@@ -1704,6 +1814,7 @@ pub const IO = struct {
 
                     // Reset position in the block device to compensate for read(2).
                     try posix.lseek_CUR(fd, -superblock_zone_size);
+
                     assert(try posix.lseek_CUR_get(fd) == 0);
 
                     // In a similar vein to the fs_allocate for the .file case above, BLKDISCARD
@@ -1711,6 +1822,7 @@ pub const IO = struct {
                     assert(std.mem.allEqual(u8, &read_buf, 0));
 
                     const BLKDISCARD = os.linux.IOCTL.IO(0x12, 119);
+
                     const range: extern struct { start: u64, len: u64 } = .{
                         .start = 0,
                         .len = block_device_size,
@@ -1721,6 +1833,7 @@ pub const IO = struct {
                     // a real device. replica_format.zig checks that the format doesn't depend on
                     // preexisting data.
                     log.info("discarding {}...", .{std.fmt.fmtIntSizeBin(block_device_size)});
+
                     switch (os.linux.E.init(os.linux.ioctl(
                         fd,
                         BLKDISCARD,
@@ -1750,6 +1863,7 @@ pub const IO = struct {
 
         while (true) {
             const res = stdx.fstatfs(dir_fd, &statfs);
+
             switch (os.linux.E.init(res)) {
                 .SUCCESS => {
                     return statfs.f_type == stdx.TmpfsMagic;
@@ -1766,21 +1880,25 @@ pub const IO = struct {
         if (!@hasField(posix.O, "DIRECT")) return false;
 
         var cookie: [16]u8 = @splat('0');
+
         _ = stdx.array_print(16, &cookie, "{0x}", .{std.crypto.random.int(u64)});
 
         const path: [:0]const u8 = "fs_supports_direct_io-" ++ cookie ++ "";
         const dir = std.fs.Dir{ .fd = dir_fd };
         const flags: posix.O = .{ .CLOEXEC = true, .CREAT = true, .TRUNC = true };
         const fd = try posix.openatZ(dir_fd, path, flags, 0o600);
+
         defer posix.close(fd);
         defer dir.deleteFile(path) catch {};
 
         while (true) {
             const dir_flags: posix.O = .{ .CLOEXEC = true, .ACCMODE = .RDONLY, .DIRECT = true };
             const res = os.linux.openat(dir_fd, path, dir_flags, 0);
+
             switch (os.linux.E.init(res)) {
                 .SUCCESS => {
                     posix.close(@intCast(res));
+
                     return true;
                 },
                 .INTR => continue,
@@ -1799,6 +1917,7 @@ pub const IO = struct {
 
         while (true) {
             const rc = os.linux.fallocate(fd, mode, offset, length);
+
             switch (os.linux.E.init(rc)) {
                 .SUCCESS => return,
                 .BADF => return error.FileDescriptorInvalid,
@@ -1845,6 +1964,7 @@ pub const IO = struct {
 
         const dir_path = std.fs.path.dirname(path) orelse ".";
         const dir_fd = try IO.open_dir(dir_path);
+
         defer io.aof_blocking_close(dir_fd);
 
         const file_path = std.fs.path.basename(path);
@@ -1862,6 +1982,7 @@ pub const IO = struct {
         ) void,
     ) *const fn (*anyopaque, *Completion, *const anyopaque) void {
         comptime assert(@typeInfo(Context) == .pointer);
+
         return &struct {
             fn erased(
                 ctx_any: *anyopaque,
@@ -1870,6 +1991,7 @@ pub const IO = struct {
             ) void {
                 const ctx: Context = @ptrCast(@alignCast(ctx_any));
                 const result: *const Result = @ptrCast(@alignCast(result_any));
+
                 callback(ctx, completion, result.*);
             }
         }.erased;

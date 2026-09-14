@@ -214,34 +214,43 @@ pub const featureSetHasAll = CpuFeature.FeatureSetFns(Feature).featureSetHasAll;
 
 pub const all_features = blk: {
     @setEvalBranchQuota(10000);
+
     const len = @typeInfo(Feature).@"enum".fields.len;
+
     std.debug.assert(len <= CpuFeature.Set.needed_bit_count);
+
     var result: [len]CpuFeature = undefined;
+
     result[@intFromEnum(Feature.@"32bit")] = .{
         .llvm_name = "32bit",
         .description = "Prefer 32-bit Thumb instrs",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.@"8msecext")] = .{
         .llvm_name = "8msecext",
         .description = "Enable support for ARMv8-M Security Extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.aapcs_frame_chain)] = .{
         .llvm_name = "aapcs-frame-chain",
         .description = "Create an AAPCS compliant frame chain",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.aclass)] = .{
         .llvm_name = "aclass",
         .description = "Is application profile ('A' series)",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.acquire_release)] = .{
         .llvm_name = "acquire-release",
         .description = "Has v8 acquire/release (lda/ldaex  etc) instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.aes)] = .{
         .llvm_name = "aes",
         .description = "Enable AES support",
@@ -249,26 +258,31 @@ pub const all_features = blk: {
             .neon,
         }),
     };
+
     result[@intFromEnum(Feature.atomics_32)] = .{
         .llvm_name = "atomics-32",
         .description = "Assume that lock-free 32-bit atomics are available",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.avoid_movs_shop)] = .{
         .llvm_name = "avoid-movs-shop",
         .description = "Avoid movs instructions with shifter operand",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.avoid_muls)] = .{
         .llvm_name = "avoid-muls",
         .description = "Avoid MULS instructions for M class cores",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.avoid_partial_cpsr)] = .{
         .llvm_name = "avoid-partial-cpsr",
         .description = "Avoid CPSR partial update for OOO execution",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.bf16)] = .{
         .llvm_name = "bf16",
         .description = "Enable support for BFloat16 instructions",
@@ -276,16 +290,19 @@ pub const all_features = blk: {
             .neon,
         }),
     };
+
     result[@intFromEnum(Feature.big_endian_instructions)] = .{
         .llvm_name = "big-endian-instructions",
         .description = "Expect instructions to be stored big-endian.",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.branch_align_64)] = .{
         .llvm_name = "branch-align-64",
         .description = "Prefer 64-bit alignment for branch targets",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.cde)] = .{
         .llvm_name = "cde",
         .description = "Support CDE instructions",
@@ -293,6 +310,7 @@ pub const all_features = blk: {
             .has_v8m_main,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp0)] = .{
         .llvm_name = "cdecp0",
         .description = "Coprocessor 0 ISA is CDEv1",
@@ -300,6 +318,7 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp1)] = .{
         .llvm_name = "cdecp1",
         .description = "Coprocessor 1 ISA is CDEv1",
@@ -307,6 +326,7 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp2)] = .{
         .llvm_name = "cdecp2",
         .description = "Coprocessor 2 ISA is CDEv1",
@@ -314,6 +334,7 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp3)] = .{
         .llvm_name = "cdecp3",
         .description = "Coprocessor 3 ISA is CDEv1",
@@ -321,6 +342,7 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp4)] = .{
         .llvm_name = "cdecp4",
         .description = "Coprocessor 4 ISA is CDEv1",
@@ -328,6 +350,7 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp5)] = .{
         .llvm_name = "cdecp5",
         .description = "Coprocessor 5 ISA is CDEv1",
@@ -335,6 +358,7 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp6)] = .{
         .llvm_name = "cdecp6",
         .description = "Coprocessor 6 ISA is CDEv1",
@@ -342,6 +366,7 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cdecp7)] = .{
         .llvm_name = "cdecp7",
         .description = "Coprocessor 7 ISA is CDEv1",
@@ -349,26 +374,31 @@ pub const all_features = blk: {
             .cde,
         }),
     };
+
     result[@intFromEnum(Feature.cheap_predicable_cpsr)] = .{
         .llvm_name = "cheap-predicable-cpsr",
         .description = "Disable +1 predication cost for instructions updating CPSR",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.clrbhb)] = .{
         .llvm_name = "clrbhb",
         .description = "Enable Clear BHB instruction",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.cortex_a510)] = .{
         .llvm_name = "cortex-a510",
         .description = "Cortex-A510 ARM processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.crc)] = .{
         .llvm_name = "crc",
         .description = "Enable support for CRC instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.crypto)] = .{
         .llvm_name = "crypto",
         .description = "Enable support for Cryptography extensions",
@@ -377,31 +407,37 @@ pub const all_features = blk: {
             .sha2,
         }),
     };
+
     result[@intFromEnum(Feature.d32)] = .{
         .llvm_name = "d32",
         .description = "Extend FP to 32 double registers",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.db)] = .{
         .llvm_name = "db",
         .description = "Has data barrier (dmb/dsb) instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.dfb)] = .{
         .llvm_name = "dfb",
         .description = "Has full data barrier (dfb) instruction",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.disable_postra_scheduler)] = .{
         .llvm_name = "disable-postra-scheduler",
         .description = "Don't schedule again after register allocation",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.dont_widen_vmovs)] = .{
         .llvm_name = "dont-widen-vmovs",
         .description = "Don't widen VMOVS to VMOVD",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.dotprod)] = .{
         .llvm_name = "dotprod",
         .description = "Enable support for dot product instructions",
@@ -409,36 +445,43 @@ pub const all_features = blk: {
             .neon,
         }),
     };
+
     result[@intFromEnum(Feature.dsp)] = .{
         .llvm_name = "dsp",
         .description = "Supports DSP instructions in ARM and/or Thumb2",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.execute_only)] = .{
         .llvm_name = "execute-only",
         .description = "Enable the generation of execute only code.",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.expand_fp_mlx)] = .{
         .llvm_name = "expand-fp-mlx",
         .description = "Expand VFP/NEON MLA/MLS instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fix_cmse_cve_2021_35465)] = .{
         .llvm_name = "fix-cmse-cve-2021-35465",
         .description = "Mitigate against the cve-2021-35465 security vulnurability",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fix_cortex_a57_aes_1742098)] = .{
         .llvm_name = "fix-cortex-a57-aes-1742098",
         .description = "Work around Cortex-A57 Erratum 1742098 / Cortex-A72 Erratum 1655431 (AES)",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fp16)] = .{
         .llvm_name = "fp16",
         .description = "Enable half-precision floating point",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fp16fml)] = .{
         .llvm_name = "fp16fml",
         .description = "Enable full half-precision floating point fml instructions",
@@ -446,6 +489,7 @@ pub const all_features = blk: {
             .fullfp16,
         }),
     };
+
     result[@intFromEnum(Feature.fp64)] = .{
         .llvm_name = "fp64",
         .description = "Floating point unit supports double precision",
@@ -453,6 +497,7 @@ pub const all_features = blk: {
             .fpregs64,
         }),
     };
+
     result[@intFromEnum(Feature.fp_armv8)] = .{
         .llvm_name = "fp-armv8",
         .description = "Enable ARMv8 FP",
@@ -462,6 +507,7 @@ pub const all_features = blk: {
             .vfp4,
         }),
     };
+
     result[@intFromEnum(Feature.fp_armv8d16)] = .{
         .llvm_name = "fp-armv8d16",
         .description = "Enable ARMv8 FP with only 16 d-registers",
@@ -470,6 +516,7 @@ pub const all_features = blk: {
             .vfp4d16,
         }),
     };
+
     result[@intFromEnum(Feature.fp_armv8d16sp)] = .{
         .llvm_name = "fp-armv8d16sp",
         .description = "Enable ARMv8 FP with only 16 d-registers and no double precision",
@@ -477,6 +524,7 @@ pub const all_features = blk: {
             .vfp4d16sp,
         }),
     };
+
     result[@intFromEnum(Feature.fp_armv8sp)] = .{
         .llvm_name = "fp-armv8sp",
         .description = "Enable ARMv8 FP with no double precision",
@@ -485,16 +533,19 @@ pub const all_features = blk: {
             .vfp4sp,
         }),
     };
+
     result[@intFromEnum(Feature.fpao)] = .{
         .llvm_name = "fpao",
         .description = "Enable fast computation of positive address offsets",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpregs)] = .{
         .llvm_name = "fpregs",
         .description = "Enable FP registers",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpregs16)] = .{
         .llvm_name = "fpregs16",
         .description = "Enable 16-bit FP registers",
@@ -502,6 +553,7 @@ pub const all_features = blk: {
             .fpregs,
         }),
     };
+
     result[@intFromEnum(Feature.fpregs64)] = .{
         .llvm_name = "fpregs64",
         .description = "Enable 64-bit FP registers",
@@ -509,6 +561,7 @@ pub const all_features = blk: {
             .fpregs,
         }),
     };
+
     result[@intFromEnum(Feature.fullfp16)] = .{
         .llvm_name = "fullfp16",
         .description = "Enable full half-precision floating point",
@@ -517,36 +570,43 @@ pub const all_features = blk: {
             .fpregs16,
         }),
     };
+
     result[@intFromEnum(Feature.fuse_aes)] = .{
         .llvm_name = "fuse-aes",
         .description = "CPU fuses AES crypto operations",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fuse_literals)] = .{
         .llvm_name = "fuse-literals",
         .description = "CPU fuses literal generation operations",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.harden_sls_blr)] = .{
         .llvm_name = "harden-sls-blr",
         .description = "Harden against straight line speculation across indirect calls",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.harden_sls_nocomdat)] = .{
         .llvm_name = "harden-sls-nocomdat",
         .description = "Generate thunk code for SLS mitigation in the normal text section",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.harden_sls_retbr)] = .{
         .llvm_name = "harden-sls-retbr",
         .description = "Harden against straight line speculation across RETurn and BranchRegister instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.has_v4t)] = .{
         .llvm_name = "v4t",
         .description = "Support ARM v4T instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.has_v5t)] = .{
         .llvm_name = "v5t",
         .description = "Support ARM v5T instructions",
@@ -554,6 +614,7 @@ pub const all_features = blk: {
             .has_v4t,
         }),
     };
+
     result[@intFromEnum(Feature.has_v5te)] = .{
         .llvm_name = "v5te",
         .description = "Support ARM v5TE, v5TEj, and v5TExp instructions",
@@ -561,6 +622,7 @@ pub const all_features = blk: {
             .has_v5t,
         }),
     };
+
     result[@intFromEnum(Feature.has_v6)] = .{
         .llvm_name = "v6",
         .description = "Support ARM v6 instructions",
@@ -568,6 +630,7 @@ pub const all_features = blk: {
             .has_v5te,
         }),
     };
+
     result[@intFromEnum(Feature.has_v6k)] = .{
         .llvm_name = "v6k",
         .description = "Support ARM v6k instructions",
@@ -575,6 +638,7 @@ pub const all_features = blk: {
             .has_v6,
         }),
     };
+
     result[@intFromEnum(Feature.has_v6m)] = .{
         .llvm_name = "v6m",
         .description = "Support ARM v6M instructions",
@@ -582,6 +646,7 @@ pub const all_features = blk: {
             .has_v6,
         }),
     };
+
     result[@intFromEnum(Feature.has_v6t2)] = .{
         .llvm_name = "v6t2",
         .description = "Support ARM v6t2 instructions",
@@ -591,6 +656,7 @@ pub const all_features = blk: {
             .thumb2,
         }),
     };
+
     result[@intFromEnum(Feature.has_v7)] = .{
         .llvm_name = "v7",
         .description = "Support ARM v7 instructions",
@@ -599,11 +665,13 @@ pub const all_features = blk: {
             .has_v7clrex,
         }),
     };
+
     result[@intFromEnum(Feature.has_v7clrex)] = .{
         .llvm_name = "v7clrex",
         .description = "Has v7 clrex instruction",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.has_v8)] = .{
         .llvm_name = "v8",
         .description = "Support ARM v8 instructions",
@@ -613,6 +681,7 @@ pub const all_features = blk: {
             .perfmon,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_1a)] = .{
         .llvm_name = "v8.1a",
         .description = "Support ARM v8.1a instructions",
@@ -620,6 +689,7 @@ pub const all_features = blk: {
             .has_v8,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_1m_main)] = .{
         .llvm_name = "v8.1m.main",
         .description = "Support ARM v8-1M Mainline instructions",
@@ -627,6 +697,7 @@ pub const all_features = blk: {
             .has_v8m_main,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_2a)] = .{
         .llvm_name = "v8.2a",
         .description = "Support ARM v8.2a instructions",
@@ -634,6 +705,7 @@ pub const all_features = blk: {
             .has_v8_1a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_3a)] = .{
         .llvm_name = "v8.3a",
         .description = "Support ARM v8.3a instructions",
@@ -641,6 +713,7 @@ pub const all_features = blk: {
             .has_v8_2a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_4a)] = .{
         .llvm_name = "v8.4a",
         .description = "Support ARM v8.4a instructions",
@@ -649,6 +722,7 @@ pub const all_features = blk: {
             .has_v8_3a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_5a)] = .{
         .llvm_name = "v8.5a",
         .description = "Support ARM v8.5a instructions",
@@ -657,6 +731,7 @@ pub const all_features = blk: {
             .sb,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_6a)] = .{
         .llvm_name = "v8.6a",
         .description = "Support ARM v8.6a instructions",
@@ -666,6 +741,7 @@ pub const all_features = blk: {
             .i8mm,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_7a)] = .{
         .llvm_name = "v8.7a",
         .description = "Support ARM v8.7a instructions",
@@ -673,6 +749,7 @@ pub const all_features = blk: {
             .has_v8_6a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_8a)] = .{
         .llvm_name = "v8.8a",
         .description = "Support ARM v8.8a instructions",
@@ -680,6 +757,7 @@ pub const all_features = blk: {
             .has_v8_7a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8_9a)] = .{
         .llvm_name = "v8.9a",
         .description = "Support ARM v8.9a instructions",
@@ -688,6 +766,7 @@ pub const all_features = blk: {
             .has_v8_8a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8m)] = .{
         .llvm_name = "v8m",
         .description = "Support ARM v8M Baseline instructions",
@@ -695,6 +774,7 @@ pub const all_features = blk: {
             .has_v6m,
         }),
     };
+
     result[@intFromEnum(Feature.has_v8m_main)] = .{
         .llvm_name = "v8m.main",
         .description = "Support ARM v8M Mainline instructions",
@@ -702,6 +782,7 @@ pub const all_features = blk: {
             .has_v7,
         }),
     };
+
     result[@intFromEnum(Feature.has_v9_1a)] = .{
         .llvm_name = "v9.1a",
         .description = "Support ARM v9.1a instructions",
@@ -710,6 +791,7 @@ pub const all_features = blk: {
             .has_v9a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v9_2a)] = .{
         .llvm_name = "v9.2a",
         .description = "Support ARM v9.2a instructions",
@@ -718,6 +800,7 @@ pub const all_features = blk: {
             .has_v9_1a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v9_3a)] = .{
         .llvm_name = "v9.3a",
         .description = "Support ARM v9.3a instructions",
@@ -726,6 +809,7 @@ pub const all_features = blk: {
             .has_v9_2a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v9_4a)] = .{
         .llvm_name = "v9.4a",
         .description = "Support ARM v9.4a instructions",
@@ -734,6 +818,7 @@ pub const all_features = blk: {
             .has_v9_3a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v9_5a)] = .{
         .llvm_name = "v9.5a",
         .description = "Support ARM v9.5a instructions",
@@ -741,6 +826,7 @@ pub const all_features = blk: {
             .has_v9_4a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v9_6a)] = .{
         .llvm_name = "v9.6a",
         .description = "Support ARM v9.6a instructions",
@@ -748,6 +834,7 @@ pub const all_features = blk: {
             .has_v9_5a,
         }),
     };
+
     result[@intFromEnum(Feature.has_v9a)] = .{
         .llvm_name = "v9a",
         .description = "Support ARM v9a instructions",
@@ -755,16 +842,19 @@ pub const all_features = blk: {
             .has_v8_5a,
         }),
     };
+
     result[@intFromEnum(Feature.hwdiv)] = .{
         .llvm_name = "hwdiv",
         .description = "Enable divide instructions in Thumb",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.hwdiv_arm)] = .{
         .llvm_name = "hwdiv-arm",
         .description = "Enable divide instructions in ARM mode",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.i8mm)] = .{
         .llvm_name = "i8mm",
         .description = "Enable Matrix Multiply Int8 Extension",
@@ -772,6 +862,7 @@ pub const all_features = blk: {
             .neon,
         }),
     };
+
     result[@intFromEnum(Feature.iwmmxt)] = .{
         .llvm_name = "iwmmxt",
         .description = "ARMv5te architecture",
@@ -779,6 +870,7 @@ pub const all_features = blk: {
             .v5te,
         }),
     };
+
     result[@intFromEnum(Feature.iwmmxt2)] = .{
         .llvm_name = "iwmmxt2",
         .description = "ARMv5te architecture",
@@ -786,46 +878,55 @@ pub const all_features = blk: {
             .v5te,
         }),
     };
+
     result[@intFromEnum(Feature.lob)] = .{
         .llvm_name = "lob",
         .description = "Enable Low Overhead Branch extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.long_calls)] = .{
         .llvm_name = "long-calls",
         .description = "Generate calls via indirect call instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.loop_align)] = .{
         .llvm_name = "loop-align",
         .description = "Prefer 32-bit alignment for branch targets",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.m55)] = .{
         .llvm_name = "m55",
         .description = "Cortex-M55 ARM processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.m85)] = .{
         .llvm_name = "m85",
         .description = "Cortex-M85 ARM processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.mclass)] = .{
         .llvm_name = "mclass",
         .description = "Is microcontroller profile ('M' series)",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.mp)] = .{
         .llvm_name = "mp",
         .description = "Supports Multiprocessing extension",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.muxed_units)] = .{
         .llvm_name = "muxed-units",
         .description = "Has muxed AGU and NEON/FPU",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.mve)] = .{
         .llvm_name = "mve",
         .description = "Support M-Class Vector Extension with integer ops",
@@ -836,21 +937,25 @@ pub const all_features = blk: {
             .has_v8_1m_main,
         }),
     };
+
     result[@intFromEnum(Feature.mve1beat)] = .{
         .llvm_name = "mve1beat",
         .description = "Model MVE instructions as a 1 beat per tick architecture",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.mve2beat)] = .{
         .llvm_name = "mve2beat",
         .description = "Model MVE instructions as a 2 beats per tick architecture",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.mve4beat)] = .{
         .llvm_name = "mve4beat",
         .description = "Model MVE instructions as a 4 beats per tick architecture",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.mve_fp)] = .{
         .llvm_name = "mve.fp",
         .description = "Support M-Class Vector Extension with integer and floating ops",
@@ -859,11 +964,13 @@ pub const all_features = blk: {
             .mve,
         }),
     };
+
     result[@intFromEnum(Feature.nacl_trap)] = .{
         .llvm_name = "nacl-trap",
         .description = "NaCl trap",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.neon)] = .{
         .llvm_name = "neon",
         .description = "Enable NEON instructions",
@@ -871,111 +978,133 @@ pub const all_features = blk: {
             .vfp3,
         }),
     };
+
     result[@intFromEnum(Feature.neon_fpmovs)] = .{
         .llvm_name = "neon-fpmovs",
         .description = "Convert VMOVSR, VMOVRS, VMOVS to NEON",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.neonfp)] = .{
         .llvm_name = "neonfp",
         .description = "Use NEON for single precision FP",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.no_branch_predictor)] = .{
         .llvm_name = "no-branch-predictor",
         .description = "Has no branch predictor",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.no_bti_at_return_twice)] = .{
         .llvm_name = "no-bti-at-return-twice",
         .description = "Don't place a BTI instruction after a return-twice",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.no_movt)] = .{
         .llvm_name = "no-movt",
         .description = "Don't use movt/movw pairs for 32-bit imms",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.no_neg_immediates)] = .{
         .llvm_name = "no-neg-immediates",
         .description = "Convert immediates and instructions to their negated or complemented equivalent when the immediate does not fit in the encoding.",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.noarm)] = .{
         .llvm_name = "noarm",
         .description = "Does not support ARM mode execution",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.nonpipelined_vfp)] = .{
         .llvm_name = "nonpipelined-vfp",
         .description = "VFP instructions are not pipelined",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.pacbti)] = .{
         .llvm_name = "pacbti",
         .description = "Enable Pointer Authentication and Branch Target Identification",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.perfmon)] = .{
         .llvm_name = "perfmon",
         .description = "Enable support for Performance Monitor extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.prefer_ishst)] = .{
         .llvm_name = "prefer-ishst",
         .description = "Prefer ISHST barriers",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.prefer_vmovsr)] = .{
         .llvm_name = "prefer-vmovsr",
         .description = "Prefer VMOVSR",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.prof_unpr)] = .{
         .llvm_name = "prof-unpr",
         .description = "Is profitable to unpredicate",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ras)] = .{
         .llvm_name = "ras",
         .description = "Enable Reliability, Availability and Serviceability extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.rclass)] = .{
         .llvm_name = "rclass",
         .description = "Is realtime profile ('R' series)",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.read_tp_tpidrprw)] = .{
         .llvm_name = "read-tp-tpidrprw",
         .description = "Reading thread pointer from TPIDRPRW register",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.read_tp_tpidruro)] = .{
         .llvm_name = "read-tp-tpidruro",
         .description = "Reading thread pointer from TPIDRURO register",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.read_tp_tpidrurw)] = .{
         .llvm_name = "read-tp-tpidrurw",
         .description = "Reading thread pointer from TPIDRURW register",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.reserve_r9)] = .{
         .llvm_name = "reserve-r9",
         .description = "Reserve R9, making it unavailable as GPR",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ret_addr_stack)] = .{
         .llvm_name = "ret-addr-stack",
         .description = "Has return address stack",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.sb)] = .{
         .llvm_name = "sb",
         .description = "Enable v8.5a Speculation Barrier",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.sha2)] = .{
         .llvm_name = "sha2",
         .description = "Enable SHA1 and SHA256 support",
@@ -983,46 +1112,55 @@ pub const all_features = blk: {
             .neon,
         }),
     };
+
     result[@intFromEnum(Feature.slow_fp_brcc)] = .{
         .llvm_name = "slow-fp-brcc",
         .description = "FP compare + branch is slow",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.slow_load_D_subreg)] = .{
         .llvm_name = "slow-load-D-subreg",
         .description = "Loading into D subregs is slow",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.slow_odd_reg)] = .{
         .llvm_name = "slow-odd-reg",
         .description = "VLDM/VSTM starting with an odd register is slow",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.slow_vdup32)] = .{
         .llvm_name = "slow-vdup32",
         .description = "Has slow VDUP32 - prefer VMOV",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.slow_vgetlni32)] = .{
         .llvm_name = "slow-vgetlni32",
         .description = "Has slow VGETLNi32 - prefer VMOV",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.slowfpvfmx)] = .{
         .llvm_name = "slowfpvfmx",
         .description = "Disable VFP / NEON FMA instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.slowfpvmlx)] = .{
         .llvm_name = "slowfpvmlx",
         .description = "Disable VFP / NEON MAC instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.soft_float)] = .{
         .llvm_name = "soft-float",
         .description = "Use software floating point features.",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.splat_vfp_neon)] = .{
         .llvm_name = "splat-vfp-neon",
         .description = "Splat register from VFP to NEON",
@@ -1030,36 +1168,43 @@ pub const all_features = blk: {
             .dont_widen_vmovs,
         }),
     };
+
     result[@intFromEnum(Feature.strict_align)] = .{
         .llvm_name = "strict-align",
         .description = "Disallow all unaligned memory access",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.thumb2)] = .{
         .llvm_name = "thumb2",
         .description = "Enable Thumb2 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.thumb_mode)] = .{
         .llvm_name = "thumb-mode",
         .description = "Thumb mode",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.trustzone)] = .{
         .llvm_name = "trustzone",
         .description = "Enable support for TrustZone security extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.use_mipipeliner)] = .{
         .llvm_name = "use-mipipeliner",
         .description = "Use the MachinePipeliner",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.use_misched)] = .{
         .llvm_name = "use-misched",
         .description = "Use the MachineScheduler",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.v2)] = .{
         .llvm_name = null,
         .description = "ARMv2 architecture",
@@ -1067,6 +1212,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v2a)] = .{
         .llvm_name = null,
         .description = "ARMv2a architecture",
@@ -1074,6 +1220,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v3)] = .{
         .llvm_name = null,
         .description = "ARMv3 architecture",
@@ -1081,6 +1228,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v3m)] = .{
         .llvm_name = null,
         .description = "ARMv3m architecture",
@@ -1088,6 +1236,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v4)] = .{
         .llvm_name = "armv4",
         .description = "ARMv4 architecture",
@@ -1095,6 +1244,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v4t)] = .{
         .llvm_name = "armv4t",
         .description = "ARMv4t architecture",
@@ -1103,6 +1253,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v5t)] = .{
         .llvm_name = "armv5t",
         .description = "ARMv5t architecture",
@@ -1111,6 +1262,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v5te)] = .{
         .llvm_name = "armv5te",
         .description = "ARMv5te architecture",
@@ -1119,6 +1271,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v5tej)] = .{
         .llvm_name = "armv5tej",
         .description = "ARMv5tej architecture",
@@ -1127,6 +1280,7 @@ pub const all_features = blk: {
             .strict_align,
         }),
     };
+
     result[@intFromEnum(Feature.v6)] = .{
         .llvm_name = "armv6",
         .description = "ARMv6 architecture",
@@ -1135,6 +1289,7 @@ pub const all_features = blk: {
             .has_v6,
         }),
     };
+
     result[@intFromEnum(Feature.v6j)] = .{
         .llvm_name = "armv6j",
         .description = "ARMv7a architecture",
@@ -1142,6 +1297,7 @@ pub const all_features = blk: {
             .v6,
         }),
     };
+
     result[@intFromEnum(Feature.v6k)] = .{
         .llvm_name = "armv6k",
         .description = "ARMv6k architecture",
@@ -1149,6 +1305,7 @@ pub const all_features = blk: {
             .has_v6k,
         }),
     };
+
     result[@intFromEnum(Feature.v6kz)] = .{
         .llvm_name = "armv6kz",
         .description = "ARMv6kz architecture",
@@ -1157,6 +1314,7 @@ pub const all_features = blk: {
             .trustzone,
         }),
     };
+
     result[@intFromEnum(Feature.v6m)] = .{
         .llvm_name = "armv6-m",
         .description = "ARMv6m architecture",
@@ -1169,6 +1327,7 @@ pub const all_features = blk: {
             .thumb_mode,
         }),
     };
+
     result[@intFromEnum(Feature.v6sm)] = .{
         .llvm_name = "armv6s-m",
         .description = "ARMv6sm architecture",
@@ -1181,6 +1340,7 @@ pub const all_features = blk: {
             .thumb_mode,
         }),
     };
+
     result[@intFromEnum(Feature.v6t2)] = .{
         .llvm_name = "armv6t2",
         .description = "ARMv6t2 architecture",
@@ -1189,6 +1349,7 @@ pub const all_features = blk: {
             .has_v6t2,
         }),
     };
+
     result[@intFromEnum(Feature.v7a)] = .{
         .llvm_name = "armv7-a",
         .description = "ARMv7a architecture",
@@ -1201,6 +1362,7 @@ pub const all_features = blk: {
             .perfmon,
         }),
     };
+
     result[@intFromEnum(Feature.v7em)] = .{
         .llvm_name = "armv7e-m",
         .description = "ARMv7em architecture",
@@ -1214,6 +1376,7 @@ pub const all_features = blk: {
             .thumb_mode,
         }),
     };
+
     result[@intFromEnum(Feature.v7m)] = .{
         .llvm_name = "armv7-m",
         .description = "ARMv7m architecture",
@@ -1226,6 +1389,7 @@ pub const all_features = blk: {
             .thumb_mode,
         }),
     };
+
     result[@intFromEnum(Feature.v7r)] = .{
         .llvm_name = "armv7-r",
         .description = "ARMv7r architecture",
@@ -1238,6 +1402,7 @@ pub const all_features = blk: {
             .rclass,
         }),
     };
+
     result[@intFromEnum(Feature.v7ve)] = .{
         .llvm_name = "armv7ve",
         .description = "ARMv7ve architecture",
@@ -1253,6 +1418,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_1a)] = .{
         .llvm_name = "armv8.1-a",
         .description = "ARMv81a architecture",
@@ -1269,6 +1435,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_1m_main)] = .{
         .llvm_name = "armv8.1-m.main",
         .description = "ARMv81mMainline architecture",
@@ -1285,6 +1452,7 @@ pub const all_features = blk: {
             .thumb_mode,
         }),
     };
+
     result[@intFromEnum(Feature.v8_2a)] = .{
         .llvm_name = "armv8.2-a",
         .description = "ARMv82a architecture",
@@ -1302,6 +1470,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_3a)] = .{
         .llvm_name = "armv8.3-a",
         .description = "ARMv83a architecture",
@@ -1319,6 +1488,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_4a)] = .{
         .llvm_name = "armv8.4-a",
         .description = "ARMv84a architecture",
@@ -1336,6 +1506,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_5a)] = .{
         .llvm_name = "armv8.5-a",
         .description = "ARMv85a architecture",
@@ -1353,6 +1524,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_6a)] = .{
         .llvm_name = "armv8.6-a",
         .description = "ARMv86a architecture",
@@ -1370,6 +1542,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_7a)] = .{
         .llvm_name = "armv8.7-a",
         .description = "ARMv87a architecture",
@@ -1387,6 +1560,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_8a)] = .{
         .llvm_name = "armv8.8-a",
         .description = "ARMv88a architecture",
@@ -1404,6 +1578,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8_9a)] = .{
         .llvm_name = "armv8.9-a",
         .description = "ARMv89a architecture",
@@ -1421,6 +1596,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8a)] = .{
         .llvm_name = "armv8-a",
         .description = "ARMv8a architecture",
@@ -1437,6 +1613,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v8m)] = .{
         .llvm_name = "armv8-m.base",
         .description = "ARMv8mBaseline architecture",
@@ -1453,6 +1630,7 @@ pub const all_features = blk: {
             .thumb_mode,
         }),
     };
+
     result[@intFromEnum(Feature.v8m_main)] = .{
         .llvm_name = "armv8-m.main",
         .description = "ARMv8mMainline architecture",
@@ -1467,6 +1645,7 @@ pub const all_features = blk: {
             .thumb_mode,
         }),
     };
+
     result[@intFromEnum(Feature.v8r)] = .{
         .llvm_name = "armv8-r",
         .description = "ARMv8r architecture",
@@ -1482,6 +1661,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v9_1a)] = .{
         .llvm_name = "armv9.1-a",
         .description = "ARMv91a architecture",
@@ -1498,6 +1678,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v9_2a)] = .{
         .llvm_name = "armv9.2-a",
         .description = "ARMv92a architecture",
@@ -1514,6 +1695,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v9_3a)] = .{
         .llvm_name = "armv9.3-a",
         .description = "ARMv93a architecture",
@@ -1531,6 +1713,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v9_4a)] = .{
         .llvm_name = "armv9.4-a",
         .description = "ARMv94a architecture",
@@ -1547,6 +1730,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v9_5a)] = .{
         .llvm_name = "armv9.5-a",
         .description = "ARMv95a architecture",
@@ -1563,6 +1747,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v9_6a)] = .{
         .llvm_name = "armv9.6-a",
         .description = "ARMv96a architecture",
@@ -1579,6 +1764,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.v9a)] = .{
         .llvm_name = "armv9-a",
         .description = "ARMv9a architecture",
@@ -1595,6 +1781,7 @@ pub const all_features = blk: {
             .virtualization,
         }),
     };
+
     result[@intFromEnum(Feature.vfp2)] = .{
         .llvm_name = "vfp2",
         .description = "Enable VFP2 instructions",
@@ -1603,6 +1790,7 @@ pub const all_features = blk: {
             .vfp2sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp2sp)] = .{
         .llvm_name = "vfp2sp",
         .description = "Enable VFP2 instructions with no double precision",
@@ -1610,6 +1798,7 @@ pub const all_features = blk: {
             .fpregs,
         }),
     };
+
     result[@intFromEnum(Feature.vfp3)] = .{
         .llvm_name = "vfp3",
         .description = "Enable VFP3 instructions",
@@ -1618,6 +1807,7 @@ pub const all_features = blk: {
             .vfp3sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp3d16)] = .{
         .llvm_name = "vfp3d16",
         .description = "Enable VFP3 instructions with only 16 d-registers",
@@ -1626,6 +1816,7 @@ pub const all_features = blk: {
             .vfp3d16sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp3d16sp)] = .{
         .llvm_name = "vfp3d16sp",
         .description = "Enable VFP3 instructions with only 16 d-registers and no double precision",
@@ -1633,6 +1824,7 @@ pub const all_features = blk: {
             .vfp2sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp3sp)] = .{
         .llvm_name = "vfp3sp",
         .description = "Enable VFP3 instructions with no double precision",
@@ -1641,6 +1833,7 @@ pub const all_features = blk: {
             .vfp3d16sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp4)] = .{
         .llvm_name = "vfp4",
         .description = "Enable VFP4 instructions",
@@ -1650,6 +1843,7 @@ pub const all_features = blk: {
             .vfp4sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp4d16)] = .{
         .llvm_name = "vfp4d16",
         .description = "Enable VFP4 instructions with only 16 d-registers",
@@ -1658,6 +1852,7 @@ pub const all_features = blk: {
             .vfp4d16sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp4d16sp)] = .{
         .llvm_name = "vfp4d16sp",
         .description = "Enable VFP4 instructions with only 16 d-registers and no double precision",
@@ -1666,6 +1861,7 @@ pub const all_features = blk: {
             .vfp3d16sp,
         }),
     };
+
     result[@intFromEnum(Feature.vfp4sp)] = .{
         .llvm_name = "vfp4sp",
         .description = "Enable VFP4 instructions with no double precision",
@@ -1674,6 +1870,7 @@ pub const all_features = blk: {
             .vfp4d16sp,
         }),
     };
+
     result[@intFromEnum(Feature.virtualization)] = .{
         .llvm_name = "virtualization",
         .description = "Supports Virtualization extension",
@@ -1682,26 +1879,31 @@ pub const all_features = blk: {
             .hwdiv_arm,
         }),
     };
+
     result[@intFromEnum(Feature.vldn_align)] = .{
         .llvm_name = "vldn-align",
         .description = "Check for VLDn unaligned access",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.vmlx_forwarding)] = .{
         .llvm_name = "vmlx-forwarding",
         .description = "Has multiplier accumulator forwarding",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.vmlx_hazards)] = .{
         .llvm_name = "vmlx-hazards",
         .description = "Has VMLx hazards",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.wide_stride_vfp)] = .{
         .llvm_name = "wide-stride-vfp",
         .description = "Use a wide stride when allocating VFP registers",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.xscale)] = .{
         .llvm_name = "xscale",
         .description = "ARMv5te architecture",
@@ -1709,16 +1911,20 @@ pub const all_features = blk: {
             .v5te,
         }),
     };
+
     result[@intFromEnum(Feature.zcz)] = .{
         .llvm_name = "zcz",
         .description = "Has zero-cycle zeroing instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     const ti = @typeInfo(Feature);
+
     for (&result, 0..) |*elem, i| {
         elem.index = i;
         elem.name = ti.@"enum".fields[i].name;
     }
+
     break :blk result;
 };
 
@@ -1730,6 +1936,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm1020t: CpuModel = .{
         .name = "arm1020t",
         .llvm_name = "arm1020t",
@@ -1737,6 +1944,7 @@ pub const cpu = struct {
             .v5t,
         }),
     };
+
     pub const arm1022e: CpuModel = .{
         .name = "arm1022e",
         .llvm_name = "arm1022e",
@@ -1744,6 +1952,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm10e: CpuModel = .{
         .name = "arm10e",
         .llvm_name = "arm10e",
@@ -1751,6 +1960,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm10tdmi: CpuModel = .{
         .name = "arm10tdmi",
         .llvm_name = "arm10tdmi",
@@ -1758,6 +1968,7 @@ pub const cpu = struct {
             .v5t,
         }),
     };
+
     pub const arm1136j_s: CpuModel = .{
         .name = "arm1136j_s",
         .llvm_name = "arm1136j-s",
@@ -1765,6 +1976,7 @@ pub const cpu = struct {
             .v6,
         }),
     };
+
     pub const arm1136jf_s: CpuModel = .{
         .name = "arm1136jf_s",
         .llvm_name = "arm1136jf-s",
@@ -1774,6 +1986,7 @@ pub const cpu = struct {
             .vfp2,
         }),
     };
+
     pub const arm1156t2_s: CpuModel = .{
         .name = "arm1156t2_s",
         .llvm_name = "arm1156t2-s",
@@ -1781,6 +1994,7 @@ pub const cpu = struct {
             .v6t2,
         }),
     };
+
     pub const arm1156t2f_s: CpuModel = .{
         .name = "arm1156t2f_s",
         .llvm_name = "arm1156t2f-s",
@@ -1790,6 +2004,7 @@ pub const cpu = struct {
             .vfp2,
         }),
     };
+
     pub const arm1176jz_s: CpuModel = .{
         .name = "arm1176jz_s",
         .llvm_name = "arm1176jz-s",
@@ -1797,6 +2012,7 @@ pub const cpu = struct {
             .v6kz,
         }),
     };
+
     pub const arm1176jzf_s: CpuModel = .{
         .name = "arm1176jzf_s",
         .llvm_name = "arm1176jzf-s",
@@ -1806,6 +2022,7 @@ pub const cpu = struct {
             .vfp2,
         }),
     };
+
     pub const arm710t: CpuModel = .{
         .name = "arm710t",
         .llvm_name = "arm710t",
@@ -1813,6 +2030,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm720t: CpuModel = .{
         .name = "arm720t",
         .llvm_name = "arm720t",
@@ -1820,6 +2038,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm7tdmi: CpuModel = .{
         .name = "arm7tdmi",
         .llvm_name = "arm7tdmi",
@@ -1827,6 +2046,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm7tdmi_s: CpuModel = .{
         .name = "arm7tdmi_s",
         .llvm_name = "arm7tdmi-s",
@@ -1834,6 +2054,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm8: CpuModel = .{
         .name = "arm8",
         .llvm_name = "arm8",
@@ -1841,6 +2062,7 @@ pub const cpu = struct {
             .v4,
         }),
     };
+
     pub const arm810: CpuModel = .{
         .name = "arm810",
         .llvm_name = "arm810",
@@ -1848,6 +2070,7 @@ pub const cpu = struct {
             .v4,
         }),
     };
+
     pub const arm9: CpuModel = .{
         .name = "arm9",
         .llvm_name = "arm9",
@@ -1855,6 +2078,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm920: CpuModel = .{
         .name = "arm920",
         .llvm_name = "arm920",
@@ -1862,6 +2086,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm920t: CpuModel = .{
         .name = "arm920t",
         .llvm_name = "arm920t",
@@ -1869,6 +2094,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm922t: CpuModel = .{
         .name = "arm922t",
         .llvm_name = "arm922t",
@@ -1876,6 +2102,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm926ej_s: CpuModel = .{
         .name = "arm926ej_s",
         .llvm_name = "arm926ej-s",
@@ -1883,6 +2110,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm940t: CpuModel = .{
         .name = "arm940t",
         .llvm_name = "arm940t",
@@ -1890,6 +2118,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const arm946e_s: CpuModel = .{
         .name = "arm946e_s",
         .llvm_name = "arm946e-s",
@@ -1897,6 +2126,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm966e_s: CpuModel = .{
         .name = "arm966e_s",
         .llvm_name = "arm966e-s",
@@ -1904,6 +2134,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm968e_s: CpuModel = .{
         .name = "arm968e_s",
         .llvm_name = "arm968e-s",
@@ -1911,6 +2142,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm9e: CpuModel = .{
         .name = "arm9e",
         .llvm_name = "arm9e",
@@ -1918,6 +2150,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const arm9tdmi: CpuModel = .{
         .name = "arm9tdmi",
         .llvm_name = "arm9tdmi",
@@ -1925,6 +2158,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const baseline: CpuModel = .{
         .name = "baseline",
         .llvm_name = "generic",
@@ -1932,6 +2166,7 @@ pub const cpu = struct {
             .v7a,
         }),
     };
+
     pub const cortex_a12: CpuModel = .{
         .name = "cortex_a12",
         .llvm_name = "cortex-a12",
@@ -1946,6 +2181,7 @@ pub const cpu = struct {
             .vmlx_forwarding,
         }),
     };
+
     pub const cortex_a15: CpuModel = .{
         .name = "cortex_a15",
         .llvm_name = "cortex-a15",
@@ -1962,6 +2198,7 @@ pub const cpu = struct {
             .vldn_align,
         }),
     };
+
     pub const cortex_a17: CpuModel = .{
         .name = "cortex_a17",
         .llvm_name = "cortex-a17",
@@ -1976,6 +2213,7 @@ pub const cpu = struct {
             .vmlx_forwarding,
         }),
     };
+
     pub const cortex_a32: CpuModel = .{
         .name = "cortex_a32",
         .llvm_name = "cortex-a32",
@@ -1983,6 +2221,7 @@ pub const cpu = struct {
             .v8a,
         }),
     };
+
     pub const cortex_a35: CpuModel = .{
         .name = "cortex_a35",
         .llvm_name = "cortex-a35",
@@ -1990,6 +2229,7 @@ pub const cpu = struct {
             .v8a,
         }),
     };
+
     pub const cortex_a5: CpuModel = .{
         .name = "cortex_a5",
         .llvm_name = "cortex-a5",
@@ -2005,6 +2245,7 @@ pub const cpu = struct {
             .vmlx_forwarding,
         }),
     };
+
     pub const cortex_a510: CpuModel = .{
         .name = "cortex_a510",
         .llvm_name = "cortex-a510",
@@ -2015,6 +2256,7 @@ pub const cpu = struct {
             .v9a,
         }),
     };
+
     pub const cortex_a53: CpuModel = .{
         .name = "cortex_a53",
         .llvm_name = "cortex-a53",
@@ -2023,6 +2265,7 @@ pub const cpu = struct {
             .v8a,
         }),
     };
+
     pub const cortex_a55: CpuModel = .{
         .name = "cortex_a55",
         .llvm_name = "cortex-a55",
@@ -2031,6 +2274,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a57: CpuModel = .{
         .name = "cortex_a57",
         .llvm_name = "cortex-a57",
@@ -2042,6 +2286,7 @@ pub const cpu = struct {
             .v8a,
         }),
     };
+
     pub const cortex_a7: CpuModel = .{
         .name = "cortex_a7",
         .llvm_name = "cortex-a7",
@@ -2059,6 +2304,7 @@ pub const cpu = struct {
             .vmlx_hazards,
         }),
     };
+
     pub const cortex_a710: CpuModel = .{
         .name = "cortex_a710",
         .llvm_name = "cortex-a710",
@@ -2069,6 +2315,7 @@ pub const cpu = struct {
             .v9a,
         }),
     };
+
     pub const cortex_a72: CpuModel = .{
         .name = "cortex_a72",
         .llvm_name = "cortex-a72",
@@ -2077,6 +2324,7 @@ pub const cpu = struct {
             .v8a,
         }),
     };
+
     pub const cortex_a73: CpuModel = .{
         .name = "cortex_a73",
         .llvm_name = "cortex-a73",
@@ -2084,6 +2332,7 @@ pub const cpu = struct {
             .v8a,
         }),
     };
+
     pub const cortex_a75: CpuModel = .{
         .name = "cortex_a75",
         .llvm_name = "cortex-a75",
@@ -2092,6 +2341,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a76: CpuModel = .{
         .name = "cortex_a76",
         .llvm_name = "cortex-a76",
@@ -2101,6 +2351,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a76ae: CpuModel = .{
         .name = "cortex_a76ae",
         .llvm_name = "cortex-a76ae",
@@ -2110,6 +2361,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a77: CpuModel = .{
         .name = "cortex_a77",
         .llvm_name = "cortex-a77",
@@ -2119,6 +2371,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a78: CpuModel = .{
         .name = "cortex_a78",
         .llvm_name = "cortex-a78",
@@ -2128,6 +2381,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a78ae: CpuModel = .{
         .name = "cortex_a78ae",
         .llvm_name = "cortex-a78ae",
@@ -2137,6 +2391,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a78c: CpuModel = .{
         .name = "cortex_a78c",
         .llvm_name = "cortex-a78c",
@@ -2146,6 +2401,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_a8: CpuModel = .{
         .name = "cortex_a8",
         .llvm_name = "cortex-a8",
@@ -2161,6 +2417,7 @@ pub const cpu = struct {
             .vmlx_hazards,
         }),
     };
+
     pub const cortex_a9: CpuModel = .{
         .name = "cortex_a9",
         .llvm_name = "cortex-a9",
@@ -2180,6 +2437,7 @@ pub const cpu = struct {
             .vmlx_hazards,
         }),
     };
+
     pub const cortex_m0: CpuModel = .{
         .name = "cortex_m0",
         .llvm_name = "cortex-m0",
@@ -2188,6 +2446,7 @@ pub const cpu = struct {
             .v6m,
         }),
     };
+
     pub const cortex_m0plus: CpuModel = .{
         .name = "cortex_m0plus",
         .llvm_name = "cortex-m0plus",
@@ -2196,6 +2455,7 @@ pub const cpu = struct {
             .v6m,
         }),
     };
+
     pub const cortex_m1: CpuModel = .{
         .name = "cortex_m1",
         .llvm_name = "cortex-m1",
@@ -2204,6 +2464,7 @@ pub const cpu = struct {
             .v6m,
         }),
     };
+
     pub const cortex_m23: CpuModel = .{
         .name = "cortex_m23",
         .llvm_name = "cortex-m23",
@@ -2213,6 +2474,7 @@ pub const cpu = struct {
             .v8m,
         }),
     };
+
     pub const cortex_m3: CpuModel = .{
         .name = "cortex_m3",
         .llvm_name = "cortex-m3",
@@ -2223,6 +2485,7 @@ pub const cpu = struct {
             .v7m,
         }),
     };
+
     pub const cortex_m33: CpuModel = .{
         .name = "cortex_m33",
         .llvm_name = "cortex-m33",
@@ -2237,6 +2500,7 @@ pub const cpu = struct {
             .v8m_main,
         }),
     };
+
     pub const cortex_m35p: CpuModel = .{
         .name = "cortex_m35p",
         .llvm_name = "cortex-m35p",
@@ -2250,6 +2514,7 @@ pub const cpu = struct {
             .v8m_main,
         }),
     };
+
     pub const cortex_m4: CpuModel = .{
         .name = "cortex_m4",
         .llvm_name = "cortex-m4",
@@ -2262,6 +2527,7 @@ pub const cpu = struct {
             .v7em,
         }),
     };
+
     pub const cortex_m52: CpuModel = .{
         .name = "cortex_m52",
         .llvm_name = "cortex-m52",
@@ -2277,6 +2543,7 @@ pub const cpu = struct {
             .v8_1m_main,
         }),
     };
+
     pub const cortex_m55: CpuModel = .{
         .name = "cortex_m55",
         .llvm_name = "cortex-m55",
@@ -2291,6 +2558,7 @@ pub const cpu = struct {
             .v8_1m_main,
         }),
     };
+
     pub const cortex_m7: CpuModel = .{
         .name = "cortex_m7",
         .llvm_name = "cortex-m7",
@@ -2301,6 +2569,7 @@ pub const cpu = struct {
             .v7em,
         }),
     };
+
     pub const cortex_m85: CpuModel = .{
         .name = "cortex_m85",
         .llvm_name = "cortex-m85",
@@ -2312,6 +2581,7 @@ pub const cpu = struct {
             .v8_1m_main,
         }),
     };
+
     pub const cortex_r4: CpuModel = .{
         .name = "cortex_r4",
         .llvm_name = "cortex-r4",
@@ -2321,6 +2591,7 @@ pub const cpu = struct {
             .v7r,
         }),
     };
+
     pub const cortex_r4f: CpuModel = .{
         .name = "cortex_r4f",
         .llvm_name = "cortex-r4f",
@@ -2334,6 +2605,7 @@ pub const cpu = struct {
             .vfp3d16,
         }),
     };
+
     pub const cortex_r5: CpuModel = .{
         .name = "cortex_r5",
         .llvm_name = "cortex-r5",
@@ -2348,6 +2620,7 @@ pub const cpu = struct {
             .vfp3d16,
         }),
     };
+
     pub const cortex_r52: CpuModel = .{
         .name = "cortex_r52",
         .llvm_name = "cortex-r52",
@@ -2359,6 +2632,7 @@ pub const cpu = struct {
             .v8r,
         }),
     };
+
     pub const cortex_r52plus: CpuModel = .{
         .name = "cortex_r52plus",
         .llvm_name = "cortex-r52plus",
@@ -2370,6 +2644,7 @@ pub const cpu = struct {
             .v8r,
         }),
     };
+
     pub const cortex_r7: CpuModel = .{
         .name = "cortex_r7",
         .llvm_name = "cortex-r7",
@@ -2386,6 +2661,7 @@ pub const cpu = struct {
             .vfp3d16,
         }),
     };
+
     pub const cortex_r8: CpuModel = .{
         .name = "cortex_r8",
         .llvm_name = "cortex-r8",
@@ -2402,6 +2678,7 @@ pub const cpu = struct {
             .vfp3d16,
         }),
     };
+
     pub const cortex_x1: CpuModel = .{
         .name = "cortex_x1",
         .llvm_name = "cortex-x1",
@@ -2411,6 +2688,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cortex_x1c: CpuModel = .{
         .name = "cortex_x1c",
         .llvm_name = "cortex-x1c",
@@ -2420,6 +2698,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const cyclone: CpuModel = .{
         .name = "cyclone",
         .llvm_name = "cyclone",
@@ -2436,6 +2715,7 @@ pub const cpu = struct {
             .zcz,
         }),
     };
+
     pub const ep9312: CpuModel = .{
         .name = "ep9312",
         .llvm_name = "ep9312",
@@ -2443,6 +2723,7 @@ pub const cpu = struct {
             .v4t,
         }),
     };
+
     pub const exynos_m1: CpuModel = .{
         .name = "exynos_m1",
         .llvm_name = null,
@@ -2463,6 +2744,7 @@ pub const cpu = struct {
             .zcz,
         }),
     };
+
     pub const exynos_m2: CpuModel = .{
         .name = "exynos_m2",
         .llvm_name = null,
@@ -2483,6 +2765,7 @@ pub const cpu = struct {
             .zcz,
         }),
     };
+
     pub const exynos_m3: CpuModel = .{
         .name = "exynos_m3",
         .llvm_name = "exynos-m3",
@@ -2503,6 +2786,7 @@ pub const cpu = struct {
             .zcz,
         }),
     };
+
     pub const exynos_m4: CpuModel = .{
         .name = "exynos_m4",
         .llvm_name = "exynos-m4",
@@ -2525,6 +2809,7 @@ pub const cpu = struct {
             .zcz,
         }),
     };
+
     pub const exynos_m5: CpuModel = .{
         .name = "exynos_m5",
         .llvm_name = "exynos-m5",
@@ -2547,11 +2832,13 @@ pub const cpu = struct {
             .zcz,
         }),
     };
+
     pub const generic: CpuModel = .{
         .name = "generic",
         .llvm_name = "generic",
         .features = featureSet(&[_]Feature{}),
     };
+
     pub const iwmmxt: CpuModel = .{
         .name = "iwmmxt",
         .llvm_name = "iwmmxt",
@@ -2559,6 +2846,7 @@ pub const cpu = struct {
             .v5te,
         }),
     };
+
     pub const krait: CpuModel = .{
         .name = "krait",
         .llvm_name = "krait",
@@ -2574,6 +2862,7 @@ pub const cpu = struct {
             .vmlx_forwarding,
         }),
     };
+
     pub const kryo: CpuModel = .{
         .name = "kryo",
         .llvm_name = "kryo",
@@ -2581,6 +2870,7 @@ pub const cpu = struct {
             .v8a,
         }),
     };
+
     pub const mpcore: CpuModel = .{
         .name = "mpcore",
         .llvm_name = "mpcore",
@@ -2590,6 +2880,7 @@ pub const cpu = struct {
             .vfp2,
         }),
     };
+
     pub const mpcorenovfp: CpuModel = .{
         .name = "mpcorenovfp",
         .llvm_name = "mpcorenovfp",
@@ -2597,6 +2888,7 @@ pub const cpu = struct {
             .v6k,
         }),
     };
+
     pub const neoverse_n1: CpuModel = .{
         .name = "neoverse_n1",
         .llvm_name = "neoverse-n1",
@@ -2605,6 +2897,7 @@ pub const cpu = struct {
             .v8_2a,
         }),
     };
+
     pub const neoverse_n2: CpuModel = .{
         .name = "neoverse_n2",
         .llvm_name = "neoverse-n2",
@@ -2615,6 +2908,7 @@ pub const cpu = struct {
             .v9a,
         }),
     };
+
     pub const neoverse_v1: CpuModel = .{
         .name = "neoverse_v1",
         .llvm_name = "neoverse-v1",
@@ -2625,6 +2919,7 @@ pub const cpu = struct {
             .v8_4a,
         }),
     };
+
     pub const sc000: CpuModel = .{
         .name = "sc000",
         .llvm_name = "sc000",
@@ -2633,6 +2928,7 @@ pub const cpu = struct {
             .v6m,
         }),
     };
+
     pub const sc300: CpuModel = .{
         .name = "sc300",
         .llvm_name = "sc300",
@@ -2642,6 +2938,7 @@ pub const cpu = struct {
             .v7m,
         }),
     };
+
     pub const star_mc1: CpuModel = .{
         .name = "star_mc1",
         .llvm_name = "star-mc1",
@@ -2658,6 +2955,7 @@ pub const cpu = struct {
             .v8m_main,
         }),
     };
+
     pub const strongarm: CpuModel = .{
         .name = "strongarm",
         .llvm_name = "strongarm",
@@ -2665,6 +2963,7 @@ pub const cpu = struct {
             .v4,
         }),
     };
+
     pub const strongarm110: CpuModel = .{
         .name = "strongarm110",
         .llvm_name = "strongarm110",
@@ -2672,6 +2971,7 @@ pub const cpu = struct {
             .v4,
         }),
     };
+
     pub const strongarm1100: CpuModel = .{
         .name = "strongarm1100",
         .llvm_name = "strongarm1100",
@@ -2679,6 +2979,7 @@ pub const cpu = struct {
             .v4,
         }),
     };
+
     pub const strongarm1110: CpuModel = .{
         .name = "strongarm1110",
         .llvm_name = "strongarm1110",
@@ -2686,6 +2987,7 @@ pub const cpu = struct {
             .v4,
         }),
     };
+
     pub const swift: CpuModel = .{
         .name = "swift",
         .llvm_name = "swift",
@@ -2713,6 +3015,7 @@ pub const cpu = struct {
             .wide_stride_vfp,
         }),
     };
+
     pub const xscale: CpuModel = .{
         .name = "xscale",
         .llvm_name = "xscale",

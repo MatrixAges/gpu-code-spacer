@@ -23,12 +23,15 @@ export function setCurrentRenderingInstance(
   instance: ComponentInternalInstance | null,
 ): ComponentInternalInstance | null {
   const prev = currentRenderingInstance
+
   currentRenderingInstance = instance
   currentScopeId = (instance && instance.type.__scopeId) || null
+
   // v2 pre-compiled components uses _scopeId instead of __scopeId
   if (__COMPAT__ && !currentScopeId) {
     currentScopeId = (instance && (instance.type as any)._scopeId) || null
   }
+
   return prev
 }
 
@@ -88,16 +91,21 @@ export function withCtx(
     if (renderFnWithContext._d) {
       setBlockTracking(-1)
     }
+
     const prevInstance = setCurrentRenderingInstance(ctx)
     const prevStackSize = blockStack.length
+
     let res
+
     try {
       res = fn(...args)
     } finally {
       // close blocks left dangling when the slot throws mid-block
       // inline blocks (for example `v-if`) have no helper to unwind themselves (#15070)
       for (let i = blockStack.length; i > prevStackSize; i--) closeBlock()
+
       setCurrentRenderingInstance(prevInstance)
+
       if (renderFnWithContext._d) {
         setBlockTracking(1)
       }
@@ -118,9 +126,11 @@ export function withCtx(
   renderFnWithContext._c = true
   // disable block tracking by default
   renderFnWithContext._d = true
+
   // compat build only flag to distinguish scoped slots from non-scoped ones
   if (__COMPAT__ && isNonScopedSlot) {
     renderFnWithContext._ns = true
   }
+
   return renderFnWithContext
 }

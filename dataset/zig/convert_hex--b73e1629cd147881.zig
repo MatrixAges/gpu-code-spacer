@@ -16,6 +16,7 @@ const floatFromUnsigned = common.floatFromUnsigned;
 // MMM.NNN is stored as an integer, the exponent is offset.
 pub fn convertHex(comptime T: type, n_: Number(T)) T {
     const MantissaT = common.mantissaType(T);
+
     var n = n_;
 
     if (n.mantissa == 0) {
@@ -42,9 +43,11 @@ pub fn convertHex(comptime T: type, n_: Number(T)) T {
         n.mantissa <<= 1;
         n.exponent -= 1;
     }
+
     if (n.many_digits) {
         n.mantissa |= 1;
     }
+
     while (n.mantissa >> (1 + fractional_bits + 2) != 0) {
         n.mantissa = (n.mantissa >> 1) | (n.mantissa & 1);
         n.exponent += 1;
@@ -60,11 +63,14 @@ pub fn convertHex(comptime T: type, n_: Number(T)) T {
 
     // Round using two bottom bits.
     var round = n.mantissa & 3;
+
     n.mantissa >>= 2;
     round |= n.mantissa & 1; // round to even (round up if mantissa is odd)
     n.exponent += 2;
+
     if (round == 3) {
         n.mantissa += 1;
+
         if (n.mantissa == 1 << (1 + fractional_bits)) {
             n.mantissa >>= 1;
             n.exponent += 1;
@@ -82,9 +88,12 @@ pub fn convertHex(comptime T: type, n_: Number(T)) T {
     }
 
     var bits = n.mantissa & ((1 << mantissa_bits) - 1);
+
     bits |= @as(MantissaT, @intCast((n.exponent - exp_bias) & ((1 << exp_bits) - 1))) << mantissa_bits;
+
     if (n.negative) {
         bits |= 1 << (mantissa_bits + exp_bits);
     }
+
     return floatFromUnsigned(T, MantissaT, bits);
 }

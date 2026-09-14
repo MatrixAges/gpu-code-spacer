@@ -8,6 +8,7 @@ const Complex = cmath.Complex;
 pub fn cos(z: anytype) Complex(@TypeOf(z.re, z.im)) {
     const T = @TypeOf(z.re, z.im);
     const p = Complex(T).init(-z.im, z.re);
+
     return cmath.cosh(p);
 }
 

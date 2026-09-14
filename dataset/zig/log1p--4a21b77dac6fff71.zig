@@ -20,6 +20,7 @@ const expectEqual = std.testing.expectEqual;
 ///  - log1p(nan)   = nan
 pub fn log1p(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => log1p_32(x),
         f64 => log1p_64(x),
@@ -54,14 +55,17 @@ fn log1p_32(x: f32) f32 {
                 return math.nan(f32);
             }
         }
+
         // |x| < 2^(-24)
         if ((ix << 1) < (0x33800000 << 1)) {
             // underflow if subnormal
             if (ix & 0x7F800000 == 0) {
                 mem.doNotOptimizeAway(x * x);
             }
+
             return x;
         }
+
         // sqrt(2) / 2- <= 1 + x < sqrt(2)+
         if (ix <= 0xBE95F619) {
             k = 0;
@@ -75,12 +79,14 @@ fn log1p_32(x: f32) f32 {
     if (k != 0) {
         const uf = 1 + x;
         var iu = @as(u32, @bitCast(uf));
+
         iu += 0x3F800000 - 0x3F3504F3;
         k = @as(i32, @intCast(iu >> 23)) - 0x7F;
 
         // correction to avoid underflow in c / u
         if (k < 25) {
             c = if (k >= 2) 1 - (uf - x) else x - (uf - 1);
+
             c /= uf;
         } else {
             c = 0;
@@ -133,13 +139,16 @@ fn log1p_64(x: f64) f64 {
                 return math.nan(f64);
             }
         }
+
         // |x| < 2^(-53)
         if ((hx << 1) < (0x3CA00000 << 1)) {
             if ((hx & 0x7FF00000) == 0) {
                 math.raiseUnderflow();
             }
+
             return x;
         }
+
         // sqrt(2) / 2- <= 1 + x < sqrt(2)+
         if (hx <= 0xBFD2BEC4) {
             k = 0;
@@ -154,12 +163,14 @@ fn log1p_64(x: f64) f64 {
         const uf = 1 + x;
         const hu = @as(u64, @bitCast(uf));
         var iu = @as(u32, @intCast(hu >> 32));
+
         iu += 0x3FF00000 - 0x3FE6A09E;
         k = @as(i32, @intCast(iu >> 20)) - 0x3FF;
 
         // correction to avoid underflow in c / u
         if (k < 54) {
             c = if (k >= 2) 1 - (uf - x) else x - (uf - 1);
+
             c /= uf;
         } else {
             c = 0;
@@ -167,7 +178,9 @@ fn log1p_64(x: f64) f64 {
 
         // u into [sqrt(2)/2, sqrt(2)]
         iu = (iu & 0x000FFFFF) + 0x3FE6A09E;
+
         const iq = (@as(u64, iu) << 32) | (hu & 0xFFFFFFFF);
+
         f = @as(f64, @bitCast(iq)) - 1;
     }
 

@@ -798,16 +798,19 @@ pub const section_64 = extern struct {
 
     pub fn isCode(sect: section_64) bool {
         const attr = sect.attrs();
+
         return attr & S_ATTR_PURE_INSTRUCTIONS != 0 or attr & S_ATTR_SOME_INSTRUCTIONS != 0;
     }
 
     pub fn isZerofill(sect: section_64) bool {
         const tt = sect.type();
+
         return tt == S_ZEROFILL or tt == S_GB_ZEROFILL or tt == S_THREAD_LOCAL_ZEROFILL;
     }
 
     pub fn isSymbolStubs(sect: section_64) bool {
         const tt = sect.type();
+
         return tt == S_SYMBOL_STUBS;
     }
 
@@ -826,6 +829,7 @@ pub const section_64 = extern struct {
 
 fn parseName(name: *const [16]u8) []const u8 {
     const len = mem.indexOfScalar(u8, name, @as(u8, 0)) orelse name.len;
+
     return name[0..len];
 }
 
@@ -839,9 +843,11 @@ pub const nlist = extern struct {
 
 pub const nlist_64 = extern struct {
     n_strx: u32,
+
     n_type: packed union {
         bits: packed struct(u8) {
             ext: bool,
+
             type: enum(u3) {
                 undf = 0,
                 abs = 1,
@@ -850,10 +856,12 @@ pub const nlist_64 = extern struct {
                 indr = 5,
                 _,
             },
+
             pext: bool,
             /// Any non-zero value indicates this is an stab, so the `stab` field should be used.
             is_stab: u3,
         },
+
         stab: enum(u8) {
             gsym = N_GSYM,
             fname = N_FNAME,
@@ -888,7 +896,9 @@ pub const nlist_64 = extern struct {
             _,
         },
     },
+
     n_sect: u8,
+
     n_desc: packed struct(u16) {
         _pad0: u3 = 0,
         arm_thumb_def: bool,
@@ -904,6 +914,7 @@ pub const nlist_64 = extern struct {
         alt_entry: bool,
         _pad2: u6 = 0,
     },
+
     n_value: u64,
 
     pub fn tentative(sym: nlist_64) bool {
@@ -1543,7 +1554,6 @@ pub const CPU_SUBTYPE_ARM_ALL: cpu_subtype_t = 0x0;
 pub const REBASE_TYPE_POINTER: u8 = 1;
 pub const REBASE_TYPE_TEXT_ABSOLUTE32: u8 = 2;
 pub const REBASE_TYPE_TEXT_PCREL32: u8 = 3;
-
 pub const REBASE_OPCODE_MASK: u8 = 0xF0;
 pub const REBASE_IMMEDIATE_MASK: u8 = 0x0F;
 pub const REBASE_OPCODE_DONE: u8 = 0x00;
@@ -1567,7 +1577,6 @@ pub const BIND_SPECIAL_DYLIB_FLAT_LOOKUP: i8 = -2;
 
 pub const BIND_SYMBOL_FLAGS_WEAK_IMPORT: u8 = 0x1;
 pub const BIND_SYMBOL_FLAGS_NON_WEAK_DEFINITION: u8 = 0x8;
-
 pub const BIND_OPCODE_MASK: u8 = 0xf0;
 pub const BIND_IMMEDIATE_MASK: u8 = 0x0f;
 pub const BIND_OPCODE_DONE: u8 = 0x00;
@@ -1783,14 +1792,11 @@ pub const CS_SHA256_TRUNCATED_LEN: u32 = 20;
 pub const CS_CDHASH_LEN: u32 = 20;
 /// Max size of the hash we'll support
 pub const CS_HASH_MAX_SIZE: u32 = 48;
-
 pub const CS_SIGNER_TYPE_UNKNOWN: u32 = 0;
 pub const CS_SIGNER_TYPE_LEGACYVPN: u32 = 5;
 pub const CS_SIGNER_TYPE_MAC_APP_STORE: u32 = 6;
-
 pub const CS_ADHOC: u32 = 0x2;
 pub const CS_LINKER_SIGNED: u32 = 0x20000;
-
 pub const CS_EXECSEG_MAIN_BINARY: u32 = 0x1;
 
 /// This CodeDirectory is tailored specifically at version 0x20400.
@@ -1912,9 +1918,12 @@ pub const LoadCommandIterator = struct {
 
         pub fn cast(lc: LoadCommand, comptime Cmd: type) ?Cmd {
             if (lc.data.len < @sizeOf(Cmd)) return null;
+
             const ptr: *align(1) const Cmd = @ptrCast(lc.data.ptr);
             var cmd = ptr.*;
+
             if (builtin.cpu.arch.endian() != .little) std.mem.byteSwapAllFields(Cmd, &cmd);
+
             return cmd;
         }
 
@@ -1923,18 +1932,21 @@ pub const LoadCommandIterator = struct {
         pub fn getSections(lc: LoadCommand) []align(1) const section_64 {
             const segment_lc = lc.cast(segment_command_64).?;
             const sects_ptr: [*]align(1) const section_64 = @ptrCast(lc.data[@sizeOf(segment_command_64)..]);
+
             return sects_ptr[0..segment_lc.nsects];
         }
 
         /// Asserts LoadCommand is of type dylib_command.
         pub fn getDylibPathName(lc: LoadCommand) []const u8 {
             const dylib_lc = lc.cast(dylib_command).?;
+
             return mem.sliceTo(lc.data[dylib_lc.dylib.name..], 0);
         }
 
         /// Asserts LoadCommand is of type rpath_command.
         pub fn getRpathPathName(lc: LoadCommand) []const u8 {
             const rpath_lc = lc.cast(rpath_command).?;
+
             return mem.sliceTo(lc.data[rpath_lc.path..], 0);
         }
 
@@ -1943,6 +1955,7 @@ pub const LoadCommandIterator = struct {
         pub fn getBuildVersionTools(lc: LoadCommand) []align(1) const build_tool_version {
             const build_lc = lc.cast(build_version_command).?;
             const tools_ptr: [*]align(1) const build_tool_version = @ptrCast(lc.data[@sizeOf(build_version_command)..]);
+
             return tools_ptr[0..build_lc.ntools];
         }
     };
@@ -1954,19 +1967,23 @@ pub const LoadCommandIterator = struct {
             error.ReadFailed => unreachable,
             error.EndOfStream => return error.InvalidMachO,
         };
+
         const data = it.r.take(hdr.cmdsize) catch |err| switch (err) {
             error.ReadFailed => unreachable,
             error.EndOfStream => return error.InvalidMachO,
         };
 
         it.next_index += 1;
+
         return .{ .hdr = hdr, .data = data };
     }
 
     pub fn init(hdr: *const mach_header_64, cmds_buf_overlong: []const u8) error{InvalidMachO}!LoadCommandIterator {
         if (cmds_buf_overlong.len < hdr.sizeofcmds) return error.InvalidMachO;
         if (hdr.ncmds > 0 and hdr.sizeofcmds < @sizeOf(load_command)) return error.InvalidMachO;
+
         const cmds_buf = cmds_buf_overlong[0..hdr.sizeofcmds];
+
         return .{
             .next_index = 0,
             .ncmds = hdr.ncmds,
@@ -2072,6 +2089,7 @@ pub const UNWIND_PERSONALITY_MASK: u32 = 0x30000000;
 
 // x86_64
 pub const UNWIND_X86_64_MODE_MASK: u32 = 0x0F000000;
+
 pub const UNWIND_X86_64_MODE = enum(u4) {
     OLD = 0,
     RBP_FRAME = 1,
@@ -2079,14 +2097,13 @@ pub const UNWIND_X86_64_MODE = enum(u4) {
     STACK_IND = 3,
     DWARF = 4,
 };
+
 pub const UNWIND_X86_64_RBP_FRAME_REGISTERS: u32 = 0x00007FFF;
 pub const UNWIND_X86_64_RBP_FRAME_OFFSET: u32 = 0x00FF0000;
-
 pub const UNWIND_X86_64_FRAMELESS_STACK_SIZE: u32 = 0x00FF0000;
 pub const UNWIND_X86_64_FRAMELESS_STACK_ADJUST: u32 = 0x0000E000;
 pub const UNWIND_X86_64_FRAMELESS_STACK_REG_COUNT: u32 = 0x00001C00;
 pub const UNWIND_X86_64_FRAMELESS_STACK_REG_PERMUTATION: u32 = 0x000003FF;
-
 pub const UNWIND_X86_64_DWARF_SECTION_OFFSET: u32 = 0x00FFFFFF;
 
 pub const UNWIND_X86_64_REG = enum(u3) {
@@ -2101,6 +2118,7 @@ pub const UNWIND_X86_64_REG = enum(u3) {
 
 // arm64
 pub const UNWIND_ARM64_MODE_MASK: u32 = 0x0F000000;
+
 pub const UNWIND_ARM64_MODE = enum(u4) {
     OLD = 0,
     FRAMELESS = 2,
@@ -2117,7 +2135,6 @@ pub const UNWIND_ARM64_FRAME_D8_D9_PAIR: u32 = 0x00000100;
 pub const UNWIND_ARM64_FRAME_D10_D11_PAIR: u32 = 0x00000200;
 pub const UNWIND_ARM64_FRAME_D12_D13_PAIR: u32 = 0x00000400;
 pub const UNWIND_ARM64_FRAME_D14_D15_PAIR: u32 = 0x00000800;
-
 pub const UNWIND_ARM64_FRAMELESS_STACK_SIZE_MASK: u32 = 0x00FFF000;
 pub const UNWIND_ARM64_DWARF_SECTION_OFFSET: u32 = 0x00FFFFFF;
 
@@ -2133,22 +2150,27 @@ pub const CompactUnwindEncoding = packed struct(u32) {
                 unused: u1 = 0,
                 frame_offset: u8,
             },
+
             frameless: packed struct(u24) {
                 stack_reg_permutation: u10,
                 stack_reg_count: u3,
+
                 stack: packed union {
                     direct: packed struct(u11) {
                         _: u3,
                         stack_size: u8,
                     },
+
                     indirect: packed struct(u11) {
                         stack_adjust: u3,
                         sub_offset: u8,
                     },
                 },
             },
+
             dwarf: u24,
         },
+
         arm64: packed union {
             frame: packed struct(u24) {
                 x_reg_pairs: packed struct(u5) {
@@ -2158,25 +2180,31 @@ pub const CompactUnwindEncoding = packed struct(u32) {
                     x25_x26: u1,
                     x27_x28: u1,
                 },
+
                 d_reg_pairs: packed struct(u4) {
                     d8_d9: u1,
                     d10_d11: u1,
                     d12_d13: u1,
                     d14_d15: u1,
                 },
+
                 _: u15,
             },
+
             frameless: packed struct(u24) {
                 _: u12 = 0,
                 stack_size: u12,
             },
+
             dwarf: u24,
         },
     },
+
     mode: packed union {
         x86_64: UNWIND_X86_64_MODE,
         arm64: UNWIND_ARM64_MODE,
     },
+
     personality_index: u2,
     has_lsda: u1,
     start: u1,

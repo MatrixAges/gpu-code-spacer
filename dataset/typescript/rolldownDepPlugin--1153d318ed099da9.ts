@@ -12,6 +12,7 @@ import { assetImportMetaUrlRE } from '../plugins/assetImportMetaUrl'
 import { isModuleCSSRequest } from '../plugins/css'
 import { hasViteIgnoreRE } from '../plugins/importAnalysis'
 import { browserExternalId, optionalPeerDepId } from '../plugins/resolve'
+
 import {
   escapeRegex,
   flattenId,
@@ -26,6 +27,7 @@ import {
 
 const externalWithConversionNamespace =
   'vite:dep-pre-bundle:external-conversion'
+
 const convertedExternalPrefix = 'vite-dep-pre-bundle-external:'
 
 const cjsExternalFacadeNamespace = 'vite:cjs-external-facade'
@@ -84,6 +86,7 @@ export function rolldownDepPlugin(
         id: externalWithConversionNamespace + resolved,
       }
     }
+
     return {
       id: resolved,
       external: 'absolute' as const,
@@ -116,7 +119,9 @@ export function rolldownDepPlugin(
     // map importer ids to file paths for correct resolution
     const _importer =
       importer && importer in qualified ? qualified[importer] : importer
+
     const resolver = kind.startsWith('require') ? _resolveRequire : _resolve
+
     return resolver(environment, id, _importer)
   }
 
@@ -126,23 +131,28 @@ export function rolldownDepPlugin(
         id: browserExternalNamespace + id,
       }
     }
+
     if (resolved.startsWith(optionalPeerDepId)) {
       return {
         id: optionalPeerDepNamespace + resolved,
       }
     }
+
     if (allExternalTypesReg.test(resolved)) {
       return resolveAssets(resolved, kind)
     }
+
     if (isBuiltin(environment.config.resolve.builtins, resolved)) {
       return
     }
+
     if (isExternalUrl(resolved)) {
       return {
         id: resolved,
         external: 'absolute',
       }
     }
+
     return {
       id: path.resolve(resolved),
     }
@@ -154,6 +164,7 @@ export function rolldownDepPlugin(
 
   function resolveEntry(id: string) {
     const flatId = flattenId(id)
+
     if (flatId in qualified) {
       return {
         id: qualified[flatId],
@@ -172,6 +183,7 @@ export function rolldownDepPlugin(
         filter: { id: allExternalTypesReg },
         async handler(id, importer, options) {
           const kind = options.kind
+
           // if the prefix exist, it is already converted to `import`, so set `external: true`
           if (id.startsWith(convertedExternalPrefix)) {
             return {
@@ -181,6 +193,7 @@ export function rolldownDepPlugin(
           }
 
           const resolved = await resolve(id, importer, kind)
+
           if (resolved) {
             // `resolved` can be javascript even when `id` matches `allExternalTypes`
             // due to cjs resolution (e.g. require("./test.pdf") for "./test.pdf.js")
@@ -192,6 +205,7 @@ export function rolldownDepPlugin(
                 external: false,
               }
             }
+
             return resolveAssets(resolved, kind)
           }
         },
@@ -204,6 +218,7 @@ export function rolldownDepPlugin(
           const path = id.slice(externalWithConversionNamespace.length)
           // import itself with prefix (this is the actual part of require-import conversion)
           const modulePath = `"${convertedExternalPrefix}${path}"`
+
           return {
             code:
               isCSSRequest(path) && !isModuleCSSRequest(path)
@@ -235,11 +250,14 @@ export function rolldownDepPlugin(
 
           // ensure rolldown uses our resolved entries
           let entry: { id: string } | undefined
+
           // if this is an entry, return entry namespace resolve result
           if (!importer) {
             if ((entry = resolveEntry(id))) return entry
+
             // check if this is aliased to an entry - also return entry namespace
             const aliased = await _resolve(environment, id, undefined, true)
+
             if (aliased && (entry = resolveEntry(aliased))) {
               return entry
             }
@@ -247,6 +265,7 @@ export function rolldownDepPlugin(
 
           // use vite's own resolver
           const resolved = await resolve(id, importer, kind)
+
           if (resolved) {
             return resolveResult(id, resolved, kind)
           }
@@ -262,6 +281,7 @@ export function rolldownDepPlugin(
         handler(id) {
           if (id.startsWith(browserExternalNamespace)) {
             const path = id.slice(browserExternalNamespace.length)
+
             if (isProduction) {
               return {
                 code: 'module.exports = {}',
@@ -304,6 +324,7 @@ export function rolldownDepPlugin(
           if (id.startsWith(optionalPeerDepNamespace)) {
             const path = id.slice(optionalPeerDepNamespace.length)
             const [, peerDep, parentDep] = path.split(':')
+
             return {
               code:
                 'module.exports = {};' +
@@ -322,9 +343,11 @@ export function rolldownDepPlugin(
           const cleanString = stripLiteral(code)
 
           let match: RegExpExecArray | null
+
           while ((match = re.exec(cleanString))) {
             const [[startIndex, endIndex], [urlStart, urlEnd]] =
               match.indices as Array<[number, number]>
+
             if (hasViteIgnoreRE.test(code.slice(startIndex, urlStart))) continue
 
             const rawUrl = code.slice(urlStart, urlEnd)
@@ -336,6 +359,7 @@ export function rolldownDepPlugin(
             }
 
             const url = rawUrl.slice(1, -1)
+
             if (isDataUrl(url) || isExternalUrl(url) || url.startsWith('/')) {
               continue
             }
@@ -347,6 +371,7 @@ export function rolldownDepPlugin(
             const absolutePath = path.resolve(path.dirname(id), url)
             const relativePath = path.relative(bundleOutputDir, absolutePath)
             const normalizedRelativePath = normalizePath(relativePath)
+
             s.update(
               startIndex,
               endIndex,
@@ -382,6 +407,7 @@ export function rolldownCjsExternalPlugin(
   if (platform === 'node') {
     return undefined
   }
+
   // Skip this plugin for `platform: 'neutral'` as we are not sure whether `require` is available
   if (platform === 'neutral') {
     return undefined
@@ -404,11 +430,13 @@ export function rolldownCjsExternalPlugin(
             external: 'absolute',
           }
         }
+
         if (options.kind === 'require-call') {
           return {
             id: cjsExternalFacadeNamespace + id,
           }
         }
+
         return {
           id,
           external: 'absolute',
@@ -419,6 +447,7 @@ export function rolldownCjsExternalPlugin(
       filter: { id: prefixRegex(cjsExternalFacadeNamespace) },
       handler(id) {
         const idWithoutNamespace = id.slice(cjsExternalFacadeNamespace.length)
+
         return {
           code: `\
 import * as m from ${JSON.stringify(nonFacadePrefix + idWithoutNamespace)};

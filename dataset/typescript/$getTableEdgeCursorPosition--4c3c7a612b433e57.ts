@@ -30,8 +30,10 @@ export default (editor: LexicalEditor, selection: RangeSelection, table_node: Ta
 	if (!$isTableNode(parent_table) || !parent_table.is(table_node)) return
 
 	const [table_map, cell_value] = $computeTableMap(table_node, anchor_cell_node, anchor_cell_node)
+
 	const first_cell = table_map[0][0]
 	const last_cell = table_map[table_map.length - 1][table_map[0].length - 1]
+
 	const { start_row, start_column } = cell_value
 
 	const is_at_first_cell = start_row === first_cell.start_row && start_column === first_cell.start_column

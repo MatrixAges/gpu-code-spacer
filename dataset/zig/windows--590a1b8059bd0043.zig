@@ -13,6 +13,7 @@ pub const IsProcessorFeaturePresent = std.os.windows.IsProcessorFeaturePresent;
 /// Discards information about in-between versions we don't differentiate.
 pub fn detectRuntimeVersion() WindowsVersion {
     var version_info: std.os.windows.RTL_OSVERSIONINFOW = undefined;
+
     version_info.dwOSVersionInfoSize = @sizeOf(@TypeOf(version_info));
 
     switch (std.os.windows.ntdll.RtlGetVersion(&version_info)) {
@@ -28,16 +29,20 @@ pub fn detectRuntimeVersion() WindowsVersion {
     //      `--> OS version (Major & minor)
     const os_ver: u16 = @as(u16, @intCast(version_info.dwMajorVersion & 0xff)) << 8 |
         @as(u16, @intCast(version_info.dwMinorVersion & 0xff));
+
     const sp_ver: u8 = 0;
+
     const sub_ver: u8 = if (os_ver >= 0x0A00) subver: {
         // There's no other way to obtain this info beside
         // checking the build number against a known set of
         // values
         var last_idx: usize = 0;
+
         for (WindowsVersion.known_win10_build_numbers, 0..) |build, i| {
             if (version_info.dwBuildNumber >= build)
                 last_idx = i;
         }
+
         break :subver @as(u8, @truncate(last_idx));
     } else 0;
 
@@ -74,10 +79,13 @@ fn getCpuInfoFromRegistry(core: usize, args: anytype) !void {
 
     const max_cpu_buf = 4;
     var next_cpu_buf: [max_cpu_buf]u8 = undefined;
+
     const next_cpu = try std.fmt.bufPrint(&next_cpu_buf, "{d}", .{core});
 
     var subkey: [max_cpu_buf + 1]u16 = undefined;
+
     const subkey_len = try std.unicode.utf8ToUtf16Le(&subkey, next_cpu);
+
     subkey[subkey_len] = 0;
 
     table[0] = .{
@@ -100,12 +108,15 @@ fn getCpuInfoFromRegistry(core: usize, args: anytype) !void {
                 REG.MULTI_SZ,
                 => {
                     comptime assert(@sizeOf(std.os.windows.UNICODE_STRING) % 2 == 0);
+
                     const unicode = @as(*std.os.windows.UNICODE_STRING, @ptrCast(&tmp_bufs[i]));
+
                     unicode.* = .{
                         .Length = 0,
                         .MaximumLength = max_value_len - @sizeOf(std.os.windows.UNICODE_STRING),
                         .Buffer = @as([*]u16, @ptrCast(tmp_bufs[i][@sizeOf(std.os.windows.UNICODE_STRING)..])),
                     };
+
                     break :blk unicode;
                 },
 
@@ -119,7 +130,9 @@ fn getCpuInfoFromRegistry(core: usize, args: anytype) !void {
         };
 
         var key_buf: [max_value_len / 2 + 1]u16 = undefined;
+
         const key_len = try std.unicode.utf8ToUtf16Le(&key_buf, @field(args, field.name).key);
+
         key_buf[key_len] = 0;
 
         table[i + 1] = .{
@@ -151,6 +164,7 @@ fn getCpuInfoFromRegistry(core: usize, args: anytype) !void {
         null,
         null,
     );
+
     switch (res) {
         .SUCCESS => {
             inline for (fields_info, 0..) |field, i| switch (@field(args, field.name).value_type) {
@@ -161,6 +175,7 @@ fn getCpuInfoFromRegistry(core: usize, args: anytype) !void {
                     var buf = @field(args, field.name).value_buf;
                     const entry = @as(*align(1) const std.os.windows.UNICODE_STRING, @ptrCast(table[i + 1].EntryContext));
                     const len = try std.unicode.utf16LeToUtf8(buf, entry.Buffer.?[0 .. entry.Length / 2]);
+
                     buf[len] = 0;
                 },
 
@@ -169,6 +184,7 @@ fn getCpuInfoFromRegistry(core: usize, args: anytype) !void {
                 REG.QWORD,
                 => {
                     const entry = @as([*]align(1) const u8, @ptrCast(table[i + 1].EntryContext));
+
                     switch (@field(args, field.name).value_type) {
                         REG.DWORD, REG.DWORD_BIG_ENDIAN => {
                             @memcpy(@field(args, field.name).value_buf[0..4], entry[0..4]);
@@ -228,6 +244,7 @@ fn genericCpuAndNativeFeatures(arch: Target.Cpu.Arch) Target.Cpu {
 
 pub fn detectNativeCpuAndFeatures() ?Target.Cpu {
     const current_arch = builtin.cpu.arch;
+
     const cpu: ?Target.Cpu = switch (current_arch) {
         .aarch64, .aarch64_be => blk: {
             var cores: [128]Target.Cpu = undefined;
@@ -236,6 +253,7 @@ pub fn detectNativeCpuAndFeatures() ?Target.Cpu {
             if (core_count > cores.len) break :blk null;
 
             var i: usize = 0;
+
             while (i < core_count) : (i += 1) {
                 // Backing datastore
                 var registers: [12]u64 = undefined;
@@ -277,5 +295,6 @@ pub fn detectNativeCpuAndFeatures() ?Target.Cpu {
         },
         else => null,
     };
+
     return cpu orelse genericCpuAndNativeFeatures(current_arch);
 }

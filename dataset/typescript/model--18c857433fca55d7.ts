@@ -16,6 +16,7 @@ import type { IProps } from './index'
 export default class Index {
 	file_id = ''
 	angle_id = ''
+
 	items = [] as Array<Todo.TodoItem>
 
 	watcher = null as unknown as Subscription

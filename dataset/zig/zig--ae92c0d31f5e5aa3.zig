@@ -60,6 +60,7 @@ pub const Color = enum {
             .off => .no_color,
         };
     }
+
     pub fn detectTtyConf(color: Color) Io.tty.Config {
         return switch (color) {
             .auto => .detect(.stderr()),
@@ -75,7 +76,9 @@ pub const max_src_size = std.math.maxInt(u32);
 
 pub fn hashSrc(src: []const u8) SrcHash {
     var out: SrcHash = undefined;
+
     SrcHasher.hash(src, &out, .{});
+
     return out;
 }
 
@@ -86,10 +89,12 @@ pub fn srcHashEql(a: SrcHash, b: SrcHash) bool {
 pub fn hashName(parent_hash: SrcHash, sep: []const u8, name: []const u8) SrcHash {
     var out: SrcHash = undefined;
     var hasher = SrcHasher.init(.{});
+
     hasher.update(&parent_hash);
     hasher.update(sep);
     hasher.update(name);
     hasher.final(&out);
+
     return out;
 }
 
@@ -109,6 +114,7 @@ pub fn findLineColumn(source: []const u8, byte_offset: usize) Loc {
     var column: usize = 0;
     var line_start: usize = 0;
     var i: usize = 0;
+
     while (i < byte_offset) : (i += 1) {
         switch (source[i]) {
             '\n' => {
@@ -121,9 +127,11 @@ pub fn findLineColumn(source: []const u8, byte_offset: usize) Loc {
             },
         }
     }
+
     while (i < source.len and source[i] != '\n') {
         i += 1;
     }
+
     return .{
         .line = line,
         .column = column,
@@ -133,6 +141,7 @@ pub fn findLineColumn(source: []const u8, byte_offset: usize) Loc {
 
 pub fn lineDelta(source: []const u8, start: usize, end: usize) isize {
     var line: isize = 0;
+
     if (end >= start) {
         for (source[start..end]) |byte| switch (byte) {
             '\n' => line += 1,
@@ -144,6 +153,7 @@ pub fn lineDelta(source: []const u8, start: usize, end: usize) isize {
             else => continue,
         };
     }
+
     return line;
 }
 
@@ -159,6 +169,7 @@ pub const BinNameOptions = struct {
 pub fn binNameAlloc(allocator: Allocator, options: BinNameOptions) error{OutOfMemory}![]u8 {
     const root_name = options.root_name;
     const t = options.target;
+
     switch (t.ofmt) {
         .coff => switch (options.output_mode) {
             .Exe => return std.fmt.allocPrint(allocator, "{s}{s}", .{ root_name, t.exeFileExt() }),
@@ -167,6 +178,7 @@ pub fn binNameAlloc(allocator: Allocator, options: BinNameOptions) error{OutOfMe
                     .static => ".lib",
                     .dynamic => ".dll",
                 };
+
                 return std.fmt.allocPrint(allocator, "{s}{s}", .{ root_name, suffix });
             },
             .Obj => return std.fmt.allocPrint(allocator, "{s}.obj", .{root_name}),
@@ -261,7 +273,9 @@ pub const BuildId = union(enum) {
         const Tag = @typeInfo(BuildId).@"union".tag_type.?;
         const a_tag: Tag = a;
         const b_tag: Tag = b;
+
         if (a_tag != b_tag) return false;
+
         return switch (a) {
             .none, .fast, .uuid, .sha1, .md5 => true,
             .hexstring => |a_hexstring| std.mem.eql(u8, a_hexstring.toSlice(), b.hexstring.toSlice()),
@@ -285,7 +299,9 @@ pub const BuildId = union(enum) {
             .bytes = undefined,
             .len = @intCast(bytes.len),
         } };
+
         @memcpy(result.hexstring.bytes[0..bytes.len], bytes);
+
         return result;
     }
 
@@ -304,9 +320,12 @@ pub const BuildId = union(enum) {
         } else if (std.mem.startsWith(u8, text, "0x")) {
             var result: BuildId = .{ .hexstring = undefined };
             const slice = try std.fmt.hexToBytes(&result.hexstring.bytes, text[2..]);
+
             result.hexstring.len = @as(u8, @intCast(slice.len));
+
             return result;
         }
+
         return error.InvalidBuildIdStyle;
     }
 
@@ -396,8 +415,8 @@ pub const RcIncludes = enum {
 pub fn serializeCpu(buffer: *std.array_list.Managed(u8), cpu: std.Target.Cpu) Allocator.Error!void {
     const all_features = cpu.arch.allFeaturesList();
     var populated_cpu_features = cpu.model.features;
-    populated_cpu_features.populateDependencies(all_features);
 
+    populated_cpu_features.populateDependencies(all_features);
     try buffer.appendSlice(cpu.model.name);
 
     if (populated_cpu_features.eql(cpu.features)) {
@@ -409,7 +428,9 @@ pub fn serializeCpu(buffer: *std.array_list.Managed(u8), cpu: std.Target.Cpu) Al
         const i: std.Target.Cpu.Feature.Set.Index = @intCast(i_usize);
         const in_cpu_set = populated_cpu_features.isEnabled(i);
         const in_actual_set = cpu.features.isEnabled(i);
+
         try buffer.ensureUnusedCapacity(feature.name.len + 1);
+
         if (in_cpu_set and !in_actual_set) {
             buffer.appendAssumeCapacity('-');
             buffer.appendSliceAssumeCapacity(feature.name);
@@ -422,7 +443,9 @@ pub fn serializeCpu(buffer: *std.array_list.Managed(u8), cpu: std.Target.Cpu) Al
 
 pub fn serializeCpuAlloc(ally: Allocator, cpu: std.Target.Cpu) Allocator.Error![]u8 {
     var buffer = std.array_list.Managed(u8).init(ally);
+
     try serializeCpu(&buffer, cpu);
+
     return buffer.toOwnedSlice();
 }
 
@@ -450,26 +473,23 @@ pub fn fmtIdP(bytes: []const u8) FormatId {
 
 test fmtId {
     const expectFmt = std.testing.expectFmt;
+
     try expectFmt("@\"while\"", "{f}", .{fmtId("while")});
     try expectFmt("@\"while\"", "{f}", .{fmtIdFlags("while", .{ .allow_primitive = true })});
     try expectFmt("@\"while\"", "{f}", .{fmtIdFlags("while", .{ .allow_underscore = true })});
     try expectFmt("@\"while\"", "{f}", .{fmtIdFlags("while", .{ .allow_primitive = true, .allow_underscore = true })});
-
     try expectFmt("hello", "{f}", .{fmtId("hello")});
     try expectFmt("hello", "{f}", .{fmtIdFlags("hello", .{ .allow_primitive = true })});
     try expectFmt("hello", "{f}", .{fmtIdFlags("hello", .{ .allow_underscore = true })});
     try expectFmt("hello", "{f}", .{fmtIdFlags("hello", .{ .allow_primitive = true, .allow_underscore = true })});
-
     try expectFmt("@\"type\"", "{f}", .{fmtId("type")});
     try expectFmt("type", "{f}", .{fmtIdFlags("type", .{ .allow_primitive = true })});
     try expectFmt("@\"type\"", "{f}", .{fmtIdFlags("type", .{ .allow_underscore = true })});
     try expectFmt("type", "{f}", .{fmtIdFlags("type", .{ .allow_primitive = true, .allow_underscore = true })});
-
     try expectFmt("@\"_\"", "{f}", .{fmtId("_")});
     try expectFmt("@\"_\"", "{f}", .{fmtIdFlags("_", .{ .allow_primitive = true })});
     try expectFmt("_", "{f}", .{fmtIdFlags("_", .{ .allow_underscore = true })});
     try expectFmt("_", "{f}", .{fmtIdFlags("_", .{ .allow_primitive = true, .allow_underscore = true })});
-
     try expectFmt("@\"i123\"", "{f}", .{fmtId("i123")});
     try expectFmt("i123", "{f}", .{fmtIdFlags("i123", .{ .allow_primitive = true })});
     try expectFmt("@\"4four\"", "{f}", .{fmtId("4four")});
@@ -485,6 +505,7 @@ test fmtId {
 pub const FormatId = struct {
     bytes: []const u8,
     flags: Flags,
+
     pub const Flags = struct {
         allow_primitive: bool = false,
         allow_underscore: bool = false,
@@ -493,14 +514,18 @@ pub const FormatId = struct {
     /// Print the string as a Zig identifier, escaping it with `@""` syntax if needed.
     pub fn format(ctx: FormatId, writer: *Writer) Writer.Error!void {
         const bytes = ctx.bytes;
+
         if (isValidId(bytes) and
             (ctx.flags.allow_primitive or !std.zig.isPrimitive(bytes)) and
             (ctx.flags.allow_underscore or !isUnderscore(bytes)))
         {
             return writer.writeAll(bytes);
         }
+
         try writer.writeAll("@\"");
+
         try stringEscape(bytes, writer);
+
         try writer.writeByte('"');
     }
 };
@@ -517,6 +542,7 @@ pub fn fmtChar(c: u21) std.fmt.Alt(u21, charEscape) {
 
 test fmtString {
     try std.testing.expectFmt("\\x0f", "{f}", .{fmtString("\x0f")});
+
     try std.testing.expectFmt(
         \\" \\ hi \x07 \x11 \" derp '"
     , "\"{f}\"", .{fmtString(" \\ hi \x07 \x11 \" derp '")});
@@ -567,6 +593,7 @@ pub fn charEscape(codepoint: u21, w: *Writer) Writer.Error!void {
 
 pub fn isValidId(bytes: []const u8) bool {
     if (bytes.len == 0) return false;
+
     for (bytes, 0..) |c, i| {
         switch (c) {
             '_', 'a'...'z', 'A'...'Z' => {},
@@ -574,6 +601,7 @@ pub fn isValidId(bytes: []const u8) bool {
             else => return false,
         }
     }
+
     return std.zig.Token.getKeyword(bytes) == null;
 }
 
@@ -603,10 +631,12 @@ test isUnderscore {
 /// this are rare.
 pub fn readSourceFileToEndAlloc(gpa: Allocator, file_reader: *Io.File.Reader) ![:0]u8 {
     var buffer: std.ArrayList(u8) = .empty;
+
     defer buffer.deinit(gpa);
 
     if (file_reader.getSize()) |size| {
         const casted_size = std.math.cast(u32, size) orelse return error.StreamTooLong;
+
         // +1 to avoid resizing for the null byte added in toOwnedSliceSentinel below.
         try buffer.ensureTotalCapacityPrecise(gpa, casted_size + 1);
     } else |_| {}
@@ -619,6 +649,7 @@ pub fn readSourceFileToEndAlloc(gpa: Allocator, file_reader: *Io.File.Reader) ![
         "\xfe\xff\x00\x00", // UTF-32 big endian
         "\xfe\xff", // UTF-16 big endian
     };
+
     for (unsupported_boms) |bom| {
         if (std.mem.startsWith(u8, buffer.items, bom)) {
             return error.UnsupportedEncoding;
@@ -628,6 +659,7 @@ pub fn readSourceFileToEndAlloc(gpa: Allocator, file_reader: *Io.File.Reader) ![
     // If the file starts with a UTF-16 little endian BOM, translate it to UTF-8
     if (std.mem.startsWith(u8, buffer.items, "\xff\xfe")) {
         if (buffer.items.len % 2 != 0) return error.InvalidEncoding;
+
         return std.unicode.utf16LeToUtf8AllocZ(gpa, @ptrCast(@alignCast(buffer.items))) catch |err| switch (err) {
             error.DanglingSurrogateHalf => error.UnsupportedEncoding,
             error.ExpectedSecondSurrogateHalf => error.UnsupportedEncoding,
@@ -641,13 +673,17 @@ pub fn readSourceFileToEndAlloc(gpa: Allocator, file_reader: *Io.File.Reader) ![
 
 pub fn printAstErrorsToStderr(gpa: Allocator, tree: Ast, path: []const u8, color: Color) !void {
     var wip_errors: std.zig.ErrorBundle.Wip = undefined;
+
     try wip_errors.init(gpa);
+
     defer wip_errors.deinit();
 
     try putAstErrorsIntoBundle(gpa, tree, path, &wip_errors);
 
     var error_bundle = try wip_errors.toOwnedBundle("");
+
     defer error_bundle.deinit(gpa);
+
     error_bundle.renderToStdErr(.{}, color);
 }
 
@@ -658,6 +694,7 @@ pub fn putAstErrorsIntoBundle(
     wip_errors: *std.zig.ErrorBundle.Wip,
 ) Allocator.Error!void {
     var zir = try AstGen.generate(gpa, tree);
+
     defer zir.deinit(gpa);
 
     try wip_errors.addZirErrorMessages(zir, tree, tree.source, path);
@@ -674,56 +711,74 @@ pub fn parseTargetQueryOrReportFatalError(
 ) std.Target.Query {
     var opts_with_diags = opts;
     var diags: std.Target.Query.ParseOptions.Diagnostics = .{};
+
     if (opts_with_diags.diagnostics == null) {
         opts_with_diags.diagnostics = &diags;
     }
+
     return std.Target.Query.parse(opts_with_diags) catch |err| switch (err) {
         error.UnknownCpuModel => {
             help: {
                 var help_text = std.array_list.Managed(u8).init(allocator);
+
                 defer help_text.deinit();
+
                 for (diags.arch.?.allCpuModels()) |cpu| {
                     help_text.print(" {s}\n", .{cpu.name}) catch break :help;
                 }
+
                 std.log.info("available CPUs for architecture '{s}':\n{s}", .{
                     @tagName(diags.arch.?), help_text.items,
                 });
             }
+
             std.process.fatal("unknown CPU: '{s}'", .{diags.cpu_name.?});
         },
         error.UnknownCpuFeature => {
             help: {
                 var help_text = std.array_list.Managed(u8).init(allocator);
+
                 defer help_text.deinit();
+
                 for (diags.arch.?.allFeaturesList()) |feature| {
                     help_text.print(" {s}: {s}\n", .{ feature.name, feature.description }) catch break :help;
                 }
+
                 std.log.info("available CPU features for architecture '{s}':\n{s}", .{
                     @tagName(diags.arch.?), help_text.items,
                 });
             }
+
             std.process.fatal("unknown CPU feature: '{s}'", .{diags.unknown_feature_name.?});
         },
         error.UnknownObjectFormat => {
             help: {
                 var help_text = std.array_list.Managed(u8).init(allocator);
+
                 defer help_text.deinit();
+
                 inline for (@typeInfo(std.Target.ObjectFormat).@"enum".fields) |field| {
                     help_text.print(" {s}\n", .{field.name}) catch break :help;
                 }
+
                 std.log.info("available object formats:\n{s}", .{help_text.items});
             }
+
             std.process.fatal("unknown object format: '{s}'", .{opts.object_format.?});
         },
         error.UnknownArchitecture => {
             help: {
                 var help_text = std.array_list.Managed(u8).init(allocator);
+
                 defer help_text.deinit();
+
                 inline for (@typeInfo(std.Target.Cpu.Arch).@"enum".fields) |field| {
                     help_text.print(" {s}\n", .{field.name}) catch break :help;
                 }
+
                 std.log.info("available architectures:\n{s} native\n", .{help_text.items});
             }
+
             std.process.fatal("unknown architecture: '{s}'", .{diags.unknown_architecture_name.?});
         },
         else => |e| std.process.fatal("unable to parse target query '{s}': {s}", .{
@@ -877,7 +932,6 @@ pub const SimpleComptimeReason = enum(u32) {
             .operand_shuffle_mask        => "'@shuffle' mask must be comptime-known",
             .operand_atomicRmw_operation => "'@atomicRmw' operation must be comptime-known",
             .operand_reduce_operation    => "'@reduce' operation must be comptime-known",
-
             .export_target        => "export target must be comptime-known",
             .export_options       => "export options must be comptime-known",
             .extern_options       => "extern options must be comptime-known",
@@ -893,7 +947,6 @@ pub const SimpleComptimeReason = enum(u32) {
             .wasm_memory_index    => "wasm memory index must be comptime-known",
             .work_group_dim_index => "work group dimension index must be comptime-known",
             .clobber              => "clobber must be comptime-known",
-
             .type                => "types must be comptime-known",
             .int_signedness      => "integer signedness must be comptime-known",
             .int_bit_width       => "integer bit width must be comptime-known",
@@ -919,17 +972,14 @@ pub const SimpleComptimeReason = enum(u32) {
             .tuple_field_types   => "tuple field types must be comptime-known",
             .enum_field_names    => "enum field names must be comptime-known",
             .enum_field_values   => "enum field values must be comptime-known",
-
             .decl_name         => "declaration name must be comptime-known",
             .field_name        => "field name must be comptime-known",
             .tuple_field_index => "tuple field index must be comptime-known",
-
             .container_var_init => "initializer of container-level variable must be comptime-known",
             .@"callconv"        => "calling convention must be comptime-known",
             .@"align"           => "alignment must be comptime-known",
             .@"addrspace"       => "address space must be comptime-known",
             .@"linksection"     => "linksection must be comptime-known",
-
             .comptime_keyword             => "'comptime' keyword forces comptime evaluation",
             .comptime_call_modifier       => "'.compile_time' call modifier forces comptime evaluation",
             .inline_loop_operand          => "inline loop condition must be comptime-known",
@@ -974,6 +1024,7 @@ pub const EmitArtifact = enum {
             .pdb => ".pdb",
             .h => ".h",
         };
+
         return std.fmt.allocPrint(gpa, "{s}{s}", .{ opts.root_name, suffix });
     }
 };

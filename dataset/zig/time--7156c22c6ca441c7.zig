@@ -34,6 +34,7 @@ pub fn benchmark_monotonic(self: *BenchmarkTime) Instant {
         if (is_windows) break :blk benchmark_monotonic_windows();
         if (is_darwin) break :blk benchmark_monotonic_darwin();
         if (is_linux) break :blk benchmark_monotonic_linux();
+
         @compileError("unsupported OS");
     };
 
@@ -41,12 +42,15 @@ pub fn benchmark_monotonic(self: *BenchmarkTime) Instant {
     if (monotonic_timestamp < self.monotonic_guard) {
         @panic("a hardware/kernel bug regressed the monotonic clock");
     }
+
     self.monotonic_guard = monotonic_timestamp;
+
     return .{ .ns = monotonic_timestamp };
 }
 
 fn benchmark_monotonic_windows() u64 {
     assert(is_windows);
+
     // Uses QueryPerformanceCounter() on windows due to it being the highest precision timer
     // available while also accounting for time spent suspended by default:
     //
@@ -65,16 +69,19 @@ fn benchmark_monotonic_windows() u64 {
     //
     // https://github.com/microsoft/STL/blob/785143a0c73f030238ef618890fd4d6ae2b3a3a0/stl/inc/chrono#L694-L701
     const common_frequency = 10_000_000;
+
     if (frequency == common_frequency) return counter * (std.time.ns_per_s / common_frequency);
 
     // Convert qpc to nanos using fixed point to avoid expensive extra divs and
     // overflow.
     const scale = (std.time.ns_per_s << 32) / frequency;
+
     return @as(u64, @truncate((@as(u96, counter) * scale) >> 32));
 }
 
 fn benchmark_monotonic_darwin() u64 {
     assert(is_darwin);
+
     // Uses mach_absolute_time() instead of mach_continuous_time() because
     // we do *NOT* want to count while suspended here.
     //
@@ -82,6 +89,7 @@ fn benchmark_monotonic_darwin() u64 {
     // https://opensource.apple.com/source/Libc/Libc-1158.1.2/gen/clock_gettime.c.auto.html
     const darwin = struct {
         const mach_timebase_info_t = system.mach_timebase_info_data;
+
         extern "c" fn mach_timebase_info(info: *mach_timebase_info_t) system.kern_return_t;
         extern "c" fn mach_absolute_time() u64;
     };
@@ -90,16 +98,20 @@ fn benchmark_monotonic_darwin() u64 {
     //
     // https://opensource.apple.com/source/xnu/xnu-7195.81.3/libsyscall/wrappers/mach_timebase_info.c.auto.html
     var info: darwin.mach_timebase_info_t = undefined;
+
     if (darwin.mach_timebase_info(&info) != 0) @panic("mach_timebase_info() failed");
 
     const now = darwin.mach_absolute_time();
+
     return (now * info.numer) / info.denom;
 }
 
 fn benchmark_monotonic_linux() u64 {
     assert(is_linux);
+
     const ts: posix.timespec = posix.clock_gettime(posix.CLOCK.MONOTONIC) catch {
         @panic("CLOCK_MONOTONIC required");
     };
+
     return @as(u64, @intCast(ts.sec)) * std.time.ns_per_s + @as(u64, @intCast(ts.nsec));
 }

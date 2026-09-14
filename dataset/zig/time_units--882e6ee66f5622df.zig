@@ -17,7 +17,9 @@ pub const Instant = struct {
 
     pub fn elapsed(earlier: Instant, now: Instant) Duration {
         assert(now.ns >= earlier.ns);
+
         const elapsed_ns = now.ns - earlier.ns;
+
         return .{ .ns = elapsed_ns };
     }
 };
@@ -62,8 +64,10 @@ pub const Duration = struct {
 
     pub fn clamp(duration: Duration, clamp_min: Duration, clamp_max: Duration) Duration {
         assert(clamp_min.ns <= clamp_max.ns);
+
         if (duration.ns < clamp_min.ns) return clamp_min;
         if (duration.ns > clamp_max.ns) return clamp_max;
+
         return duration;
     }
 
@@ -89,19 +93,24 @@ pub const Duration = struct {
         static_diagnostic: *?[]const u8,
     ) error{InvalidFlagValue}!Duration {
         assert(string.len > 0);
+
         var string_remaining = string;
 
         var result: Duration = .{ .ns = 0 };
+
         while (string_remaining.len > 0) {
             string_remaining, const component =
                 try parse_flag_value_component(string_remaining, static_diagnostic);
+
             result.ns +|= component.ns;
         }
 
         if (result.ns >= 1_000 * std.time.ns_per_day) {
             static_diagnostic.* = "duration too large:";
+
             return error.InvalidFlagValue;
         }
+
         return result;
     }
 
@@ -115,16 +124,19 @@ pub const Duration = struct {
             } else break index;
         } else {
             static_diagnostic.* = "missing unit; must be one of: d/h/m/s/ms/us/ns:";
+
             return error.InvalidFlagValue;
         };
 
         if (split_index == 0) {
             static_diagnostic.* = "missing value:";
+
             return error.InvalidFlagValue;
         }
 
         const string_amount = string[0..split_index];
         const string_remaining = string[split_index..];
+
         assert(string_amount.len > 0);
         assert(string_remaining.len > 0);
 
@@ -134,10 +146,12 @@ pub const Duration = struct {
         }) catch |err| switch (err) {
             error.Overflow => {
                 static_diagnostic.* = "integer overflow:";
+
                 return error.InvalidFlagValue;
             },
             error.LeadingZero => {
                 static_diagnostic.* = "leading zero disallowed:";
+
                 return error.InvalidFlagValue;
             },
             error.InvalidCharacter => unreachable,
@@ -159,6 +173,7 @@ pub const Duration = struct {
             }
         } else {
             static_diagnostic.* = "unknown unit; must be one of: d/h/m/s/ms/us/ns:";
+
             return error.InvalidFlagValue;
         }
     }
@@ -167,14 +182,15 @@ pub const Duration = struct {
 test "Instant/Duration" {
     const instant_1: Instant = .{ .ns = 100 * std.time.ns_per_day };
     const instant_2: Instant = .{ .ns = 100 * std.time.ns_per_day + std.time.ns_per_s };
+
     assert(instant_1.elapsed(instant_1).ns == 0);
     assert(instant_1.elapsed(instant_2).ns == std.time.ns_per_s);
 
     const duration = instant_1.elapsed(instant_2);
+
     assert(duration.ns == 1_000_000_000);
     assert(duration.to_us() == 1_000_000);
     assert(duration.to_ms() == 1_000);
-
     assert(Duration.ms(1).ns == std.time.ns_per_ms);
     assert(Duration.seconds(1).ns == std.time.ns_per_s);
     assert(Duration.minutes(1).ns == std.time.ns_per_min);
@@ -216,8 +232,10 @@ pub const InstantUnix = struct {
 
     pub fn now() InstantUnix {
         const timestamp_ns = std.time.nanoTimestamp();
+
         assert(timestamp_ns > 0);
         assert(timestamp_ns <= std.math.maxInt(u64));
+
         return .{ .ns = @intCast(timestamp_ns) };
     }
 
@@ -259,7 +277,9 @@ pub const InstantUnix = struct {
     ) !void {
         _ = fmt;
         _ = options;
+
         const datetime = instant.date_time();
+
         try writer.print("{d:0>4}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}Z", .{
             datetime.year,
             datetime.month,
@@ -279,11 +299,14 @@ pub const InstantUnix = struct {
 test "InstantUnix format" {
     const instant_min = InstantUnix{ .ns = 0 };
     var buffer: [24]u8 = undefined;
+
     try std.testing.expectEqualStrings(
         "1970-01-01 00:00:00.000Z",
         try std.fmt.bufPrint(&buffer, "{}", .{instant_min}),
     );
+
     const instant_max = InstantUnix{ .ns = std.math.maxInt(u64) };
+
     try std.testing.expectEqualStrings(
         "2554-07-21 23:34:33.709Z",
         try std.fmt.bufPrint(&buffer, "{}", .{instant_max}),

@@ -14,15 +14,19 @@ export default (anchor: LexicalNode, offset: number) => {
 	while (true) {
 		if (!$isCodeTextNode(node) || node_offset === node_text_content_size) {
 			node = node.getNextSibling()!
+
 			if (node === null || $isLineBreakNode(node)) {
 				return null
 			}
+
 			if ($isCodeTextNode(node)) {
 				node_offset = 0
+
 				node_text_content = node.getTextContent()
 				node_text_content_size = node.getTextContentSize()
 			}
 		}
+
 		if ($isCodeTextNode(node)) {
 			if (node_text_content[node_offset] !== ' ') {
 				return {
@@ -30,6 +34,7 @@ export default (anchor: LexicalNode, offset: number) => {
 					offset: node_offset
 				}
 			}
+
 			node_offset++
 		}
 	}

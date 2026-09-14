@@ -1,16 +1,13 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const mem = std.mem;
-
 const DynamicBitSetUnmanaged = std.bit_set.DynamicBitSetUnmanaged;
 const MaskInt = DynamicBitSetUnmanaged.MaskInt;
-
 const vsr = @import("../vsr.zig");
 const stdx = vsr.stdx;
 const KiB = stdx.KiB;
 const ewah = vsr.ewah(FreeSet.Word);
 const constants = vsr.constants;
-
 const div_ceil = stdx.div_ceil;
 const maybe = stdx.maybe;
 
@@ -44,10 +41,12 @@ pub const Reservation = struct {
 ///
 pub const FreeSet = struct {
     pub const Word = u64;
+
     pub const BitsetKind = enum {
         blocks_acquired,
         blocks_released,
     };
+
     const BlocksReleasedPriorCheckpointDurability = std.AutoArrayHashMapUnmanaged(u64, void);
 
     // Free set is stored in the grid (see `CheckpointTrailer`) and is not available until the
@@ -105,6 +104,7 @@ pub const FreeSet = struct {
     // e.g. 10TiB disk ÷ 64KiB/block ÷ 512*8 blocks/shard ÷ 8 shards/byte = 5120B index
     const shard_cache_lines = 8;
     pub const shard_bits = shard_cache_lines * constants.cache_line_size * @bitSizeOf(u8);
+
     comptime {
         assert(shard_bits == 4096);
         assert(@bitSizeOf(MaskInt) == 64);
@@ -117,21 +117,26 @@ pub const FreeSet = struct {
         blocks_released_prior_checkpoint_durability_max: usize,
     }) !FreeSet {
         const blocks_count = block_count_max(options.grid_size_limit);
+
         assert(blocks_count % shard_bits == 0);
         assert(blocks_count % @bitSizeOf(Word) == 0);
 
         // Every block bit is covered by exactly one index bit.
         const shards_count = @divExact(blocks_count, shard_bits);
         var index = try DynamicBitSetUnmanaged.initEmpty(allocator, shards_count);
+
         errdefer index.deinit(allocator);
 
         var blocks_acquired = try DynamicBitSetUnmanaged.initEmpty(allocator, blocks_count);
+
         errdefer blocks_acquired.deinit(allocator);
 
         var blocks_released = try DynamicBitSetUnmanaged.initEmpty(allocator, blocks_count);
+
         errdefer blocks_released.deinit(allocator);
 
         var released_prior_checkpoint_durability: BlocksReleasedPriorCheckpointDurability = .{};
+
         try released_prior_checkpoint_durability.ensureTotalCapacity(
             allocator,
             options.blocks_released_prior_checkpoint_durability_max +
@@ -141,6 +146,7 @@ pub const FreeSet = struct {
                     ewah.encode_size_max(blocks_count),
                 ),
         );
+
         errdefer released_prior_checkpoint_durability.deinit();
 
         assert(index.count() == 0);
@@ -156,6 +162,7 @@ pub const FreeSet = struct {
             .blocks_released_prior_checkpoint_durability = released_prior_checkpoint_durability,
         };
     }
+
     pub fn deinit(set: *FreeSet, allocator: mem.Allocator) void {
         set.index.deinit(allocator);
         set.blocks_acquired.deinit(allocator);
@@ -170,6 +177,7 @@ pub const FreeSet = struct {
             &set.blocks_released,
         }) |bitset| {
             var it = bitset.iterator(.{});
+
             while (it.next()) |bit| bitset.unset(bit);
         }
 
@@ -189,7 +197,6 @@ pub const FreeSet = struct {
         assert(set.blocks_acquired.count() == 0);
         assert(set.blocks_released.count() == 0);
         assert(set.blocks_released_prior_checkpoint_durability.count() == 0);
-
         assert(!set.opened);
     }
 
@@ -211,46 +218,56 @@ pub const FreeSet = struct {
         },
     }) void {
         assert(!set.opened);
+
         assert((options.encoded.blocks_acquired.len == 0 and
             options.encoded.blocks_released.len == 0) ==
             (options.free_set_block_addresses.blocks_acquired.len == 0 and
                 options.free_set_block_addresses.blocks_released.len == 0));
+
         set.decode_chunks(
             options.encoded.blocks_acquired,
             options.encoded.blocks_released,
         );
+
         set.mark_released(options.free_set_block_addresses.blocks_acquired);
         set.mark_released(options.free_set_block_addresses.blocks_released);
+
         set.opened = true;
     }
 
     // A shortcut to initialize an empty free set for tests.
     pub fn init_empty(allocator: mem.Allocator, blocks_count: usize) !FreeSet {
         comptime assert(constants.verify);
+
         var set = try init(allocator, .{
             .grid_size_limit = blocks_count * constants.block_size,
             .blocks_released_prior_checkpoint_durability_max = 0,
         });
+
         errdefer set.deinit(allocator);
 
         assert(!set.opened);
         assert(!set.checkpoint_durable);
+
         return set;
     }
 
     // A shortcut to initialize and open an empty free set for tests.
     pub fn open_empty(allocator: mem.Allocator, blocks_count: usize) !FreeSet {
         comptime assert(constants.verify);
+
         var set = try init(allocator, .{
             .grid_size_limit = blocks_count * constants.block_size,
             .blocks_released_prior_checkpoint_durability_max = 0,
         });
+
         errdefer set.deinit(allocator);
 
         set.open(.{
             .encoded = .{ .blocks_acquired = &.{}, .blocks_released = &.{} },
             .free_set_block_addresses = .{ .blocks_acquired = &.{}, .blocks_released = &.{} },
         });
+
         // Mark checkpoint as durable so tests use blocks_released for block releases.
         // blocks_released_prior_checkpoint_durable is required to ensure correctness across
         // multiple replicas, while tests check the following flows in a single process:
@@ -261,6 +278,7 @@ pub const FreeSet = struct {
         assert(set.opened);
         assert(set.count_free() == blocks_count);
         assert(set.count_released() == 0);
+
         return set;
     }
 
@@ -273,24 +291,28 @@ pub const FreeSet = struct {
     /// Returns the number of active reservations.
     pub fn count_reservations(set: FreeSet) usize {
         assert(set.opened);
+
         return set.reservation_count;
     }
 
     /// Returns the number of free blocks.
     pub fn count_free(set: FreeSet) usize {
         assert(set.opened);
+
         return set.blocks_acquired.capacity() - set.blocks_acquired.count();
     }
 
     /// Returns the number of acquired blocks.
     pub fn count_acquired(set: FreeSet) usize {
         assert(set.opened);
+
         return set.blocks_acquired.count();
     }
 
     /// Returns the number of released blocks.
     pub fn count_released(set: FreeSet) usize {
         assert(set.opened);
+
         return set.blocks_released.count() +
             set.blocks_released_prior_checkpoint_durability.count();
     }
@@ -298,6 +320,7 @@ pub const FreeSet = struct {
     /// Returns the address of the highest acquired block.
     pub fn highest_address_acquired(set: FreeSet) ?u64 {
         assert(set.opened);
+
         var it = set.blocks_acquired.iterator(.{
             .kind = .set,
             .direction = .reverse,
@@ -305,10 +328,12 @@ pub const FreeSet = struct {
 
         if (it.next()) |block| {
             const address = block + 1;
+
             return address;
         } else {
             // All blocks are free.
             assert(set.blocks_acquired.count() == 0);
+
             return null;
         }
     }
@@ -316,6 +341,7 @@ pub const FreeSet = struct {
     /// Returns the address of the highest released block.
     pub fn highest_address_released(set: FreeSet) ?u64 {
         assert(set.opened);
+
         var it = set.blocks_released.iterator(.{
             .kind = .set,
             .direction = .reverse,
@@ -323,9 +349,11 @@ pub const FreeSet = struct {
 
         if (it.next()) |block| {
             const address = block + 1;
+
             return address;
         } else {
             assert(set.count_released() == 0);
+
             return null;
         }
     }
@@ -358,6 +386,7 @@ pub const FreeSet = struct {
 
         // The reservation may cover (and ignore) already-acquired blocks due to fragmentation.
         var block = @max(shard_start * shard_bits, set.reservation_blocks);
+
         for (0..reserve_count) |_| {
             block = 1 + (find_bit(
                 set.blocks_acquired,
@@ -370,8 +399,10 @@ pub const FreeSet = struct {
             // blocks that this free set is allowed to acquire (see `block_count_max`).
             if (block > set.blocks_count_limit) return null;
         }
+
         const block_base = set.reservation_blocks;
         const block_count = block - set.reservation_blocks;
+
         set.reservation_blocks += block_count;
         set.reservation_count += 1;
 
@@ -388,6 +419,7 @@ pub const FreeSet = struct {
         assert(set.reservation_session == reservation.session);
 
         set.reservation_count -= 1;
+
         if (set.reservation_count == 0) {
             // All reservations have been dropped.
             set.reservation_blocks = 0;
@@ -422,19 +454,23 @@ pub const FreeSet = struct {
             div_ceil(reservation.block_base + reservation.block_count, shard_bits),
             .unset,
         ) orelse return null;
+
         assert(!set.index.isSet(shard_start));
 
         const reservation_start = @max(
             shard_start * shard_bits,
             reservation.block_base,
         );
+
         const reservation_end = reservation.block_base + reservation.block_count;
+
         const block = find_bit(
             set.blocks_acquired,
             reservation_start,
             reservation_end,
             .unset,
         ) orelse return null;
+
         assert(block >= reservation.block_base);
         assert(block <= reservation.block_base + reservation.block_count);
         assert(!set.blocks_acquired.isSet(block));
@@ -444,20 +480,26 @@ pub const FreeSet = struct {
         // Even if "shard_start" has free blocks, we might acquire our block from a later shard.
         // (This is possible because our reservation begins part-way through the shard.)
         const shard = @divFloor(block, shard_bits);
+
         maybe(shard == shard_start);
         assert(shard >= shard_start);
 
         set.blocks_acquired.set(block);
+
         // Update the index when every block in the shard is acquired.
         if (set.find_free_block_in_shard(shard) == null) set.index.set(shard);
+
         const address = block + 1;
+
         return address;
     }
 
     fn find_free_block_in_shard(set: FreeSet, shard: usize) ?usize {
         maybe(set.opened);
+
         const shard_start = shard * shard_bits;
         const shard_end = shard_start + shard_bits;
+
         assert(shard_start < set.blocks_acquired.bit_length);
 
         return find_bit(set.blocks_acquired, shard_start, shard_end, .unset);
@@ -466,6 +508,7 @@ pub const FreeSet = struct {
     pub fn is_free(set: FreeSet, address: u64) bool {
         if (set.opened) {
             const block = address - 1;
+
             return !set.blocks_acquired.isSet(block);
         } else {
             // When the free set is not open, conservatively assume that the block is acquired.
@@ -478,7 +521,9 @@ pub const FreeSet = struct {
 
     pub fn is_released(set: *const FreeSet, address: u64) bool {
         assert(set.opened);
+
         const block = address - 1;
+
         return set.blocks_released_prior_checkpoint_durability.contains(block) or
             set.blocks_released.isSet(block);
     }
@@ -498,8 +543,10 @@ pub const FreeSet = struct {
 
         // Block address must be acquired, but is not necessarily released.
         assert(set.blocks_acquired.isSet(block));
+
         assert(!set.blocks_released.isSet(block) or
             !set.blocks_released_prior_checkpoint_durability.contains(block));
+
         maybe(set.blocks_released.isSet(block));
         maybe(set.blocks_released_prior_checkpoint_durability.contains(block));
 
@@ -517,6 +564,7 @@ pub const FreeSet = struct {
         assert(set.opened);
 
         const block = address - 1;
+
         assert(set.blocks_acquired.isSet(block));
         assert(!set.blocks_released.isSet(block));
         assert(!set.blocks_released_prior_checkpoint_durability.contains(block));
@@ -543,12 +591,14 @@ pub const FreeSet = struct {
         assert(!set.checkpoint_durable);
 
         var address_previous: u64 = 0;
+
         for (addresses) |address| {
             assert(address > 0);
 
             // Assert that addresses are sorted and unique. Sortedness is not a requirement, but
             // a consequence of "first free" allocation algorithm.
             assert(address > address_previous);
+
             address_previous = address;
 
             const block = address - 1;
@@ -560,6 +610,7 @@ pub const FreeSet = struct {
             set.blocks_acquired.set(block);
 
             const shard = @divFloor(block, shard_bits);
+
             // Update the index when every block in the shard is acquired.
             if (set.find_free_block_in_shard(shard) == null) set.index.set(shard);
 
@@ -573,10 +624,10 @@ pub const FreeSet = struct {
         assert(set.checkpoint_durable);
 
         const block = address - 1;
+
         assert(set.blocks_acquired.isSet(block));
         assert(set.blocks_released.isSet(block));
         assert(!set.blocks_released_prior_checkpoint_durability.contains(block));
-
         assert(set.reservation_count == 0);
         assert(set.reservation_blocks == 0);
 
@@ -589,6 +640,7 @@ pub const FreeSet = struct {
         assert(set.opened);
         assert(set.checkpoint_durable);
         assert(set.blocks_released_prior_checkpoint_durability.count() == 0);
+
         set.checkpoint_durable = false;
     }
 
@@ -604,6 +656,7 @@ pub const FreeSet = struct {
         set.checkpoint_durable = true;
 
         var it = set.blocks_released.iterator(.{ .kind = .set });
+
         while (it.next()) |block| set.free(block + 1);
 
         assert(set.blocks_released.count() == 0);
@@ -612,8 +665,10 @@ pub const FreeSet = struct {
         // blocks_released_prior_checkpoint_durability can now be moved to blocks_released.
         while (set.blocks_released_prior_checkpoint_durability.pop()) |block_entry| {
             const block = block_entry.key;
+
             set.blocks_released.set(block);
         }
+
         assert(set.blocks_released_prior_checkpoint_durability.count() == 0);
 
         // Index verification is O(blocks.bit_length) so do it only when checkpoint is marked
@@ -643,11 +698,12 @@ pub const FreeSet = struct {
         var decoder = ewah.decode_chunks(target_bitset_words, source_size);
 
         var words_decoded: usize = 0;
+
         for (source_chunks) |source_chunk| {
             words_decoded += decoder.decode_chunk(source_chunk);
         }
-        assert(decoder.done());
 
+        assert(decoder.done());
         assert(@bitSizeOf(Word) == @bitSizeOf(MaskInt));
         assert(words_decoded * @bitSizeOf(Word) <= set.blocks_acquired.bit_length);
 
@@ -670,7 +726,6 @@ pub const FreeSet = struct {
         assert(set.blocks_acquired.count() == 0);
         assert(set.blocks_released.count() == 0);
         assert(set.blocks_released_prior_checkpoint_durability.count() == 0);
-
         assert(set.reservation_count == 0);
         assert(set.reservation_blocks == 0);
 
@@ -689,6 +744,7 @@ pub const FreeSet = struct {
     /// the free set is imposed by --limit-storage.
     pub fn block_count_max(grid_size_limit: usize) usize {
         const block_count_limit = @divFloor(grid_size_limit, constants.block_size);
+
         return stdx.div_ceil(block_count_limit, shard_bits) * shard_bits;
     }
 
@@ -697,6 +753,7 @@ pub const FreeSet = struct {
         assert(set.blocks_acquired.bit_length == set.blocks_released.bit_length);
 
         const blocks_count = set.blocks_acquired.bit_length;
+
         assert(blocks_count % shard_bits == 0);
         assert(blocks_count % @bitSizeOf(usize) == 0);
 
@@ -715,12 +772,15 @@ pub const FreeSet = struct {
             .blocks_acquired => ewah.encode_chunks(bit_set_masks(set.blocks_acquired)),
             .blocks_released => ewah.encode_chunks(bit_set_masks(set.blocks_released)),
         };
+
         defer assert(encoder.done());
 
         var bytes_encoded_total: u64 = 0;
+
         for (target_chunks) |chunk| {
             const bytes_encoded =
                 @as(u32, @intCast(encoder.encode_chunk(chunk)));
+
             assert(bytes_encoded > 0);
 
             bytes_encoded_total += bytes_encoded;
@@ -760,12 +820,15 @@ pub const FreeSet = struct {
 
 fn bit_set_masks(bit_set: DynamicBitSetUnmanaged) []MaskInt {
     const len = div_ceil(bit_set.bit_length, @bitSizeOf(MaskInt));
+
     return bit_set.masks[0..len];
 }
 
 test "FreeSet block shard count" {
     if (constants.block_size != 64 * KiB) return;
+
     const blocks_in_tb = @divExact(1 << 40, constants.block_size);
+
     try test_block_shards_count(5120 * 8, 10 * blocks_in_tb);
     try test_block_shards_count(5120 * 8 - 1, 10 * blocks_in_tb - FreeSet.shard_bits);
     try test_block_shards_count(1, FreeSet.shard_bits); // Must be at least one index bit.
@@ -775,6 +838,7 @@ fn test_block_shards_count(expect_shards_count: usize, blocks_count: usize) !voi
     const gpa = std.testing.allocator;
 
     var set = try FreeSet.open_empty(gpa, blocks_count);
+
     defer set.deinit(gpa);
 
     try std.testing.expectEqual(expect_shards_count, set.index.bit_length);
@@ -786,10 +850,12 @@ test "FreeSet highest_address_acquired" {
     const gpa = std.testing.allocator;
 
     var set = try FreeSet.open_empty(gpa, blocks_count);
+
     defer set.deinit(gpa);
 
     {
         const reservation = set.reserve(6).?;
+
         defer set.forfeit(reservation);
 
         try expectEqual(@as(?u64, null), set.highest_address_acquired());
@@ -802,18 +868,22 @@ test "FreeSet highest_address_acquired" {
 
     set.release(2);
     set.free(2);
+
     try expectEqual(@as(?u64, 3), set.highest_address_acquired());
 
     set.release(3);
     set.free(3);
+
     try expectEqual(@as(?u64, 1), set.highest_address_acquired());
 
     set.release(1);
     set.free(1);
+
     try expectEqual(@as(?u64, null), set.highest_address_acquired());
 
     {
         const reservation = set.reserve(6).?;
+
         defer set.forfeit(reservation);
 
         try expectEqual(@as(?u64, 1), set.acquire(reservation));
@@ -823,9 +893,11 @@ test "FreeSet highest_address_acquired" {
 
     {
         set.release(3);
+
         try expectEqual(@as(?u64, 3), set.highest_address_acquired());
 
         set.free(3);
+
         try expectEqual(@as(?u64, 2), set.highest_address_acquired());
     }
 }
@@ -843,18 +915,22 @@ fn test_acquire_release(blocks_count: usize) !void {
     const expectEqual = std.testing.expectEqual;
     // Acquire everything, then release, then acquire again.
     var set = try FreeSet.open_empty(gpa, blocks_count);
+
     defer set.deinit(gpa);
 
     var empty = try FreeSet.open_empty(gpa, blocks_count);
+
     defer empty.deinit(gpa);
 
     {
         const reservation = set.reserve(blocks_count).?;
+
         defer set.forfeit(reservation);
 
         for (0..blocks_count) |i| {
             try expectEqual(@as(?u64, i + 1), set.acquire(reservation));
         }
+
         try expectEqual(@as(?u64, null), set.acquire(reservation));
     }
 
@@ -866,6 +942,7 @@ fn test_acquire_release(blocks_count: usize) !void {
             set.release(@as(u64, i + 1));
             set.free(@as(u64, i + 1));
         }
+
         try expect_free_set_equal(empty, set);
     }
 
@@ -874,11 +951,13 @@ fn test_acquire_release(blocks_count: usize) !void {
 
     {
         const reservation = set.reserve(blocks_count).?;
+
         defer set.forfeit(reservation);
 
         for (0..blocks_count) |i| {
             try expectEqual(@as(?u64, i + 1), set.acquire(reservation));
         }
+
         try expectEqual(@as(?u64, null), set.acquire(reservation));
     }
 }
@@ -887,31 +966,39 @@ test "FreeSet.reserve/acquire" {
     const gpa = std.testing.allocator;
     const blocks_count_total = 4096;
     var set = try FreeSet.open_empty(gpa, blocks_count_total);
+
     defer set.deinit(gpa);
 
     // At most `blocks_count_total` blocks are initially available for reservation.
     try std.testing.expectEqual(set.reserve(blocks_count_total + 1), null);
+
     const r1 = set.reserve(blocks_count_total - 1);
     const r2 = set.reserve(1);
+
     try std.testing.expectEqual(set.reserve(1), null);
+
     set.forfeit(r1.?);
     set.forfeit(r2.?);
 
     var address: usize = 1; // Start at 1 because addresses are >0.
+
     {
         const reservation = set.reserve(2).?;
+
         defer set.forfeit(reservation);
 
         try std.testing.expectEqual(set.acquire(reservation), address + 0);
         try std.testing.expectEqual(set.acquire(reservation), address + 1);
         try std.testing.expectEqual(set.acquire(reservation), null);
     }
+
     address += 2;
 
     {
         // Blocks are acquired from the target reservation.
         const reservation_1 = set.reserve(2).?;
         const reservation_2 = set.reserve(2).?;
+
         defer set.forfeit(reservation_1);
         defer set.forfeit(reservation_2);
 
@@ -922,6 +1009,7 @@ test "FreeSet.reserve/acquire" {
         try std.testing.expectEqual(set.acquire(reservation_2), address + 3);
         try std.testing.expectEqual(set.acquire(reservation_2), null);
     }
+
     address += 4;
 }
 
@@ -930,17 +1018,21 @@ test "FreeSet checkpoint" {
     const expectEqual = std.testing.expectEqual;
     const blocks_count = FreeSet.shard_bits;
     var set = try FreeSet.open_empty(gpa, blocks_count);
+
     defer set.deinit(gpa);
 
     var empty = try FreeSet.open_empty(gpa, blocks_count);
+
     defer empty.deinit(gpa);
 
     var full = try FreeSet.open_empty(gpa, blocks_count);
+
     defer full.deinit(gpa);
 
     {
         // Acquire all of `full`'s blocks.
         const reservation = full.reserve(blocks_count).?;
+
         defer full.forfeit(reservation);
 
         for (0..full.blocks_acquired.bit_length) |i| {
@@ -951,16 +1043,19 @@ test "FreeSet checkpoint" {
     {
         // Acquire & stage-release every block.
         const reservation = set.reserve(blocks_count).?;
+
         defer set.forfeit(reservation);
 
         for (0..set.blocks_acquired.bit_length) |i| {
             try expectEqual(@as(?u64, i + 1), set.acquire(reservation));
+
             set.release(i + 1);
 
             // These count functions treat staged blocks as acquired.
             try expectEqual(@as(u64, i + 1), set.count_acquired());
             try expectEqual(@as(u64, set.blocks_acquired.bit_length - i - 1), set.count_free());
         }
+
         // All blocks are still acquired, though staged to release at the next checkpoint.
         try expectEqual(@as(?u64, null), set.acquire(reservation));
     }
@@ -975,10 +1070,12 @@ test "FreeSet checkpoint" {
     {
         // Allocate & stage-release all blocks again.
         const reservation = set.reserve(blocks_count).?;
+
         defer set.forfeit(reservation);
 
         for (0..set.blocks_acquired.bit_length) |i| {
             try expectEqual(@as(?u64, i + 1), set.acquire(reservation));
+
             set.release(i + 1);
         }
     }
@@ -988,6 +1085,7 @@ test "FreeSet checkpoint" {
         @alignOf(FreeSet.Word),
         set.encode_size_max(),
     );
+
     const set_encoded_blocks_released = try gpa.alignedAlloc(
         u8,
         @alignOf(FreeSet.Word),
@@ -1011,6 +1109,7 @@ test "FreeSet checkpoint" {
             &.{set_encoded_blocks_acquired[0..free_set_encoded.encoded_size_blocks_acquired]},
             &.{set_encoded_blocks_released[0..free_set_encoded.encoded_size_blocks_released]},
         );
+
         try expect_free_set_equal(set, set_decoded);
     }
 
@@ -1021,10 +1120,12 @@ test "FreeSet checkpoint" {
         );
 
         set_decoded.reset();
+
         set_decoded.decode_chunks(
             &.{set_encoded_blocks_acquired[0..free_set_encoded.encoded_size_blocks_acquired]},
             &.{set_encoded_blocks_released[0..free_set_encoded.encoded_size_blocks_released]},
         );
+
         try expect_free_set_equal(full, set_decoded);
     }
 }
@@ -1052,8 +1153,10 @@ test "FreeSet encode, decode, encode" {
     var prng = stdx.PRNG.from_seed(seed);
 
     const fills = [_]TestPatternFill{ .uniform_ones, .uniform_zeros, .literal };
+
     for (0..10) |_| {
         var patterns = std.ArrayList(TestPattern).init(gpa);
+
         defer patterns.deinit();
 
         for (0..shard_bits) |_| {
@@ -1062,6 +1165,7 @@ test "FreeSet encode, decode, encode" {
                 .words = 1,
             });
         }
+
         try test_encode(patterns.items);
     }
 }
@@ -1079,9 +1183,11 @@ fn test_encode(patterns: []const TestPattern) !void {
     var prng = stdx.PRNG.from_seed(seed);
 
     var blocks_count: usize = 0;
+
     for (patterns) |pattern| blocks_count += pattern.words * @bitSizeOf(usize);
 
     var decoded_expect = try FreeSet.open_empty(gpa, blocks_count);
+
     defer decoded_expect.deinit(gpa);
 
     {
@@ -1089,11 +1195,13 @@ fn test_encode(patterns: []const TestPattern) !void {
         // corresponding index bit with a zero (probably multiple times) to ensure it ends up synced
         // with `blocks`.
         decoded_expect.index.toggleAll();
+
         assert(decoded_expect.index.count() == decoded_expect.index.capacity());
 
         // Fill the bitset according to the patterns.
         var blocks = bit_set_masks(decoded_expect.blocks_acquired);
         var blocks_offset: usize = 0;
+
         for (patterns) |pattern| {
             for (0..pattern.words) |_| {
                 blocks[blocks_offset] = switch (pattern.fill) {
@@ -1101,11 +1209,15 @@ fn test_encode(patterns: []const TestPattern) !void {
                     .uniform_zeros => 0,
                     .literal => prng.range_inclusive(usize, 1, std.math.maxInt(usize) - 1),
                 };
+
                 const index_bit = blocks_offset * @bitSizeOf(usize) / FreeSet.shard_bits;
+
                 if (pattern.fill != .uniform_ones) decoded_expect.index.unset(index_bit);
+
                 blocks_offset += 1;
             }
         }
+
         assert(blocks_offset == blocks.len);
     }
 
@@ -1114,15 +1226,19 @@ fn test_encode(patterns: []const TestPattern) !void {
         @alignOf(FreeSet.Word),
         decoded_expect.encode_size_max(),
     );
+
     defer gpa.free(encoded);
 
     try std.testing.expectEqual(encoded.len % 8, 0);
+
     const encoded_length = decoded_expect.encode(.blocks_acquired, &.{encoded});
 
     var decoded_actual = try FreeSet.init_empty(gpa, blocks_count);
+
     defer decoded_actual.deinit(gpa);
 
     decoded_actual.decode_chunks(&.{encoded[0..encoded_length]}, &.{});
+
     try expect_free_set_equal(decoded_expect, decoded_actual);
 }
 
@@ -1146,8 +1262,10 @@ fn expect_free_set_equal(a: FreeSet, b: FreeSet) !void {
 
 fn expect_bit_set_equal(a: DynamicBitSetUnmanaged, b: DynamicBitSetUnmanaged) !void {
     try std.testing.expectEqual(a.bit_length, b.bit_length);
+
     const a_masks = bit_set_masks(a);
     const b_masks = bit_set_masks(b);
+
     for (a_masks, 0..) |aw, i| try std.testing.expectEqual(aw, b_masks[i]);
 }
 
@@ -1155,11 +1273,13 @@ test "FreeSet decode small bitset into large bitset" {
     const gpa = std.testing.allocator;
     const shard_bits = FreeSet.shard_bits;
     var small_set = try FreeSet.open_empty(gpa, shard_bits);
+
     defer small_set.deinit(gpa);
 
     {
         // Set up a small bitset (with blocks_count==shard_bits) with no free blocks.
         const reservation = small_set.reserve(small_set.blocks_acquired.bit_length).?;
+
         defer small_set.forfeit(reservation);
 
         for (0..small_set.blocks_acquired.bit_length) |_| {
@@ -1172,19 +1292,23 @@ test "FreeSet decode small bitset into large bitset" {
         @alignOf(usize),
         small_set.encode_size_max(),
     );
+
     defer gpa.free(small_buffer);
 
     const small_buffer_written = small_set.encode(.blocks_acquired, &.{small_buffer});
 
     // Decode the serialized small bitset into a larger bitset (with blocks_count==2*shard_bits).
     var big_set = try FreeSet.init_empty(gpa, 2 * shard_bits);
+
     defer big_set.deinit(gpa);
 
     big_set.decode(.blocks_acquired, &.{small_buffer[0..small_buffer_written]});
+
     big_set.opened = true;
 
     for (0..2 * shard_bits) |block| {
         const address = block + 1;
+
         try std.testing.expectEqual(shard_bits <= block, big_set.is_free(address));
     }
 }
@@ -1202,6 +1326,7 @@ test "FreeSet encode/decode manual" {
         // shard_bits = 4096 bits = 64 words × 64 bits/word = (2+3+59)*64
         1 | ((64 - 5) << 1),
     });
+
     const decoded_expect = [_]usize{
         0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000, // run 1
         0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
@@ -1209,11 +1334,13 @@ test "FreeSet encode/decode manual" {
         0b01010101_01010101_01010101_01010101_01010101_01010101_01010101_01010101, // literal 2
         0b10101010_10101010_10101010_10101010_10101010_10101010_10101010_10101010, // literal 3
     } ++ ([1]usize{~@as(usize, 0)} ** (64 - 5));
+
     const blocks_count = decoded_expect.len * @bitSizeOf(usize);
 
     const gpa = std.testing.allocator;
     // Test decode.
     var decoded_actual = try FreeSet.init_empty(gpa, blocks_count);
+
     defer decoded_actual.deinit(gpa);
 
     decoded_actual.decode(.blocks_acquired, &.{encoded_expect});
@@ -1222,6 +1349,7 @@ test "FreeSet encode/decode manual" {
         decoded_expect.len,
         bit_set_masks(decoded_actual.blocks_acquired).len,
     );
+
     try std.testing.expectEqualSlices(
         usize,
         &decoded_expect,
@@ -1234,12 +1362,15 @@ test "FreeSet encode/decode manual" {
         @alignOf(usize),
         decoded_actual.encode_size_max(),
     );
+
     defer gpa.free(encoded_actual);
 
     // Pretend `opened` and `checkpoint_durable` are True as it is asserted in `encode`.
     decoded_actual.opened = true;
     decoded_actual.checkpoint_durable = true;
+
     const encoded_actual_length = decoded_actual.encode(.blocks_acquired, &.{encoded_actual});
+
     try std.testing.expectEqual(encoded_expect.len, encoded_actual_length);
 }
 
@@ -1258,21 +1389,27 @@ fn find_bit(
     const word_offset = @mod(bit_min, @bitSizeOf(MaskInt));
     const word_end = div_ceil(bit_max, @bitSizeOf(MaskInt)); // Exclusive.
     const words_total = div_ceil(bit_set.bit_length, @bitSizeOf(MaskInt));
+
     if (word_end == word_start) return null;
+
     assert(word_end > word_start);
 
     // Only iterate over the subset of bits that were requested.
     var iterator = bit_set.iterator(.{ .kind = bit_kind });
+
     iterator.words_remain = bit_set.masks[word_start + 1 .. word_end];
 
     const mask = ~@as(MaskInt, 0);
     var word = bit_set.masks[word_start];
+
     if (bit_kind == .unset) word = ~word;
+
     iterator.bits_remain = word & std.math.shl(MaskInt, mask, word_offset);
 
     if (word_end != words_total) iterator.last_word_mask = mask;
 
     const b = bit_min - word_offset + (iterator.next() orelse return null);
+
     return if (b < bit_max) b else null;
 }
 
@@ -1280,14 +1417,15 @@ test "find_bit" {
     var prng = stdx.PRNG.from_seed_testing();
 
     const gpa = std.testing.allocator;
+
     for (1..(@bitSizeOf(std.DynamicBitSetUnmanaged.MaskInt) * 4) + 1) |bit_length| {
         var bit_set = try std.DynamicBitSetUnmanaged.initEmpty(gpa, bit_length);
+
         defer bit_set.deinit(gpa);
 
         const p = prng.int_inclusive(usize, 100);
 
         for (0..bit_length) |b| bit_set.setValue(b, p < prng.int_inclusive(usize, 100));
-
         for (0..20) |_| try test_find_bit(&prng, bit_set, .set);
         for (20..40) |_| try test_find_bit(&prng, bit_set, .unset);
     }
@@ -1300,10 +1438,12 @@ fn test_find_bit(
 ) !void {
     const bit_min = prng.int_inclusive(usize, bit_set.bit_length - 1);
     const bit_max = prng.range_inclusive(usize, bit_min, bit_set.bit_length);
+
     assert(bit_max >= bit_min);
     assert(bit_max <= bit_set.bit_length);
 
     const bit_actual = find_bit(bit_set, bit_min, bit_max, bit_kind);
+
     if (bit_actual) |bit| {
         assert(bit_set.isSet(bit) == (bit_kind == .set));
         assert(bit >= bit_min);
@@ -1311,9 +1451,11 @@ fn test_find_bit(
     }
 
     var iterator = bit_set.iterator(.{ .kind = bit_kind });
+
     while (iterator.next()) |bit| {
         if (bit_min <= bit and bit < bit_max) {
             try std.testing.expectEqual(bit_actual, bit);
+
             break;
         }
     } else {
@@ -1324,21 +1466,27 @@ fn test_find_bit(
 test "FreeSet.acquire part-way through a shard" {
     const gpa = std.testing.allocator;
     var set = try FreeSet.open_empty(gpa, FreeSet.shard_bits * 3);
+
     defer set.deinit(gpa);
 
     const reservation_a = set.reserve(1).?;
+
     defer set.forfeit(reservation_a);
 
     const reservation_b = set.reserve(2 * FreeSet.shard_bits).?;
+
     defer set.forfeit(reservation_b);
 
     // Acquire all of reservation B.
     // At the end, the first shard still has a bit free (reserved by A).
     for (0..reservation_b.block_count) |i| {
         const address = set.acquire(reservation_b).?;
+
         try std.testing.expectEqual(address - 1, reservation_a.block_count + i);
+
         set.verify_index();
     }
+
     try std.testing.expectEqual(set.acquire(reservation_b), null);
 }
 
@@ -1347,12 +1495,14 @@ test "FreeSet decode big bitset into small bitset" {
 
     const gpa = std.testing.allocator;
     var big_set = try FreeSet.open_empty(gpa, 2 * shard_bits);
+
     defer big_set.deinit(gpa);
 
     {
         // Set up a big bitset (with blocks_count==2*shard_bits) with half the blocks free.
         const acquired_block_count = @divFloor(big_set.blocks_acquired.bit_length, 2);
         const reservation = big_set.reserve(acquired_block_count).?;
+
         defer big_set.forfeit(reservation);
 
         for (0..acquired_block_count) |_| {
@@ -1365,17 +1515,21 @@ test "FreeSet decode big bitset into small bitset" {
         @alignOf(usize),
         big_set.encode_size_max(),
     );
+
     defer gpa.free(big_buffer);
 
     const big_buffer_written = big_set.encode(.blocks_acquired, &.{big_buffer});
 
     // Decode the serialized big bitset into a smaller bitset (with blocks_count==shard_bits).
     var small_set = try FreeSet.init_empty(gpa, shard_bits);
+
     defer small_set.deinit(gpa);
 
     small_set.decode(.blocks_acquired, &.{big_buffer[0..big_buffer_written]});
+
     for (0..shard_bits) |block| {
         const address = block + 1;
+
         try std.testing.expectEqual(big_set.is_free(address), false);
     }
 }

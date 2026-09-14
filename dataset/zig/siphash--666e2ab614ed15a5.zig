@@ -46,6 +46,7 @@ fn SipHashStateless(comptime T: type, comptime c_rounds: usize, comptime d_round
 
     return struct {
         const Self = @This();
+
         const block_length = 64;
         const key_length = 16;
 
@@ -78,8 +79,10 @@ fn SipHashStateless(comptime T: type, comptime c_rounds: usize, comptime d_round
             std.debug.assert(b.len % 8 == 0);
 
             var off: usize = 0;
+
             while (off < b.len) : (off += 8) {
                 const blob = b[off..][0..8].*;
+
                 @call(.always_inline, round, .{ self, blob });
             }
 
@@ -92,8 +95,11 @@ fn SipHashStateless(comptime T: type, comptime c_rounds: usize, comptime d_round
             self.msg_len +%= @as(u8, @truncate(b.len));
 
             var buf = [_]u8{0} ** 8;
+
             @memcpy(buf[0..b.len], b);
+
             buf[7] = self.msg_len;
+
             self.round(buf);
 
             if (T == u128) {
@@ -103,11 +109,13 @@ fn SipHashStateless(comptime T: type, comptime c_rounds: usize, comptime d_round
             }
 
             comptime var i: usize = 0;
+
             inline while (i < d_rounds) : (i += 1) {
                 @call(.always_inline, sipRound, .{self});
             }
 
             const b1 = self.v0 ^ self.v1 ^ self.v2 ^ self.v3;
+
             if (T == u64) {
                 return b1;
             }
@@ -115,19 +123,23 @@ fn SipHashStateless(comptime T: type, comptime c_rounds: usize, comptime d_round
             self.v1 ^= 0xdd;
 
             comptime var j: usize = 0;
+
             inline while (j < d_rounds) : (j += 1) {
                 @call(.always_inline, sipRound, .{self});
             }
 
             const b2 = self.v0 ^ self.v1 ^ self.v2 ^ self.v3;
+
             return (@as(u128, b2) << 64) | b1;
         }
 
         fn round(self: *Self, b: [8]u8) void {
             const m = mem.readInt(u64, &b, .little);
+
             self.v3 ^= m;
 
             comptime var i: usize = 0;
+
             inline while (i < c_rounds) : (i += 1) {
                 @call(.always_inline, sipRound, .{self});
             }
@@ -137,25 +149,38 @@ fn SipHashStateless(comptime T: type, comptime c_rounds: usize, comptime d_round
 
         fn sipRound(d: *Self) void {
             d.v0 +%= d.v1;
+
             d.v1 = math.rotl(u64, d.v1, @as(u64, 13));
+
             d.v1 ^= d.v0;
+
             d.v0 = math.rotl(u64, d.v0, @as(u64, 32));
+
             d.v2 +%= d.v3;
+
             d.v3 = math.rotl(u64, d.v3, @as(u64, 16));
+
             d.v3 ^= d.v2;
             d.v0 +%= d.v3;
+
             d.v3 = math.rotl(u64, d.v3, @as(u64, 21));
+
             d.v3 ^= d.v0;
             d.v2 +%= d.v1;
+
             d.v1 = math.rotl(u64, d.v1, @as(u64, 17));
+
             d.v1 ^= d.v2;
+
             d.v2 = math.rotl(u64, d.v2, @as(u64, 32));
         }
 
         fn hash(msg: []const u8, key: *const [key_length]u8) T {
             const aligned_len = msg.len - (msg.len % 8);
             var c = Self.init(key);
+
             @call(.always_inline, update, .{ &c, msg[0..aligned_len] });
+
             return @call(.always_inline, final, .{ &c, msg[aligned_len..] });
         }
     };
@@ -168,12 +193,15 @@ fn SipHash(comptime T: type, comptime c_rounds: usize, comptime d_rounds: usize)
     return struct {
         const State = SipHashStateless(T, c_rounds, d_rounds);
         const Self = @This();
+
         pub const key_length = 16;
         pub const mac_length = @sizeOf(T);
         pub const block_length = 8;
 
         state: State,
+
         buf: [8]u8,
+
         buf_len: usize,
 
         /// Initialize a state for a SipHash function
@@ -191,22 +219,29 @@ fn SipHash(comptime T: type, comptime c_rounds: usize, comptime d_rounds: usize)
 
             if (self.buf_len != 0 and self.buf_len + b.len >= 8) {
                 off += 8 - self.buf_len;
+
                 @memcpy(self.buf[self.buf_len..][0..off], b[0..off]);
+
                 self.state.update(self.buf[0..]);
+
                 self.buf_len = 0;
             }
 
             const remain_len = b.len - off;
             const aligned_len = remain_len - (remain_len % 8);
+
             self.state.update(b[off .. off + aligned_len]);
 
             const b_slice = b[off + aligned_len ..];
+
             @memcpy(self.buf[self.buf_len..][0..b_slice.len], b_slice);
+
             self.buf_len += @as(u8, @intCast(b_slice.len));
         }
 
         pub fn peek(self: Self) [mac_length]u8 {
             var copy = self;
+
             return copy.finalResult();
         }
 
@@ -218,13 +253,16 @@ fn SipHash(comptime T: type, comptime c_rounds: usize, comptime d_rounds: usize)
 
         pub fn finalResult(self: *Self) [mac_length]u8 {
             var result: [mac_length]u8 = undefined;
+
             self.final(&result);
+
             return result;
         }
 
         /// Return an authentication tag for a message and a key
         pub fn create(out: *[mac_length]u8, msg: []const u8, key: *const [key_length]u8) void {
             var ctx = Self.init(key);
+
             ctx.update(msg);
             ctx.final(out);
         }
@@ -316,10 +354,12 @@ test "siphash64-2-4 sanity" {
     const siphash = SipHash64(2, 4);
 
     var buffer: [64]u8 = undefined;
+
     for (vectors, 0..) |vector, i| {
         buffer[i] = @as(u8, @intCast(i));
 
         var out: [siphash.mac_length]u8 = undefined;
+
         siphash.create(&out, buffer[0..i], test_key);
         try testing.expectEqual(out, vector);
     }
@@ -396,10 +436,12 @@ test "siphash128-2-4 sanity" {
     const siphash = SipHash128(2, 4);
 
     var buffer: [64]u8 = undefined;
+
     for (vectors, 0..) |vector, i| {
         buffer[i] = @as(u8, @intCast(i));
 
         var out: [siphash.mac_length]u8 = undefined;
+
         siphash.create(&out, buffer[0..i], test_key[0..]);
         try testing.expectEqual(out, vector);
     }
@@ -407,6 +449,7 @@ test "siphash128-2-4 sanity" {
 
 test "iterative non-divisible update" {
     var buf: [1024]u8 = undefined;
+
     for (&buf, 0..) |*e, i| {
         e.* = @as(u8, @truncate(i));
     }
@@ -415,14 +458,17 @@ test "iterative non-divisible update" {
     const Siphash = SipHash64(2, 4);
 
     var end: usize = 9;
+
     while (end < buf.len) : (end += 9) {
         const non_iterative_hash = Siphash.toInt(buf[0..end], key[0..]);
-
         var siphash = Siphash.init(key);
+
         var i: usize = 0;
+
         while (i < end) : (i += 7) {
             siphash.update(buf[i..@min(i + 7, end)]);
         }
+
         const iterative_hash = siphash.finalInt();
 
         try std.testing.expectEqual(iterative_hash, non_iterative_hash);

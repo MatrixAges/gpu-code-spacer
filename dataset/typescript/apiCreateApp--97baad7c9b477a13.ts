@@ -6,15 +6,18 @@ import {
   getComponentPublicInstance,
   validateComponentName,
 } from './component'
+
 import type {
   ComponentOptions,
   MergedComponentOptions,
   RuntimeCompilerOptions,
 } from './componentOptions'
+
 import type {
   ComponentCustomProperties,
   ComponentPublicInstance,
 } from './componentPublicInstance'
+
 import { type Directive, validateDirectiveName } from './directives'
 import type { ElementNamespace, RootRenderFunction } from './renderer'
 import type { InjectionKey } from './apiInject'
@@ -38,14 +41,17 @@ export interface App<HostElement = any> {
     plugin: Plugin<Options>,
     ...options: NoInfer<Options>
   ): this
+
   use<Options>(plugin: Plugin<Options>, options: NoInfer<Options>): this
 
   mixin(mixin: ComponentOptions): this
   component(name: string): Component | undefined
+
   component<T extends Component | DefineComponent>(
     name: string,
     component: T,
   ): this
+
   directive<
     HostElement = any,
     Value = any,
@@ -54,6 +60,7 @@ export interface App<HostElement = any> {
   >(
     name: string,
   ): Directive<HostElement, Value, Modifiers, Arg> | undefined
+
   directive<
     HostElement = any,
     Value = any,
@@ -63,6 +70,7 @@ export interface App<HostElement = any> {
     name: string,
     directive: Directive<HostElement, Value, Modifiers, Arg>,
   ): this
+
   mount(
     rootContainer: HostElement | string,
     /**
@@ -78,8 +86,10 @@ export interface App<HostElement = any> {
      */
     vnode?: VNode,
   ): ComponentPublicInstance
+
   unmount(): void
   onUnmount(cb: () => void): void
+
   provide<T, K = InjectionKey<T> | string | number>(
     key: K,
     value: K extends InjectionKey<infer V> ? V : T,
@@ -127,11 +137,13 @@ export interface AppConfig {
   performance: boolean
   optionMergeStrategies: Record<string, OptionMergeFunction>
   globalProperties: ComponentCustomProperties & Record<string, any>
+
   errorHandler?: (
     err: unknown,
     instance: ComponentPublicInstance | null,
     info: string,
   ) => void
+
   warnHandler?: (
     msg: string,
     instance: ComponentPublicInstance | null,
@@ -212,6 +224,7 @@ type PluginInstallFunction<Options = any[]> = Options extends unknown[]
 export type ObjectPlugin<Options = any[]> = {
   install: PluginInstallFunction<Options>
 }
+
 export type FunctionPlugin<Options = any[]> = PluginInstallFunction<Options> &
   Partial<ObjectPlugin<Options>>
 
@@ -261,11 +274,14 @@ export function createAppAPI<HostElement>(
 
     if (rootProps != null && !isObject(rootProps)) {
       __DEV__ && warn(`root props passed to app.mount() must be an object.`)
+
       rootProps = null
     }
 
     const context = createAppContext()
+
     const installedPlugins = new WeakSet()
+
     const pluginCleanupFns: Array<() => any> = []
 
     let isMounted = false
@@ -300,6 +316,7 @@ export function createAppAPI<HostElement>(
           plugin.install(app, ...options)
         } else if (isFunction(plugin)) {
           installedPlugins.add(plugin)
+
           plugin(app, ...options)
         } else if (__DEV__) {
           warn(
@@ -307,6 +324,7 @@ export function createAppAPI<HostElement>(
               `function.`,
           )
         }
+
         return app
       },
 
@@ -323,6 +341,7 @@ export function createAppAPI<HostElement>(
         } else if (__DEV__) {
           warn('Mixins are only available in builds supporting Options API')
         }
+
         return app
       },
 
@@ -330,13 +349,17 @@ export function createAppAPI<HostElement>(
         if (__DEV__) {
           validateComponentName(name, context.config)
         }
+
         if (!component) {
           return context.components[name]
         }
+
         if (__DEV__ && context.components[name]) {
           warn(`Component "${name}" has already been registered in target app.`)
         }
+
         context.components[name] = component
+
         return app
       },
 
@@ -348,10 +371,13 @@ export function createAppAPI<HostElement>(
         if (!directive) {
           return context.directives[name] as any
         }
+
         if (__DEV__ && context.directives[name]) {
           warn(`Directive "${name}" has already been registered in target app.`)
         }
+
         context.directives[name] = directive
+
         return app
       },
 
@@ -369,7 +395,9 @@ export function createAppAPI<HostElement>(
                 ` you need to unmount the previous app by calling \`app.unmount()\` first.`,
             )
           }
+
           const vnode = app._ceVNode || createVNode(rootComponent, rootProps)
+
           // store app context on the root VNode.
           // this will be set on the root instance on initial mount.
           vnode.appContext = context
@@ -384,8 +412,10 @@ export function createAppAPI<HostElement>(
           if (__DEV__) {
             context.reload = () => {
               const cloned = cloneVNode(vnode)
+
               // avoid hydration for hmr updating
               cloned.el = null
+
               // casting to ElementNamespace because TS doesn't guarantee type narrowing
               // over function boundaries
               render(cloned, rootContainer, namespace as ElementNamespace)
@@ -397,6 +427,7 @@ export function createAppAPI<HostElement>(
           } else {
             render(vnode, rootContainer, namespace)
           }
+
           isMounted = true
           app._container = rootContainer
           // for devtools and telemetry
@@ -404,6 +435,7 @@ export function createAppAPI<HostElement>(
 
           if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
             app._instance = vnode.component
+
             devtoolsInitApp(app, version)
           }
 
@@ -425,6 +457,7 @@ export function createAppAPI<HostElement>(
               `but got ${typeof cleanupFn}`,
           )
         }
+
         pluginCleanupFns.push(cleanupFn)
       },
 
@@ -435,11 +468,15 @@ export function createAppAPI<HostElement>(
             app._instance,
             ErrorCodes.APP_UNMOUNT_CLEANUP,
           )
+
           render(null, app._container)
+
           if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
             app._instance = null
+
             devtoolsUnmountApp(app)
           }
+
           delete app._container.__vue_app__
         } else if (__DEV__) {
           warn(`Cannot unmount an app that is not mounted.`)
@@ -469,7 +506,9 @@ export function createAppAPI<HostElement>(
 
       runWithContext(fn) {
         const lastApp = currentApp
+
         currentApp = app
+
         try {
           return fn()
         } finally {

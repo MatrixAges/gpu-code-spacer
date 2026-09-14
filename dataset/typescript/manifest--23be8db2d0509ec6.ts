@@ -73,12 +73,14 @@ export function manifestPlugin(): Plugin {
     if (!environment.config.build.manifest) return false
 
     const root = environment.config.root
+
     const outPath =
       environment.config.build.manifest === true
         ? '.vite/manifest.json'
         : environment.config.build.manifest
 
     const envs: Record<string, Environment> = {}
+
     function getChunkName(chunk: OutputChunk) {
       return (
         getChunkOriginalFileName(chunk, root, false) ??
@@ -112,19 +114,27 @@ export function manifestPlugin(): Plugin {
         name: 'native:manifest-compatible',
         generateBundle(_, bundle) {
           const asset = bundle[outPath]
+
           if (asset.type === 'asset') {
             let manifest: Manifest | undefined
+
             for (const output of Object.values(bundle)) {
               const importedCss = output.viteMetadata?.importedCss
               const importedAssets = output.viteMetadata?.importedAssets
+
               if (!importedCss?.size && !importedAssets?.size) continue
+
               manifest ??= JSON.parse(asset.source.toString()) as Manifest
+
               if (output.type === 'chunk') {
                 const item = manifest[getChunkName(output)]
+
                 if (!item) continue
+
                 if (importedCss?.size) {
                   item.css = [...importedCss]
                 }
+
                 if (importedAssets?.size) {
                   item.assets = [...importedAssets]
                 }
@@ -137,11 +147,14 @@ export function manifestPlugin(): Plugin {
 
                 for (const key of keys) {
                   const item = manifest[key]
+
                   if (!item) continue
+
                   if (!(item.file && endsWithJSRE.test(item.file))) {
                     if (importedCss?.size) {
                       item.css = [...importedCss]
                     }
+
                     if (importedAssets?.size) {
                       item.assets = [...importedAssets]
                     }
@@ -149,21 +162,28 @@ export function manifestPlugin(): Plugin {
                 }
               }
             }
+
             const output = this.environment.config.build.rolldownOptions.output
             const outputLength = Array.isArray(output) ? output.length : 1
+
             if (manifest && outputLength === 1) {
               asset.source = JSON.stringify(manifest, undefined, 2)
+
               return
             }
 
             const state = getState(this)
+
             state.outputCount++
+
             state.manifest = Object.assign(
               state.manifest,
               manifest ?? JSON.parse(asset.source.toString()),
             )
+
             if (state.outputCount >= outputLength) {
               asset.source = JSON.stringify(state.manifest, undefined, 2)
+
               state.reset()
             } else {
               delete bundle[outPath]
@@ -182,11 +202,14 @@ export function getChunkOriginalFileName(
 ): string | undefined {
   if (chunk.facadeModuleId) {
     let name = normalizePath(path.relative(root, chunk.facadeModuleId))
+
     if (isLegacy && !chunk.name.includes('-legacy')) {
       const ext = path.extname(name)
       const endPos = ext.length !== 0 ? -ext.length : undefined
+
       name = `${name.slice(0, endPos)}-legacy${ext}`
     }
+
     return name.replace(/\0/g, '')
   }
 }

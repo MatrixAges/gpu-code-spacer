@@ -3,6 +3,7 @@ import {
   type FunctionalComponent,
   getCurrentInstance,
 } from '../component'
+
 import { resolveInjections } from '../componentOptions'
 import type { InternalSlots } from '../componentSlots'
 import { getCompatListeners } from './instanceListeners'
@@ -12,9 +13,11 @@ const normalizedFunctionalComponentMap = new WeakMap<
   ComponentOptions,
   FunctionalComponent
 >()
+
 export const legacySlotProxyHandlers: ProxyHandler<InternalSlots> = {
   get(target, key: string) {
     const slot = target[key]
+
     return slot && slot()
   },
 }
@@ -46,14 +49,19 @@ export function convertLegacyFunctionalComponent(
       get injections() {
         if (comp.inject) {
           const injections = {}
+
           resolveInjections(comp.inject, injections)
+
           return injections
         }
+
         return {}
       },
     }
+
     return legacyFn(compatH, legacyCtx)
   }
+
   Func.props = comp.props
   Func.displayName = comp.name
   Func.compatConfig = comp.compatConfig
@@ -61,5 +69,6 @@ export function convertLegacyFunctionalComponent(
   Func.inheritAttrs = false
 
   normalizedFunctionalComponentMap.set(comp, Func)
+
   return Func
 }

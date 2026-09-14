@@ -9,7 +9,6 @@ const testing = std.testing;
 const math = std.math;
 const cmath = math.complex;
 const Complex = cmath.Complex;
-
 const ldexp_cexp = @import("ldexp.zig").ldexp_cexp;
 
 /// Returns e raised to the power of z (e^z).
@@ -26,17 +25,17 @@ pub fn exp(z: anytype) Complex(@TypeOf(z.re, z.im)) {
 fn exp32(z: Complex(f32)) Complex(f32) {
     const exp_overflow = 0x42b17218; // max_exp * ln2 ~= 88.72283955
     const cexp_overflow = 0x43400074; // (max_exp - min_denom_exp) * ln2
-
     const x = z.re;
     const y = z.im;
-
     const hy = @as(u32, @bitCast(y)) & 0x7fffffff;
+
     // cexp(x + i0) = exp(x) + i0
     if (hy == 0) {
         return Complex(f32).init(@exp(x), y);
     }
 
     const hx = @as(u32, @bitCast(x));
+
     // cexp(0 + iy) = cos(y) + isin(y)
     if ((hx & 0x7fffffff) == 0) {
         return Complex(f32).init(@cos(y), @sin(y));
@@ -64,6 +63,7 @@ fn exp32(z: Complex(f32)) Complex(f32) {
     // - x = nan
     else {
         const exp_x = @exp(x);
+
         return Complex(f32).init(exp_x * @cos(y), exp_x * @sin(y));
     }
 }
@@ -71,10 +71,8 @@ fn exp32(z: Complex(f32)) Complex(f32) {
 fn exp64(z: Complex(f64)) Complex(f64) {
     const exp_overflow = 0x40862e42; // high bits of max_exp * ln2 ~= 710
     const cexp_overflow = 0x4096b8e4; // (max_exp - min_denorm_exp) * ln2
-
     const x = z.re;
     const y = z.im;
-
     const fy: u64 = @bitCast(y);
     const hy: u32 = @intCast((fy >> 32) & 0x7fffffff);
     const ly: u32 = @truncate(fy);
@@ -115,6 +113,7 @@ fn exp64(z: Complex(f64)) Complex(f64) {
     // - x = nan
     else {
         const exp_x = @exp(x);
+
         return Complex(f64).init(exp_x * @cos(y), exp_x * @sin(y));
     }
 }

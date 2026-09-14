@@ -33,7 +33,6 @@ pub fn ReplType(comptime MessageBus: type) type {
     return struct {
         event_loop_done: bool,
         request_done: bool,
-
         interactive: bool,
         debug_logs: bool,
 
@@ -75,6 +74,7 @@ pub fn ReplType(comptime MessageBus: type) type {
             statement: Parser.Statement,
         ) !void {
             try repl.debug("Running command: {}.\n", .{statement.command});
+
             switch (statement.command) {
                 .none => {
                     // No input was parsed.
@@ -94,6 +94,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                 .query_transfers,
                 => |command| {
                     const state_machine_operation = command.operation();
+
                     try repl.send(
                         state_machine_operation,
                         statement.arguments,
@@ -109,8 +110,8 @@ pub fn ReplType(comptime MessageBus: type) type {
         ) !?[]const u8 {
             repl.buffer.clear();
             repl.buffer_outside_history.clear();
-
             try repl.terminal.prompt_mode_set();
+
             defer repl.terminal.prompt_mode_unset() catch {};
 
             var terminal_screen = try repl.terminal.get_screen();
@@ -126,6 +127,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                 // Clear the completion menu when a match is selected or another key is pressed.
                 if (user_input != .tab and repl.completion.count() > 0) {
                     repl.completion.clear();
+
                     try repl.terminal.print("\x1b[{};1H\x1b[J\x1b[{};{}H", .{
                         terminal_screen.cursor_row + 1,
                         terminal_screen.cursor_row,
@@ -138,6 +140,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         if (repl.buffer.count() == 0 and buffer_index == 0) {
                             return null;
                         }
+
                         if (buffer_index < repl.buffer.count()) {
                             try repl.terminal.print("\x1b[{};{}H{s}\x20\x1b[{};{}H", .{
                                 terminal_screen.cursor_row,
@@ -146,6 +149,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                                 terminal_screen.cursor_row,
                                 terminal_screen.cursor_column,
                             });
+
                             _ = repl.buffer.ordered_remove(buffer_index);
                         }
                     },
@@ -155,13 +159,17 @@ pub fn ReplType(comptime MessageBus: type) type {
                             isize,
                             @intCast(repl.buffer.count() - buffer_index),
                         );
+
                         terminal_screen.update_cursor_position(position_end_diff);
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         try repl.terminal.print("^C\n", .{});
                         repl.buffer.clear();
+
                         return &.{};
                     },
                     .newline => {
@@ -170,12 +178,16 @@ pub fn ReplType(comptime MessageBus: type) type {
                             isize,
                             @intCast(repl.buffer.count() - buffer_index),
                         );
+
                         terminal_screen.update_cursor_position(position_end_diff);
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         try repl.terminal.print("\n", .{});
+
                         return repl.buffer.const_slice();
                     },
                     .printable => |character| {
@@ -184,9 +196,11 @@ pub fn ReplType(comptime MessageBus: type) type {
                         }
 
                         const is_append = buffer_index == repl.buffer.count();
+
                         if (is_append) {
                             terminal_screen.update_cursor_position(1);
                             try repl.terminal.print("{c}", .{character});
+
                             // Some terminals may not automatically move/scroll us down to the next
                             // row after appending a character at the last column. This can cause us
                             // to incorrectly report the cursor's position, so we force the terminal
@@ -205,10 +219,12 @@ pub fn ReplType(comptime MessageBus: type) type {
                             const buffer_redraw_len: isize = @intCast(
                                 repl.buffer.count() - buffer_index,
                             );
+
                             // It's crucial to update in two steps because the terminal may have
                             // scrolled down as part of the text redraw.
                             terminal_screen.update_cursor_position(buffer_redraw_len);
                             terminal_screen.update_cursor_position(1 - buffer_redraw_len);
+
                             try repl.terminal.print("{c}{s}\x1b[{};{}H", .{
                                 character,
                                 repl.buffer.const_slice()[buffer_index..],
@@ -218,10 +234,12 @@ pub fn ReplType(comptime MessageBus: type) type {
                         }
 
                         repl.buffer.insert_at(buffer_index, character);
+
                         buffer_index += 1;
                     },
                     .backspace => if (buffer_index > 0) {
                         terminal_screen.update_cursor_position(-1);
+
                         // Move to new position, write the remaining buffer,
                         // write a space (\x20) to overwrite the last character,
                         // then move back to the new position.
@@ -237,7 +255,9 @@ pub fn ReplType(comptime MessageBus: type) type {
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         buffer_index -= 1;
+
                         _ = repl.buffer.ordered_remove(buffer_index);
                     },
                     .delete => if (buffer_index < repl.buffer.count()) {
@@ -248,6 +268,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         _ = repl.buffer.ordered_remove(buffer_index);
                     },
                     .tab => {
@@ -302,7 +323,9 @@ pub fn ReplType(comptime MessageBus: type) type {
                             repl.completion.prefix.count() +
                             repl.completion.suffix.count() +
                             current_completion.len + 1;
+
                         const row_delta = @divFloor(buffer_width, terminal_screen.columns) + 1;
+
                         try repl.terminal.print("\x1b[{};1H", .{buffer_row + row_delta});
 
                         // Display completion menu in the next line and highlight the currently
@@ -312,6 +335,7 @@ pub fn ReplType(comptime MessageBus: type) type {
 
                         while (match_itr.next()) |match| {
                             const match_len = std.mem.indexOfScalar(u8, match[0..], '\x00').?;
+
                             menu_width += match_len + 2;
 
                             // \x1b[7m - Highlights the text by inverting the color. Inverts
@@ -331,6 +355,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         // move the cursor up by number of rows that would be overflown.
                         const menu_rows = @divFloor(menu_width, terminal_screen.columns) + 1;
                         const required_rows = terminal_screen.cursor_row + menu_rows;
+
                         const overflow_rows = @as(
                             isize,
                             @intCast(required_rows),
@@ -338,6 +363,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                             isize,
                             @intCast(terminal_screen.rows),
                         );
+
                         if (overflow_rows > 0) {
                             terminal_screen.update_cursor_position(
                                 -@as(isize, @intCast(terminal_screen.columns)) * overflow_rows,
@@ -355,34 +381,41 @@ pub fn ReplType(comptime MessageBus: type) type {
                         repl.buffer.push_slice(repl.completion.prefix.slice());
                         repl.buffer.push_slice(current_completion);
                         repl.buffer.push_slice(repl.completion.suffix.slice());
+
                         buffer_index = repl.buffer.count() - repl.completion.suffix.count();
                     },
                     .left, .ctrlb => if (buffer_index > 0) {
                         terminal_screen.update_cursor_position(-1);
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         buffer_index -= 1;
                     },
                     .right, .ctrlf => if (buffer_index < repl.buffer.count()) {
                         terminal_screen.update_cursor_position(1);
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         buffer_index += 1;
                     },
                     .up, .ctrlp => if (history_index > 0) {
                         const history_index_next = history_index - 1;
                         const buffer_next_full = repl.history.get_ptr(history_index_next).?;
                         const buffer_next = std.mem.sliceTo(buffer_next_full, '\x00');
+
                         assert(buffer_next.len < repl_history_entry_bytes_with_nul);
 
                         // Move to the beginning of the current buffer.
                         terminal_screen.update_cursor_position(
                             -@as(isize, @intCast(buffer_index)),
                         );
+
                         const row_current_buffer_start = terminal_screen.cursor_row;
 
                         // Move to the end of the new buffer.
@@ -402,10 +435,12 @@ pub fn ReplType(comptime MessageBus: type) type {
                             repl.buffer_outside_history.clear();
                             repl.buffer_outside_history.push_slice(repl.buffer.const_slice());
                         }
+
                         history_index = history_index_next;
 
                         repl.buffer.clear();
                         repl.buffer.push_slice(buffer_next);
+
                         buffer_index = repl.buffer.count();
                     },
                     .down, .ctrln => if (history_index < repl.history.count) {
@@ -416,7 +451,9 @@ pub fn ReplType(comptime MessageBus: type) type {
                         else brk: {
                             const buffer_next_full = repl.history.get_ptr(history_index_next).?;
                             const buffer_next = std.mem.sliceTo(buffer_next_full, '\x00');
+
                             assert(buffer_next.len < repl_history_entry_bytes_with_nul);
+
                             break :brk buffer_next;
                         };
 
@@ -426,6 +463,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         terminal_screen.update_cursor_position(
                             -@as(isize, @intCast(buffer_index)),
                         );
+
                         const row_current_buffer_start = terminal_screen.cursor_row;
 
                         // Move to the end of the new buffer.
@@ -443,38 +481,48 @@ pub fn ReplType(comptime MessageBus: type) type {
 
                         repl.buffer.clear();
                         repl.buffer.push_slice(buffer_next);
+
                         buffer_index = repl.buffer.count();
                     },
                     .altf, .ctrlright => {
                         const forward = move_forward_by_word(repl.buffer.slice(), buffer_index);
+
                         terminal_screen.update_cursor_position(
                             @as(isize, @intCast(forward - buffer_index)),
                         );
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         buffer_index = forward;
                     },
                     .altb, .ctrlleft => {
                         const backward = move_backward_by_word(repl.buffer.slice(), buffer_index);
+
                         terminal_screen.update_cursor_position(
                             -@as(isize, @intCast(buffer_index - backward)),
                         );
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         buffer_index = backward;
                     },
                     .ctrla, .home => {
                         // Move to start of line.
                         const position_start_diff = -@as(isize, @intCast(buffer_index));
+
                         terminal_screen.update_cursor_position(position_start_diff);
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         buffer_index = 0;
                     },
                     .ctrle, .end => {
@@ -483,11 +531,14 @@ pub fn ReplType(comptime MessageBus: type) type {
                             isize,
                             @intCast(repl.buffer.count() - buffer_index),
                         );
+
                         terminal_screen.update_cursor_position(position_end_diff);
+
                         try repl.terminal.print("\x1b[{};{}H", .{
                             terminal_screen.cursor_row,
                             terminal_screen.cursor_column,
                         });
+
                         buffer_index = repl.buffer.count();
                     },
                     .ctrlk => {
@@ -500,6 +551,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         // the terminal for the new position.
                         try repl.terminal.print("\x1b[0;0H\x1b[J", .{});
                         try repl.terminal.print(prompt, .{});
+
                         terminal_screen = try repl.terminal.get_screen();
 
                         // Print whatever is in the buffer and move the cursor back to buffer_index.
@@ -516,28 +568,35 @@ pub fn ReplType(comptime MessageBus: type) type {
                     .unhandled => {},
                 }
             }
+
             unreachable;
         }
 
         fn move_forward_by_word(buffer: []const u8, buffer_index: usize) usize {
             var cur_pos = buffer_index;
+
             while (cur_pos < buffer.len and std.ascii.isWhitespace(buffer[cur_pos])) {
                 cur_pos += 1;
             }
+
             while (cur_pos < buffer.len and !std.ascii.isWhitespace(buffer[cur_pos])) {
                 cur_pos += 1;
             }
+
             return cur_pos;
         }
 
         fn move_backward_by_word(buffer: []const u8, buffer_index: usize) usize {
             var cur_pos = buffer_index;
+
             while (cur_pos > 0 and std.ascii.isWhitespace(buffer[cur_pos - 1])) {
                 cur_pos -= 1;
             }
+
             while (cur_pos > 0 and !std.ascii.isWhitespace(buffer[cur_pos - 1])) {
                 cur_pos -= 1;
             }
+
             return cur_pos;
         }
 
@@ -546,13 +605,17 @@ pub fn ReplType(comptime MessageBus: type) type {
             arguments: *Parser.ArgumentsList,
         ) !void {
             try repl.terminal.print(prompt, .{});
+
             const input = repl.read_until_newline_or_eof() catch |err| {
                 repl.event_loop_done = true;
+
                 return err;
             } orelse {
                 // EOF.
                 repl.event_loop_done = true;
+
                 try repl.fail("\nExiting.\n", .{});
+
                 return;
             };
 
@@ -560,6 +623,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                 const add_to_history = brk: {
                     const last_entry = repl.history.tail_ptr_const() orelse break :brk true;
                     const last_entry_str = std.mem.sliceTo(last_entry, '\x00');
+
                     break :brk !std.mem.eql(u8, last_entry_str, input);
                 };
 
@@ -571,9 +635,12 @@ pub fn ReplType(comptime MessageBus: type) type {
                     if (repl.history.full()) {
                         repl.history.advance_head();
                     }
+
                     const history_tail: *[repl_history_entry_bytes_with_nul]u8 =
                         repl.history.next_tail_ptr().?;
+
                     @memset(history_tail, '\x00');
+
                     stdx.copy_left(.inexact, u8, history_tail, input);
                     repl.history.advance_tail();
                 }
@@ -595,6 +662,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                     else => return err,
                 }
             };
+
             try repl.do_statement(statement);
         }
 
@@ -633,15 +701,19 @@ pub fn ReplType(comptime MessageBus: type) type {
                 allocator,
                 constants.message_body_size_max,
             );
+
             errdefer arguments.deinit(allocator);
 
             var message_pool = try allocator.create(MessagePool);
+
             errdefer allocator.destroy(message_pool);
 
             message_pool.* = try MessagePool.init(allocator, .client);
+
             errdefer message_pool.deinit(allocator);
 
             const client_id = stdx.unique_u128();
+
             const client = try Client.init(
                 allocator,
                 time,
@@ -659,6 +731,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                     },
                 },
             );
+
             errdefer client.deinit(allocator);
 
             // Disable all dynamic allocation from this point onwards.
@@ -684,7 +757,6 @@ pub fn ReplType(comptime MessageBus: type) type {
 
         pub fn deinit(repl: *Repl, allocator: std.mem.Allocator) void {
             repl.static_allocator.transition_from_static_to_deinit();
-
             repl.client.deinit(allocator);
             repl.message_pool.deinit(allocator);
             allocator.destroy(repl.message_pool);
@@ -693,15 +765,16 @@ pub fn ReplType(comptime MessageBus: type) type {
 
         pub fn run(repl: *Repl, statements: []const u8) !void {
             repl.interactive = statements.len == 0;
+
             try Terminal.init(&repl.terminal, repl.interactive); // No corresponding deinit.
-
             try Completion.init(&repl.completion);
-
             repl.client.register(register_callback, @intCast(@intFromPtr(repl)));
+
             while (!repl.event_loop_done) {
                 repl.client.tick();
                 try repl.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
             }
+
             repl.event_loop_done = false;
 
             if (repl.interactive) {
@@ -716,6 +789,7 @@ pub fn ReplType(comptime MessageBus: type) type {
             while (!repl.event_loop_done) {
                 if (repl.request_done) {
                     repl.arguments.clearRetainingCapacity();
+
                     if (repl.interactive) {
                         try repl.do_repl(&repl.arguments);
                     } else blk: {
@@ -755,6 +829,7 @@ pub fn ReplType(comptime MessageBus: type) type {
             _ = result;
 
             const repl: *Repl = @ptrFromInt(@as(usize, @intCast(user_data)));
+
             assert(!repl.event_loop_done);
 
             repl.event_loop_done = true;
@@ -772,6 +847,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                 .query_accounts, .query_transfers => "query",
                 else => unreachable,
             };
+
             const object_type = switch (operation) {
                 .create_accounts, .lookup_accounts, .query_accounts => "accounts",
                 .create_transfers, .lookup_transfers, .query_transfers => "transfers",
@@ -785,23 +861,32 @@ pub fn ReplType(comptime MessageBus: type) type {
                     "No {s} to {s}.\n",
                     .{ object_type, operation_type },
                 );
+
                 return;
             }
 
             repl.request_done = false;
+
             try repl.debug("Sending command: {}.\n", .{operation});
 
             const payload_size: u32 = @intCast(arguments.items.len);
+
             const buffer: []align(constants.cache_line_size) u8 = buffer: {
                 arguments.expandToCapacity();
+
                 assert(arguments.items.len == constants.message_body_size_max);
+
                 break :buffer arguments.items;
             };
+
             var body_encoder = vsr.multi_batch.MultiBatchEncoder.init(buffer, .{
                 .element_size = operation.event_size(),
             });
+
             body_encoder.add(payload_size);
+
             const bytes_written = body_encoder.finish();
+
             assert(bytes_written > 0);
 
             repl.client.request(
@@ -820,6 +905,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                 @TypeOf(object.*) == tb.CreateTransferResult);
 
             try repl.terminal.print("{{\n", .{});
+
             inline for (@typeInfo(@TypeOf(object.*)).@"struct".fields, 0..) |object_field, i| {
                 if (comptime std.mem.eql(u8, object_field.name, "reserved")) {
                     continue;
@@ -832,6 +918,7 @@ pub fn ReplType(comptime MessageBus: type) type {
 
                 if (comptime std.mem.eql(u8, object_field.name, "flags")) {
                     try repl.terminal.print("  \"" ++ object_field.name ++ "\": [", .{});
+
                     var needs_comma = false;
 
                     inline for (@typeInfo(object_field.type).@"struct".fields) |flag_field| {
@@ -839,10 +926,12 @@ pub fn ReplType(comptime MessageBus: type) type {
                             if (@field(@field(object, "flags"), flag_field.name)) {
                                 if (needs_comma) {
                                     try repl.terminal.print(",", .{});
+
                                     needs_comma = false;
                                 }
 
                                 try repl.terminal.print("\"{s}\"", .{flag_field.name});
+
                                 needs_comma = true;
                             }
                         }
@@ -856,6 +945,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                     );
                 }
             }
+
             try repl.terminal.print("\n}}\n", .{});
         }
 
@@ -866,7 +956,9 @@ pub fn ReplType(comptime MessageBus: type) type {
             result: []const u8,
         ) !void {
             const repl: *Repl = @ptrFromInt(@as(usize, @intCast(user_data)));
+
             assert(repl.request_done == false);
+
             try repl.debug("Operation completed: {} timestamp={}.\n", .{ operation, timestamp });
 
             defer {
@@ -884,6 +976,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         tb.CreateAccountResult,
                         result,
                     );
+
                     if (create_account_results.len == 0) {
                         try repl.fail("No accounts were created.\n", .{});
                     } else {
@@ -898,6 +991,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         tb.Account,
                         result,
                     );
+
                     if (account_results.len == 0) {
                         try repl.fail("No accounts were found.\n", .{});
                     } else {
@@ -912,6 +1006,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         tb.CreateTransferResult,
                         result,
                     );
+
                     if (create_transfer_results.len == 0) {
                         try repl.fail("No transfers were created.\n", .{});
                     } else {
@@ -929,6 +1024,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         tb.Transfer,
                         result,
                     );
+
                     if (transfer_results.len == 0) {
                         try repl.fail("No transfers were found.\n", .{});
                     } else {
@@ -943,6 +1039,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                         tb.AccountBalance,
                         result,
                     );
+
                     if (get_account_balances_results.len == 0) {
                         try repl.fail("No balances were found.\n", .{});
                     } else {
@@ -962,10 +1059,13 @@ pub fn ReplType(comptime MessageBus: type) type {
             result: []align(constants.cache_line_size) const u8,
         ) void {
             const operation = operation_vsr.cast(tb.Operation);
+
             const reply_decoder = vsr.multi_batch.MultiBatchDecoder.init(result, .{
                 .element_size = operation.result_size(),
             }) catch unreachable;
+
             assert(reply_decoder.batch_count() == 1);
+
             client_request_completed(
                 user_data,
                 operation,
@@ -973,6 +1073,7 @@ pub fn ReplType(comptime MessageBus: type) type {
                 reply_decoder.peek(),
             ) catch |err| {
                 const repl: *Repl = @ptrFromInt(@as(usize, @intCast(user_data)));
+
                 repl.fail("Error in callback: {any}\n", .{err}) catch return;
             };
         }

@@ -36,6 +36,7 @@ pub fn isSdkInstalled(allocator: Allocator) bool {
 /// If error.OutOfMemory occurs in Allocator, this function returns null.
 pub fn getSdk(allocator: Allocator, target: *const Target) ?[]const u8 {
     const is_simulator_abi = target.abi == .simulator;
+
     const sdk = switch (target.os.tag) {
         .driverkit => "driverkit",
         .ios => if (is_simulator_abi) "iphonesimulator" else "iphoneos",
@@ -45,16 +46,20 @@ pub fn getSdk(allocator: Allocator, target: *const Target) ?[]const u8 {
         .watchos => if (is_simulator_abi) "watchsimulator" else "watchos",
         else => return null,
     };
+
     const argv = &[_][]const u8{ "xcrun", "--sdk", sdk, "--show-sdk-path" };
     const result = std.process.Child.run(.{ .allocator = allocator, .argv = argv }) catch return null;
+
     defer {
         allocator.free(result.stderr);
         allocator.free(result.stdout);
     }
+
     switch (result.term) {
         .Exited => |code| if (code != 0) return null,
         else => return null,
     }
+
     return allocator.dupe(u8, mem.trimEnd(u8, result.stdout, "\r\n")) catch null;
 }
 

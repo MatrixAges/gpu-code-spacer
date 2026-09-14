@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 
 export default (todos: Todos, limit: number) => {
 	const relative_date = typeof todos === 'string' ? todos : todos.relative_date
+
 	const target = {} as CSSProperties
 
 	if (typeof todos === 'object' && todos.todos && todos.todos.length) {

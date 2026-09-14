@@ -44,26 +44,34 @@ pub const DbiStreamHeader = extern struct {
 pub const SectionContribEntry = extern struct {
     /// COFF Section index, 1-based
     section: u16,
+
     padding1: [2]u8,
+
     offset: u32,
     size: u32,
     characteristics: u32,
     module_index: u16,
+
     padding2: [2]u8,
+
     data_crc: u32,
     reloc_crc: u32,
 };
 
 pub const ModInfo = extern struct {
     unused1: u32,
+
     section_contr: SectionContribEntry,
+
     flags: u16,
     module_sym_stream: u16,
     sym_byte_size: u32,
     c11_byte_size: u32,
     c13_byte_size: u32,
     source_file_count: u16,
+
     padding: [2]u8,
+
     unused2: u32,
     source_file_name_index: u32,
     pdb_file_path_name_index: u32,
@@ -328,7 +336,9 @@ pub const ProcSym = extern struct {
     function_type: TypeIndex,
     code_offset: u32,
     segment: u16,
+
     flags: ProcSymFlags,
+
     name: [1]u8, // null-terminated
 };
 
@@ -367,6 +377,7 @@ pub const LineFragmentHeader = extern struct {
 
     /// Code segment of line contribution.
     reloc_segment: u16,
+
     flags: LineFlags,
 
     /// Code size of this line contribution.
@@ -398,6 +409,7 @@ pub const LineBlockFragmentHeader = extern struct {
 pub const LineNumberEntry = extern struct {
     /// Offset to start of code bytes for line number
     offset: u32,
+
     flags: Flags,
 
     pub const Flags = packed struct(u32) {

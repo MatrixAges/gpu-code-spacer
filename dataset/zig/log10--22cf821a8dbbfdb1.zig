@@ -11,6 +11,7 @@ const testing = std.testing;
 ///  - log10(nan)   = nan
 pub fn log10(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     switch (@typeInfo(T)) {
         .comptime_float => {
             return @as(comptime_float, @log10(x));
@@ -37,6 +38,7 @@ pub fn log10(x: anytype) @TypeOf(x) {
 pub fn log10_int(x: anytype) std.math.Log2Int(@TypeOf(x)) {
     const T = @TypeOf(x);
     const OutT = std.math.Log2Int(T);
+
     if (@typeInfo(T) != .int or @typeInfo(T).int.signedness != .unsigned)
         @compileError("log10_int requires an unsigned integer, found " ++ @typeName(T));
 
@@ -57,6 +59,7 @@ pub fn log10_int(x: anytype) std.math.Log2Int(@TypeOf(x)) {
         // Unnecessary branches should be removed by the compiler
         if (bit_size > (1 << (11 - i)) * 5 * @log2(10.0) and val >= pow10((1 << (11 - i)) * 5)) {
             const num_digits = (1 << (11 - i)) * 5;
+
             val /= pow10(num_digits);
             log += num_digits;
         }
@@ -149,10 +152,12 @@ test log10_int {
                 try testing.expectEqual(exponent - 1, log10_int(power_of_ten - 9));
                 try testing.expectEqual(exponent - 1, log10_int(power_of_ten - 1));
             }
+
             try testing.expectEqual(exponent, log10_int(power_of_ten));
             try testing.expectEqual(exponent, log10_int(power_of_ten + 1));
             try testing.expectEqual(exponent, log10_int(power_of_ten + 8));
         }
+
         try testing.expectEqual(max_exponent, log10_int(@as(T, std.math.maxInt(T))));
     }
 }

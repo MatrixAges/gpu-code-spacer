@@ -1,4 +1,5 @@
 import { isFunction } from '@vue/shared'
+
 import {
   type DebuggerEvent,
   type DebuggerOptions,
@@ -8,6 +9,7 @@ import {
   batch,
   refreshComputed,
 } from './effect'
+
 import type { Ref } from './ref'
 import { warn } from './warning'
 import { Dep, type Link, globalVersion } from './dep'
@@ -49,10 +51,12 @@ export class ComputedRefImpl<T = any> implements Subscriber {
    * @internal
    */
   _value: any = undefined
+
   /**
    * @internal
    */
   readonly dep: Dep = new Dep(this)
+
   /**
    * @internal
    */
@@ -62,6 +66,7 @@ export class ComputedRefImpl<T = any> implements Subscriber {
    * @internal
    */
   readonly __v_isReadonly: boolean
+
   // TODO isolatedDeclarations ReactiveFlags.IS_READONLY
   // A computed is also a subscriber that tracks other deps
   /**
@@ -72,6 +77,7 @@ export class ComputedRefImpl<T = any> implements Subscriber {
    * @internal
    */
   depsTail?: Link = undefined
+
   /**
    * @internal
    */
@@ -84,6 +90,7 @@ export class ComputedRefImpl<T = any> implements Subscriber {
    * @internal
    */
   isSSR: boolean
+
   /**
    * @internal
    */
@@ -91,6 +98,7 @@ export class ComputedRefImpl<T = any> implements Subscriber {
 
   // for backwards compat
   effect: this = this
+
   // dev only
   onTrack?: (event: DebuggerEvent) => void
   // dev only
@@ -116,12 +124,14 @@ export class ComputedRefImpl<T = any> implements Subscriber {
    */
   notify(): true | void {
     this.flags |= EffectFlags.DIRTY
+
     if (
       !(this.flags & EffectFlags.NOTIFIED) &&
       // avoid infinite self recursion
       activeSub !== this
     ) {
       batch(this, true)
+
       return true
     } else if (__DEV__) {
       // TODO warn
@@ -136,11 +146,14 @@ export class ComputedRefImpl<T = any> implements Subscriber {
           key: 'value',
         })
       : this.dep.track()
+
     refreshComputed(this)
+
     // sync version after evaluation
     if (link) {
       link.version = this.dep.version
     }
+
     return this._value
   }
 
@@ -190,10 +203,12 @@ export function computed<T>(
   getter: ComputedGetter<T>,
   debugOptions?: DebuggerOptions,
 ): ComputedRef<T>
+
 export function computed<T, S = T>(
   options: WritableComputedOptions<T, S>,
   debugOptions?: DebuggerOptions,
 ): WritableComputedRef<T, S>
+
 /*@__NO_SIDE_EFFECTS__*/
 export function computed<T>(
   getterOrOptions: ComputedGetter<T> | WritableComputedOptions<T>,

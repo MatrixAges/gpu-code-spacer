@@ -106,17 +106,11 @@ pub const Status = enum(usize) {
     http_error = high_bit | 35,
 
     network_unreachable = high_bit | 100,
-
     host_unreachable = high_bit | 101,
-
     protocol_unreachable = high_bit | 102,
-
     port_unreachable = high_bit | 103,
-
     connection_fin = high_bit | 104,
-
     connection_reset = high_bit | 105,
-
     connection_refused = high_bit | 106,
 
     /// The string contained one or more characters that the device could not render and were skipped.
@@ -280,12 +274,15 @@ pub const Status = enum(usize) {
 
 test "status" {
     var st: Status = .device_error;
+
     try testing.expectError(error.DeviceError, st.err());
     try testing.expectEqual(st, Status.fromError(st.err()));
 
     st = .success;
+
     try st.err();
 
     st = .warn_unknown_glyph;
+
     try st.err();
 }

@@ -8,6 +8,7 @@ pub fn lcm(a: anytype, b: anytype) @TypeOf(a, b) {
     // Behavior from C++ and Python
     // If an argument is zero, then the returned value is 0.
     if (a == 0 or b == 0) return 0;
+
     return @abs(b) * (@abs(a) / std.math.gcd(@abs(a), @abs(b)));
 }
 

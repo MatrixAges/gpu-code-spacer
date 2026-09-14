@@ -6,22 +6,27 @@ import { promisify } from 'node:util'
 import { ignoreInput, ignoreOutput } from '@voidzero-dev/vite-task-client'
 import { init, parse } from 'es-module-lexer'
 import colors from 'picocolors'
+
 import {
   type RolldownOptions,
   type RolldownOutput,
   type OutputOptions as RolldownOutputOptions,
   rolldown,
 } from 'rolldown'
+
 import { isDynamicPattern } from 'tinyglobby'
 import type { DepsOptimizerEsbuildOptions } from '#types/internal/esbuildOptions'
 import { isWindows } from '../../shared/utils'
 import type { ResolvedConfig } from '../config'
+
 import {
   ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET,
   METADATA_FILENAME,
 } from '../constants'
+
 import type { Environment } from '../environment'
 import { transformWithOxc } from '../plugins/oxc'
+
 import {
   arraify,
   asyncFlatten,
@@ -36,11 +41,14 @@ import {
   tryStatSync,
   unique,
 } from '../utils'
+
 import { createOptimizeDepsIncludeResolver, expandGlobIds } from './resolve'
+
 import {
   rolldownCjsExternalPlugin,
   rolldownDepPlugin,
 } from './rolldownDepPlugin'
+
 import { ScanEnvironment, scanImports } from './scan'
 
 const debug = createDebugger('vite:deps')
@@ -112,6 +120,7 @@ export interface DepOptimizationConfig {
       'format' | 'sourcemap' | 'dir' | 'banner'
     >
   }
+
   /**
    * Options to pass to rolldown during the dep scanning and optimization
    *
@@ -126,6 +135,7 @@ export interface DepOptimizationConfig {
       'format' | 'sourcemap' | 'dir' | 'banner'
     >
   }
+
   /**
    * List of file extensions that can be optimized. A corresponding esbuild
    * plugin must exist to handle the specific extension.
@@ -295,6 +305,7 @@ export async function optimizeDeps(
   )
 
   const environment = new ScanEnvironment('client', config)
+
   await environment.init()
 
   const cachedMetadata = await loadCachedDepOptimizationMetadata(
@@ -302,6 +313,7 @@ export async function optimizeDeps(
     force,
     asCommand,
   )
+
   if (cachedMetadata) {
     return cachedMetadata
   }
@@ -311,6 +323,7 @@ export async function optimizeDeps(
   await addManuallyIncludedOptimizeDeps(environment, deps)
 
   const depsString = depsLogString(Object.keys(deps))
+
   log?.(colors.green(`Optimizing dependencies:\n  ${depsString}`))
 
   const depsInfo = toDiscoveredDependencies(environment, deps)
@@ -330,6 +343,7 @@ export async function optimizeExplicitEnvironmentDeps(
     environment.config.optimizeDeps.force ?? false,
     false,
   )
+
   if (cachedMetadata) {
     return cachedMetadata
   }
@@ -352,6 +366,7 @@ export function initDepsOptimizerMetadata(
   timestamp?: string,
 ): DepOptimizationMetadata {
   const { lockfileHash, configHash, hash } = getDepHash(environment)
+
   return {
     hash,
     lockfileHash,
@@ -370,7 +385,9 @@ export function addOptimizedDepInfo(
   depInfo: OptimizedDepInfo,
 ): OptimizedDepInfo {
   metadata[type][depInfo.id] = depInfo
+
   metadata.depInfoList.push(depInfo)
+
   return depInfo
 }
 
@@ -389,6 +406,7 @@ export async function loadCachedDepOptimizationMetadata(
 
   if (firstLoadCachedDepOptimizationMetadata) {
     firstLoadCachedDepOptimizationMetadata = false
+
     // Fire up a clean up of stale processing deps dirs if older process exited early
     setTimeout(
       () => cleanupDepsCacheStaleDirs(environment.getTopLevelConfig()),
@@ -408,13 +426,16 @@ export async function loadCachedDepOptimizationMetadata(
 
   if (!force) {
     let cachedMetadata: DepOptimizationMetadata | undefined
+
     try {
       const cachedMetadataPath = path.join(depsCacheDir, METADATA_FILENAME)
+
       cachedMetadata = parseDepsOptimizerMetadata(
         await fsp.readFile(cachedMetadataPath, 'utf-8'),
         depsCacheDir,
       )
     } catch {}
+
     // hash is consistent, no need to re-bundle
     if (cachedMetadata) {
       if (cachedMetadata.lockfileHash !== getLockfileHash(environment)) {
@@ -435,6 +456,7 @@ export async function loadCachedDepOptimizationMetadata(
         log?.(
           `(${environment.name}) Hash is consistent. Skipping. Use --force to override.`,
         )
+
         // Nothing to commit or cancel as we are using the cache, we only
         // need to resolve the processing promise so requests can move on
         return cachedMetadata
@@ -450,6 +472,7 @@ export async function loadCachedDepOptimizationMetadata(
   debug?.(
     `(${environment.name}) ${colors.green(`removing old cache dir ${depsCacheDir}`)}`,
   )
+
   await fsp.rm(depsCacheDir, { recursive: true, force: true })
 }
 
@@ -467,6 +490,7 @@ export function discoverProjectDependencies(environment: ScanEnvironment): {
     cancel,
     result: result.then(({ deps, missing }) => {
       const missingIds = Object.keys(missing)
+
       if (missingIds.length) {
         throw new Error(
           `The following dependencies are imported but could not be resolved:\n\n  ${missingIds
@@ -495,9 +519,12 @@ export function toDiscoveredDependencies(
     deps,
     timestamp,
   )
+
   const discovered: Record<string, OptimizedDepInfo> = {}
+
   for (const id in deps) {
     const src = deps[id]
+
     discovered[id] = {
       id,
       file: getOptimizedDepPath(environment, id),
@@ -506,6 +533,7 @@ export function toDiscoveredDependencies(
       exportsData: extractExportsData(environment, src),
     }
   }
+
   return discovered
 }
 
@@ -537,6 +565,7 @@ export function runOptimizeDeps(
   // a hint for Node.js
   // all files in the cache directory should be recognized as ES modules
   debug?.(colors.green(`creating package.json in ${processingCacheDir}`))
+
   fs.writeFileSync(
     path.resolve(processingCacheDir, 'package.json'),
     `{\n  "type": "module"\n}\n`,
@@ -556,14 +585,17 @@ export function runOptimizeDeps(
   const qualifiedIds = Object.keys(depsInfo)
   let cleaned = false
   let committed = false
+
   const cleanUp = () => {
     // If commit was already called, ignore the clean up even if a cancel was requested
     // This minimizes the chances of leaving the deps cache in a corrupted state
     if (!cleaned && !committed) {
       cleaned = true
+
       // No need to wait, we can clean up in the background because temp folders
       // are unique per run
       debug?.(colors.green(`removing cache dir ${processingCacheDir}`))
+
       try {
         // When exiting the process, `fsp.rm` may not take effect, so we use `fs.rmSync`
         fs.rmSync(processingCacheDir, { recursive: true, force: true })
@@ -582,6 +614,7 @@ export function runOptimizeDeps(
           'Can not commit a Deps Optimization run as it was cancelled',
         )
       }
+
       // Ignore clean up requests after this point so the temp folder isn't deleted before
       // we finish committing the new deps cache files to the deps folder
       committed = true
@@ -589,9 +622,11 @@ export function runOptimizeDeps(
       // Write metadata file, then commit the processing folder to the global deps cache
       // Rewire the file paths from the temporary processing dir to the final deps cache dir
       const dataPath = path.join(processingCacheDir, METADATA_FILENAME)
+
       debug?.(
         colors.green(`creating ${METADATA_FILENAME} in ${processingCacheDir}`),
       )
+
       fs.writeFileSync(
         dataPath,
         stringifyDepsOptimizerMetadata(metadata, depsCacheDir),
@@ -607,29 +642,36 @@ export function runOptimizeDeps(
       // is safer than a delete-rename operation.
       const temporaryPath = depsCacheDir + getTempSuffix()
       const depsCacheDirPresent = fs.existsSync(depsCacheDir)
+
       if (isWindows) {
         if (depsCacheDirPresent) {
           debug?.(colors.green(`renaming ${depsCacheDir} to ${temporaryPath}`))
+
           await safeRename(depsCacheDir, temporaryPath)
         }
+
         debug?.(
           colors.green(`renaming ${processingCacheDir} to ${depsCacheDir}`),
         )
+
         await safeRename(processingCacheDir, depsCacheDir)
       } else {
         if (depsCacheDirPresent) {
           debug?.(colors.green(`renaming ${depsCacheDir} to ${temporaryPath}`))
           fs.renameSync(depsCacheDir, temporaryPath)
         }
+
         debug?.(
           colors.green(`renaming ${processingCacheDir} to ${depsCacheDir}`),
         )
+
         fs.renameSync(processingCacheDir, depsCacheDir)
       }
 
       // Delete temporary path in the background
       if (depsCacheDirPresent) {
         debug?.(colors.green(`removing cache temp dir ${temporaryPath}`))
+
         fsp.rm(temporaryPath, { recursive: true, force: true })
       }
     },
@@ -669,6 +711,7 @@ export function runOptimizeDeps(
   const runResult = preparedRun.then(({ context, idToExports }) => {
     if (!context || optimizerContext.cancelled) {
       clearTimeout(bundleTimer)
+
       return cancelledResult
     }
 
@@ -676,8 +719,10 @@ export function runOptimizeDeps(
       .build()
       .then((result) => {
         const depForEntryFileName: Record<string, OptimizedDepInfo> = {}
+
         for (const dep of Object.values(depsInfo)) {
           const entryFileName = flattenId(dep.id) + '.js'
+
           depForEntryFileName[entryFileName] = dep
         }
 
@@ -687,6 +732,7 @@ export function runOptimizeDeps(
           if (chunk.isEntry) {
             const { exportsData, file, id, ...info } =
               depForEntryFileName[chunk.fileName]
+
             addOptimizedDepInfo(metadata, 'optimized', {
               id,
               file,
@@ -708,9 +754,11 @@ export function runOptimizeDeps(
             })
           } else {
             const id = chunk.fileName.replace(jsExtensionRE, '')
+
             const file = normalizePath(
               path.resolve(getDepsCacheDir(environment), chunk.fileName),
             )
+
             if (
               !findOptimizedDepInfoInRecord(
                 metadata.optimized,
@@ -739,15 +787,19 @@ export function runOptimizeDeps(
 
       .catch((e) => {
         clearTimeout(bundleTimer)
+
         if (e.errors && e.message.includes('The build was canceled')) {
           // an error happens when cancelling, but this is expected so
           // return an empty result instead
           return cancelledResult
         }
+
         const prependMessage = colors.red(
           'Error during dependency optimization:\n\n',
         )
+
         e.message = prependMessage + e.message
+
         throw e
       })
   })
@@ -759,8 +811,11 @@ export function runOptimizeDeps(
   return {
     async cancel() {
       optimizerContext.cancelled = true
+
       const { context } = await preparedRun
+
       context?.cancel()
+
       cleanUp()
     },
     result: runResult,
@@ -791,17 +846,22 @@ async function prepareRolldownOptimizerRun(
     optimizeDeps.rolldownOptions ?? {}
 
   let jsxLoader = false
+
   await Promise.all(
     Object.keys(depsInfo).map(async (id) => {
       const src = depsInfo[id].src!
+
       const exportsData = await (depsInfo[id].exportsData ??
         extractExportsData(environment, src))
+
       if (exportsData.jsxLoader) {
         // Ensure that optimization won't fail by defaulting '.js' to the JSX parser.
         // This is useful for packages such as Gatsby.
         jsxLoader = true
       }
+
       const flatId = flattenId(id)
+
       flatIdDeps[flatId] = isWindows ? src.replaceAll('/', '\\') : src
       idToExports[id] = exportsData
     }),
@@ -831,12 +891,15 @@ async function prepareRolldownOptimizerRun(
   const external = [...(optimizeDeps.exclude ?? [])]
 
   const plugins = await asyncFlatten(arraify(pluginsFromConfig))
+
   if (external.length) {
     plugins.push(rolldownCjsExternalPlugin(external, platform))
   }
+
   plugins.push(...rolldownDepPlugin(environment, flatIdDeps, external))
 
   let canceled = false
+
   async function build() {
     const bundle = await rolldown({
       ...rolldownOptions,
@@ -860,10 +923,13 @@ async function prepareRolldownOptimizerRun(
         ...(jsxLoader ? { '.js': 'jsx' } : {}),
       },
     })
+
     if (canceled) {
       await bundle.close()
+
       throw new Error('The build was canceled')
     }
+
     try {
       return await bundle.write({
         ...rolldownOptions.output,
@@ -890,7 +956,9 @@ export async function addManuallyIncludedOptimizeDeps(
 ): Promise<void> {
   const { logger } = environment
   const { optimizeDeps } = environment.config
+
   const optimizeDepsInclude = optimizeDeps.include ?? []
+
   if (optimizeDepsInclude.length) {
     const unableToOptimize = (id: string, msg: string) => {
       if (optimizeDepsInclude.includes(id)) {
@@ -901,22 +969,29 @@ export async function addManuallyIncludedOptimizeDeps(
     }
 
     const includes = [...optimizeDepsInclude]
+
     for (let i = 0; i < includes.length; i++) {
       const id = includes[i]
+
       if (isDynamicPattern(id)) {
         const globIds = expandGlobIds(id, environment.getTopLevelConfig())
+
         includes.splice(i, 1, ...globIds)
+
         i += globIds.length - 1
       }
     }
 
     const resolve = createOptimizeDepsIncludeResolver(environment)
+
     for (const id of includes) {
       // normalize 'foo   >bar` as 'foo > bar' to prevent same id being added
       // and for pretty printing
       const normalizedId = normalizeId(id)
+
       if (!deps[normalizedId]) {
         const entry = await resolve(id)
+
         if (entry) {
           if (isOptimizable(entry, optimizeDeps)) {
             deps[normalizedId] = entry
@@ -936,9 +1011,11 @@ export function depsFromOptimizedDepInfo(
   depsInfo: Record<string, OptimizedDepInfo>,
 ): Record<string, string> {
   const obj: Record<string, string> = {}
+
   for (const key in depsInfo) {
     obj[key] = depsInfo[key].src!
   }
+
   return obj
 }
 
@@ -986,6 +1063,7 @@ export function createIsOptimizedDepFile(
   environment: Environment,
 ): (id: string) => boolean {
   const depsCacheDirPrefix = getDepsCacheDirPrefix(environment)
+
   return (id) => id.startsWith(depsCacheDirPrefix)
 }
 
@@ -993,10 +1071,12 @@ export function createIsOptimizedDepUrl(
   environment: Environment,
 ): (url: string) => boolean {
   const { root } = environment.config
+
   const depsCacheDir = getDepsCacheDirPrefix(environment)
 
   // determine the url prefix of files inside cache directory
   const depsCacheDirRelative = normalizePath(path.relative(root, depsCacheDir))
+
   const depsCacheDirPrefix = depsCacheDirRelative.startsWith('../')
     ? // if the cache directory is outside root, the url prefix would be something
       // like '/@fs/absolute/path/to/node_modules/.vite'
@@ -1021,8 +1101,10 @@ function parseDepsOptimizerMetadata(
       if (key === 'file' || key === 'src') {
         return normalizePath(path.resolve(depsCacheDir, value))
       }
+
       return value
     })
+
   if (
     !chunks ||
     Object.values(optimized).some((depInfo: any) => !depInfo.fileHash)
@@ -1030,6 +1112,7 @@ function parseDepsOptimizerMetadata(
     // outdated _metadata.json version, ignore
     return
   }
+
   const metadata = {
     hash,
     lockfileHash,
@@ -1040,6 +1123,7 @@ function parseDepsOptimizerMetadata(
     chunks: {},
     depInfoList: [],
   }
+
   for (const id of Object.keys(optimized)) {
     addOptimizedDepInfo(metadata, 'optimized', {
       ...optimized[id],
@@ -1047,6 +1131,7 @@ function parseDepsOptimizerMetadata(
       browserHash,
     })
   }
+
   for (const id of Object.keys(chunks)) {
     addOptimizedDepInfo(metadata, 'chunks', {
       ...chunks[id],
@@ -1055,6 +1140,7 @@ function parseDepsOptimizerMetadata(
       needsInterop: false,
     })
   }
+
   return metadata
 }
 
@@ -1070,6 +1156,7 @@ function stringifyDepsOptimizerMetadata(
 ) {
   const { hash, configHash, lockfileHash, browserHash, optimized, chunks } =
     metadata
+
   return JSON.stringify(
     {
       hash,
@@ -1103,6 +1190,7 @@ function stringifyDepsOptimizerMetadata(
       if (key === 'file' || key === 'src') {
         return normalizePath(path.relative(depsCacheDir, value))
       }
+
       return value
     },
     2,
@@ -1118,13 +1206,16 @@ export async function extractExportsData(
   const { optimizeDeps } = environment.config
 
   const rolldownOptions = optimizeDeps.rolldownOptions ?? {}
+
   if (optimizeDeps.extensions?.some((ext) => filePath.endsWith(ext))) {
     // For custom supported extensions, build the entry file to transform it into JS,
     // and then parse with es-module-lexer. Note that the `bundle` option is not `true`,
     // so only the entry file is being transformed.
     const { plugins: pluginsFromConfig = [], ...remainingRolldownOptions } =
       rolldownOptions
+
     const plugins = await asyncFlatten(arraify(pluginsFromConfig))
+
     plugins.unshift({
       name: 'externalize',
       resolveId(id, importer) {
@@ -1133,6 +1224,7 @@ export async function extractExportsData(
         }
       },
     })
+
     const build = await rolldown({
       ...remainingRolldownOptions,
       plugins,
@@ -1143,13 +1235,16 @@ export async function extractExportsData(
         ...remainingRolldownOptions.moduleTypes,
       },
     })
+
     try {
       const result = await build.generate({
         ...rolldownOptions.output,
         format: 'esm',
         sourcemap: false,
       })
+
       const [, exports, , hasModuleSyntax] = parse(result.output[0].code)
+
       return {
         hasModuleSyntax,
         exports: exports.map((e) => e.n),
@@ -1163,16 +1258,20 @@ export async function extractExportsData(
   let usedJsxLoader = false
 
   const entryContent = fs.readFileSync(filePath, 'utf-8')
+
   try {
     parseResult = parse(entryContent)
   } catch {
     const lang = rolldownOptions.moduleTypes?.[path.extname(filePath)] || 'jsx'
+
     debug?.(
       `Unable to parse: ${filePath}.\n Trying again with a ${lang} transform.`,
     )
+
     if (lang !== 'jsx' && lang !== 'tsx' && lang !== 'ts') {
       throw new Error(`Unable to parse: ${filePath}.`)
     }
+
     const transformed = await transformWithOxc(
       entryContent,
       filePath,
@@ -1180,16 +1279,20 @@ export async function extractExportsData(
       undefined,
       environment.config,
     )
+
     parseResult = parse(transformed.code)
+
     usedJsxLoader = true
   }
 
   const [, exports, , hasModuleSyntax] = parseResult
+
   const exportsData: ExportsData = {
     hasModuleSyntax,
     exports: exports.map((e) => e.n),
     jsxLoader: usedJsxLoader,
   }
+
   return exportsData
 }
 
@@ -1202,7 +1305,9 @@ function needsInterop(
   if (environment.config.optimizeDeps.needsInterop?.includes(id)) {
     return true
   }
+
   const { hasModuleSyntax, exports } = exportsData
+
   // entry has no ESM syntax - likely CJS or UMD
   if (!hasModuleSyntax) {
     return true
@@ -1221,6 +1326,7 @@ function needsInterop(
       return true
     }
   }
+
   return false
 }
 
@@ -1296,6 +1402,7 @@ const lockfileFormats = [
 ].sort((_, { manager }) => {
   return process.env.npm_config_user_agent?.startsWith(manager) ? 1 : -1
 })
+
 const lockfilePaths = lockfileFormats.map((l) => l.path)
 
 function getConfigHash(environment: Environment): string {
@@ -1303,6 +1410,7 @@ function getConfigHash(environment: Environment): string {
   // only a subset of config options that can affect dep optimization
   const { config } = environment
   const { optimizeDeps } = config
+
   const content = JSON.stringify(
     {
       define: !config.keepProcessEnv
@@ -1337,33 +1445,42 @@ function getConfigHash(environment: Environment): string {
       if (typeof value === 'function' || value instanceof RegExp) {
         return value.toString()
       }
+
       return value
     },
   )
+
   return getHash(content)
 }
 
 function getLockfileHash(environment: Environment): string {
   const lockfilePath = lookupFile(environment.config.root, lockfilePaths)
   let content = lockfilePath ? fs.readFileSync(lockfilePath, 'utf-8') : ''
+
   if (lockfilePath) {
     const normalizedLockfilePath = lockfilePath.replaceAll('\\', '/')
+
     const lockfileFormat = lockfileFormats.find((f) =>
       normalizedLockfilePath.endsWith(f.path),
     )!
+
     if (lockfileFormat.checkPatchesDir) {
       // Default of https://github.com/ds300/patch-package
       const baseDir = lockfilePath.slice(0, -lockfileFormat.path.length)
+
       const fullPath = path.join(
         baseDir,
         lockfileFormat.checkPatchesDir as string,
       )
+
       const stat = tryStatSync(fullPath)
+
       if (stat?.isDirectory()) {
         content += stat.mtimeMs.toString()
       }
     }
   }
+
   return getHash(content)
 }
 
@@ -1375,6 +1492,7 @@ function getDepHash(environment: Environment): {
   const lockfileHash = getLockfileHash(environment)
   const configHash = getConfigHash(environment)
   const hash = getHash(lockfileHash + configHash)
+
   return {
     hash,
     lockfileHash,
@@ -1412,6 +1530,7 @@ function findOptimizedDepInfoInRecord(
 ): OptimizedDepInfo | undefined {
   for (const o of Object.keys(dependenciesInfo)) {
     const info = dependenciesInfo[o]
+
     if (callbackFn(info, o)) {
       return info
     }
@@ -1424,34 +1543,42 @@ export async function optimizedDepNeedsInterop(
   file: string,
 ): Promise<boolean | undefined> {
   const depInfo = optimizedDepInfoFromFile(metadata, file)
+
   if (depInfo?.src && depInfo.needsInterop === undefined) {
     depInfo.exportsData ??= extractExportsData(environment, depInfo.src)
+
     depInfo.needsInterop = needsInterop(
       environment,
       depInfo.id,
       await depInfo.exportsData,
     )
   }
+
   return depInfo?.needsInterop
 }
 
 const MAX_TEMP_DIR_AGE_MS = 24 * 60 * 60 * 1000
+
 export async function cleanupDepsCacheStaleDirs(
   config: ResolvedConfig,
 ): Promise<void> {
   try {
     const cacheDir = path.resolve(config.cacheDir)
+
     if (fs.existsSync(cacheDir)) {
       const dirents = await fsp.readdir(cacheDir, { withFileTypes: true })
+
       for (const dirent of dirents) {
         if (dirent.isDirectory() && dirent.name.includes('_temp_')) {
           const tempDirPath = path.resolve(config.cacheDir, dirent.name)
           const stats = await fsp.stat(tempDirPath).catch(() => null)
+
           if (
             stats?.mtime &&
             Date.now() - stats.mtime.getTime() > MAX_TEMP_DIR_AGE_MS
           ) {
             debug?.(`removing stale cache temp dir ${tempDirPath}`)
+
             await fsp.rm(tempDirPath, { recursive: true, force: true })
           }
         }
@@ -1477,6 +1604,7 @@ export async function cleanupDepsCacheStaleDirs(
 // wait for 5 seconds, as a longer time would be seen as an error
 
 const GRACEFUL_RENAME_TIMEOUT = 5000
+
 const safeRename = promisify(function gracefulRename(
   from: string,
   to: string,
@@ -1484,6 +1612,7 @@ const safeRename = promisify(function gracefulRename(
 ) {
   const start = Date.now()
   let backoff = 0
+
   fs.rename(from, to, function CB(er) {
     if (
       er &&
@@ -1496,9 +1625,12 @@ const safeRename = promisify(function gracefulRename(
           else CB(er)
         })
       }, backoff)
+
       if (backoff < 100) backoff += 10
+
       return
     }
+
     cb(er)
   })
 })

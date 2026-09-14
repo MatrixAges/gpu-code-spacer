@@ -50,12 +50,14 @@ pub fn CompositeKeyType(comptime Field: type) type {
 
         comptime {
             assert(@sizeOf(CompositeKey) == @sizeOf(Key));
+
             assert(@sizeOf(CompositeKey) == switch (Field) {
                 void => @sizeOf(u64),
                 u64 => @sizeOf(u128),
                 u128 => @sizeOf(u256),
                 else => unreachable,
             });
+
             assert(@alignOf(CompositeKey) >= @alignOf(Field));
             assert(@alignOf(CompositeKey) == field_bitsize_alignment);
             assert(stdx.no_padding(CompositeKey));
@@ -63,11 +65,14 @@ pub fn CompositeKeyType(comptime Field: type) type {
 
         pub inline fn key_from_value(value: *const CompositeKey) Key {
             assert(value.padding == 0);
+
             if (Field == void) {
                 comptime assert(Key == u64);
+
                 return value.timestamp & ~tombstone_bit;
             } else {
                 comptime assert(@sizeOf(Key) == @sizeOf(Field) * 2);
+
                 return (@as(Key, value.field) << 64) | @as(Key, value.timestamp & ~tombstone_bit);
             }
         }
@@ -78,11 +83,13 @@ pub fn CompositeKeyType(comptime Field: type) type {
 
         pub inline fn tombstone(value: *const CompositeKey) bool {
             assert(value.padding == 0);
+
             return (value.timestamp & tombstone_bit) != 0;
         }
 
         pub inline fn tombstone_from_key(key: Key) CompositeKey {
             const timestamp: u64 = @truncate(key);
+
             assert(timestamp & tombstone_bit == 0);
 
             return .{
@@ -99,6 +106,7 @@ pub fn is_composite_key(comptime Value: type) bool {
         @hasField(Value, "timestamp"))
     {
         const Field = @FieldType(Value, "field");
+
         return switch (Field) {
             void, u64, u128 => Value == CompositeKeyType(Field),
             else => false,
@@ -114,6 +122,7 @@ comptime {
     assert(is_composite_key(CompositeKeyType(u128)));
 
     const UniqueKeyType = @import("unique_key.zig").UniqueKeyType;
+
     assert(!is_composite_key(UniqueKeyType(u64)));
     assert(!is_composite_key(UniqueKeyType(u128)));
 
@@ -131,12 +140,14 @@ test "composite_key - u64 and u128" {
         {
             const a = CompositeKey.key_from_value(&.{ .field = 1, .timestamp = 100 });
             const b = CompositeKey.key_from_value(&.{ .field = 1, .timestamp = 101 });
+
             try std.testing.expect(a < b);
         }
 
         {
             const a = CompositeKey.key_from_value(&.{ .field = 1, .timestamp = 100 });
             const b = CompositeKey.key_from_value(&.{ .field = 2, .timestamp = 99 });
+
             try std.testing.expect(a < b);
         }
 
@@ -145,21 +156,25 @@ test "composite_key - u64 and u128" {
                 .field = 1,
                 .timestamp = @as(u64, 100) | CompositeKey.tombstone_bit,
             });
+
             const b = CompositeKey.key_from_value(&.{
                 .field = 1,
                 .timestamp = 100,
             });
+
             try std.testing.expect(a == b);
         }
 
         {
             const value = CompositeKey{ .field = 1, .timestamp = 100 };
+
             try std.testing.expect(!CompositeKey.tombstone(&value));
         }
 
         {
             const key = CompositeKey.key_from_value(&.{ .field = 1, .timestamp = 100 });
             const value = CompositeKey.tombstone_from_key(key);
+
             try std.testing.expect(CompositeKey.tombstone(&value));
             try std.testing.expect(value.timestamp == @as(u64, 100) | CompositeKey.tombstone_bit);
         }
@@ -172,6 +187,7 @@ test "composite_key - void" {
     {
         const a = CompositeKey.key_from_value(&.{ .field = {}, .timestamp = 100 });
         const b = CompositeKey.key_from_value(&.{ .field = {}, .timestamp = 101 });
+
         try std.testing.expect(a < b);
     }
 
@@ -180,21 +196,25 @@ test "composite_key - void" {
             .field = {},
             .timestamp = @as(u64, 100) | CompositeKey.tombstone_bit,
         });
+
         const b = CompositeKey.key_from_value(&.{
             .field = {},
             .timestamp = 100,
         });
+
         try std.testing.expect(a == b);
     }
 
     {
         const value = CompositeKey{ .field = {}, .timestamp = 100 };
+
         try std.testing.expect(!CompositeKey.tombstone(&value));
     }
 
     {
         const key = CompositeKey.key_from_value(&.{ .field = {}, .timestamp = 100 });
         const value = CompositeKey.tombstone_from_key(key);
+
         try std.testing.expect(CompositeKey.tombstone(&value));
         try std.testing.expect(value.timestamp == @as(u64, 100) | CompositeKey.tombstone_bit);
     }

@@ -62,38 +62,50 @@ const Os = switch (builtin.os.tag) {
 
             fn clone(lfh: FileHandle, gpa: Allocator) Allocator.Error!FileHandle {
                 const bytes = lfh.slice();
+
                 const new_ptr = try gpa.alignedAlloc(
                     u8,
                     .of(std.os.linux.file_handle),
                     @sizeOf(std.os.linux.file_handle) + bytes.len,
                 );
+
                 const new_header: *std.os.linux.file_handle = @ptrCast(new_ptr);
+
                 new_header.* = lfh.handle.*;
+
                 const new: FileHandle = .{ .handle = new_header };
+
                 @memcpy(new.slice(), lfh.slice());
+
                 return new;
             }
 
             fn destroy(lfh: FileHandle, gpa: Allocator) void {
                 const ptr: [*]u8 = @ptrCast(lfh.handle);
                 const allocated_slice = ptr[0 .. @sizeOf(std.os.linux.file_handle) + lfh.handle.handle_bytes];
+
                 return gpa.free(allocated_slice);
             }
 
             fn slice(lfh: FileHandle) []u8 {
                 const ptr: [*]u8 = &lfh.handle.f_handle;
+
                 return ptr[0..lfh.handle.handle_bytes];
             }
 
             const Adapter = struct {
                 pub fn hash(self: Adapter, a: FileHandle) u32 {
                     _ = self;
+
                     const unsigned_type: u32 = @bitCast(a.handle.handle_type);
+
                     return @truncate(Hash.hash(unsigned_type, a.slice()));
                 }
+
                 pub fn eql(self: Adapter, a: FileHandle, b: FileHandle, b_index: usize) bool {
                     _ = self;
                     _ = b_index;
+
                     return a.handle.handle_type == b.handle.handle_type and std.mem.eql(u8, a.slice(), b.slice());
                 }
             };
@@ -117,13 +129,19 @@ const Os = switch (builtin.os.tag) {
         fn getDirHandle(gpa: Allocator, path: std.Build.Cache.Path, mount_id: *MountId) !FileHandle {
             var file_handle_buffer: [@sizeOf(std.os.linux.file_handle) + 128]u8 align(@alignOf(std.os.linux.file_handle)) = undefined;
             var buf: [std.fs.max_path_bytes]u8 = undefined;
+
             const adjusted_path = if (path.sub_path.len == 0) "./" else std.fmt.bufPrint(&buf, "{s}/", .{
                 path.sub_path,
             }) catch return error.NameTooLong;
+
             const stack_ptr: *std.os.linux.file_handle = @ptrCast(&file_handle_buffer);
+
             stack_ptr.handle_bytes = file_handle_buffer.len - @sizeOf(std.os.linux.file_handle);
+
             try posix.name_to_handle_at(path.root_dir.handle.fd, adjusted_path, stack_ptr, mount_id, std.os.linux.AT.HANDLE_FID);
+
             const stack_lfh: FileHandle = .{ .handle = stack_ptr };
+
             return stack_lfh.clone(gpa);
         }
 
@@ -132,30 +150,40 @@ const Os = switch (builtin.os.tag) {
             const M = fanotify.event_metadata;
             var events_buf: [256 + 4096]u8 = undefined;
             var any_dirty = false;
+
             while (true) {
                 var len = posix.read(fan_fd, &events_buf) catch |err| switch (err) {
                     error.WouldBlock => return any_dirty,
                     else => |e| return e,
                 };
+
                 var meta: [*]align(1) M = @ptrCast(&events_buf);
+
                 while (len >= @sizeOf(M) and meta[0].event_len >= @sizeOf(M) and meta[0].event_len <= len) : ({
                     len -= meta[0].event_len;
                     meta = @ptrCast(@as([*]u8, @ptrCast(meta)) + meta[0].event_len);
                 }) {
                     assert(meta[0].vers == M.VERSION);
+
                     if (meta[0].mask.Q_OVERFLOW) {
                         any_dirty = true;
+
                         std.log.warn("file system watch queue overflowed; falling back to fstat", .{});
+
                         markAllFilesDirty(w, gpa);
+
                         return true;
                     }
+
                     const fid: *align(1) fanotify.event_info_fid = @ptrCast(meta + 1);
+
                     switch (fid.hdr.info_type) {
                         .DFID_NAME => {
                             const file_handle: *align(1) std.os.linux.file_handle = @ptrCast(&fid.handle);
                             const file_name_z: [*:0]u8 = @ptrCast((&file_handle.f_handle).ptr + file_handle.handle_bytes);
                             const file_name = std.mem.span(file_name_z);
                             const lfh: FileHandle = .{ .handle = file_handle };
+
                             if (w.os.handle_table.getPtr(lfh)) |value| {
                                 if (value.reaction_set.getPtr(".")) |glob_set|
                                     any_dirty = markStepSetDirty(gpa, glob_set, any_dirty);
@@ -175,17 +203,22 @@ const Os = switch (builtin.os.tag) {
                 for (step.inputs.table.keys(), step.inputs.table.values()) |path, *files| {
                     const reaction_set = rs: {
                         const gop = try w.dir_table.getOrPut(gpa, path);
+
                         if (!gop.found_existing) {
                             var mount_id: MountId = undefined;
+
                             const dir_handle = Os.getDirHandle(gpa, path, &mount_id) catch |err| switch (err) {
                                 error.FileNotFound => {
                                     std.debug.assert(w.dir_table.swapRemove(path));
+
                                     continue;
                                 },
                                 else => return err,
                             };
+
                             const fan_fd = blk: {
                                 const fd_gop = try w.os.poll_fds.getOrPut(gpa, mount_id);
+
                                 if (!fd_gop.found_existing) {
                                     const fan_fd = std.posix.fanotify_init(.{
                                         .CLASS = .NOTIF,
@@ -199,14 +232,17 @@ const Os = switch (builtin.os.tag) {
                                         error.UnsupportedFlags => fatal("fanotify_init failed due to old kernel; requires 5.17+", .{}),
                                         else => |e| return e,
                                     };
+
                                     fd_gop.value_ptr.* = .{
                                         .fd = fan_fd,
                                         .events = std.posix.POLL.IN,
                                         .revents = undefined,
                                     };
                                 }
+
                                 break :blk fd_gop.value_ptr.*.fd;
                             };
+
                             // `dir_handle` may already be present in the table in
                             // the case that we have multiple Cache.Path instances
                             // that compare inequal but ultimately point to the same
@@ -214,11 +250,14 @@ const Os = switch (builtin.os.tag) {
                             // In such case, we must revert adding this directory, but keep
                             // the additions to the step set.
                             const dh_gop = try w.os.handle_table.getOrPut(gpa, dir_handle);
+
                             if (dh_gop.found_existing) {
                                 _ = w.dir_table.pop();
                             } else {
                                 assert(dh_gop.index == gop.index);
+
                                 dh_gop.value_ptr.* = .{ .mount_id = mount_id, .reaction_set = .{} };
+
                                 posix.fanotify_mark(fan_fd, .{
                                     .ADD = true,
                                     .ONLYDIR = true,
@@ -226,13 +265,18 @@ const Os = switch (builtin.os.tag) {
                                     fatal("unable to watch {f}: {s}", .{ path, @errorName(err) });
                                 };
                             }
+
                             break :rs &dh_gop.value_ptr.reaction_set;
                         }
+
                         break :rs &w.os.handle_table.values()[gop.index].reaction_set;
                     };
+
                     for (files.items) |basename| {
                         const gop = try reaction_set.getOrPut(gpa, basename);
+
                         if (!gop.found_existing) gop.value_ptr.* = .{};
+
                         try gop.value_ptr.put(gpa, step, w.generation);
                     }
                 }
@@ -241,29 +285,40 @@ const Os = switch (builtin.os.tag) {
             {
                 // Remove marks for files that are no longer inputs.
                 var i: usize = 0;
+
                 while (i < w.os.handle_table.entries.len) {
                     {
                         const reaction_set = &w.os.handle_table.values()[i].reaction_set;
                         var step_set_i: usize = 0;
+
                         while (step_set_i < reaction_set.entries.len) {
                             const step_set = &reaction_set.values()[step_set_i];
                             var dirent_i: usize = 0;
+
                             while (dirent_i < step_set.entries.len) {
                                 const generations = step_set.values();
+
                                 if (generations[dirent_i] == w.generation) {
                                     dirent_i += 1;
+
                                     continue;
                                 }
+
                                 step_set.swapRemoveAt(dirent_i);
                             }
+
                             if (step_set.entries.len > 0) {
                                 step_set_i += 1;
+
                                 continue;
                             }
+
                             reaction_set.swapRemoveAt(step_set_i);
                         }
+
                         if (reaction_set.entries.len > 0) {
                             i += 1;
+
                             continue;
                         }
                     }
@@ -272,6 +327,7 @@ const Os = switch (builtin.os.tag) {
 
                     const mount_id = w.os.handle_table.values()[i].mount_id;
                     const fan_fd = w.os.poll_fds.getEntry(mount_id).?.value_ptr.fd;
+
                     posix.fanotify_mark(fan_fd, .{
                         .REMOVE = true,
                         .ONLYDIR = true,
@@ -283,19 +339,24 @@ const Os = switch (builtin.os.tag) {
                     w.dir_table.swapRemoveAt(i);
                     w.os.handle_table.swapRemoveAt(i);
                 }
+
                 w.generation +%= 1;
             }
+
             w.dir_count = w.dir_table.count();
         }
 
         fn wait(w: *Watch, gpa: Allocator, timeout: Timeout) !WaitResult {
             const events_len = try std.posix.poll(w.os.poll_fds.values(), timeout.to_i32_ms());
+
             if (events_len == 0)
                 return .timeout;
+
             for (w.os.poll_fds.values()) |poll_fd| {
                 if (poll_fd.revents & std.posix.POLL.IN == std.posix.POLL.IN and try Os.markDirtySteps(w, gpa, poll_fd.fd))
                     return .dirty;
             }
+
             return .clean;
         }
     },
@@ -341,6 +402,7 @@ const Os = switch (builtin.os.tag) {
                     &self.overlapped,
                     null,
                 );
+
                 if (r == windows.FALSE) {
                     switch (windows.GetLastError()) {
                         .INVALID_FUNCTION => return error.ReadDirectoryChangesUnsupported,
@@ -363,6 +425,7 @@ const Os = switch (builtin.os.tag) {
                     .MaximumLength = @intCast(path_len_bytes),
                     .Buffer = @constCast(sub_path_w.span().ptr),
                 };
+
                 var attr = windows.OBJECT_ATTRIBUTES{
                     .Length = @sizeOf(windows.OBJECT_ATTRIBUTES),
                     .RootDirectory = if (std.fs.path.isAbsoluteWindowsW(sub_path_w.span())) null else root_fd,
@@ -371,6 +434,7 @@ const Os = switch (builtin.os.tag) {
                     .SecurityDescriptor = null,
                     .SecurityQualityOfService = null,
                 };
+
                 var io: windows.IO_STATUS_BLOCK = undefined;
 
                 switch (windows.ntdll.NtCreateFile(
@@ -397,22 +461,27 @@ const Os = switch (builtin.os.tag) {
                     .INVALID_PARAMETER => unreachable,
                     else => |rc| return windows.unexpectedStatus(rc),
                 }
+
                 assert(dir_handle != windows.INVALID_HANDLE_VALUE);
+
                 errdefer windows.CloseHandle(dir_handle);
 
                 const dir_id = try getFileId(dir_handle);
 
                 const dir_ptr = try gpa.create(@This());
+
                 dir_ptr.* = .{
                     .handle = dir_handle,
                     .id = dir_id,
                     .overlapped = std.mem.zeroes(windows.OVERLAPPED),
                 };
+
                 return dir_ptr;
             }
 
             fn deinit(self: *@This(), gpa: Allocator) void {
                 _ = windows.kernel32.CancelIo(self.handle);
+
                 windows.CloseHandle(self.handle);
                 gpa.destroy(self);
             }
@@ -438,6 +507,7 @@ const Os = switch (builtin.os.tag) {
             var file_id: FileId = undefined;
             var io_status: windows.IO_STATUS_BLOCK = undefined;
             var volume_info: windows.FILE_FS_VOLUME_INFORMATION = undefined;
+
             switch (windows.ntdll.NtQueryVolumeInformationFile(
                 handle,
                 &io_status,
@@ -452,8 +522,11 @@ const Os = switch (builtin.os.tag) {
                 .BUFFER_OVERFLOW => {},
                 else => |rc| return windows.unexpectedStatus(rc),
             }
+
             file_id.volumeSerialNumber = volume_info.VolumeSerialNumber;
+
             var internal_info: windows.FILE_INTERNAL_INFORMATION = undefined;
+
             switch (windows.ntdll.NtQueryInformationFile(
                 handle,
                 &io_status,
@@ -464,35 +537,47 @@ const Os = switch (builtin.os.tag) {
                 .SUCCESS => {},
                 else => |rc| return windows.unexpectedStatus(rc),
             }
+
             file_id.indexNumber = internal_info.IndexNumber;
+
             return file_id;
         }
 
         fn markDirtySteps(w: *Watch, gpa: Allocator, dir: *Directory) !bool {
             var any_dirty = false;
             const bytes_returned = try windows.GetOverlappedResult(dir.handle, &dir.overlapped, false);
+
             if (bytes_returned == 0) {
                 std.log.warn("file system watch queue overflowed; falling back to fstat", .{});
+
                 markAllFilesDirty(w, gpa);
                 try dir.startListening();
+
                 return true;
             }
+
             var file_name_buf: [std.fs.max_path_bytes]u8 = undefined;
             var notify: *align(1) windows.FILE_NOTIFY_INFORMATION = undefined;
             var offset: usize = 0;
+
             while (true) {
                 notify = @ptrCast(&dir.buffer[offset]);
+
                 const file_name_field: [*]u16 = @ptrFromInt(@intFromPtr(notify) + @sizeOf(windows.FILE_NOTIFY_INFORMATION));
                 const file_name_len = std.unicode.wtf16LeToWtf8(&file_name_buf, file_name_field[0 .. notify.FileNameLength / 2]);
                 const file_name = file_name_buf[0..file_name_len];
+
                 if (w.os.handle_table.getIndex(dir.id)) |reaction_set_i| {
                     const reaction_set = w.os.handle_table.values()[reaction_set_i];
+
                     if (reaction_set.getPtr(".")) |glob_set|
                         any_dirty = markStepSetDirty(gpa, glob_set, any_dirty);
+
                     if (reaction_set.getPtr(file_name)) |step_set| {
                         any_dirty = markStepSetDirty(gpa, step_set, any_dirty);
                     }
                 }
+
                 if (notify.NextEntryOffset == 0)
                     break;
 
@@ -501,6 +586,7 @@ const Os = switch (builtin.os.tag) {
 
             // We call this now since at this point we have finished reading dir.buffer.
             try dir.startListening();
+
             return any_dirty;
         }
 
@@ -510,9 +596,12 @@ const Os = switch (builtin.os.tag) {
                 for (step.inputs.table.keys(), step.inputs.table.values()) |path, *files| {
                     const reaction_set = rs: {
                         const gop = try w.dir_table.getOrPut(gpa, path);
+
                         if (!gop.found_existing) {
                             const dir = try Os.Directory.init(gpa, path);
+
                             errdefer dir.deinit(gpa);
+
                             // `dir.id` may already be present in the table in
                             // the case that we have multiple Cache.Path instances
                             // that compare inequal but ultimately point to the same
@@ -520,16 +609,24 @@ const Os = switch (builtin.os.tag) {
                             // In such case, we must revert adding this directory, but keep
                             // the additions to the step set.
                             const dh_gop = try w.os.handle_table.getOrPut(gpa, dir.id);
+
                             if (dh_gop.found_existing) {
                                 dir.deinit(gpa);
+
                                 _ = w.dir_table.pop();
                             } else {
                                 assert(dh_gop.index == gop.index);
+
                                 dh_gop.value_ptr.* = .{};
+
                                 try dir.startListening();
+
                                 const key = w.os.counter;
+
                                 w.os.counter +%= 1;
+
                                 try w.os.dir_list.put(gpa, key, dir);
+
                                 w.os.io_cp = try windows.CreateIoCompletionPort(
                                     dir.handle,
                                     w.os.io_cp,
@@ -537,13 +634,18 @@ const Os = switch (builtin.os.tag) {
                                     0,
                                 );
                             }
+
                             break :rs &w.os.handle_table.values()[dh_gop.index];
                         }
+
                         break :rs &w.os.handle_table.values()[gop.index];
                     };
+
                     for (files.items) |basename| {
                         const gop = try reaction_set.getOrPut(gpa, basename);
+
                         if (!gop.found_existing) gop.value_ptr.* = .{};
+
                         try gop.value_ptr.put(gpa, step, w.generation);
                     }
                 }
@@ -552,29 +654,40 @@ const Os = switch (builtin.os.tag) {
             {
                 // Remove marks for files that are no longer inputs.
                 var i: usize = 0;
+
                 while (i < w.os.handle_table.entries.len) {
                     {
                         const reaction_set = &w.os.handle_table.values()[i];
                         var step_set_i: usize = 0;
+
                         while (step_set_i < reaction_set.entries.len) {
                             const step_set = &reaction_set.values()[step_set_i];
                             var dirent_i: usize = 0;
+
                             while (dirent_i < step_set.entries.len) {
                                 const generations = step_set.values();
+
                                 if (generations[dirent_i] == w.generation) {
                                     dirent_i += 1;
+
                                     continue;
                                 }
+
                                 step_set.swapRemoveAt(dirent_i);
                             }
+
                             if (step_set.entries.len > 0) {
                                 step_set_i += 1;
+
                                 continue;
                             }
+
                             reaction_set.swapRemoveAt(step_set_i);
                         }
+
                         if (reaction_set.entries.len > 0) {
                             i += 1;
+
                             continue;
                         }
                     }
@@ -584,8 +697,10 @@ const Os = switch (builtin.os.tag) {
                     w.dir_table.swapRemoveAt(i);
                     w.os.handle_table.swapRemoveAt(i);
                 }
+
                 w.generation +%= 1;
             }
+
             w.dir_count = w.dir_table.count();
         }
 
@@ -593,6 +708,7 @@ const Os = switch (builtin.os.tag) {
             var bytes_transferred: std.os.windows.DWORD = undefined;
             var key: usize = undefined;
             var overlapped_ptr: ?*std.os.windows.OVERLAPPED = undefined;
+
             return while (true) switch (std.os.windows.GetQueuedCompletionStatus(
                 w.os.io_cp.?,
                 &bytes_transferred,
@@ -641,8 +757,10 @@ const Os = switch (builtin.os.tag) {
                 .DIRECTORY = true,
                 .CLOEXEC = true,
             };
+
             if (@hasField(posix.O, "EVTONLY")) f.EVTONLY = true;
             if (@hasField(posix.O, "PATH")) f.PATH = true;
+
             break :f f;
         };
 
@@ -651,7 +769,9 @@ const Os = switch (builtin.os.tag) {
 
         fn init() !Watch {
             const kq_fd = try posix.kqueue();
+
             errdefer posix.close(kq_fd);
+
             return .{
                 .dir_table = .{},
                 .dir_count = 0,
@@ -665,20 +785,25 @@ const Os = switch (builtin.os.tag) {
 
         fn update(w: *Watch, gpa: Allocator, steps: []const *Step) !void {
             const handles = &w.os.handles;
+
             for (steps) |step| {
                 for (step.inputs.table.keys(), step.inputs.table.values()) |path, *files| {
                     const reaction_set = rs: {
                         const gop = try w.dir_table.getOrPut(gpa, path);
+
                         if (!gop.found_existing) {
                             const skip_open_dir = path.sub_path.len == 0;
+
                             const dir_fd = if (skip_open_dir)
                                 path.root_dir.handle.fd
                             else
                                 posix.openat(path.root_dir.handle.fd, path.sub_path, dir_open_flags, 0) catch |err| {
                                     fatal("failed to open directory {f}: {s}", .{ path, @errorName(err) });
                                 };
+
                             // Empirically the dir has to stay open or else no events are triggered.
                             errdefer if (!skip_open_dir) posix.close(dir_fd);
+
                             const changes = [1]posix.Kevent{.{
                                 .ident = @bitCast(@as(isize, dir_fd)),
                                 .filter = std.c.EVFILT.VNODE,
@@ -687,8 +812,11 @@ const Os = switch (builtin.os.tag) {
                                 .data = 0,
                                 .udata = gop.index,
                             }};
+
                             _ = try posix.kevent(w.os.kq_fd, &changes, &.{}, null);
+
                             assert(handles.len == gop.index);
+
                             try handles.append(gpa, .{
                                 .rs = .{},
                                 .dir_fd = if (skip_open_dir) -1 else dir_fd,
@@ -697,9 +825,12 @@ const Os = switch (builtin.os.tag) {
 
                         break :rs &handles.items(.rs)[gop.index];
                     };
+
                     for (files.items) |basename| {
                         const gop = try reaction_set.getOrPut(gpa, basename);
+
                         if (!gop.found_existing) gop.value_ptr.* = .{};
+
                         try gop.value_ptr.put(gpa, step, w.generation);
                     }
                 }
@@ -708,29 +839,40 @@ const Os = switch (builtin.os.tag) {
             {
                 // Remove marks for files that are no longer inputs.
                 var i: usize = 0;
+
                 while (i < handles.len) {
                     {
                         const reaction_set = &handles.items(.rs)[i];
                         var step_set_i: usize = 0;
+
                         while (step_set_i < reaction_set.entries.len) {
                             const step_set = &reaction_set.values()[step_set_i];
                             var dirent_i: usize = 0;
+
                             while (dirent_i < step_set.entries.len) {
                                 const generations = step_set.values();
+
                                 if (generations[dirent_i] == w.generation) {
                                     dirent_i += 1;
+
                                     continue;
                                 }
+
                                 step_set.swapRemoveAt(dirent_i);
                             }
+
                             if (step_set.entries.len > 0) {
                                 step_set_i += 1;
+
                                 continue;
                             }
+
                             reaction_set.swapRemoveAt(step_set_i);
                         }
+
                         if (reaction_set.entries.len > 0) {
                             i += 1;
+
                             continue;
                         }
                     }
@@ -740,10 +882,12 @@ const Os = switch (builtin.os.tag) {
                     // event. If it was opened above with openat() then we need
                     // to access that data via the dir_fd field.
                     const path = w.dir_table.keys()[i];
+
                     const dir_fd = if (path.sub_path.len == 0)
                         path.root_dir.handle.fd
                     else
                         handles.items(.dir_fd)[i];
+
                     assert(dir_fd != -1);
 
                     // The changelist also needs to update the udata field of the last
@@ -751,13 +895,17 @@ const Os = switch (builtin.os.tag) {
                     // index in the udata field.
                     const last_dir_fd = fd: {
                         const last_path = w.dir_table.keys()[handles.len - 1];
+
                         const last_dir_fd = if (last_path.sub_path.len == 0)
                             last_path.root_dir.handle.fd
                         else
                             handles.items(.dir_fd)[handles.len - 1];
+
                         assert(last_dir_fd != -1);
+
                         break :fd last_dir_fd;
                     };
+
                     const changes = [_]posix.Kevent{
                         .{
                             .ident = @bitCast(@as(isize, dir_fd)),
@@ -776,15 +924,20 @@ const Os = switch (builtin.os.tag) {
                             .udata = i,
                         },
                     };
+
                     const filtered_changes = if (i == handles.len - 1) changes[0..1] else &changes;
+
                     _ = try posix.kevent(w.os.kq_fd, filtered_changes, &.{}, null);
+
                     if (path.sub_path.len != 0) posix.close(dir_fd);
 
                     w.dir_table.swapRemoveAt(i);
                     handles.swapRemove(i);
                 }
+
                 w.generation +%= 1;
             }
+
             w.dir_count = w.dir_table.count();
         }
 
@@ -792,15 +945,22 @@ const Os = switch (builtin.os.tag) {
             var timespec_buffer: posix.timespec = undefined;
             var event_buffer: [100]posix.Kevent = undefined;
             var n = try posix.kevent(w.os.kq_fd, &.{}, &event_buffer, timeout.toTimespec(&timespec_buffer));
+
             if (n == 0) return .timeout;
+
             const reaction_sets = w.os.handles.items(.rs);
             var any_dirty = markDirtySteps(gpa, reaction_sets, event_buffer[0..n], false);
+
             timespec_buffer = .{ .sec = 0, .nsec = 0 };
+
             while (n == event_buffer.len) {
                 n = try posix.kevent(w.os.kq_fd, &.{}, &event_buffer, &timespec_buffer);
+
                 if (n == 0) break;
+
                 any_dirty = markDirtySteps(gpa, reaction_sets, event_buffer[0..n], any_dirty);
             }
+
             return if (any_dirty) .dirty else .clean;
         }
 
@@ -811,9 +971,11 @@ const Os = switch (builtin.os.tag) {
             start_any_dirty: bool,
         ) bool {
             var any_dirty = start_any_dirty;
+
             for (events) |event| {
                 const index: usize = @intCast(event.udata);
                 const reaction_set = &reaction_sets[index];
+
                 // If we knew the basename of the changed file, here we would
                 // mark only the step set dirty, and possibly the glob set:
                 //if (reaction_set.getPtr(".")) |glob_set|
@@ -826,6 +988,7 @@ const Os = switch (builtin.os.tag) {
                     any_dirty = markStepSetDirty(gpa, step_set, any_dirty);
                 }
             }
+
             return any_dirty;
         }
     },
@@ -840,10 +1003,13 @@ const Os = switch (builtin.os.tag) {
                 .generation = undefined,
             };
         }
+
         fn update(w: *Watch, gpa: Allocator, steps: []const *Step) !void {
             try w.os.fse.setPaths(gpa, steps);
+
             w.dir_count = w.os.fse.watch_roots.len;
         }
+
         fn wait(w: *Watch, gpa: Allocator, timeout: Timeout) !WaitResult {
             return w.os.fse.wait(gpa, switch (timeout) {
                 .none => null,
@@ -868,14 +1034,19 @@ pub const Match = struct {
     pub const Context = struct {
         pub fn hash(self: Context, a: Match) u32 {
             _ = self;
+
             var hasher = Hash.init(0);
+
             std.hash.autoHash(&hasher, a.step);
             hasher.update(a.basename);
+
             return @truncate(hasher.final());
         }
+
         pub fn eql(self: Context, a: Match, b: Match, b_index: usize) bool {
             _ = self;
             _ = b_index;
+
             return a.step == b.step and std.mem.eql(u8, a.basename, b.basename);
         }
     };
@@ -887,6 +1058,7 @@ fn markAllFilesDirty(w: *Watch, gpa: Allocator) void {
             .linux => value.reaction_set,
             else => value,
         };
+
         for (reaction_set.values()) |step_set| {
             for (step_set.keys()) |step| {
                 step.recursiveReset(gpa);
@@ -897,12 +1069,15 @@ fn markAllFilesDirty(w: *Watch, gpa: Allocator) void {
 
 fn markStepSetDirty(gpa: Allocator, step_set: *StepSet, any_dirty: bool) bool {
     var this_any_dirty = false;
+
     for (step_set.keys()) |step| {
         if (step.state != .precheck_done) {
             step.recursiveReset(gpa);
+
             this_any_dirty = true;
         }
     }
+
     return any_dirty or this_any_dirty;
 }
 
@@ -926,10 +1101,12 @@ pub const Timeout = union(enum) {
             .none => null,
             .ms => |ms_u16| {
                 const ms: isize = ms_u16;
+
                 buf.* = .{
                     .sec = @divTrunc(ms, std.time.ms_per_s),
                     .nsec = @rem(ms, std.time.ms_per_s) * std.time.ns_per_ms,
                 };
+
                 return buf;
             },
         };

@@ -29,11 +29,14 @@ export function mapCompatDirectiveHook(
   instance: ComponentInternalInstance | null,
 ): DirectiveHook | DirectiveHook[] | undefined {
   const mappedName = legacyDirectiveHookMap[name]
+
   if (mappedName) {
     if (isArray(mappedName)) {
       const hook: DirectiveHook[] = []
+
       mappedName.forEach(mapped => {
         const mappedHook = dir[mapped]
+
         if (mappedHook) {
           softAssertCompatEnabled(
             DeprecationTypes.CUSTOM_DIR,
@@ -41,9 +44,11 @@ export function mapCompatDirectiveHook(
             mapped,
             name,
           )
+
           hook.push(mappedHook)
         }
       })
+
       return hook.length ? hook : undefined
     } else {
       if (dir[mappedName]) {
@@ -54,6 +59,7 @@ export function mapCompatDirectiveHook(
           name,
         )
       }
+
       return dir[mappedName]
     }
   }

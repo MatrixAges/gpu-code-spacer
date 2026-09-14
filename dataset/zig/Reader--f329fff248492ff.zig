@@ -169,61 +169,84 @@ pub fn fixed(buffer: []const u8) Reader {
 
 pub fn stream(r: *Reader, w: *Writer, limit: Limit) StreamError!usize {
     const buffer = limit.slice(r.buffer[r.seek..r.end]);
+
     if (buffer.len > 0) {
         @branchHint(.likely);
+
         const n = try w.write(buffer);
+
         r.seek += n;
+
         return n;
     }
+
     const n = try r.vtable.stream(r, w, limit);
+
     assert(n <= @intFromEnum(limit));
+
     return n;
 }
 
 pub fn discard(r: *Reader, limit: Limit) Error!usize {
     const buffered_len = r.end - r.seek;
+
     const remaining: Limit = if (limit.toInt()) |n| l: {
         if (buffered_len >= n) {
             r.seek += n;
+
             return n;
         }
+
         break :l .limited(n - buffered_len);
     } else .unlimited;
+
     r.seek = r.end;
+
     const n = try r.vtable.discard(r, remaining);
+
     assert(n <= @intFromEnum(remaining));
+
     return buffered_len + n;
 }
 
 pub fn defaultDiscard(r: *Reader, limit: Limit) Error!usize {
     assert(r.seek == r.end);
+
     r.seek = 0;
     r.end = 0;
+
     var d: Writer.Discarding = .init(r.buffer);
+
     var n = r.stream(&d.writer, limit) catch |err| switch (err) {
         error.WriteFailed => unreachable,
         error.ReadFailed => return error.ReadFailed,
         error.EndOfStream => return error.EndOfStream,
     };
+
     // If `stream` wrote to `r.buffer` without going through the writer,
     // we need to discard as much of the buffered data as possible.
     const remaining = @intFromEnum(limit) - n;
     const buffered_n_to_discard = @min(remaining, r.end - r.seek);
+
     n += buffered_n_to_discard;
     r.seek += buffered_n_to_discard;
+
     assert(n <= @intFromEnum(limit));
+
     return n;
 }
 
 /// "Pump" exactly `n` bytes from the reader to the writer.
 pub fn streamExact(r: *Reader, w: *Writer, n: usize) StreamError!void {
     var remaining = n;
+
     while (remaining != 0) remaining -= try r.stream(w, .limited(remaining));
 }
 
 /// "Pump" exactly `n` bytes from the reader to the writer.
 pub fn streamExact64(r: *Reader, w: *Writer, n: u64) StreamError!void {
     var remaining = n;
+
     while (remaining != 0) remaining -= try r.stream(w, .limited64(remaining));
 }
 
@@ -236,20 +259,28 @@ pub fn streamExact64(r: *Reader, w: *Writer, n: u64) StreamError!void {
 pub fn streamExactPreserve(r: *Reader, w: *Writer, preserve_len: usize, n: usize) StreamError!void {
     if (w.end + n <= w.buffer.len) {
         @branchHint(.likely);
+
         return streamExact(r, w, n);
     }
+
     // If `n` is large, we can ignore `preserve_len` up to a point.
     var remaining = n;
+
     while (remaining > preserve_len) {
         assert(remaining != 0);
+
         remaining -= try r.stream(w, .limited(remaining - preserve_len));
+
         if (w.end + remaining <= w.buffer.len) return streamExact(r, w, remaining);
     }
+
     // All the next bytes received must be preserved.
     if (preserve_len < w.end) {
         @memmove(w.buffer[0..preserve_len], w.buffer[w.end - preserve_len ..][0..preserve_len]);
+
         w.end = preserve_len;
     }
+
     return streamExact(r, w, remaining);
 }
 
@@ -259,6 +290,7 @@ pub fn streamExactPreserve(r: *Reader, w: *Writer, preserve_len: usize, n: usize
 /// Returns total number of bytes written to `w`.
 pub fn streamRemaining(r: *Reader, w: *Writer) StreamRemainingError!usize {
     var offset: usize = 0;
+
     while (true) {
         offset += r.stream(w, .unlimited) catch |err| switch (err) {
             error.EndOfStream => return offset,
@@ -271,7 +303,9 @@ pub fn streamRemaining(r: *Reader, w: *Writer) StreamRemainingError!usize {
 /// number of bytes discarded.
 pub fn discardRemaining(r: *Reader) ShortError!usize {
     var offset: usize = r.end - r.seek;
+
     r.seek = r.end;
+
     while (true) {
         offset += r.vtable.discard(r, .unlimited) catch |err| switch (err) {
             error.EndOfStream => return offset,
@@ -293,8 +327,11 @@ pub const LimitedAllocError = Allocator.Error || ShortError || error{StreamTooLo
 /// * `appendRemaining`
 pub fn allocRemaining(r: *Reader, gpa: Allocator, limit: Limit) LimitedAllocError![]u8 {
     var buffer: ArrayList(u8) = .empty;
+
     defer buffer.deinit(gpa);
+
     try appendRemaining(r, gpa, &buffer, limit);
+
     return buffer.toOwnedSlice(gpa);
 }
 
@@ -306,8 +343,11 @@ pub fn allocRemainingAlignedSentinel(
     comptime sentinel: ?u8,
 ) LimitedAllocError!(if (sentinel) |s| [:s]align(alignment.toByteUnits()) u8 else []align(alignment.toByteUnits()) u8) {
     var buffer: std.array_list.Aligned(u8, alignment) = .empty;
+
     defer buffer.deinit(gpa);
+
     try appendRemainingAligned(r, gpa, alignment, &buffer, limit);
+
     if (sentinel) |s| {
         return buffer.toOwnedSliceSentinel(gpa, s);
     } else {
@@ -353,17 +393,21 @@ pub fn appendRemainingAligned(
     limit: Limit,
 ) LimitedAllocError!void {
     var a = std.Io.Writer.Allocating.fromArrayListAligned(gpa, alignment, list);
+
     defer list.* = a.toArrayListAligned(alignment);
 
     var remaining = limit;
+
     while (remaining.nonzero()) {
         const n = stream(r, &a.writer, remaining) catch |err| switch (err) {
             error.EndOfStream => return,
             error.WriteFailed => return error.OutOfMemory,
             error.ReadFailed => return error.ReadFailed,
         };
+
         remaining = remaining.subtract(n).?;
     }
+
     return error.StreamTooLong;
 }
 
@@ -371,14 +415,17 @@ pub const UnlimitedAllocError = Allocator.Error || ShortError;
 
 pub fn appendRemainingUnlimited(r: *Reader, gpa: Allocator, list: *ArrayList(u8)) UnlimitedAllocError!void {
     var a: std.Io.Writer.Allocating = .initOwnedSlice(gpa, list.allocatedSlice());
+
     a.writer.end = list.items.len;
     list.* = .empty;
+
     defer {
         list.* = .{
             .items = a.writer.buffer[0..a.writer.end],
             .capacity = a.writer.buffer.len,
         };
     }
+
     _ = streamRemaining(r, &a.writer) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,
         error.ReadFailed => return error.ReadFailed,
@@ -395,54 +442,72 @@ pub fn appendRemainingUnlimited(r: *Reader, gpa: Allocator, list: *ArrayList(u8)
 /// with the number of bytes returned from this function.
 pub fn readVec(r: *Reader, data: [][]u8) Error!usize {
     var seek = r.seek;
+
     for (data, 0..) |buf, i| {
         const contents = r.buffer[seek..r.end];
         const copy_len = @min(contents.len, buf.len);
+
         @memcpy(buf[0..copy_len], contents[0..copy_len]);
+
         seek += copy_len;
+
         if (buf.len - copy_len == 0) continue;
 
         // All of `buffer` has been copied to `data`.
         const n = seek - r.seek;
+
         r.seek = seek;
         data[i] = buf[copy_len..];
+
         defer data[i] = buf;
+
         return n + (r.vtable.readVec(r, data[i..]) catch |err| switch (err) {
             error.EndOfStream => if (n == 0) return error.EndOfStream else 0,
             error.ReadFailed => return error.ReadFailed,
         });
     }
+
     const n = seek - r.seek;
+
     r.seek = seek;
+
     return n;
 }
 
 /// Writes to `Reader.buffer` or `data`, whichever has larger capacity.
 pub fn defaultReadVec(r: *Reader, data: [][]u8) Error!usize {
     const first = data[0];
+
     if (first.len >= r.buffer.len - r.end) {
         var writer: Writer = .{
             .buffer = first,
             .end = 0,
             .vtable = &.{ .drain = Writer.fixedDrain },
         };
+
         const limit: Limit = .limited(writer.buffer.len - writer.end);
+
         return r.vtable.stream(r, &writer, limit) catch |err| switch (err) {
             error.WriteFailed => unreachable,
             else => |e| return e,
         };
     }
+
     var writer: Writer = .{
         .buffer = r.buffer,
         .end = r.end,
         .vtable = &.{ .drain = Writer.fixedDrain },
     };
+
     const limit: Limit = .limited(writer.buffer.len - writer.end);
+
     const n = r.vtable.stream(r, &writer, limit) catch |err| switch (err) {
         error.WriteFailed => unreachable,
         else => |e| return e,
     };
+
     r.end += n;
+
     return 0;
 }
 
@@ -461,13 +526,18 @@ pub fn hashed(r: *Reader, hasher: anytype, buffer: []u8) Hashed(@TypeOf(hasher))
 pub fn readVecAll(r: *Reader, data: [][]u8) Error!void {
     var index: usize = 0;
     var truncate: usize = 0;
+
     while (index < data.len) {
         {
             const untruncated = data[index];
+
             data[index] = untruncated[truncate..];
+
             defer data[index] = untruncated;
+
             truncate += try r.readVec(data[index..]);
         }
+
         while (index < data.len and truncate >= data[index].len) {
             truncate -= data[index].len;
             index += 1;
@@ -490,6 +560,7 @@ pub fn readVecAll(r: *Reader, data: [][]u8) Error!void {
 /// * `toss`
 pub fn peek(r: *Reader, n: usize) Error![]u8 {
     try r.fill(n);
+
     return r.buffer[r.seek..][0..n];
 }
 
@@ -509,6 +580,7 @@ pub fn peek(r: *Reader, n: usize) Error![]u8 {
 /// * `toss`
 pub fn peekGreedy(r: *Reader, n: usize) Error![]u8 {
     try r.fill(n);
+
     return r.buffer[r.seek..r.end];
 }
 
@@ -524,6 +596,7 @@ pub fn peekGreedy(r: *Reader, n: usize) Error![]u8 {
 /// * `discard`.
 pub fn toss(r: *Reader, n: usize) void {
     r.seek += n;
+
     assert(r.seek <= r.end);
 }
 
@@ -538,7 +611,9 @@ pub fn tossBuffered(r: *Reader) void {
 /// `fill`, and functions with those prefixes.
 pub fn take(r: *Reader, n: usize) Error![]u8 {
     const result = try r.peek(n);
+
     r.toss(n);
+
     return result;
 }
 
@@ -590,9 +665,12 @@ pub fn discardAll(r: *Reader, n: usize) Error!void {
 
 pub fn discardAll64(r: *Reader, n: u64) Error!void {
     var remaining: u64 = n;
+
     while (remaining > 0) {
         const limited_remaining = std.math.cast(usize, remaining) orelse std.math.maxInt(usize);
+
         try discardAll(r, limited_remaining);
+
         remaining -= limited_remaining;
     }
 }
@@ -610,19 +688,27 @@ pub fn discardAll64(r: *Reader, n: u64) Error!void {
 /// * `discard`
 pub fn discardShort(r: *Reader, n: usize) ShortError!usize {
     const proposed_seek = r.seek + n;
+
     if (proposed_seek <= r.end) {
         @branchHint(.likely);
+
         r.seek = proposed_seek;
+
         return n;
     }
+
     var remaining = n - (r.end - r.seek);
+
     r.seek = r.end;
+
     while (true) {
         const discard_len = r.vtable.discard(r, .limited(remaining)) catch |err| switch (err) {
             error.EndOfStream => return n - remaining,
             error.ReadFailed => return error.ReadFailed,
         };
+
         remaining -= discard_len;
+
         if (remaining == 0) return n;
     }
 }
@@ -640,6 +726,7 @@ pub fn discardShort(r: *Reader, n: usize) ShortError!usize {
 /// * `readSliceShort`
 pub fn readSliceAll(r: *Reader, buffer: []u8) Error!void {
     const n = try readSliceShort(r, buffer);
+
     if (n != buffer.len) return error.EndOfStream;
 }
 
@@ -656,20 +743,28 @@ pub fn readSliceAll(r: *Reader, buffer: []u8) Error!void {
 pub fn readSliceShort(r: *Reader, buffer: []u8) ShortError!usize {
     const contents = r.buffer[r.seek..r.end];
     const copy_len = @min(buffer.len, contents.len);
+
     @memcpy(buffer[0..copy_len], contents[0..copy_len]);
+
     r.seek += copy_len;
+
     if (buffer.len - copy_len == 0) {
         @branchHint(.likely);
+
         return buffer.len;
     }
+
     var i: usize = copy_len;
     var data: [1][]u8 = undefined;
+
     while (true) {
         data[0] = buffer[i..];
+
         i += readVec(r, &data) catch |err| switch (err) {
             error.EndOfStream => return i,
             error.ReadFailed => return error.ReadFailed,
         };
+
         if (buffer.len - i == 0) return buffer.len;
     }
 }
@@ -695,6 +790,7 @@ pub inline fn readSliceEndian(
     endian: std.builtin.Endian,
 ) Error!void {
     try readSliceAll(r, @ptrCast(buffer));
+
     if (native_endian != endian) for (buffer) |*elem| std.mem.byteSwapAllFields(Elem, elem);
 }
 
@@ -710,17 +806,24 @@ pub inline fn readSliceEndianAlloc(
     endian: std.builtin.Endian,
 ) ReadAllocError![]Elem {
     const dest = try allocator.alloc(Elem, len);
+
     errdefer allocator.free(dest);
+
     try readSliceAll(r, @ptrCast(dest));
+
     if (native_endian != endian) for (dest) |*elem| std.mem.byteSwapAllFields(Elem, elem);
+
     return dest;
 }
 
 /// Shortcut for calling `readSliceAll` with a buffer provided by `allocator`.
 pub fn readAlloc(r: *Reader, allocator: Allocator, len: usize) ReadAllocError![]u8 {
     const dest = try allocator.alloc(u8, len);
+
     errdefer allocator.free(dest);
+
     try readSliceAll(r, dest);
+
     return dest;
 }
 
@@ -749,7 +852,9 @@ pub const DelimiterError = error{
 /// * `takeDelimiterInclusive`
 pub fn takeSentinel(r: *Reader, comptime sentinel: u8) DelimiterError![:sentinel]u8 {
     const result = try r.peekSentinel(sentinel);
+
     r.toss(result.len + 1);
+
     return result;
 }
 
@@ -766,6 +871,7 @@ pub fn takeSentinel(r: *Reader, comptime sentinel: u8) DelimiterError![:sentinel
 /// * `peekDelimiterInclusive`
 pub fn peekSentinel(r: *Reader, comptime sentinel: u8) DelimiterError![:sentinel]u8 {
     const result = try r.peekDelimiterInclusive(sentinel);
+
     return result[0 .. result.len - 1 :sentinel];
 }
 
@@ -782,7 +888,9 @@ pub fn peekSentinel(r: *Reader, comptime sentinel: u8) DelimiterError![:sentinel
 /// * `peekDelimiterInclusive`
 pub fn takeDelimiterInclusive(r: *Reader, delimiter: u8) DelimiterError![]u8 {
     const result = try r.peekDelimiterInclusive(delimiter);
+
     r.toss(result.len);
+
     return result;
 }
 
@@ -801,27 +909,36 @@ pub fn peekDelimiterInclusive(r: *Reader, delimiter: u8) DelimiterError![]u8 {
     {
         const contents = r.buffer[0..r.end];
         const seek = r.seek;
+
         if (std.mem.findScalarPos(u8, contents, seek, delimiter)) |end| {
             @branchHint(.likely);
+
             return contents[seek .. end + 1];
         }
     }
+
     while (true) {
         const content_len = r.end - r.seek;
+
         if (r.buffer.len - content_len == 0) break;
+
         try fillMore(r);
+
         const seek = r.seek;
         const contents = r.buffer[0..r.end];
+
         if (std.mem.findScalarPos(u8, contents, seek + content_len, delimiter)) |end| {
             return contents[seek .. end + 1];
         }
     }
+
     // It might or might not be end of stream. There is no more buffer space
     // left to disambiguate. If `StreamTooLong` was added to `RebaseError` then
     // this logic could be replaced by removing the exit condition from the
     // above while loop. That error code would represent when `buffer` capacity
     // is too small for an operation, replacing the current use of asserts.
     var failing_writer = Writer.failing;
+
     while (r.vtable.stream(r, &failing_writer, .limited(1))) |n| {
         assert(n == 0);
     } else |err| switch (err) {
@@ -852,7 +969,9 @@ pub fn peekDelimiterInclusive(r: *Reader, delimiter: u8) DelimiterError![]u8 {
 /// * `peekDelimiterExclusive`
 pub fn takeDelimiterExclusive(r: *Reader, delimiter: u8) DelimiterError![]u8 {
     const result = try r.peekDelimiterExclusive(delimiter);
+
     r.toss(result.len);
+
     return result;
 }
 
@@ -877,13 +996,18 @@ pub fn takeDelimiter(r: *Reader, delimiter: u8) error{ ReadFailed, StreamTooLong
     const inclusive = r.peekDelimiterInclusive(delimiter) catch |err| switch (err) {
         error.EndOfStream => {
             const remaining = r.buffer[r.seek..r.end];
+
             if (remaining.len == 0) return null;
+
             r.toss(remaining.len);
+
             return remaining;
         },
         else => |e| return e,
     };
+
     r.toss(inclusive.len);
+
     return inclusive[0 .. inclusive.len - 1];
 }
 
@@ -908,11 +1032,14 @@ pub fn peekDelimiterExclusive(r: *Reader, delimiter: u8) DelimiterError![]u8 {
     const result = r.peekDelimiterInclusive(delimiter) catch |err| switch (err) {
         error.EndOfStream => {
             const remaining = r.buffer[r.seek..r.end];
+
             if (remaining.len == 0) return error.EndOfStream;
+
             return remaining;
         },
         else => |e| return e,
     };
+
     return result[0 .. result.len - 1];
 }
 
@@ -935,7 +1062,9 @@ pub fn streamDelimiter(r: *Reader, w: *Writer, delimiter: u8) StreamError!usize 
         error.StreamTooLong => unreachable, // unlimited is passed
         else => |e| return e,
     };
+
     if (r.seek == r.end) return error.EndOfStream;
+
     return n;
 }
 
@@ -988,21 +1117,28 @@ pub fn streamDelimiterLimit(
     limit: Limit,
 ) StreamDelimiterLimitError!usize {
     var remaining = @intFromEnum(limit);
+
     while (remaining != 0) {
         const available = Limit.limited(remaining).slice(r.peekGreedy(1) catch |err| switch (err) {
             error.ReadFailed => return error.ReadFailed,
             error.EndOfStream => return @intFromEnum(limit) - remaining,
         });
+
         if (std.mem.indexOfScalar(u8, available, delimiter)) |delimiter_index| {
             try w.writeAll(available[0..delimiter_index]);
             r.toss(delimiter_index);
+
             remaining -= delimiter_index;
+
             return @intFromEnum(limit) - remaining;
         }
+
         try w.writeAll(available);
         r.toss(available.len);
+
         remaining -= available.len;
     }
+
     return error.StreamTooLong;
 }
 
@@ -1020,9 +1156,12 @@ pub fn discardDelimiterInclusive(r: *Reader, delimiter: u8) Error!usize {
         error.StreamTooLong => unreachable, // unlimited is passed
         else => |e| return e,
     };
+
     if (r.seek == r.end) return error.EndOfStream;
+
     assert(r.buffer[r.seek] == delimiter);
     toss(r, 1);
+
     return n + 1;
 }
 
@@ -1059,19 +1198,26 @@ pub const DiscardDelimiterLimitError = error{
 /// detected by checking if the delimiter is buffered.
 pub fn discardDelimiterLimit(r: *Reader, delimiter: u8, limit: Limit) DiscardDelimiterLimitError!usize {
     var remaining = @intFromEnum(limit);
+
     while (remaining != 0) {
         const available = Limit.limited(remaining).slice(r.peekGreedy(1) catch |err| switch (err) {
             error.ReadFailed => return error.ReadFailed,
             error.EndOfStream => return @intFromEnum(limit) - remaining,
         });
+
         if (std.mem.indexOfScalar(u8, available, delimiter)) |delimiter_index| {
             r.toss(delimiter_index);
+
             remaining -= delimiter_index;
+
             return @intFromEnum(limit) - remaining;
         }
+
         r.toss(available.len);
+
         remaining -= available.len;
     }
+
     return error.StreamTooLong;
 }
 
@@ -1086,8 +1232,10 @@ pub fn discardDelimiterLimit(r: *Reader, delimiter: u8, limit: Limit) DiscardDel
 pub fn fill(r: *Reader, n: usize) Error!void {
     if (r.seek + n <= r.end) {
         @branchHint(.likely);
+
         return;
     }
+
     return fillUnbuffered(r, n);
 }
 
@@ -1101,7 +1249,9 @@ pub fn fill(r: *Reader, n: usize) Error!void {
 /// increasing by a factor of 5 or more.
 fn fillUnbuffered(r: *Reader, n: usize) Error!void {
     try rebase(r, n);
+
     var bufs: [1][]u8 = .{""};
+
     while (r.end < r.seek + n) _ = try r.vtable.readVec(r, &bufs);
 }
 
@@ -1112,7 +1262,9 @@ fn fillUnbuffered(r: *Reader, n: usize) Error!void {
 /// Asserts buffer capacity is at least 1.
 pub fn fillMore(r: *Reader) Error!void {
     try rebase(r, r.end - r.seek + 1);
+
     var bufs: [1][]u8 = .{""};
+
     _ = try r.vtable.readVec(r, &bufs);
 }
 
@@ -1124,11 +1276,15 @@ pub fn fillMore(r: *Reader) Error!void {
 pub fn peekByte(r: *Reader) Error!u8 {
     const buffer = r.buffer[0..r.end];
     const seek = r.seek;
+
     if (seek < buffer.len) {
         @branchHint(.likely);
+
         return buffer[seek];
     }
+
     try fill(r, 1);
+
     return r.buffer[r.seek];
 }
 
@@ -1137,7 +1293,9 @@ pub fn peekByte(r: *Reader) Error!u8 {
 /// Asserts the buffer capacity is nonzero.
 pub fn takeByte(r: *Reader) Error!u8 {
     const result = try peekByte(r);
+
     r.seek += 1;
+
     return result;
 }
 
@@ -1149,18 +1307,21 @@ pub fn takeByteSigned(r: *Reader) Error!i8 {
 /// Asserts the buffer was initialized with a capacity at least `@bitSizeOf(T) / 8`.
 pub inline fn takeInt(r: *Reader, comptime T: type, endian: std.builtin.Endian) Error!T {
     const n = @divExact(@typeInfo(T).int.bits, 8);
+
     return std.mem.readInt(T, try r.takeArray(n), endian);
 }
 
 /// Asserts the buffer was initialized with a capacity at least `@bitSizeOf(T) / 8`.
 pub inline fn peekInt(r: *Reader, comptime T: type, endian: std.builtin.Endian) Error!T {
     const n = @divExact(@typeInfo(T).int.bits, 8);
+
     return std.mem.readInt(T, try r.peekArray(n), endian);
 }
 
 /// Asserts the buffer was initialized with a capacity at least `n`.
 pub fn takeVarInt(r: *Reader, comptime Int: type, endian: std.builtin.Endian, n: usize) Error!Int {
     assert(n <= @sizeOf(Int));
+
     return std.mem.readVarInt(Int, try r.take(n), endian);
 }
 
@@ -1175,6 +1336,7 @@ pub fn takeVarInt(r: *Reader, comptime Int: type, endian: std.builtin.Endian, n:
 pub fn takeStructPointer(r: *Reader, comptime T: type) Error!*align(1) T {
     // Only extern and packed structs have defined in-memory layout.
     comptime assert(@typeInfo(T).@"struct".layout != .auto);
+
     return @ptrCast(try r.takeArray(@sizeOf(T)));
 }
 
@@ -1189,6 +1351,7 @@ pub fn takeStructPointer(r: *Reader, comptime T: type) Error!*align(1) T {
 pub fn peekStructPointer(r: *Reader, comptime T: type) Error!*align(1) T {
     // Only extern and packed structs have defined in-memory layout.
     comptime assert(@typeInfo(T).@"struct".layout != .auto);
+
     return @ptrCast(try r.peekArray(@sizeOf(T)));
 }
 
@@ -1206,7 +1369,9 @@ pub inline fn takeStruct(r: *Reader, comptime T: type, endian: std.builtin.Endia
             .auto => @compileError("ill-defined memory layout"),
             .@"extern" => {
                 var res = (try r.takeStructPointer(T)).*;
+
                 if (native_endian != endian) std.mem.byteSwapAllFields(T, &res);
+
                 return res;
             },
             .@"packed" => {
@@ -1231,7 +1396,9 @@ pub inline fn peekStruct(r: *Reader, comptime T: type, endian: std.builtin.Endia
             .auto => @compileError("ill-defined memory layout"),
             .@"extern" => {
                 var res = (try r.peekStructPointer(T)).*;
+
                 if (native_endian != endian) std.mem.byteSwapAllFields(T, &res);
+
                 return res;
             },
             .@"packed" => {
@@ -1252,6 +1419,7 @@ pub const TakeEnumError = Error || error{InvalidEnumTag};
 pub fn takeEnum(r: *Reader, comptime Enum: type, endian: std.builtin.Endian) TakeEnumError!Enum {
     const Tag = @typeInfo(Enum).@"enum".tag_type;
     const int = try r.takeInt(Tag, endian);
+
     return std.meta.intToEnum(Enum, int);
 }
 
@@ -1260,8 +1428,10 @@ pub fn takeEnum(r: *Reader, comptime Enum: type, endian: std.builtin.Endian) Tak
 /// Asserts the buffer was initialized with a capacity at least `@sizeOf(Enum)`.
 pub fn takeEnumNonexhaustive(r: *Reader, comptime Enum: type, endian: std.builtin.Endian) Error!Enum {
     const info = @typeInfo(Enum).@"enum";
+
     comptime assert(!info.is_exhaustive);
     comptime assert(@bitSizeOf(info.tag_type) == @sizeOf(info.tag_type) * 8);
+
     return takeEnum(r, Enum, endian) catch |err| switch (err) {
         error.InvalidEnumTag => unreachable,
         else => |e| return e,
@@ -1273,6 +1443,7 @@ pub const TakeLeb128Error = Error || error{Overflow};
 /// Read a single LEB128 value as type T, or `error.Overflow` if the value cannot fit.
 pub fn takeLeb128(r: *Reader, comptime Result: type) TakeLeb128Error!Result {
     const result_info = @typeInfo(Result).int;
+
     return std.math.cast(Result, try r.takeMultipleOf7Leb128(@Int(
         result_info.signedness,
         std.mem.alignForwardAnyAlign(u16, result_info.bits, 7),
@@ -1281,27 +1452,36 @@ pub fn takeLeb128(r: *Reader, comptime Result: type) TakeLeb128Error!Result {
 
 fn takeMultipleOf7Leb128(r: *Reader, comptime Result: type) TakeLeb128Error!Result {
     const result_info = @typeInfo(Result).int;
+
     comptime assert(result_info.bits % 7 == 0);
+
     var remaining_bits: std.math.Log2IntCeil(Result) = result_info.bits;
     const UnsignedResult = @Int(.unsigned, result_info.bits);
     var result: UnsignedResult = 0;
     var fits = true;
+
     while (true) {
         const buffer: []const packed struct(u8) { bits: u7, more: bool } = @ptrCast(try r.peekGreedy(1));
+
         for (buffer, 1..) |byte, len| {
             if (remaining_bits > 0) {
                 result = @shlExact(@as(UnsignedResult, byte.bits), result_info.bits - 7) |
                     if (result_info.bits > 7) @shrExact(result, 7) else 0;
+
                 remaining_bits -= 7;
             } else if (fits) fits = switch (result_info.signedness) {
                 .signed => @as(i7, @bitCast(byte.bits)) ==
                     @as(i7, @truncate(@as(Result, @bitCast(result)) >> (result_info.bits - 1))),
                 .unsigned => byte.bits == 0,
             };
+
             if (byte.more) continue;
+
             r.toss(len);
+
             return if (fits) @as(Result, @bitCast(result)) >> remaining_bits else error.Overflow;
         }
+
         r.toss(buffer.len);
     }
 }
@@ -1310,69 +1490,85 @@ fn takeMultipleOf7Leb128(r: *Reader, comptime Result: type) TakeLeb128Error!Resu
 pub fn rebase(r: *Reader, capacity: usize) RebaseError!void {
     if (r.buffer.len - r.seek >= capacity) {
         @branchHint(.likely);
+
         return;
     }
+
     return r.vtable.rebase(r, capacity);
 }
 
 pub fn defaultRebase(r: *Reader, capacity: usize) RebaseError!void {
     assert(r.buffer.len - r.seek < capacity);
+
     const data = r.buffer[r.seek..r.end];
+
     @memmove(r.buffer[0..data.len], data);
+
     r.seek = 0;
     r.end = data.len;
+
     assert(r.buffer.len - r.seek >= capacity);
 }
 
 test fixed {
     var r: Reader = .fixed("a\x02");
+
     try testing.expect((try r.takeByte()) == 'a');
+
     try testing.expect((try r.takeEnum(enum(u8) {
         a = 0,
         b = 99,
         c = 2,
         d = 3,
     }, builtin.cpu.arch.endian())) == .c);
+
     try testing.expectError(error.EndOfStream, r.takeByte());
 }
 
 test peek {
     var r: Reader = .fixed("abc");
+
     try testing.expectEqualStrings("ab", try r.peek(2));
     try testing.expectEqualStrings("a", try r.peek(1));
 }
 
 test peekGreedy {
     var r: Reader = .fixed("abc");
+
     try testing.expectEqualStrings("abc", try r.peekGreedy(1));
 }
 
 test toss {
     var r: Reader = .fixed("abc");
+
     r.toss(1);
     try testing.expectEqualStrings("bc", r.buffered());
 }
 
 test take {
     var r: Reader = .fixed("abc");
+
     try testing.expectEqualStrings("ab", try r.take(2));
     try testing.expectEqualStrings("c", try r.take(1));
 }
 
 test takeArray {
     var r: Reader = .fixed("abc");
+
     try testing.expectEqualStrings("ab", try r.takeArray(2));
     try testing.expectEqualStrings("c", try r.takeArray(1));
 }
 
 test peekArray {
     var r: Reader = .fixed("abc");
+
     try testing.expectEqualStrings("ab", try r.peekArray(2));
     try testing.expectEqualStrings("a", try r.peekArray(1));
 }
 
 test discardAll {
     var r: Reader = .fixed("foobar");
+
     try r.discardAll(3);
     try testing.expectEqualStrings("bar", try r.take(3));
     try r.discardAll(0);
@@ -1381,6 +1577,7 @@ test discardAll {
 
 test discardRemaining {
     var r: Reader = .fixed("foobar");
+
     r.toss(1);
     try testing.expectEqual(5, try r.discardRemaining());
     try testing.expectEqual(0, try r.discardRemaining());
@@ -1390,6 +1587,7 @@ test stream {
     var out_buffer: [10]u8 = undefined;
     var r: Reader = .fixed("foobar");
     var w: Writer = .fixed(&out_buffer);
+
     // Short streams are possible with this function but not with fixed.
     try testing.expectEqual(2, try r.stream(&w, .limited(2)));
     try testing.expectEqualStrings("fo", w.buffered());
@@ -1399,6 +1597,7 @@ test stream {
 
 test takeSentinel {
     var r: Reader = .fixed("ab\nc");
+
     try testing.expectEqualStrings("ab", try r.takeSentinel('\n'));
     try testing.expectError(error.EndOfStream, r.takeSentinel('\n'));
     try testing.expectEqualStrings("c", try r.peek(1));
@@ -1406,6 +1605,7 @@ test takeSentinel {
 
 test peekSentinel {
     var r: Reader = .fixed("ab\nc");
+
     try testing.expectEqualStrings("ab", try r.peekSentinel('\n'));
     try testing.expectEqualStrings("ab", try r.peekSentinel('\n'));
     r.toss(3);
@@ -1415,12 +1615,14 @@ test peekSentinel {
 
 test takeDelimiterInclusive {
     var r: Reader = .fixed("ab\nc");
+
     try testing.expectEqualStrings("ab\n", try r.takeDelimiterInclusive('\n'));
     try testing.expectError(error.EndOfStream, r.takeDelimiterInclusive('\n'));
 }
 
 test peekDelimiterInclusive {
     var r: Reader = .fixed("ab\nc");
+
     try testing.expectEqualStrings("ab\n", try r.peekDelimiterInclusive('\n'));
     try testing.expectEqualStrings("ab\n", try r.peekDelimiterInclusive('\n'));
     r.toss(3);
@@ -1435,7 +1637,6 @@ test takeDelimiterExclusive {
     try testing.expectEqualStrings("", try r.takeDelimiterExclusive('\n'));
     try testing.expectEqualStrings("", try r.takeDelimiterExclusive('\n'));
     try testing.expectEqualStrings("\n", try r.take(1));
-
     try testing.expectEqualStrings("c", try r.takeDelimiterExclusive('\n'));
     try testing.expectError(error.EndOfStream, r.takeDelimiterExclusive('\n'));
 }
@@ -1448,7 +1649,6 @@ test peekDelimiterExclusive {
     r.toss(2);
     try testing.expectEqualStrings("", try r.peekDelimiterExclusive('\n'));
     try testing.expectEqualStrings("\n", try r.take(1));
-
     try testing.expectEqualStrings("c", try r.peekDelimiterExclusive('\n'));
     try testing.expectEqualStrings("c", try r.peekDelimiterExclusive('\n'));
     r.toss(1);
@@ -1457,6 +1657,7 @@ test peekDelimiterExclusive {
 
 test takeDelimiter {
     var r: Reader = .fixed("ab\nc\n\nd");
+
     try testing.expectEqualStrings("ab", (try r.takeDelimiter('\n')).?);
     try testing.expectEqualStrings("c", (try r.takeDelimiter('\n')).?);
     try testing.expectEqualStrings("", (try r.takeDelimiter('\n')).?);
@@ -1465,6 +1666,7 @@ test takeDelimiter {
     try testing.expectEqual(null, try r.takeDelimiter('\n'));
 
     r = .fixed("ab\nc\n\nd\n"); // one trailing newline does not affect behavior
+
     try testing.expectEqualStrings("ab", (try r.takeDelimiter('\n')).?);
     try testing.expectEqualStrings("c", (try r.takeDelimiter('\n')).?);
     try testing.expectEqualStrings("", (try r.takeDelimiter('\n')).?);
@@ -1477,6 +1679,7 @@ test streamDelimiter {
     var out_buffer: [10]u8 = undefined;
     var r: Reader = .fixed("foo\nbars");
     var w: Writer = .fixed(&out_buffer);
+
     try testing.expectEqual(3, try r.streamDelimiter(&w, '\n'));
     try testing.expectEqualStrings("foo", w.buffered());
     try testing.expectEqual(0, try r.streamDelimiter(&w, '\n'));
@@ -1488,6 +1691,7 @@ test streamDelimiterEnding {
     var out_buffer: [10]u8 = undefined;
     var r: Reader = .fixed("foo\nbars");
     var w: Writer = .fixed(&out_buffer);
+
     try testing.expectEqual(3, try r.streamDelimiterEnding(&w, '\n'));
     try testing.expectEqualStrings("foo", w.buffered());
     r.toss(1);
@@ -1501,6 +1705,7 @@ test streamDelimiterLimit {
     var out_buffer: [10]u8 = undefined;
     var r: Reader = .fixed("foo\nbars");
     var w: Writer = .fixed(&out_buffer);
+
     try testing.expectError(error.StreamTooLong, r.streamDelimiterLimit(&w, '\n', .limited(2)));
     try testing.expectEqual(1, try r.streamDelimiterLimit(&w, '\n', .limited(3)));
     try testing.expectEqualStrings("\n", try r.take(1));
@@ -1510,6 +1715,7 @@ test streamDelimiterLimit {
 
 test discardDelimiterExclusive {
     var r: Reader = .fixed("foob\nar");
+
     try testing.expectEqual(4, try r.discardDelimiterExclusive('\n'));
     try testing.expectEqualStrings("\n", try r.take(1));
     try testing.expectEqual(2, try r.discardDelimiterExclusive('\n'));
@@ -1518,12 +1724,14 @@ test discardDelimiterExclusive {
 
 test discardDelimiterInclusive {
     var r: Reader = .fixed("foob\nar");
+
     try testing.expectEqual(5, try r.discardDelimiterInclusive('\n'));
     try testing.expectError(error.EndOfStream, r.discardDelimiterInclusive('\n'));
 }
 
 test discardDelimiterLimit {
     var r: Reader = .fixed("foob\nar");
+
     try testing.expectError(error.StreamTooLong, r.discardDelimiterLimit('\n', .limited(4)));
     try testing.expectEqual(0, try r.discardDelimiterLimit('\n', .limited(2)));
     try testing.expectEqualStrings("\n", try r.take(1));
@@ -1533,12 +1741,14 @@ test discardDelimiterLimit {
 
 test fill {
     var r: Reader = .fixed("abc");
+
     try r.fill(1);
     try r.fill(3);
 }
 
 test takeByte {
     var r: Reader = .fixed("ab");
+
     try testing.expectEqual('a', try r.takeByte());
     try testing.expectEqual('b', try r.takeByte());
     try testing.expectError(error.EndOfStream, r.takeByte());
@@ -1546,6 +1756,7 @@ test takeByte {
 
 test takeByteSigned {
     var r: Reader = .fixed(&.{ 255, 5 });
+
     try testing.expectEqual(-1, try r.takeByteSigned());
     try testing.expectEqual(5, try r.takeByteSigned());
     try testing.expectError(error.EndOfStream, r.takeByteSigned());
@@ -1553,12 +1764,14 @@ test takeByteSigned {
 
 test takeInt {
     var r: Reader = .fixed(&.{ 0x12, 0x34, 0x56 });
+
     try testing.expectEqual(0x1234, try r.takeInt(u16, .big));
     try testing.expectError(error.EndOfStream, r.takeInt(u16, .little));
 }
 
 test takeVarInt {
     var r: Reader = .fixed(&.{ 0x12, 0x34, 0x56 });
+
     try testing.expectEqual(0x123456, try r.takeVarInt(u64, .big, 3));
     try testing.expectError(error.EndOfStream, r.takeVarInt(u16, .little, 1));
 }
@@ -1566,16 +1779,19 @@ test takeVarInt {
 test takeStructPointer {
     var r: Reader = .fixed(&.{ 0x12, 0x00, 0x34, 0x56 });
     const S = extern struct { a: u8, b: u16 };
+
     switch (native_endian) {
         .little => try testing.expectEqual(@as(S, .{ .a = 0x12, .b = 0x5634 }), (try r.takeStructPointer(S)).*),
         .big => try testing.expectEqual(@as(S, .{ .a = 0x12, .b = 0x3456 }), (try r.takeStructPointer(S)).*),
     }
+
     try testing.expectError(error.EndOfStream, r.takeStructPointer(S));
 }
 
 test peekStructPointer {
     var r: Reader = .fixed(&.{ 0x12, 0x00, 0x34, 0x56 });
     const S = extern struct { a: u8, b: u16 };
+
     switch (native_endian) {
         .little => {
             try testing.expectEqual(@as(S, .{ .a = 0x12, .b = 0x5634 }), (try r.peekStructPointer(S)).*);
@@ -1591,6 +1807,7 @@ test peekStructPointer {
 test takeStruct {
     var r: Reader = .fixed(&.{ 0x12, 0x00, 0x34, 0x56 });
     const S = extern struct { a: u8, b: u16 };
+
     try testing.expectEqual(@as(S, .{ .a = 0x12, .b = 0x3456 }), try r.takeStruct(S, .big));
     try testing.expectError(error.EndOfStream, r.takeStruct(S, .little));
 }
@@ -1598,6 +1815,7 @@ test takeStruct {
 test peekStruct {
     var r: Reader = .fixed(&.{ 0x12, 0x00, 0x34, 0x56 });
     const S = extern struct { a: u8, b: u16 };
+
     try testing.expectEqual(@as(S, .{ .a = 0x12, .b = 0x3456 }), try r.peekStruct(S, .big));
     try testing.expectEqual(@as(S, .{ .a = 0x12, .b = 0x5634 }), try r.peekStruct(S, .little));
 }
@@ -1606,12 +1824,14 @@ test takeEnum {
     var r: Reader = .fixed(&.{ 2, 0, 1 });
     const E1 = enum(u8) { a, b, c };
     const E2 = enum(u16) { _ };
+
     try testing.expectEqual(E1.c, try r.takeEnum(E1, .little));
     try testing.expectEqual(@as(E2, @enumFromInt(0x0001)), try r.takeEnum(E2, .big));
 }
 
 test takeLeb128 {
     var r: Reader = .fixed("\xc7\x9f\x7f\x80");
+
     try testing.expectEqual(-12345, try r.takeLeb128(i64));
     try testing.expectEqual(0x80, try r.peekByte());
     try testing.expectError(error.EndOfStream, r.takeLeb128(i64));
@@ -1620,6 +1840,7 @@ test takeLeb128 {
 test readSliceShort {
     var r: Reader = .fixed("HelloFren");
     var buf: [5]u8 = undefined;
+
     try testing.expectEqual(5, try r.readSliceShort(&buf));
     try testing.expectEqualStrings("Hello", buf[0..5]);
     try testing.expectEqual(4, try r.readSliceShort(&buf));
@@ -1630,12 +1851,15 @@ test readSliceShort {
 test "readSliceShort with smaller buffer than Reader" {
     var reader_buf: [15]u8 = undefined;
     const str = "This is a test";
+
     var one_byte_stream: testing.Reader = .init(&reader_buf, &.{
         .{ .buffer = str },
     });
+
     one_byte_stream.artificial_limit = .limited(1);
 
     var buf: [14]u8 = undefined;
+
     try testing.expectEqual(14, try one_byte_stream.interface.readSliceShort(&buf));
     try testing.expectEqualStrings(str, &buf);
 }
@@ -1645,6 +1869,7 @@ test "readSliceShort with indirect reader" {
     var ri_buf: [3]u8 = undefined;
     var ri: std.testing.ReaderIndirect = .init(&r, &ri_buf);
     var buf: [5]u8 = undefined;
+
     try testing.expectEqual(5, try ri.interface.readSliceShort(&buf));
     try testing.expectEqualStrings("Hello", buf[0..5]);
     try testing.expectEqual(4, try ri.interface.readSliceShort(&buf));
@@ -1655,10 +1880,12 @@ test "readSliceShort with indirect reader" {
 test readVec {
     var r: Reader = .fixed(std.ascii.letters);
     var flat_buffer: [52]u8 = undefined;
+
     var bufs: [2][]u8 = .{
         flat_buffer[0..26],
         flat_buffer[26..],
     };
+
     // Short reads are possible with this function but not with fixed.
     try testing.expectEqual(26 * 2, try r.readVec(&bufs));
     try testing.expectEqualStrings(std.ascii.letters[0..26], bufs[0]);
@@ -1669,7 +1896,9 @@ test "expected error.EndOfStream" {
     // Unit test inspired by https://github.com/ziglang/zig/issues/17733
     var buffer: [3]u8 = undefined;
     var r: std.Io.Reader = .fixed(&buffer);
+
     r.end = 0; // capacity 3, but empty
+
     try std.testing.expectError(error.EndOfStream, r.takeEnum(enum(u8) { a, b }, .little));
     try std.testing.expectError(error.EndOfStream, r.take(3));
 }
@@ -1677,10 +1906,12 @@ test "expected error.EndOfStream" {
 test "readVec at end" {
     var reader_buffer: [8]u8 = "abcd1234".*;
     var reader: testing.Reader = .init(&reader_buffer, &.{});
+
     reader.interface.end = reader_buffer.len;
 
     var out: [16]u8 = undefined;
     var vecs: [1][]u8 = .{&out};
+
     try testing.expectEqual(8, try reader.interface.readVec(&vecs));
     try testing.expectEqualStrings("abcd1234", vecs[0][0..8]);
 }
@@ -1689,24 +1920,28 @@ fn endingStream(r: *Reader, w: *Writer, limit: Limit) StreamError!usize {
     _ = r;
     _ = w;
     _ = limit;
+
     return error.EndOfStream;
 }
 
 fn endingReadVec(r: *Reader, data: [][]u8) Error!usize {
     _ = r;
     _ = data;
+
     return error.EndOfStream;
 }
 
 fn endingDiscard(r: *Reader, limit: Limit) Error!usize {
     _ = r;
     _ = limit;
+
     return error.EndOfStream;
 }
 
 fn endingRebase(r: *Reader, capacity: usize) RebaseError!void {
     _ = r;
     _ = capacity;
+
     return error.EndOfStream;
 }
 
@@ -1714,12 +1949,14 @@ fn failingStream(r: *Reader, w: *Writer, limit: Limit) StreamError!usize {
     _ = r;
     _ = w;
     _ = limit;
+
     return error.ReadFailed;
 }
 
 fn failingDiscard(r: *Reader, limit: Limit) Error!usize {
     _ = r;
     _ = limit;
+
     return error.ReadFailed;
 }
 
@@ -1730,7 +1967,9 @@ test "discardAll that has to call discard multiple times on an indirect reader" 
     const r = &tri.interface;
 
     try r.discardAll(10);
+
     var remaining_buf: [16]u8 = undefined;
+
     try r.readSliceAll(&remaining_buf);
     try std.testing.expectEqualStrings(fr.buffer[10..], remaining_buf[0..]);
 }
@@ -1738,18 +1977,24 @@ test "discardAll that has to call discard multiple times on an indirect reader" 
 test "readAlloc when the backing reader provides one byte at a time" {
     const str = "This is a test";
     var tiny_buffer: [1]u8 = undefined;
+
     var one_byte_stream: testing.Reader = .init(&tiny_buffer, &.{
         .{ .buffer = str },
     });
+
     one_byte_stream.artificial_limit = .limited(1);
+
     const res = try one_byte_stream.interface.allocRemaining(std.testing.allocator, .unlimited);
+
     defer std.testing.allocator.free(res);
+
     try std.testing.expectEqualStrings(str, res);
 }
 
 test "takeDelimiterInclusive when it rebases" {
     const written_line = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n";
     var buffer: [128]u8 = undefined;
+
     var tr: std.testing.Reader = .init(&buffer, &.{
         .{ .buffer = written_line },
         .{ .buffer = written_line },
@@ -1758,7 +2003,9 @@ test "takeDelimiterInclusive when it rebases" {
         .{ .buffer = written_line },
         .{ .buffer = written_line },
     });
+
     const r = &tr.interface;
+
     for (0..6) |_| {
         try std.testing.expectEqualStrings(written_line, try r.takeDelimiterInclusive('\n'));
     }
@@ -1767,6 +2014,7 @@ test "takeDelimiterInclusive when it rebases" {
 test "takeDelimiterInclusive on an indirect reader when it rebases" {
     const written_line = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n";
     var buffer: [128]u8 = undefined;
+
     var tr: std.testing.Reader = .init(&buffer, &.{
         .{ .buffer = written_line[0..4] },
         .{ .buffer = written_line[4..] },
@@ -1776,9 +2024,11 @@ test "takeDelimiterInclusive on an indirect reader when it rebases" {
         .{ .buffer = written_line },
         .{ .buffer = written_line },
     });
+
     var indirect_buffer: [128]u8 = undefined;
     var tri: std.testing.ReaderIndirect = .init(&tr.interface, &indirect_buffer);
     const r = &tri.interface;
+
     for (0..6) |_| {
         try std.testing.expectEqualStrings(written_line, try r.takeDelimiterInclusive('\n'));
     }
@@ -1842,8 +2092,10 @@ pub fn Hashed(comptime Hasher: type) type {
             const data = limit.slice(try w.writableSliceGreedy(1));
             var vec: [1][]u8 = .{data};
             const n = try this.in.readVec(&vec);
+
             this.hasher.update(data[0..n]);
             w.advance(n);
+
             return n;
         }
 
@@ -1854,29 +2106,39 @@ pub fn Hashed(comptime Hasher: type) type {
             const dest = vecs[0..dest_n];
             const n = try this.in.readVec(dest);
             var remaining: usize = n;
+
             for (dest) |slice| {
                 if (remaining < slice.len) {
                     this.hasher.update(slice[0..remaining]);
+
                     remaining = 0;
+
                     break;
                 } else {
                     remaining -= slice.len;
+
                     this.hasher.update(slice);
                 }
             }
+
             assert(remaining == 0);
+
             if (n > data_size) {
                 r.end += n - data_size;
+
                 return data_size;
             }
+
             return n;
         }
 
         fn discard(r: *Reader, limit: Limit) Error!usize {
             const this: *@This() = @alignCast(@fieldParentPtr("reader", r));
             const peeked = limit.slice(try this.in.peekGreedy(1));
+
             this.hasher.update(peeked);
             this.in.toss(peeked.len);
+
             return peeked.len;
         }
     };
@@ -1885,27 +2147,37 @@ pub fn Hashed(comptime Hasher: type) type {
 pub fn writableVectorPosix(r: *Reader, buffer: []std.posix.iovec, data: []const []u8) Error!struct { usize, usize } {
     var i: usize = 0;
     var n: usize = 0;
+
     if (r.seek == r.end) {
         for (data) |buf| {
             if (buffer.len - i == 0) return .{ i, n };
+
             if (buf.len != 0) {
                 buffer[i] = .{ .base = buf.ptr, .len = buf.len };
+
                 i += 1;
                 n += buf.len;
             }
         }
+
         const buf = r.buffer;
+
         if (buf.len != 0) {
             r.seek = 0;
             r.end = 0;
+
             buffer[i] = .{ .base = buf.ptr, .len = buf.len };
+
             i += 1;
         }
     } else {
         const buf = r.buffer[r.end..];
+
         buffer[i] = .{ .base = buf.ptr, .len = buf.len };
+
         i += 1;
     }
+
     return .{ i, n };
 }
 
@@ -1916,30 +2188,41 @@ pub fn writableVectorWsa(
 ) Error!struct { usize, usize } {
     var i: usize = 0;
     var n: usize = 0;
+
     if (r.seek == r.end) {
         for (data) |buf| {
             if (buffer.len - i == 0) return .{ i, n };
             if (buf.len == 0) continue;
+
             if (std.math.cast(u32, buf.len)) |len| {
                 buffer[i] = .{ .buf = buf.ptr, .len = len };
+
                 i += 1;
                 n += len;
+
                 continue;
             }
+
             buffer[i] = .{ .buf = buf.ptr, .len = std.math.maxInt(u32) };
+
             i += 1;
             n += std.math.maxInt(u32);
+
             return .{ i, n };
         }
+
         const buf = r.buffer;
+
         if (buf.len != 0) {
             r.seek = 0;
             r.end = 0;
+
             if (std.math.cast(u32, buf.len)) |len| {
                 buffer[i] = .{ .buf = buf.ptr, .len = len };
             } else {
                 buffer[i] = .{ .buf = buf.ptr, .len = std.math.maxInt(u32) };
             }
+
             i += 1;
         }
     } else {
@@ -1947,33 +2230,42 @@ pub fn writableVectorWsa(
             .buf = r.buffer.ptr + r.end,
             .len = @min(std.math.maxInt(u32), r.buffer.len - r.end),
         };
+
         i += 1;
     }
+
     return .{ i, n };
 }
 
 pub fn writableVector(r: *Reader, buffer: [][]u8, data: []const []u8) Error!struct { usize, usize } {
     var i: usize = 0;
     var n: usize = 0;
+
     if (r.seek == r.end) {
         for (data) |buf| {
             if (buffer.len - i == 0) return .{ i, n };
+
             if (buf.len != 0) {
                 buffer[i] = buf;
+
                 i += 1;
                 n += buf.len;
             }
         }
+
         if (r.buffer.len != 0) {
             r.seek = 0;
             r.end = 0;
             buffer[i] = r.buffer;
+
             i += 1;
         }
     } else {
         buffer[i] = r.buffer[r.end..];
+
         i += 1;
     }
+
     return .{ i, n };
 }
 
@@ -2061,7 +2353,9 @@ test "deserialize unsigned LEB128" {
 fn testLeb128(comptime T: type, encoded: []const u8) !T {
     var reader: std.Io.Reader = .fixed(encoded);
     const result = try reader.takeLeb128(T);
+
     try testing.expect(reader.seek == reader.end);
+
     return result;
 }
 

@@ -3,6 +3,7 @@ import {
   type ComponentInternalInstance,
   formatComponentName,
 } from './component'
+
 import { devtoolsPerfEnd, devtoolsPerfStart } from './devtools'
 
 let supported: boolean
@@ -29,6 +30,7 @@ export function endMeasure(
     const startTag = `vue-${type}-${instance.uid}`
     const endTag = startTag + `:end`
     const measureName = `<${formatComponentName(instance, instance.type)}> ${type}`
+
     perf.mark(endTag)
     perf.measure(measureName, startTag, endTag)
     perf.clearMeasures(measureName)
@@ -45,11 +47,13 @@ function isSupported() {
   if (supported !== undefined) {
     return supported
   }
+
   if (typeof window !== 'undefined' && window.performance) {
     supported = true
     perf = window.performance
   } else {
     supported = false
   }
+
   return supported
 }

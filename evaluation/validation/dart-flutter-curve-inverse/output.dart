@@ -10,6 +10,7 @@ class ValidationSample {
     // subdivisions, whichever comes first.
     const errorLimit = 1e-6;
     var count = 100;
+
     final double startValue = offsetToOrigin(start);
 
     while ((end - start) / 2.0 > errorLimit && count > 0) {

@@ -37,6 +37,7 @@ const SparcCpuinfoImpl = struct {
             inline for (cpu_names) |pair| {
                 if (mem.indexOfPos(u8, value, 0, pair[0]) != null) {
                     self.model = pair[1];
+
                     break;
                 }
             }
@@ -47,6 +48,7 @@ const SparcCpuinfoImpl = struct {
 
     fn finalize(self: *const SparcCpuinfoImpl, arch: Target.Cpu.Arch) ?Target.Cpu {
         const model = self.model orelse return null;
+
         return Target.Cpu{
             .arch = arch,
             .model = model,
@@ -83,9 +85,11 @@ const RiscvCpuinfoImpl = struct {
             inline for (cpu_names) |pair| {
                 if (mem.eql(u8, value, pair[0])) {
                     self.model = pair[1];
+
                     break;
                 }
             }
+
             return false;
         }
 
@@ -94,6 +98,7 @@ const RiscvCpuinfoImpl = struct {
 
     fn finalize(self: *const RiscvCpuinfoImpl, arch: Target.Cpu.Arch) ?Target.Cpu {
         const model = self.model orelse return null;
+
         return Target.Cpu{
             .arch = arch,
             .model = model,
@@ -148,8 +153,10 @@ const PowerpcCpuinfoImpl = struct {
             // info.
             inline for (cpu_names) |pair| {
                 const end_index = mem.indexOfAny(u8, value, ", ") orelse value.len;
+
                 if (mem.eql(u8, value[0..end_index], pair[0])) {
                     self.model = pair[1];
+
                     break;
                 }
             }
@@ -163,6 +170,7 @@ const PowerpcCpuinfoImpl = struct {
 
     fn finalize(self: *const PowerpcCpuinfoImpl, arch: Target.Cpu.Arch) ?Target.Cpu {
         const model = self.model orelse return null;
+
         return Target.Cpu{
             .arch = arch,
             .model = model,
@@ -180,6 +188,7 @@ test "cpuinfo: PowerPC" {
         \\clock     : 1250.000000MHz
         \\revision  : 1.1 (pvr 0044 0101)
     );
+
     try testParser(PowerpcCpuinfoParser, .powerpc64le, &Target.powerpc.cpu.pwr8,
         \\processor : 0
         \\cpu       : POWER8 (raw), altivec supported
@@ -219,6 +228,7 @@ const S390xCpuinfoImpl = struct {
             inline for (cpu_names) |pair| {
                 if (mem.eql(u8, value, pair[0])) {
                     self.model = pair[1];
+
                     break;
                 }
             }
@@ -231,6 +241,7 @@ const S390xCpuinfoImpl = struct {
 
     fn finalize(self: *const S390xCpuinfoImpl, arch: Target.Cpu.Arch) ?Target.Cpu {
         const model = self.model orelse return null;
+
         return Target.Cpu{
             .arch = arch,
             .model = model,
@@ -285,6 +296,7 @@ const ArmCpuinfoImpl = struct {
                         return;
                 }
             }
+
             self.core_no += 1;
         }
     }
@@ -302,6 +314,7 @@ const ArmCpuinfoImpl = struct {
             self.cores[self.core_no] = .{};
         } else if (mem.eql(u8, key, "CPU implementer")) {
             info.implementer = try fmt.parseInt(u8, value, 0);
+
             self.have_fields += 1;
         } else if (mem.eql(u8, key, "CPU architecture")) {
             // "AArch64" on older kernels.
@@ -309,12 +322,15 @@ const ArmCpuinfoImpl = struct {
                 8
             else
                 try fmt.parseInt(u8, value, 0);
+
             self.have_fields += 1;
         } else if (mem.eql(u8, key, "CPU variant")) {
             info.variant = try fmt.parseInt(u8, value, 0);
+
             self.have_fields += 1;
         } else if (mem.eql(u8, key, "CPU part")) {
             info.part = try fmt.parseInt(u16, value, 0);
+
             self.have_fields += 1;
         } else if (mem.eql(u8, key, "model name")) {
             // ARMv6 cores report "CPU architecture" equal to 7.
@@ -338,6 +354,7 @@ const ArmCpuinfoImpl = struct {
         };
 
         var known_models: [num_cores]?*const Target.Cpu.Model = undefined;
+
         for (self.cores[0..self.core_no], 0..) |core, i| {
             known_models[i] = cpu_models.isKnown(.{
                 .architecture = core.architecture,
@@ -350,6 +367,7 @@ const ArmCpuinfoImpl = struct {
         // XXX We pick the first core on big.LITTLE systems, hopefully the
         // LITTLE one.
         const model = known_models[0] orelse return null;
+
         return Target.Cpu{
             .arch = arch,
             .model = model,
@@ -372,6 +390,7 @@ test "cpuinfo: ARM" {
         \\CPU part        : 0xb76
         \\CPU revision    : 7
     );
+
     try testParser(ArmCpuinfoParser, .arm, &Target.arm.cpu.cortex_a7,
         \\processor : 0
         \\model name : ARMv7 Processor rev 3 (v7l)
@@ -393,6 +412,7 @@ test "cpuinfo: ARM" {
         \\CPU part : 0xc0f
         \\CPU revision : 3
     );
+
     try testParser(ArmCpuinfoParser, .aarch64, &Target.aarch64.cpu.cortex_a72,
         \\processor       : 0
         \\BogoMIPS        : 108.00
@@ -413,6 +433,7 @@ fn testParser(
 ) !void {
     var r: Io.Reader = .fixed(input);
     const result = try parser.parse(arch, &r);
+
     try testing.expectEqual(expected_model, result.?.model);
     try testing.expect(expected_model.features.eql(result.?.features));
 }
@@ -426,12 +447,15 @@ fn CpuinfoParser(comptime impl: anytype) type {
     return struct {
         fn parse(arch: Target.Cpu.Arch, reader: *Io.Reader) !?Target.Cpu {
             var obj: impl = .{};
+
             while (try reader.takeDelimiter('\n')) |line| {
                 const colon_pos = mem.indexOfScalar(u8, line, ':') orelse continue;
                 const key = mem.trimEnd(u8, line[0..colon_pos], " \t");
                 const value = mem.trimStart(u8, line[colon_pos + 1 ..], " \t");
+
                 if (!try obj.line_hook(key, value)) break;
             }
+
             return obj.finalize(arch);
         }
     };
@@ -447,12 +471,14 @@ pub fn detectNativeCpuAndFeatures(io: Io) ?Target.Cpu {
     var file = fs.openFileAbsolute("/proc/cpuinfo", .{}) catch |err| switch (err) {
         else => return null,
     };
+
     defer file.close();
 
     var buffer: [4096]u8 = undefined; // "flags" lines can get pretty long.
     var file_reader = file.reader(io, &buffer);
 
     const current_arch = builtin.cpu.arch;
+
     switch (current_arch) {
         .arm, .armeb, .thumb, .thumbeb => {
             return ArmCpuinfoParser.parse(current_arch, &file_reader.interface) catch null;
@@ -474,6 +500,7 @@ pub fn detectNativeCpuAndFeatures(io: Io) ?Target.Cpu {
             };
 
             const core = @import("arm.zig").aarch64.detectNativeCpuAndFeatures(current_arch, registers);
+
             return core;
         },
         .sparc, .sparc64 => {

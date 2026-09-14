@@ -4,15 +4,18 @@ import escapeHtml from 'escape-html'
 import type { Options } from 'sirv'
 import sirv from 'sirv'
 import type { Connect } from '#dep-types/connect'
+
 import {
   cleanUrl,
   isWindows,
   slash,
   withTrailingSlash,
 } from '../../../shared/utils'
+
 import type { ResolvedConfig } from '../../config'
 import { FS_PREFIX } from '../../constants'
 import type { ViteDevServer } from '../../server'
+
 import {
   decodeURIIfPossible,
   fsPathFromUrl,
@@ -51,7 +54,9 @@ const sirvOptions = ({
       if (knownJavascriptExtensionRE.test(pathname)) {
         res.setHeader('Content-Type', 'text/javascript')
       }
+
       const headers = getHeaders()
+
       if (headers) {
         for (const name in headers) {
           res.setHeader(name, headers[name]!)
@@ -62,16 +67,22 @@ const sirvOptions = ({
       ? undefined
       : (filePath) => {
           const servingAccessResult = checkLoadingAccess(config, filePath)
+
           if (servingAccessResult === 'denied') {
             const error: any = new Error('denied access')
+
             error.code = ERR_DENIED_FILE
             error.path = filePath
+
             throw error
           }
+
           if (servingAccessResult === 'fallback') {
             return false
           }
+
           servingAccessResult satisfies 'allowed'
+
           return true
         },
   }
@@ -82,6 +93,7 @@ export function servePublicMiddleware(
   publicFiles?: Set<string>,
 ): Connect.NextHandleFunction {
   const dir = server.config.publicDir
+
   const serve = sirv(
     dir,
     sirvOptions({
@@ -93,6 +105,7 @@ export function servePublicMiddleware(
 
   const toFilePath = (url: string) => {
     let filePath = cleanUrl(url)
+
     if (filePath.includes('%')) {
       try {
         filePath = decodeURI(filePath)
@@ -100,6 +113,7 @@ export function servePublicMiddleware(
         /* malform uri */
       }
     }
+
     return normalizePath(filePath)
   }
 
@@ -117,6 +131,7 @@ export function servePublicMiddleware(
     ) {
       return next()
     }
+
     serve(req, res, next)
   }
 }
@@ -125,6 +140,7 @@ export function serveStaticMiddleware(
   server: ViteDevServer,
 ): Connect.NextHandleFunction {
   const dir = server.config.root
+
   const serve = sirv(
     dir,
     sirvOptions({
@@ -140,6 +156,7 @@ export function serveStaticMiddleware(
     // special processing
     // also skip internal requests `/@fs/ /@vite-client` etc...
     const cleanedUrl = cleanUrl(req.url!)
+
     if (
       cleanedUrl.endsWith('/') ||
       path.extname(cleanedUrl) === '.html' ||
@@ -153,22 +170,27 @@ export function serveStaticMiddleware(
 
     const url = new URL(req.url!, 'http://example.com')
     const pathname = decodeURIIfPossible(url.pathname)
+
     if (pathname === undefined) {
       return next()
     }
 
     // apply aliases to static requests as well
     let redirectedPathname: string | undefined
+
     for (const { find, replacement } of server.config.resolve.alias) {
       const matches =
         typeof find === 'string'
           ? pathname.startsWith(find)
           : find.test(pathname)
+
       if (matches) {
         redirectedPathname = pathname.replace(find, replacement)
+
         break
       }
     }
+
     if (redirectedPathname) {
       // dir is pre-normalized to posix style
       if (redirectedPathname.startsWith(withTrailingSlash(dir))) {
@@ -178,9 +200,11 @@ export function serveStaticMiddleware(
 
     const resolvedPathname = redirectedPathname || pathname
     let fileUrl = path.resolve(dir, removeLeadingSlash(resolvedPathname))
+
     if (resolvedPathname.endsWith('/') && fileUrl.at(-1) !== '/') {
       fileUrl = withTrailingSlash(fileUrl)
     }
+
     if (redirectedPathname) {
       url.pathname = encodeURI(redirectedPathname)
       req.url = url.href.slice(url.origin.length)
@@ -191,8 +215,10 @@ export function serveStaticMiddleware(
     } catch (e) {
       if (e && 'code' in e && e.code === ERR_DENIED_FILE) {
         respondWithAccessDenied(e.path, server, res)
+
         return
       }
+
       throw e
     }
   }
@@ -218,12 +244,15 @@ export function serveRawFsMiddleware(
     if (req.url!.startsWith(FS_PREFIX)) {
       const url = new URL(req.url!, 'http://example.com')
       const pathname = decodeURIIfPossible(url.pathname)
+
       if (pathname === undefined) {
         return next()
       }
 
       let newPathname = pathname.slice(FS_PREFIX.length)
+
       if (isWindows) newPathname = newPathname.replace(/^[A-Z]:/i, '')
+
       url.pathname = encodeURI(newPathname)
       req.url = url.href.slice(url.origin.length)
 
@@ -232,8 +261,10 @@ export function serveRawFsMiddleware(
       } catch (e) {
         if (e && 'code' in e && e.code === ERR_DENIED_FILE) {
           respondWithAccessDenied(e.path, server, res)
+
           return
         }
+
         throw e
       }
     } else {
@@ -250,10 +281,12 @@ export function isFileServingAllowed(
   config: ResolvedConfig,
   url: string,
 ): boolean
+
 export function isFileServingAllowed(
   url: string,
   server: ViteDevServer,
 ): boolean
+
 export function isFileServingAllowed(
   configOrUrl: ResolvedConfig | string,
   urlOrServer: string | ViteDevServer,
@@ -261,12 +294,15 @@ export function isFileServingAllowed(
   const config = (
     typeof urlOrServer === 'string' ? configOrUrl : urlOrServer.config
   ) as ResolvedConfig
+
   const url = (
     typeof urlOrServer === 'string' ? urlOrServer : configOrUrl
   ) as string
 
   if (!config.server.fs.strict) return true
+
   const filePath = fsPathFromUrl(url)
+
   return isFileLoadingAllowed(config, filePath)
 }
 
@@ -328,6 +364,7 @@ export function isFileLoadingAllowed(
 
   const hasDriveLetter = isWindows && windowsDriveRE.test(filePath)
   const hasColon = (hasDriveLetter ? filePath.slice(2) : filePath).includes(':')
+
   if (hasColon) {
     // the `:` is included in the path which may be used for NTFS ADS
     return false
@@ -338,6 +375,7 @@ export function isFileLoadingAllowed(
   const filePathWithoutTrailingSlash = filePath.endsWith('/')
     ? filePath.slice(0, -1)
     : filePath
+
   if (config.fsDenyGlob(filePathWithoutTrailingSlash)) return false
 
   if (config.safeModulePaths.has(filePath)) return true
@@ -354,9 +392,11 @@ export function checkLoadingAccess(
   if (isFileLoadingAllowed(config, slash(path))) {
     return 'allowed'
   }
+
   if (isFileReadable(path)) {
     return 'denied'
   }
+
   // if the file doesn't exist, we shouldn't restrict this path as it can
   // be an API call. Middlewares would issue a 404 if the file isn't handled
   return 'fallback'
@@ -368,6 +408,7 @@ export function respondWithAccessDenied(
   res: ServerResponse,
 ): void {
   const urlMessage = `The request id "${id}" is outside of Vite serving allow list.`
+
   const hintMessage = `
 ${server.config.server.fs.allow.map((i) => `- ${i}`).join('\n')}
 
@@ -375,7 +416,9 @@ Refer to docs https://vite.dev/config/server-options.html#server-fs-allow for co
 
   server.config.logger.error(urlMessage)
   server.config.logger.warnOnce(hintMessage + '\n')
+
   res.statusCode = 403
+
   res.write(renderRestrictedErrorHTML(urlMessage + '\n' + hintMessage))
   res.end()
 }
@@ -383,6 +426,7 @@ Refer to docs https://vite.dev/config/server-options.html#server-fs-allow for co
 function renderRestrictedErrorHTML(msg: string): string {
   // to have syntax highlighting and autocompletion in IDE
   const html = String.raw
+
   return html`
     <body>
       <h1>403 Restricted</h1>

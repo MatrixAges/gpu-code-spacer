@@ -17,14 +17,17 @@ import type { ArgsKV } from '@/types'
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
 	container = null as unknown as HTMLElement
 	observer = null as unknown as ResizeObserver
 
 	count = false
 	visible = false
+
 	style = {} as CSSProperties
 	count_mode = 'total' as 'total' | 'filted'
+
 	counts_total = 0
 	counts_filted = 0
 	visible_count_popover = false
@@ -54,6 +57,7 @@ export default class Index {
 
 		this.id = id
 		this.editor = editor
+
 		this.container = document.getElementById(this.id)!
 
 		this.on()
@@ -68,6 +72,7 @@ export default class Index {
 		const { left } = this.container.getBoundingClientRect()
 
 		this.style = { left, bottom: 0 }
+
 		this.visible = true
 	}
 
@@ -128,7 +133,6 @@ export default class Index {
 
 	off() {
 		this.removeEventListener()
-
 		this.utils.off()
 	}
 }

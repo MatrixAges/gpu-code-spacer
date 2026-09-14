@@ -30,6 +30,7 @@ pub fn sort(
     assert(values.len <= std.math.maxInt(u32));
 
     if (values.len == 0) return;
+
     if (values.len <= 32) {
         return std.sort.insertion(Value, values, {}, struct {
             fn lessThan(_: void, a: Value, b: Value) bool {
@@ -37,6 +38,7 @@ pub fn sort(
             }
         }.lessThan);
     }
+
     radix_sort(Key, Value, key_from_value, values, values_scratch);
 }
 
@@ -54,18 +56,21 @@ fn radix_sort(
     const radix_passes = stdx.div_ceil(@bitSizeOf(Key), radix_bits);
     const radix_partitions = 1 << radix_bits;
     const radix_mask: u32 = radix_partitions - 1;
-
     const BitsKey = std.math.Log2Int(Key); // Used to shift the key for each pass.
     const Histograms: type = [radix_passes][radix_partitions]u32;
+
     comptime assert(@sizeOf(Histograms) <= 200 * stdx.KiB);
 
     // Create histograms per radix pass in a single iteration over `values`.
     var histograms: Histograms align(64) = @splat(@splat(0));
+
     for (values) |*value| {
         const key = key_from_value(value);
+
         inline for (0..radix_passes) |pass| {
             const pass_bit_offset: BitsKey = @intCast(pass * radix_bits);
             const partition_id: u32 = @intCast((key >> pass_bit_offset) & radix_mask);
+
             histograms[pass][partition_id] += 1;
         }
     }
@@ -83,6 +88,7 @@ fn radix_sort(
         if (!pass_trivial) {
             // Build prefix sums.
             var next_offset: u32 = 0;
+
             for (0..radix_partitions) |partition_id| {
                 target_offsets[partition_id] = next_offset;
                 next_offset += histogram[partition_id];
@@ -90,6 +96,7 @@ fn radix_sort(
 
             // Partitioning pass.
             const pass_bit_offset: BitsKey = @intCast(pass * radix_bits);
+
             for (source) |*value| {
                 const key: Key = key_from_value(value);
                 const partition_id: u32 = @intCast((key >> pass_bit_offset) & radix_mask);
@@ -97,6 +104,7 @@ fn radix_sort(
                 target[target_offsets[partition_id]] = value.*;
                 target_offsets[partition_id] += 1;
             }
+
             std.mem.swap([]Value, &source, &target);
         }
     }
@@ -133,6 +141,7 @@ pub fn TestValueType(comptime Key: type, comptime value_length: usize) type {
 
 test "radix_sort: smoke" {
     const Value = TestValueType(u8, 0);
+
     var values: [5]Value = .{
         Value{ .x = 3, .y = 0 },
         Value{ .x = 2, .y = 0 },
@@ -140,6 +149,7 @@ test "radix_sort: smoke" {
         Value{ .x = 1, .y = 0 },
         Value{ .x = 5, .y = 0 },
     };
+
     const values_expected: [5]Value = .{
         Value{ .x = 1, .y = 0 },
         Value{ .x = 2, .y = 0 },
@@ -147,7 +157,9 @@ test "radix_sort: smoke" {
         Value{ .x = 3, .y = 1 },
         Value{ .x = 5, .y = 0 },
     };
+
     var values_scratch: [5]Value = undefined;
+
     radix_sort(
         u8,
         Value,
@@ -155,6 +167,7 @@ test "radix_sort: smoke" {
         &values,
         &values_scratch,
     );
+
     try std.testing.expectEqual(values_expected, values);
 }
 
@@ -164,18 +177,19 @@ test "radix_sort: ascending & stable on many duplicates" {
     const Key = u32;
     const Value = TestValueType(Key, 128); // >=128 so radix_bits heuristic picks 11
     const allocator = std.testing.allocator;
-
     const n: usize = 2048;
-
     const values = try allocator.alloc(Value, n);
+
     defer allocator.free(values);
 
     const scratch = try allocator.alloc(Value, n);
+
     defer allocator.free(scratch);
 
     // Many duplicates; y = original index (used to check stability).
     for (values, 0..) |*v, i| {
         const k: Key = @intCast(i % 257);
+
         v.* = .{ .x = k, .y = @intCast(i) };
     }
 
@@ -197,17 +211,18 @@ test "radix_sort: all-equal keys preserve relative order (stability)" {
     const Key = u64;
     const Value = TestValueType(Key, 8);
     const allocator = std.testing.allocator;
-
     const n: usize = 1024;
-
     const values = try allocator.alloc(Value, n);
+
     defer allocator.free(values);
 
     const scratch = try allocator.alloc(Value, n);
+
     defer allocator.free(scratch);
 
     // Fill scratch with a sentinel to detect writes.
     const sentinel: Value = .{ .x = 0xFFFF_FFFF_FFFF_FFFF, .y = 0xDEAD_BEEF };
+
     for (scratch) |*s| s.* = sentinel;
 
     // All keys identical; y = original index to check stability.
@@ -235,16 +250,15 @@ test "fuzz radix_sort_stable" {
         const Key = pair.@"0";
         const value_size_min = pair.@"1";
         const allocator = std.testing.allocator;
-
         const Value = TestValueType(Key, value_size_min);
-
         var prng = stdx.PRNG.from_seed_testing();
-
         const values_max = 1 << 18; // Explores uneven and even passes to test copy back.
         const values_all = try allocator.alloc(Value, values_max);
+
         defer allocator.free(values_all);
 
         const values_all_scratch = try allocator.alloc(Value, values_max);
+
         defer allocator.free(values_all_scratch);
 
         for (0..64) |_| {
@@ -271,13 +285,14 @@ test "fuzz radix_sort_stable" {
                     1,
                     @max(values_count, 64) - 1,
                 );
+
                 // The `partition_reverse_probability` is a subset of the partitions sorted by
                 // `partition_sort_percent`.
                 const partition_sort_probability = ratio(prng.int_inclusive(u8, 100), 100);
                 const partition_reverse_probability = ratio(prng.int_inclusive(u8, 100), 100);
-
                 var partitions_remaining: u32 = partitions_count;
                 var partition_offset: u32 = 0;
+
                 while (partition_offset < values_count) {
                     const partition_size = size: {
                         if (partitions_remaining == 1) {
@@ -293,6 +308,7 @@ test "fuzz radix_sort_stable" {
 
                     if (prng.chance(partition_sort_probability)) {
                         const partition = values[partition_offset..][0..partition_size];
+
                         if (prng.chance(partition_reverse_probability)) {
                             std.mem.sortUnstable(
                                 Value,

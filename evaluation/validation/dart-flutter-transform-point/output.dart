@@ -1,6 +1,7 @@
 class ValidationSample {
   static Offset transformPoint(Matrix4 transform, Offset point) {
     final Float64List storage = transform.storage;
+
     final double x = point.dx;
     final double y = point.dy;
 

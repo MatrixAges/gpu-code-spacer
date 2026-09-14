@@ -13,5 +13,6 @@ test arg {
     const epsilon = math.floatEps(f32);
     const a = Complex(f32).init(5, 3);
     const c = arg(a);
+
     try testing.expectApproxEqAbs(0.5404195, c, epsilon);
 }

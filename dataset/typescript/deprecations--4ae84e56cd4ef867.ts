@@ -66,12 +66,15 @@ export function warnFutureDeprecation(
     return
 
   let msg = `[vite future] ${deprecationMessages[type]}`
+
   if (extraMessage) {
     msg += ` ${extraMessage}`
   }
+
   msg = colors.yellow(msg)
 
   const docs = `${docsURL}/changes/${deprecationCode[type].toLowerCase()}`
+
   msg +=
     colors.gray(`\n  ${stacktrace ? '├' : '└'}─── `) +
     colors.underline(docs) +
@@ -79,27 +82,36 @@ export function warnFutureDeprecation(
 
   if (stacktrace) {
     const stack = new Error().stack
+
     if (stack) {
       let stacks = stack
         .split('\n')
         .slice(3)
         .filter((i) => !i.includes('/node_modules/vite/dist/'))
+
       if (stacks.length === 0) {
         stacks.push('No stack trace found.')
       }
+
       stacks = stacks.map(
         (i, idx) => `  ${idx === stacks.length - 1 ? '└' : '│'} ${i.trim()}`,
       )
+
       msg += colors.dim(stacks.join('\n')) + '\n'
     }
   }
+
   config.logger.warnOnce(msg)
 }
 
 export function ignoreDeprecationWarnings<T>(fn: () => T): T {
   const before = _ignoreDeprecationWarnings
+
   _ignoreDeprecationWarnings = true
+
   const ret = fn()
+
   _ignoreDeprecationWarnings = before
+
   return ret
 }

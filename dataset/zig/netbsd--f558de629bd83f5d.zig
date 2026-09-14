@@ -24,6 +24,7 @@ pub const _ksiginfo = extern struct {
     signo: i32,
     code: i32,
     errno: i32,
+
     // 64bit architectures insert 4bytes of padding here, this is done by
     // correctly aligning the reason field
     reason: extern union {
@@ -32,6 +33,7 @@ pub const _ksiginfo = extern struct {
             uid: uid_t,
             value: sigval_t,
         },
+
         child: extern struct {
             pid: pid_t,
             uid: uid_t,
@@ -39,24 +41,33 @@ pub const _ksiginfo = extern struct {
             utime: clock_t,
             stime: clock_t,
         },
+
         fault: extern struct {
             addr: *allowzero anyopaque,
+
             trap: i32,
             trap2: i32,
             trap3: i32,
         },
+
         poll: extern struct {
             band: i32,
             fd: i32,
         },
+
         syscall: extern struct {
             sysnum: i32,
+
             retval: [2]i32,
+
             @"error": i32,
+
             args: [8]u64,
         },
+
         ptrace_state: extern struct {
             pe_report_event: i32,
+
             option: extern union {
                 pe_other_pid: pid_t,
                 pe_lwp: lwpid_t,
@@ -324,21 +335,27 @@ pub const IPTOS = struct {
     pub const CLASS_CS7 = 0xe0;
     pub const CLASS_DEFAULT = CLASS_CS0;
     pub const CLASS_MASK = 0xe0;
+
     pub fn CLASS(t: anytype) @TypeOf(t) {
         return t & CLASS_MASK;
     }
+
     pub const DSCP_MASK = 0xfc;
+
     pub fn DSCP(t: anytype) @TypeOf(t) {
         return t & DSCP_MASK;
     }
+
     pub const ECN_NOTECT = 0x00;
     pub const ECN_ECT1 = 0x01;
     pub const ECN_ECT0 = 0x02;
     pub const ECN_CE = 0x03;
     pub const ECN_MASK = 0x03;
+
     pub fn ECN(t: anytype) @TypeOf(t) {
         return t & ECN_MASK;
     }
+
     pub const ECN_NOT_ECT = 0x00;
     pub const LOWDELAY = 0x10;
     pub const THROUGHPUT = 0x08;

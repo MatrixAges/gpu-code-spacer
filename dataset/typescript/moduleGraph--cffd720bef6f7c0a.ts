@@ -3,12 +3,14 @@ import type { ModuleInfo, PartialResolvedId } from 'rolldown'
 import { cleanUrl } from '../../shared/utils'
 import { FS_PREFIX } from '../constants'
 import { isDirectCSSRequest } from '../plugins/css'
+
 import {
   monotonicDateNow,
   normalizePath,
   removeImportQuery,
   removeTimestampQuery,
 } from '../utils'
+
 import type { TransformResult } from './transformRequest'
 
 export class EnvironmentModuleNode {
@@ -25,11 +27,11 @@ export class EnvironmentModuleNode {
   type: 'js' | 'css' | 'asset'
   info?: ModuleInfo
   meta?: Record<string, any>
+
   importers: Set<EnvironmentModuleNode> = new Set()
-
   importedModules: Set<EnvironmentModuleNode> = new Set()
-
   acceptedHmrDeps: Set<EnvironmentModuleNode> = new Set()
+
   acceptedHmrExports: Set<string> | null = null
   importedBindings: Map<string, Set<string>> | null = null
   isSelfAccepting?: boolean
@@ -74,7 +76,9 @@ export class EnvironmentModuleNode {
   constructor(url: string, environment: string, setIsSelfAccepting = true) {
     this.environment = environment
     this.url = url
+
     this.type = isDirectCSSRequest(url) ? 'css' : 'js'
+
     if (setIsSelfAccepting) {
       this.isSelfAccepting = false
     }
@@ -125,12 +129,15 @@ export class EnvironmentModuleGraph {
   ): Promise<EnvironmentModuleNode | undefined> {
     // Quick path, if we already have a module for this rawUrl (even without extension)
     rawUrl = removeImportQuery(removeTimestampQuery(rawUrl))
+
     const mod = this._getUnresolvedUrlToModule(rawUrl)
+
     if (mod) {
       return mod
     }
 
     const [url] = await this._resolveUrl(rawUrl)
+
     return this.urlToModuleMap.get(url)
   }
 
@@ -144,8 +151,10 @@ export class EnvironmentModuleGraph {
 
   onFileChange(file: string): void {
     const mods = this.getModulesByFile(file)
+
     if (mods) {
       const seen = new Set<EnvironmentModuleNode>()
+
       mods.forEach((mod) => {
         this.invalidateModule(mod, seen)
       })
@@ -154,6 +163,7 @@ export class EnvironmentModuleGraph {
 
   onFileDelete(file: string): void {
     const mods = this.getModulesByFile(file)
+
     if (mods) {
       mods.forEach((mod) => {
         mod.importedModules.forEach((importedMod) => {
@@ -189,6 +199,7 @@ export class EnvironmentModuleGraph {
     if (seen.has(mod) && prevInvalidationState === mod.invalidationState) {
       return
     }
+
     seen.add(mod)
 
     if (isHmr) {
@@ -203,10 +214,10 @@ export class EnvironmentModuleGraph {
     // Don't invalidate mod.info and mod.meta, as they are part of the processing pipeline
     // Invalidating the transform result is enough to ensure this module is re-processed next time it is requested
     const etag = mod.transformResult?.etag
+
     if (etag) this.etagToModuleMap.delete(etag)
 
     mod.transformResult = null
-
     mod.ssrModule = null
     mod.ssrError = null
 
@@ -220,6 +231,7 @@ export class EnvironmentModuleGraph {
         const shouldSoftInvalidateImporter =
           (importer.staticImportedUrls?.has(mod.url) || softInvalidate) &&
           importer.type === 'js'
+
         this.invalidateModule(
           importer,
           seen,
@@ -236,6 +248,7 @@ export class EnvironmentModuleGraph {
   invalidateAll(): void {
     const timestamp = monotonicDateNow()
     const seen = new Set<EnvironmentModuleNode>()
+
     this.idToModuleMap.forEach((mod) => {
       this.invalidateModule(mod, seen, timestamp)
     })
@@ -260,24 +273,29 @@ export class EnvironmentModuleGraph {
     staticImportedUrls?: Set<string>,
   ): Promise<Set<EnvironmentModuleNode> | undefined> {
     mod.isSelfAccepting = isSelfAccepting
+
     const prevImports = mod.importedModules
     let noLongerImported: Set<EnvironmentModuleNode> | undefined
 
     let resolvePromises = []
     let resolveResults = new Array(importedModules.size)
     let index = 0
+
     // update import graph
     for (const imported of importedModules) {
       const nextIndex = index++
+
       if (typeof imported === 'string') {
         resolvePromises.push(
           this.ensureEntryFromUrl(imported).then((dep) => {
             dep.importers.add(mod)
+
             resolveResults[nextIndex] = dep
           }),
         )
       } else {
         imported.importers.add(mod)
+
         resolveResults[nextIndex] = imported
       }
     }
@@ -287,12 +305,14 @@ export class EnvironmentModuleGraph {
     }
 
     const nextImports = new Set(resolveResults)
+
     mod.importedModules = nextImports
 
     // remove the importer from deps that were imported but no longer are.
     prevImports.forEach((dep) => {
       if (!mod.importedModules.has(dep)) {
         dep.importers.delete(mod)
+
         if (!dep.importers.size) {
           // dependency no longer imported
           ;(noLongerImported || (noLongerImported = new Set())).add(dep)
@@ -302,10 +322,14 @@ export class EnvironmentModuleGraph {
 
     // update accepted hmr deps
     resolvePromises = []
+
     resolveResults = new Array(acceptedModules.size)
+
     index = 0
+
     for (const accepted of acceptedModules) {
       const nextIndex = index++
+
       if (typeof accepted === 'string') {
         resolvePromises.push(
           this.ensureEntryFromUrl(accepted).then((dep) => {
@@ -322,11 +346,13 @@ export class EnvironmentModuleGraph {
     }
 
     mod.acceptedHmrDeps = new Set(resolveResults)
+
     mod.staticImportedUrls = staticImportedUrls
 
     // update accepted hmr exports
     mod.acceptedHmrExports = acceptedExports
     mod.importedBindings = importedBindings
+
     return noLongerImported
   }
 
@@ -348,29 +374,42 @@ export class EnvironmentModuleGraph {
   ): Promise<EnvironmentModuleNode> {
     // Quick path, if we already have a module for this rawUrl (even without extension)
     rawUrl = removeImportQuery(removeTimestampQuery(rawUrl))
+
     let mod = this._getUnresolvedUrlToModule(rawUrl)
+
     if (mod) {
       return mod
     }
+
     const modPromise = (async () => {
       const [url, resolvedId, meta] = await this._resolveUrl(rawUrl, resolved)
+
       mod = this.idToModuleMap.get(resolvedId)
+
       if (!mod) {
         mod = new EnvironmentModuleNode(
           url,
           this.environment,
           setIsSelfAccepting,
         )
+
         if (meta) mod.meta = meta
+
         this.urlToModuleMap.set(url, mod)
+
         mod.id = resolvedId
+
         this.idToModuleMap.set(resolvedId, mod)
+
         const file = (mod.file = cleanUrl(resolvedId))
         let fileMappedModules = this.fileToModulesMap.get(file)
+
         if (!fileMappedModules) {
           fileMappedModules = new Set()
+
           this.fileToModulesMap.set(file, fileMappedModules)
         }
+
         fileMappedModules.add(mod)
       }
       // multiple urls can map to the same module and id, make sure we register
@@ -378,13 +417,16 @@ export class EnvironmentModuleGraph {
       else if (!this.urlToModuleMap.has(url)) {
         this.urlToModuleMap.set(url, mod)
       }
+
       this._setUnresolvedUrlToModule(rawUrl, mod)
+
       return mod
     })()
 
     // Also register the clean url to the module, so that we can short-circuit
     // resolving the same url twice
     this._setUnresolvedUrlToModule(rawUrl, modPromise)
+
     return modPromise
   }
 
@@ -394,13 +436,17 @@ export class EnvironmentModuleGraph {
   // hmr in the importing css file.
   createFileOnlyEntry(file: string): EnvironmentModuleNode {
     file = normalizePath(file)
+
     let fileMappedModules = this.fileToModulesMap.get(file)
+
     if (!fileMappedModules) {
       fileMappedModules = new Set()
+
       this.fileToModulesMap.set(file, fileMappedModules)
     }
 
     const url = `${FS_PREFIX}${file}`
+
     for (const m of fileMappedModules) {
       if ((m.url === url || m.id === file) && m.type === 'asset') {
         return m
@@ -408,9 +454,12 @@ export class EnvironmentModuleGraph {
     }
 
     const mod = new EnvironmentModuleNode(url, this.environment)
+
     mod.type = 'asset'
     mod.file = file
+
     fileMappedModules.add(mod)
+
     return mod
   }
 
@@ -420,10 +469,13 @@ export class EnvironmentModuleGraph {
   // the same module
   async resolveUrl(url: string): Promise<ResolvedUrl> {
     url = removeImportQuery(removeTimestampQuery(url))
+
     const mod = await this._getUnresolvedUrlToModule(url)
+
     if (mod?.id) {
       return [mod.url, mod.id, mod.meta]
     }
+
     return this._resolveUrl(url)
   }
 
@@ -433,6 +485,7 @@ export class EnvironmentModuleGraph {
   ): void {
     if (this.environment === 'client') {
       const prevEtag = mod.transformResult?.etag
+
       if (prevEtag) this.etagToModuleMap.delete(prevEtag)
       if (result?.etag) this.etagToModuleMap.set(result.etag, mod)
     }
@@ -452,6 +505,7 @@ export class EnvironmentModuleGraph {
   ): Promise<EnvironmentModuleNode> | EnvironmentModuleNode | undefined {
     return this._unresolvedUrlToModuleMap.get(url)
   }
+
   /**
    * @internal
    */
@@ -471,19 +525,23 @@ export class EnvironmentModuleGraph {
   ): Promise<ResolvedUrl> {
     const resolved = alreadyResolved ?? (await this._resolveId(url))
     const resolvedId = resolved?.id || url
+
     if (
       url !== resolvedId &&
       !url.includes('\0') &&
       !url.startsWith(`virtual:`)
     ) {
       const ext = extname(cleanUrl(resolvedId))
+
       if (ext) {
         const pathname = cleanUrl(url)
+
         if (!pathname.endsWith(ext)) {
           url = pathname + ext + url.slice(pathname.length)
         }
       }
     }
+
     return [url, resolvedId, resolved?.meta]
   }
 }

@@ -44,32 +44,40 @@ test "perf: usage example" {
                     \\
                 , .{});
             }
+
             return error.SkipZigTest;
         },
         else => return err,
     };
+
     defer perf.deinit();
 
     var output_memory = std.ArrayList(u8).init(std.testing.allocator);
+
     defer output_memory.deinit();
 
     const scale = 1_000;
+
     try perf.start();
 
     var checksum: u128 = 0;
+
     for (1..scale) |i| {
         checksum += i * i;
     }
+
     const measurement = try perf.lap();
 
     const Parameters = struct { op: []const u8, context: []const u8 };
     var output: PerfTableType(Parameters) = try .init(output_memory.writer().any());
+
     try output.row(&measurement, .{ .checksum = @truncate(checksum), .scale = scale }, .{
         .op = "*",
         .context = "test",
     });
 
     const header, const values = stdx.cut(output_memory.items, "\n").?;
+
     assert(header.len > 0);
     assert(values.len > 0);
     assert(std.mem.startsWith(u8, header, "  op, context, elapsed_ms"));
@@ -77,6 +85,7 @@ test "perf: usage example" {
 }
 
 const PerfCountersLinux = @import("./perf_linux.zig").PerfCounters;
+
 pub const PerfCounters = switch (builtin.target.os.tag) {
     .linux => PerfCountersLinux,
     else => @compileError("PerfCounters only supported on linux"),
@@ -86,6 +95,7 @@ pub const PerfParameters = struct { scale: u64, checksum: u64 };
 
 pub fn PerfTableType(BenchmarkParameters: type) type {
     assert(@typeInfo(BenchmarkParameters) == .@"struct");
+
     const TabularOutput = @import("./tabular.zig").TabularOutputType(&.{
         BenchmarkParameters,
         struct { elapsed_ms: f64 },
@@ -110,6 +120,7 @@ pub fn PerfTableType(BenchmarkParameters: type) type {
             parameters_bench: BenchmarkParameters,
         ) !void {
             const elapsed_ns: f64 = @floatFromInt(measurement.elapsed.ns);
+
             try table.output.write_row(&TabularOutput.row_from_bag(.{
                 parameters_bench,
                 .{ .elapsed_ms = elapsed_ns / std.time.ns_per_ms },
@@ -127,10 +138,13 @@ pub const PerfMeasurement = struct {
 
     fn scaled(measurement: *const PerfMeasurement, scale: f64) CounterType.CollectionType() {
         var result: CounterType.CollectionType() = undefined;
+
         inline for (comptime std.enums.values(CounterType)) |counter_type| {
             const unscaled = @field(measurement.counters, @tagName(counter_type));
+
             @field(result, @tagName(counter_type)) = unscaled / scale;
         }
+
         return result;
     }
 

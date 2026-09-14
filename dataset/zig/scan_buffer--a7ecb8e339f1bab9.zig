@@ -42,6 +42,7 @@ pub fn ScanBufferType(comptime Grid: type) type {
                 .index = options.index,
                 .levels = undefined,
             };
+
             for (&self.levels) |*level| level.init(grid);
         }
 

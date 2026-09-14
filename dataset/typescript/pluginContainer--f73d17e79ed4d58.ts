@@ -37,6 +37,7 @@ import type { RawSourceMap } from '@jridgewell/remapping'
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping'
 import MagicString from 'magic-string'
 import colors from 'picocolors'
+
 import type {
   AsyncPluginHooks,
   CustomPluginOptions,
@@ -64,24 +65,29 @@ import type {
   SourceMap,
   TransformResult,
 } from 'rolldown'
+
 import { parseAst as rolldownParseAst } from 'rolldown/parseAst'
 import type { ESTree } from 'rolldown/utils'
 import type { FSWatcher } from '#dep-types/chokidar'
 import { cleanUrl, unwrapId } from '../../shared/utils'
 import type { PluginHookUtils } from '../config'
 import { FS_PREFIX, VERSION as viteVersion } from '../constants'
+
 import {
   isFutureDeprecationEnabled,
   warnFutureDeprecation,
 } from '../deprecations'
+
 import type { Environment } from '../environment'
 import type { Logger } from '../logger'
 import type { Plugin } from '../plugin'
+
 import {
   createPluginHookUtils,
   getCachedFilterForPlugin,
   getHookHandler,
 } from '../plugins'
+
 import {
   combineSourcemaps,
   createDebugger,
@@ -96,8 +102,10 @@ import {
   rollupVersion,
   timeFrom,
 } from '../utils'
+
 import type { DevEnvironment } from './environment'
 import { buildErrorMessage } from './middlewares/error'
+
 import type {
   EnvironmentModuleGraph,
   EnvironmentModuleNode,
@@ -108,16 +116,21 @@ const EMPTY_OBJECT = Object.freeze({})
 
 const debugSourcemapCombineFilter =
   process.env.DEBUG_VITE_SOURCEMAP_COMBINE_FILTER
+
 const debugSourcemapCombine = createDebugger('vite:sourcemap-combine', {
   onlyWhenFocused: true,
 })
+
 const debugResolve = createDebugger('vite:resolve')
+
 const debugPluginResolve = createDebugger('vite:plugin-resolve', {
   onlyWhenFocused: 'vite:plugin',
 })
+
 const debugPluginTransform = createDebugger('vite:plugin-transform', {
   onlyWhenFocused: 'vite:plugin',
 })
+
 const debugPluginContainerContext = createDebugger(
   'vite:plugin-container-context',
 )
@@ -128,7 +141,9 @@ export function throwClosedServerError(): never {
   const err: any = new Error(
     'The server is being restarted or closed. Request is outdated',
   )
+
   err.code = ERR_CLOSED_SERVER
+
   // This error will be caught by the transform middleware that will
   // send a 504 status code request timeout
   throw err
@@ -153,7 +168,9 @@ export async function createEnvironmentPluginContainer<
     watcher,
     autoStart,
   )
+
   await container.resolveRolldownOptions()
+
   return container
 }
 
@@ -166,7 +183,9 @@ export type SkipInformation = {
 
 class EnvironmentPluginContainer<Env extends Environment = Environment> {
   private _pluginContextMap = new Map<Plugin, PluginContext>()
+
   private _resolvedRolldownOptions?: InputOptions
+
   private _processesing = new Set<Promise<any>>()
   private _seenResolves: Record<string, true | undefined> = {}
 
@@ -180,11 +199,15 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
   getSortedPlugins: PluginHookUtils['getSortedPlugins']
 
   moduleGraph: EnvironmentModuleGraph | undefined
+
   watchFiles: Set<string> = new Set()
+
   minimalContext: MinimalPluginContext<Env>
 
   private _started = false
+
   private _buildStartPromise: Promise<void> | undefined
+
   private _closed = false
 
   /**
@@ -197,13 +220,17 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     autoStart = true,
   ) {
     this._started = !autoStart
+
     this.minimalContext = new MinimalPluginContext(
       { ...basePluginContextMeta, watchMode: true },
       environment,
     )
+
     const utils = createPluginHookUtils(plugins)
+
     this.getSortedPlugins = utils.getSortedPlugins
     this.getSortedPluginHooks = utils.getSortedPluginHooks
+
     this.moduleGraph =
       environment.mode === 'dev' ? environment.moduleGraph : undefined
   }
@@ -213,6 +240,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     addedImports: Set<string> | null,
   ): void {
     const module = this.moduleGraph?.getModuleById(id)
+
     if (module) {
       this._moduleNodeToLoadAddedImports.set(module, addedImports)
     }
@@ -220,6 +248,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
 
   private _getAddedImports(id: string): Set<string> | null {
     const module = this.moduleGraph?.getModuleById(id)
+
     return module
       ? this._moduleNodeToLoadAddedImports.get(module) || null
       : null
@@ -227,9 +256,11 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
 
   getModuleInfo(id: string): ModuleInfo | null {
     const module = this.moduleGraph?.getModuleById(id)
+
     if (!module) {
       return null
     }
+
     if (!module.info) {
       module.info = new Proxy(
         { id, meta: module.meta || EMPTY_OBJECT } as ModuleInfo,
@@ -240,10 +271,12 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
             if (key in info) {
               return info[key]
             }
+
             // Don't throw an error when returning from an async function
             if (key === 'then') {
               return undefined
             }
+
             throw Error(
               `[vite] The "${key}" property of ModuleInfo is not supported.`,
             )
@@ -251,6 +284,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
         },
       )
     }
+
     return module.info ?? null
   }
 
@@ -259,8 +293,11 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     if (!(maybePromise as any)?.then) {
       return maybePromise
     }
+
     const promise = maybePromise as Promise<T>
+
     this._processesing.add(promise)
+
     return promise.finally(() => this._processesing.delete(promise))
   }
 
@@ -271,17 +308,21 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
   async resolveRolldownOptions(): Promise<InputOptions> {
     if (!this._resolvedRolldownOptions) {
       let options = this.environment.config.build.rolldownOptions
+
       for (const optionsHook of this.getSortedPluginHooks('options')) {
         if (this._closed) {
           throwClosedServerError()
         }
+
         options =
           (await this.handleHookPromise(
             optionsHook.call(this.minimalContext, options),
           )) || options
       }
+
       this._resolvedRolldownOptions = options
     }
+
     return this._resolvedRolldownOptions
   }
 
@@ -289,6 +330,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     if (!this._pluginContextMap.has(plugin)) {
       this._pluginContextMap.set(plugin, new PluginContext(plugin, this))
     }
+
     return this._pluginContextMap.get(plugin)!
   }
 
@@ -300,20 +342,25 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     condition?: (plugin: Plugin) => boolean | undefined,
   ): Promise<void> {
     const parallelPromises: Promise<unknown>[] = []
+
     for (const plugin of this.getSortedPlugins(hookName)) {
       // Don't throw here if closed, so buildEnd and closeBundle hooks can finish running
       if (condition && !condition(plugin)) continue
 
       const hook = plugin[hookName]
       const handler: Function = getHookHandler(hook)
+
       if ((hook as { sequential?: boolean }).sequential) {
         await Promise.all(parallelPromises)
+
         parallelPromises.length = 0
+
         await handler.apply(context(plugin), args(plugin))
       } else {
         parallelPromises.push(handler.apply(context(plugin), args(plugin)))
       }
     }
+
     await Promise.all(parallelPromises)
   }
 
@@ -322,10 +369,14 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
       if (this._buildStartPromise) {
         await this._buildStartPromise
       }
+
       return
     }
+
     this._started = true
+
     const config = this.environment.getTopLevelConfig()
+
     const hookPromise = this.handleHookPromise(
       this.hookParallel(
         'buildStart',
@@ -337,13 +388,17 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
           plugin.perEnvironmentStartEndDuringDev,
       ),
     ) as Promise<void>
+
     this._buildStartPromise = (async () => {
       await hookPromise
+
       if (this.environment.mode === 'dev') {
         await this.environment._registerInputsAsSafeModules()
       }
     })()
+
     await this._buildStartPromise
+
     this._buildStartPromise = undefined
   }
 
@@ -369,8 +424,10 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
   ): Promise<PartialResolvedId | null> {
     if (!this._started) {
       this.buildStart()
+
       await this._buildStartPromise
     }
+
     const skip = options?.skip
     const skipCalls = options?.skipCalls
     const scan = !!options?.scan
@@ -379,6 +436,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     const topLevelConfig = this.environment.getTopLevelConfig()
 
     const mergedSkip = new Set<Plugin>(skip)
+
     for (const call of skipCalls ?? []) {
       if (call.called || (call.id === rawId && call.importer === importer)) {
         mergedSkip.add(call.plugin)
@@ -386,14 +444,18 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     }
 
     const resolveStart = debugResolve ? performance.now() : 0
+
     let id: string | null = null
     const partial: Partial<PartialResolvedId> = {}
+
     for (const plugin of this.getSortedPlugins('resolveId')) {
       if (this._closed && this.environment.config.dev.recoverable)
         throwClosedServerError()
+
       if (mergedSkip?.has(plugin)) continue
 
       const filter = getCachedFilterForPlugin(plugin, 'resolveId')
+
       if (filter && !filter(rawId)) continue
 
       ctx._plugin = plugin
@@ -406,6 +468,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
         ssr,
         scan,
       }
+
       if (
         isFutureDeprecationEnabled(
           topLevelConfig,
@@ -413,6 +476,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
         )
       ) {
         let ssrTemp = ssr
+
         Object.defineProperty(normalizedOptions, 'ssr', {
           get() {
             warnFutureDeprecation(
@@ -420,6 +484,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
               'removePluginHookSsrArgument',
               `Used in plugin "${plugin.name}".`,
             )
+
             return ssrTemp
           },
           set(v) {
@@ -430,15 +495,18 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
 
       const pluginResolveStart = debugPluginResolve ? performance.now() : 0
       const handler = getHookHandler(plugin.resolveId)
+
       const result = await this.handleHookPromise(
         handler.call(ctx as any, rawId, importer, normalizedOptions),
       )
+
       if (!result) continue
 
       if (typeof result === 'string') {
         id = result
       } else {
         id = result.id
+
         Object.assign(partial, result)
       }
 
@@ -454,9 +522,11 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
 
     if (debugResolve && rawId !== id && !rawId.startsWith(FS_PREFIX)) {
       const key = rawId + id
+
       // avoid spamming
       if (!this._seenResolves[key]) {
         this._seenResolves[key] = true
+
         debugResolve(
           `${timeFrom(resolveStart)} ${colors.cyan(rawId)} -> ${colors.dim(
             id,
@@ -467,6 +537,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
 
     if (id) {
       partial.id = isExternalUrl(id) || id[0] === '\0' ? id : normalizePath(id)
+
       return partial as PartialResolvedId
     } else {
       return null
@@ -478,11 +549,13 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     const topLevelConfig = this.environment.getTopLevelConfig()
     const options = { ssr }
     const ctx = new LoadPluginContext(this)
+
     for (const plugin of this.getSortedPlugins('load')) {
       if (this._closed && this.environment.config.dev.recoverable)
         throwClosedServerError()
 
       const filter = getCachedFilterForPlugin(plugin, 'load')
+
       if (filter && !filter(id)) continue
 
       ctx._plugin = plugin
@@ -500,6 +573,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
               'removePluginHookSsrArgument',
               `Used in plugin "${plugin.name}".`,
             )
+
             return ssr
           },
           set(v) {
@@ -509,18 +583,24 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
       }
 
       const handler = getHookHandler(plugin.load)
+
       const result = await this.handleHookPromise(
         handler.call(ctx as any, id, options),
       )
+
       if (result != null) {
         if (isObject(result)) {
           ctx._updateModuleInfo(id, result)
         }
+
         this._updateModuleLoadAddedImports(id, ctx._addedImports)
+
         return result
       }
     }
+
     this._updateModuleLoadAddedImports(id, ctx._addedImports)
+
     return null
   }
 
@@ -538,12 +618,15 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
   }> {
     let ssr = this.environment.config.consumer === 'server'
     const topLevelConfig = this.environment.getTopLevelConfig()
+
     const optionsWithSSR = options
       ? { ...options, ssr, moduleType: options.moduleType ?? 'js' }
       : { ssr, moduleType: 'js' }
+
     const inMap = options?.inMap
 
     const ctx = new TransformPluginContext(this, id, code, inMap as SourceMap)
+
     ctx._addedImports = this._getAddedImports(id)
 
     for (const plugin of this.getSortedPlugins('transform')) {
@@ -551,6 +634,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
         throwClosedServerError()
 
       const filter = getCachedFilterForPlugin(plugin, 'transform')
+
       if (filter && !filter(id, code, optionsWithSSR.moduleType)) continue
 
       if (
@@ -566,6 +650,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
               'removePluginHookSsrArgument',
               `Used in plugin "${plugin.name}".`,
             )
+
             return ssr
           },
           set(v) {
@@ -575,9 +660,13 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
       }
 
       ctx._updateActiveInfo(plugin, id, code)
+
       const start = debugPluginTransform ? performance.now() : 0
+
       let result: TransformResult | string | undefined
+
       const handler = getHookHandler(plugin.transform)
+
       try {
         result = await this.handleHookPromise(
           handler.call(ctx as any, code, id, optionsWithSSR),
@@ -585,31 +674,39 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
       } catch (e) {
         ctx.error(e)
       }
+
       if (!result) continue
+
       debugPluginTransform?.(
         timeFrom(start),
         plugin.name,
         prettifyUrl(id, this.environment.config.root),
       )
+
       if (isObject(result)) {
         if (result.code !== undefined) {
           code = result.code as string
+
           if (result.map) {
             if (debugSourcemapCombine) {
               // @ts-expect-error inject plugin name for debug purpose
               result.map.name = plugin.name
             }
+
             ctx.sourcemapChain.push(result.map)
           }
         }
+
         if (result.moduleType !== undefined) {
           optionsWithSSR.moduleType = result.moduleType
         }
+
         ctx._updateModuleInfo(id, result)
       } else {
         code = result
       }
     }
+
     return {
       code,
       map: ctx._getCombinedSourcemap(),
@@ -622,6 +719,7 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     change: { event: 'create' | 'update' | 'delete' },
   ): Promise<void> {
     const config = this.environment.getTopLevelConfig()
+
     await this.hookParallel(
       'watchChange',
       (plugin) => this._getPluginContext(plugin),
@@ -635,10 +733,15 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
 
   async close(): Promise<void> {
     if (this._closed) return
+
     this._closed = true
+
     await Promise.allSettled([...this._processesing])
+
     const config = this.environment.getTopLevelConfig()
+
     let buildEndError: Error | undefined
+
     try {
       await this.hookParallel(
         'buildEnd',
@@ -652,11 +755,13 @@ class EnvironmentPluginContainer<Env extends Environment = Environment> {
     } catch (error) {
       buildEndError = error as Error
     }
+
     await this.hookParallel(
       'closeBundle',
       (plugin) => this._getPluginContext(plugin),
       () => [buildEndError],
     )
+
     if (buildEndError) {
       throw buildEndError
     }
@@ -688,27 +793,32 @@ export class BasicMinimalPluginContext<Meta = PluginContextMeta> {
   debug(rawLog: string | RollupLog | (() => string | RollupLog)): void {
     const log = this._normalizeRawLog(rawLog)
     const msg = buildErrorMessage(log, [`debug: ${log.message}`], false)
+
     debugPluginContainerContext?.(msg)
   }
 
   info(rawLog: string | RollupLog | (() => string | RollupLog)): void {
     const log = this._normalizeRawLog(rawLog)
     const msg = buildErrorMessage(log, [`info: ${log.message}`], false)
+
     this._logger.info(msg, { clear: true, timestamp: true })
   }
 
   warn(rawLog: string | RollupLog | (() => string | RollupLog)): void {
     const log = this._normalizeRawLog(rawLog)
+
     const msg = buildErrorMessage(
       log,
       [colors.yellow(`warning: ${log.message}`)],
       false,
     )
+
     this._logger.warn(msg, { clear: true, timestamp: true })
   }
 
   error(e: string | RollupError): never {
     const err = (typeof e === 'string' ? new Error(e) : e) as RollupError
+
     throw err
   }
 
@@ -716,6 +826,7 @@ export class BasicMinimalPluginContext<Meta = PluginContextMeta> {
     rawLog: string | RollupLog | (() => string | RollupLog),
   ): RollupLog {
     const logValue = typeof rawLog === 'function' ? rawLog() : rawLog
+
     return typeof logValue === 'string' ? new Error(logValue) : logValue
   }
 }
@@ -725,8 +836,10 @@ class MinimalPluginContext<T extends Environment = Environment>
   implements RollupMinimalPluginContext
 {
   public environment: T
+
   constructor(meta: PluginContextMeta, environment: T) {
     super(meta, environment.logger)
+
     this.environment = environment
   }
 }
@@ -786,14 +899,17 @@ class PluginContext
     },
   ): Promise<ResolvedId | null> {
     let skipCalls: readonly SkipInformation[] | undefined
+
     if (options?.skipSelf === false) {
       skipCalls = this._resolveSkipCalls
     } else if (this._resolveSkipCalls) {
       const skipCallsTemp = [...this._resolveSkipCalls]
+
       const sameCallIndex = this._resolveSkipCalls.findIndex(
         (c) =>
           c.id === id && c.importer === importer && c.plugin === this._plugin,
       )
+
       if (sameCallIndex !== -1) {
         skipCallsTemp[sameCallIndex] = {
           ...skipCallsTemp[sameCallIndex],
@@ -802,6 +918,7 @@ class PluginContext
       } else {
         skipCallsTemp.push({ id, importer, plugin: this._plugin })
       }
+
       skipCalls = skipCallsTemp
     } else {
       skipCalls = [{ id, importer, plugin: this._plugin }]
@@ -815,7 +932,9 @@ class PluginContext
       skipCalls,
       scan: this._scan,
     })
+
     if (typeof out === 'string') out = { id: out }
+
     return out as ResolvedId | null
   }
 
@@ -827,21 +946,25 @@ class PluginContext
   ): Promise<ModuleInfo> {
     // We may not have added this to our module graph yet, so ensure it exists
     await this._container.moduleGraph?.ensureEntryFromUrl(unwrapId(options.id))
+
     // Not all options passed to this function make sense in the context of loading individual files,
     // but we can at least update the module info properties we support
     this._updateModuleInfo(options.id, options)
 
     const loadResult = await this._container.load(options.id)
     const code = typeof loadResult === 'object' ? loadResult?.code : loadResult
+
     if (code != null) {
       await this._container.transform(code, options.id)
     }
 
     const moduleInfo = this.getModuleInfo(options.id)
+
     // This shouldn't happen due to calling ensureEntryFromUrl, but 1) our types can't ensure that
     // and 2) moduleGraph may not have been provided (though in the situations where that happens,
     // we should never have plugins calling this.load)
     if (!moduleInfo) throw Error(`Failed to load module with id ${options.id}`)
+
     return moduleInfo
   }
 
@@ -852,6 +975,7 @@ class PluginContext
   _updateModuleInfo(id: string, { meta }: { meta?: object | null }): void {
     if (meta) {
       const moduleInfo = this.getModuleInfo(id)
+
       if (moduleInfo) {
         moduleInfo.meta = { ...moduleInfo.meta, ...meta }
       }
@@ -866,6 +990,7 @@ class PluginContext
 
   addWatchFile(id: string): void {
     this._container.watchFiles.add(id)
+
     if (this._container.watcher)
       ensureWatchedFile(
         this._container.watcher,
@@ -880,6 +1005,7 @@ class PluginContext
 
   emitFile(_assetOrFile: EmittedFile): string {
     this._warnIncompatibleMethod(`emitFile`)
+
     return ''
   }
 
@@ -889,16 +1015,19 @@ class PluginContext
 
   getFileName(): string {
     this._warnIncompatibleMethod(`getFileName`)
+
     return ''
   }
 
   override debug(log: string | RollupLog | (() => string | RollupLog)): void {
     const err = this._formatLog(typeof log === 'function' ? log() : log)
+
     super.debug(err)
   }
 
   override info(log: string | RollupLog | (() => string | RollupLog)): void {
     const err = this._formatLog(typeof log === 'function' ? log() : log)
+
     super.info(err)
   }
 
@@ -910,6 +1039,7 @@ class PluginContext
       typeof log === 'function' ? log() : log,
       position,
     )
+
     super.warn(err)
   }
 
@@ -927,11 +1057,15 @@ class PluginContext
     position?: number | { column: number; line: number },
   ): E {
     const err = (typeof e === 'string' ? new Error(e) : e) as E
+
     if (err.pluginCode) {
       return err // The plugin likely called `this.error`
     }
+
     err.plugin = this._plugin.name
+
     if (this._activeId && !err.id) err.id = this._activeId
+
     if (this._activeCode) {
       err.pluginCode = this._activeCode
 
@@ -940,6 +1074,7 @@ class PluginContext
 
       if (pos != null) {
         let errLocation
+
         try {
           errLocation = numberToPos(this._activeCode, pos)
         } catch (err2) {
@@ -950,23 +1085,29 @@ class PluginContext
             // print extra newline to separate the two errors
             { error: err2 },
           )
+
           throw err
         }
+
         err.loc = err.loc || {
           file: err.id,
           ...errLocation,
         }
+
         err.frame = err.frame || generateCodeFrame(this._activeCode, pos)
       } else if (err.loc) {
         // css preprocessors may report errors in an included file
         if (!err.frame) {
           let code = this._activeCode
+
           if (err.loc.file) {
             err.id = normalizePath(err.loc.file)
+
             try {
               code = fs.readFileSync(err.loc.file, 'utf-8')
             } catch {}
           }
+
           err.frame = generateCodeFrame(code, err.loc)
         }
       } else if ((err as any).line && (err as any).column) {
@@ -975,6 +1116,7 @@ class PluginContext
           line: (err as any).line,
           column: (err as any).column,
         }
+
         err.frame = err.frame || generateCodeFrame(this._activeCode, err.loc)
       }
 
@@ -985,12 +1127,15 @@ class PluginContext
         typeof err.loc.column === 'number'
       ) {
         const rawSourceMap = this._getCombinedSourcemap()
+
         if (rawSourceMap && 'version' in rawSourceMap) {
           const traced = new TraceMap(rawSourceMap as any)
+
           const { source, line, column } = originalPositionFor(traced, {
             line: Number(err.loc.line),
             column: Number(err.loc.column),
           })
+
           if (source) {
             err.loc = { file: source, line, column }
           }
@@ -999,14 +1144,17 @@ class PluginContext
     } else if (err.loc) {
       if (!err.frame) {
         let code = err.pluginCode
+
         if (err.loc.file) {
           err.id = normalizePath(err.loc.file)
+
           if (!code) {
             try {
               code = fs.readFileSync(err.loc.file, 'utf-8')
             } catch {}
           }
         }
+
         if (code) {
           err.frame = generateCodeFrame(`${code}`, err.loc)
         }
@@ -1044,6 +1192,7 @@ class ResolveIdContext extends PluginContext {
     scan: boolean,
   ) {
     super(null!, container)
+
     this._resolveSkips = skip
     this._resolveSkipCalls = skipCalls
     this._scan = scan
@@ -1061,6 +1210,7 @@ class LoadPluginContext extends PluginContext {
     if (!this._addedImports) {
       this._addedImports = new Set()
     }
+
     this._addedImports.add(id)
     super.addWatchFile(id)
   }
@@ -1086,11 +1236,13 @@ class TransformPluginContext
 
     this.filename = id
     this.originalCode = code
+
     if (inMap) {
       if (debugSourcemapCombine) {
         // @ts-expect-error inject name for debug purpose
         inMap.name = '$inMap'
       }
+
       this.sourcemapChain.push(inMap)
     }
   }
@@ -1108,6 +1260,7 @@ class TransformPluginContext
     }
 
     let combinedMap = this.combinedMap
+
     // { mappings: '' }
     if (
       combinedMap &&
@@ -1115,23 +1268,30 @@ class TransformPluginContext
       combinedMap.mappings === ''
     ) {
       this.sourcemapChain.length = 0
+
       return combinedMap
     }
 
     for (let m of this.sourcemapChain) {
       if (typeof m === 'string') m = JSON.parse(m)
+
       if (!('version' in (m as SourceMap))) {
         // { mappings: '' }
         if ((m as SourceMap).mappings === '') {
           combinedMap = { mappings: '' }
+
           break
         }
+
         // empty, nullified source map
         combinedMap = null
+
         break
       }
+
       if (!combinedMap) {
         const sm = m as SourceMap
+
         // sourcemap should not include `sources: [null]` (because `sources` should be string) nor
         // `sources: ['']` (because `''` means the path of sourcemap)
         // but MagicString generates this when `filename` option is not set.
@@ -1152,15 +1312,18 @@ class TransformPluginContext
         ]) as SourceMap
       }
     }
+
     if (combinedMap !== this.combinedMap) {
       this.combinedMap = combinedMap
       this.sourcemapChain.length = 0
     }
+
     return this.combinedMap
   }
 
   getCombinedSourcemap(): SourceMap {
     const map = this._getCombinedSourcemap()
+
     if (!map || (!('version' in map) && map.mappings === '')) {
       return new MagicString(this.originalCode).generateMap({
         includeContent: true,
@@ -1168,6 +1331,7 @@ class TransformPluginContext
         source: cleanUrl(this.filename),
       }) as SourceMap
     }
+
     return map
   }
 
@@ -1211,6 +1375,7 @@ class PluginContainer {
     const clientModuleInfo = (
       this.environments.client as DevEnvironment
     ).pluginContainer.getModuleInfo(id)
+
     const ssrModuleInfo = (
       this.environments.ssr as DevEnvironment
     ).pluginContainer.getModuleInfo(id)
@@ -1223,19 +1388,24 @@ class PluginContainer {
         // need to merge it here
         if (key === 'meta') {
           const meta: Record<string, any> = {}
+
           if (ssrModuleInfo) {
             Object.assign(meta, ssrModuleInfo.meta)
           }
+
           if (clientModuleInfo) {
             Object.assign(meta, clientModuleInfo.meta)
           }
+
           return meta
         }
+
         if (clientModuleInfo) {
           if (key in clientModuleInfo) {
             return clientModuleInfo[key as keyof ModuleInfo]
           }
         }
+
         if (ssrModuleInfo) {
           if (key in ssrModuleInfo) {
             return ssrModuleInfo[key as keyof ModuleInfo]

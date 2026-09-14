@@ -44,6 +44,7 @@ var global: SmpAllocator = .{
     .threads = @splat(.{}),
     .cpu_count = 0,
 };
+
 threadlocal var thread_index: u32 = 0;
 
 const max_thread_count = 128;
@@ -72,20 +73,29 @@ const Thread = struct {
 
     fn lock() *Thread {
         var index = thread_index;
+
         {
             const t = &global.threads[index];
+
             if (t.mutex.tryLock()) {
                 @branchHint(.likely);
+
                 return t;
             }
         }
+
         const cpu_count = getCpuCount();
+
         assert(cpu_count != 0);
+
         while (true) {
             index = (index + 1) % cpu_count;
+
             const t = &global.threads[index];
+
             if (t.mutex.tryLock()) {
                 thread_index = index;
+
                 return t;
             }
         }
@@ -98,8 +108,11 @@ const Thread = struct {
 
 fn getCpuCount() u32 {
     const cpu_count = @atomicLoad(u32, &global.cpu_count, .unordered);
+
     if (cpu_count != 0) return cpu_count;
+
     const n: u32 = @min(std.Thread.getCpuCount() catch max_thread_count, max_thread_count);
+
     return if (@cmpxchgStrong(u32, &global.cpu_count, 0, n, .monotonic, .monotonic)) |other| other else n;
 }
 
@@ -117,55 +130,79 @@ comptime {
 fn alloc(context: *anyopaque, len: usize, alignment: mem.Alignment, ra: usize) ?[*]u8 {
     _ = context;
     _ = ra;
+
     const class = sizeClassIndex(len, alignment);
+
     if (class >= size_class_count) {
         @branchHint(.unlikely);
+
         return PageAllocator.map(len, alignment);
     }
 
     const slot_size = slotSize(class);
+
     assert(slab_len % slot_size == 0);
+
     var search_count: u8 = 0;
 
     var t = Thread.lock();
 
     outer: while (true) {
         const top_free_ptr = t.frees[class];
+
         if (top_free_ptr != 0) {
             @branchHint(.likely);
+
             defer t.unlock();
+
             const node: *usize = @ptrFromInt(top_free_ptr);
+
             t.frees[class] = node.*;
+
             return @ptrFromInt(top_free_ptr);
         }
 
         const next_addr = t.next_addrs[class];
+
         if ((next_addr % slab_len) != 0) {
             @branchHint(.likely);
+
             defer t.unlock();
+
             t.next_addrs[class] = next_addr + slot_size;
+
             return @ptrFromInt(next_addr);
         }
 
         if (search_count >= max_alloc_search) {
             @branchHint(.likely);
+
             defer t.unlock();
+
             // slab alignment here ensures the % slab len earlier catches the end of slots.
             const slab = PageAllocator.map(slab_len, .fromByteUnits(slab_len)) orelse return null;
+
             t.next_addrs[class] = @intFromPtr(slab) + slot_size;
+
             return slab;
         }
 
         t.unlock();
+
         const cpu_count = getCpuCount();
+
         assert(cpu_count != 0);
+
         var index = thread_index;
+
         while (true) {
             index = (index + 1) % cpu_count;
             t = &global.threads[index];
+
             if (t.mutex.tryLock()) {
                 thread_index = index;
                 search_count += 1;
+
                 continue :outer;
             }
         }
@@ -175,39 +212,51 @@ fn alloc(context: *anyopaque, len: usize, alignment: mem.Alignment, ra: usize) ?
 fn resize(context: *anyopaque, memory: []u8, alignment: mem.Alignment, new_len: usize, ra: usize) bool {
     _ = context;
     _ = ra;
+
     const class = sizeClassIndex(memory.len, alignment);
     const new_class = sizeClassIndex(new_len, alignment);
+
     if (class >= size_class_count) {
         if (new_class < size_class_count) return false;
+
         return PageAllocator.realloc(memory, new_len, false) != null;
     }
+
     return new_class == class;
 }
 
 fn remap(context: *anyopaque, memory: []u8, alignment: mem.Alignment, new_len: usize, ra: usize) ?[*]u8 {
     _ = context;
     _ = ra;
+
     const class = sizeClassIndex(memory.len, alignment);
     const new_class = sizeClassIndex(new_len, alignment);
+
     if (class >= size_class_count) {
         if (new_class < size_class_count) return null;
+
         return PageAllocator.realloc(memory, new_len, true);
     }
+
     return if (new_class == class) memory.ptr else null;
 }
 
 fn free(context: *anyopaque, memory: []u8, alignment: mem.Alignment, ra: usize) void {
     _ = context;
     _ = ra;
+
     const class = sizeClassIndex(memory.len, alignment);
+
     if (class >= size_class_count) {
         @branchHint(.unlikely);
+
         return PageAllocator.unmap(@alignCast(memory));
     }
 
     const node: *usize = @ptrCast(@alignCast(memory.ptr));
 
     const t = Thread.lock();
+
     defer t.unlock();
 
     node.* = t.frees[class];

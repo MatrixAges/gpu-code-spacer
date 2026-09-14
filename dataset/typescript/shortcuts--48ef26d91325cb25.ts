@@ -44,8 +44,10 @@ export function bindCLIShortcuts<Server extends ViteDevServer | PreviewServer>(
   // Merge shortcuts: new at top, existing updated in place (keeps manual > plugin order)
   const previousShortcuts =
     server._shortcutsState?.options.customShortcuts ?? []
+
   const newShortcuts = opts?.customShortcuts ?? []
   const previousKeys = new Set(previousShortcuts.map((s) => s.key))
+
   const customShortcuts: CLIShortcut<ViteDevServer | PreviewServer>[] = [
     ...newShortcuts.filter((s) => !previousKeys.has(s.key)),
     ...previousShortcuts.map(
@@ -79,12 +81,15 @@ export function bindCLIShortcuts<Server extends ViteDevServer | PreviewServer>(
     if (actionRunning) return
 
     input = input.trim().toLocaleLowerCase()
+
     if (input === 'h') {
       const loggedKeys = new Set<string>()
+
       server.config.logger.info('\n  Shortcuts')
 
       for (const shortcut of shortcuts) {
         if (loggedKeys.has(shortcut.key)) continue
+
         loggedKeys.add(shortcut.key)
 
         if (shortcut.action == null) continue
@@ -100,10 +105,13 @@ export function bindCLIShortcuts<Server extends ViteDevServer | PreviewServer>(
     }
 
     const shortcut = shortcuts.find((shortcut) => shortcut.key === input)
+
     if (!shortcut || shortcut.action == null) return
 
     actionRunning = true
+
     await shortcut.action(server)
+
     actionRunning = false
   }
 
@@ -112,12 +120,14 @@ export function bindCLIShortcuts<Server extends ViteDevServer | PreviewServer>(
       rl: readline.createInterface({ input: process.stdin }),
       options: newOptions,
     }
+
     server.httpServer.on('close', () => {
       // Skip if detached during restart (readline is reused)
       if (server._shortcutsState) server._shortcutsState.rl.close()
     })
   } else {
     server._shortcutsState.rl.removeAllListeners('line')
+
     ;(server._shortcutsState.options as BindCLIShortcutsOptions<Server>) =
       newOptions
   }
@@ -175,6 +185,7 @@ const BASE_PREVIEW_SHORTCUTS: CLIShortcut<PreviewServer>[] = [
     action(server) {
       const url =
         server.resolvedUrls?.local[0] ?? server.resolvedUrls?.network[0]
+
       if (url) {
         openBrowser(url, true, server.config.logger)
       } else {

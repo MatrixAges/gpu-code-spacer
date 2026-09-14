@@ -4,16 +4,13 @@ const assert = std.debug.assert;
 const maybe = stdx.maybe;
 const mem = std.mem;
 const log = std.log.scoped(.forest);
-
 const stdx = @import("stdx");
 const constants = @import("../constants.zig");
-
 const schema = @import("schema.zig");
 const GridType = @import("../vsr/grid.zig").GridType;
 const NodePool = @import("node_pool.zig").NodePoolType(constants.lsm_manifest_node_size, 16);
 const ManifestLogType = @import("manifest_log.zig").ManifestLogType;
 const ManifestLogPace = @import("manifest_log.zig").Pace;
-
 const ScratchMemory = @import("scratch_memory.zig").ScratchMemory;
 const ScanBufferPoolType = @import("scan_buffer.zig").ScanBufferPoolType;
 const ResourcePoolType = @import("compaction.zig").ResourcePoolType;
@@ -35,6 +32,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
     for (std.meta.fields(@TypeOf(groove_cfg)), 0..) |field, i| {
         const Groove = @field(groove_cfg, field.name);
+
         groove_fields[i] = .{
             .name = field.name,
             .type = Groove,
@@ -79,6 +77,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
             for (std.meta.fields(@TypeOf(Groove.config.ids))) |field| {
                 const id = @field(Groove.config.ids, field.name);
+
                 assert(id > 0);
                 assert(std.mem.indexOfScalar(u16, ids, id) == null);
 
@@ -102,6 +101,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
         @setEvalBranchQuota(32_000);
 
         var tree_infos: []const TreeInfo = &[_]TreeInfo{};
+
         for (std.meta.fields(_Grooves)) |groove_field| {
             const Groove = groove_field.type;
 
@@ -125,15 +125,19 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
         }
 
         var tree_id_min = std.math.maxInt(u16);
+
         for (tree_infos) |tree_info| tree_id_min = @min(tree_id_min, tree_info.tree_id);
 
         var tree_infos_sorted: [tree_infos.len]TreeInfo = undefined;
         var tree_infos_set: stdx.BitSetType(tree_infos.len) = .{};
+
         for (tree_infos) |tree_info| {
             const tree_index = tree_info.tree_id - tree_id_min;
+
             assert(!tree_infos_set.is_set(tree_index));
 
             tree_infos_sorted[tree_index] = tree_info;
+
             tree_infos_set.set(tree_index);
         }
 
@@ -145,12 +149,14 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
     const _TreeID = comptime tree_id: {
         var fields: [_tree_infos.len]std.builtin.Type.EnumField = undefined;
+
         for (_tree_infos, 0..) |tree_info, i| {
             fields[i] = .{
                 .name = @ptrCast(tree_info.tree_name),
                 .value = tree_info.tree_id,
             };
         }
+
         break :tree_id @Type(.{ .@"enum" = .{
             .tag_type = u16,
             .fields = &fields,
@@ -161,8 +167,10 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
     comptime {
         assert(std.enums.values(_TreeID).len == _tree_infos.len);
+
         for (std.enums.values(_TreeID)) |tree_id| {
             const tree_info = _tree_infos[@intFromEnum(tree_id) - _tree_infos[0].tree_id];
+
             assert(tree_id == @as(_TreeID, @enumFromInt(tree_info.tree_id)));
         }
     }
@@ -187,6 +195,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
         // Use `tree_id_cast` function to convert this type-erased u16 to a TreeID.
         pub const TreeID = _TreeID;
         pub const tree_infos = _tree_infos;
+
         pub const tree_id_range = .{
             .min = tree_infos[0].tree_id,
             .max = tree_infos[tree_infos.len - 1].tree_id,
@@ -199,6 +208,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             .tables_max = table_count_max,
             .compact_extra_blocks = constants.lsm_manifest_compact_extra_blocks,
         });
+
         pub const manifest_log_blocks_released_half_bar_max =
             manifest_log_compaction_pace.half_bar_compact_blocks_max;
 
@@ -211,10 +221,12 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
             pub const compaction_block_count_min: u32 = compaction_block_count_beat_min;
         };
+
         const ResourcePool = ResourcePoolType(Grid);
 
         progress: ?union(enum) {
             open: struct { callback: Callback },
+
             checkpoint: struct {
                 callback: Callback,
                 manifest_log_done: bool,
@@ -224,6 +236,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                     return progress.trees_done and progress.manifest_log_done;
                 }
             },
+
             compact: struct {
                 op: u64,
                 callback: Callback,
@@ -245,12 +258,9 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
         grooves: Grooves,
         node_pool: NodePool,
         manifest_log: ManifestLog,
-
         resource_pool: ResourcePool,
-
         scan_buffer_pool: ScanBufferPool,
         flush: Grid.Flush = undefined,
-
         radix_buffer: ScratchMemory,
 
         pub fn init(
@@ -262,6 +272,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             grooves_options: GroovesOptions,
         ) !void {
             assert(options.compaction_block_count >= Options.compaction_block_count_min);
+
             forest.* = .{
                 .grid = grid,
                 .grooves = undefined,
@@ -274,36 +285,46 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
             // TODO: look into using lsm_table_size_max for the node_count.
             try forest.node_pool.init(allocator, options.node_count);
+
             errdefer forest.node_pool.deinit(allocator);
 
             try forest.manifest_log.init(allocator, grid, &manifest_log_compaction_pace);
+
             errdefer forest.manifest_log.deinit(allocator);
 
             var grooves_initialized: usize = 0;
+
             errdefer inline for (std.meta.fields(Grooves), 0..) |field, field_index| {
                 if (grooves_initialized >= field_index + 1) {
                     const Groove = field.type;
                     const groove: *Groove = &@field(forest.grooves, field.name);
+
                     groove.deinit(allocator);
                 }
             };
 
             const radix_buffer_size: usize = comptime blk: {
                 var size_max: usize = 0;
+
                 for (std.enums.values(_TreeID)) |tree_id| {
                     const tree = _tree_infos[@intFromEnum(tree_id) - _tree_infos[0].tree_id];
                     const size = tree.Tree.Table.value_count_max * @sizeOf(tree.Tree.Value);
+
                     assert(size > 0);
+
                     size_max = @max(size_max, size);
                 }
+
                 break :blk size_max;
             };
 
             forest.radix_buffer = try .init(allocator, radix_buffer_size);
+
             errdefer forest.radix_buffer.deinit(allocator);
 
             forest.resource_pool =
                 try ResourcePool.init(allocator, grid, options.compaction_block_count);
+
             errdefer forest.resource_pool.deinit(allocator, grid);
 
             inline for (std.meta.fields(Grooves)) |field| {
@@ -318,6 +339,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                     &forest.radix_buffer,
                     groove_options,
                 );
+
                 grooves_initialized += 1;
             }
 
@@ -328,6 +350,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             inline for (std.meta.fields(Grooves)) |field| {
                 const Groove = field.type;
                 const groove: *Groove = &@field(forest.grooves, field.name);
+
                 groove.deinit(allocator);
             }
 
@@ -350,7 +373,6 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             forest.grid.trace.cancel(.lookup_worker);
             forest.grid.trace.cancel(.scan_tree);
             forest.grid.trace.cancel(.scan_tree_level);
-
             forest.manifest_log.reset();
             forest.scan_buffer_pool.reset();
             forest.resource_pool.reset();
@@ -384,6 +406,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             table: *const schema.ManifestNode.TableInfo,
         ) void {
             const forest: *Forest = @alignCast(@fieldParentPtr("manifest_log", manifest_log));
+
             assert(forest.progress.? == .open);
             assert(table.label.level < constants.lsm_levels);
             assert(table.label.event != .remove);
@@ -392,9 +415,11 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                 log.err("manifest_log_open_event: unknown table in manifest: {}", .{table});
                 @panic("Forest.manifest_log_open_event: unknown table in manifest");
             }
+
             switch (tree_id_cast(table.tree_id)) {
                 inline else => |tree_id| {
                     var tree: *TreeForIdType(tree_id) = forest.tree_for_id(tree_id);
+
                     tree.open_table(table);
                 },
             }
@@ -402,27 +427,34 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         fn manifest_log_open_callback(manifest_log: *ManifestLog) void {
             const forest: *Forest = @alignCast(@fieldParentPtr("manifest_log", manifest_log));
+
             assert(forest.progress.? == .open);
+
             forest.verify_tables_recovered();
 
             inline for (std.meta.fields(Grooves)) |field| {
                 @field(forest.grooves, field.name).open_complete();
             }
+
             forest.verify_table_extents();
 
             const callback = forest.progress.?.open.callback;
+
             forest.progress = null;
+
             callback(forest);
         }
 
         pub fn compact(forest: *Forest, callback: Callback, op: u64) void {
             const compaction_beat = op % constants.lsm_compaction_ops;
-
             const first_beat = compaction_beat == 0;
+
             const last_half_beat = compaction_beat ==
                 @divExact(constants.lsm_compaction_ops, 2) - 1;
+
             const half_beat = compaction_beat == @divExact(constants.lsm_compaction_ops, 2);
             const last_beat = compaction_beat == constants.lsm_compaction_ops - 1;
+
             assert(@as(usize, @intFromBool(first_beat)) + @intFromBool(last_half_beat) +
                 @intFromBool(half_beat) + @intFromBool(last_beat) <= 1);
 
@@ -439,6 +471,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
             // Run trees and manifest log compaction in parallel, join in compact_finish.
             assert(forest.progress == null);
+
             forest.progress = .{ .compact = .{
                 .op = op,
                 .callback = callback,
@@ -455,7 +488,9 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             {
                 forest.progress.?.compact.manifest_log_done = true;
                 forest.progress.?.compact.trees_done = true;
+
                 forest.grid.on_next_tick(compact_finish_callback, &forest.next_tick);
+
                 return;
             }
 
@@ -506,12 +541,12 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             assert(forest.progress.?.compact.trees_beat_input_size == 0);
 
             const op = forest.progress.?.compact.op;
+
             assert(!forest.grid.superblock.working.vsr_state.op_compacted(op));
             assert(op >= constants.lsm_compaction_ops);
 
             const half_bar = @divExact(constants.lsm_compaction_ops, 2);
             const compaction_beat = op % constants.lsm_compaction_ops;
-
             const first_beat = compaction_beat == 0;
             const half_beat = compaction_beat == half_bar;
 
@@ -520,19 +555,20 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                 assert(forest.compact_trees_half_bar_input_size == 0);
 
                 var half_bar_input_size: u64 = 0;
+
                 for (0..constants.lsm_levels) |level_b| {
                     if (level_active(.{ .level_b = level_b, .op = op })) {
                         inline for (comptime std.enums.values(Forest.TreeID)) |tree_id| {
                             const tree = Forest.tree_info_for_id(tree_id);
                             const Value = tree.Tree.Value;
                             const compaction = forest.compaction_at(level_b, tree_id);
-
                             const bar_input_values = compaction.half_bar_commence(op);
 
                             half_bar_input_size += (bar_input_values * @sizeOf(Value));
                         }
                     }
                 }
+
                 forest.compact_trees_half_bar_input_size = half_bar_input_size;
             }
 
@@ -561,14 +597,13 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             // 1 since we may have partially finished index/value blocks from the previous beat.
             var beat_index_blocks_max: u64 = 1;
             var beat_value_blocks_max: u64 = 1;
-
             var beat_input_size = forest.progress.?.compact.trees_beat_input_size;
+
             for (0..constants.lsm_levels) |level_b| {
                 if (level_active(.{ .level_b = level_b, .op = op })) {
                     inline for (comptime std.enums.values(Forest.TreeID)) |tree_id| {
                         const tree = Forest.tree_info_for_id(tree_id);
                         const compaction = forest.compaction_at(level_b, tree_id);
-
                         const Value = tree.Tree.Value;
                         const Table = tree.Tree.Table;
 
@@ -583,20 +618,22 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                             compaction.quotas.beat,
                             Table.layout.block_value_count_max,
                         ) + 1;
+
                         const beat_index_blocks = stdx.div_ceil(
                             beat_value_blocks,
                             Table.value_block_count_max,
                         );
+
                         beat_value_blocks_max += beat_value_blocks;
                         beat_index_blocks_max += beat_index_blocks;
-
                         beat_input_size -|= (compaction.quotas.beat * @sizeOf(Value));
                     }
                 }
             }
-            assert(beat_input_size == 0);
 
+            assert(beat_input_size == 0);
             assert(forest.resource_pool.grid_reservation == null);
+
             forest.resource_pool.grid_reservation = forest.grid.reserve(
                 beat_value_blocks_max + beat_index_blocks_max,
             );
@@ -608,14 +645,17 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             if (forest.progress.?.compact.trees_beat_input_size == 0) {
                 if (forest.resource_pool.grid_reservation) |reservation| {
                     forest.grid.forfeit(reservation);
+
                     forest.resource_pool.grid_reservation = null;
                 }
 
                 forest.grid.on_next_tick(compact_trees_finish_callback, &forest.next_tick);
+
                 return;
             }
 
             const op = forest.progress.?.compact.op;
+
             for (0..constants.lsm_levels) |level_b| {
                 if (level_active(.{ .level_b = level_b, .op = op })) {
                     inline for (comptime std.enums.values(Forest.TreeID)) |tree_id| {
@@ -646,10 +686,12 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                 inline else => |id| {
                     const Value = Forest.tree_info_for_id(id).Tree.Value;
                     const input_bytes_consumed = values_consumed * @sizeOf(Value);
+
                     forest.compact_trees_half_bar_input_size -= input_bytes_consumed;
                     forest.progress.?.compact.trees_beat_input_size -|= input_bytes_consumed;
                 },
             }
+
             forest.compact_trees_resume();
         }
 
@@ -657,6 +699,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             const forest: *Forest = @alignCast(
                 @fieldParentPtr("next_tick", next_tick),
             );
+
             assert(forest.progress.? == .compact);
             assert(forest.progress.?.compact.trees_beat_input_size == 0);
             assert(!forest.progress.?.compact.trees_done);
@@ -673,6 +716,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
             assert(forest.progress.? == .compact);
             assert(!forest.progress.?.compact.manifest_log_done);
+
             forest.progress.?.compact.manifest_log_done = true;
 
             if (forest.progress.?.compact.all_done()) {
@@ -682,6 +726,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         fn compact_finish_callback(next_tick: *Grid.NextTick) void {
             const forest: *Forest = @alignCast(@fieldParentPtr("next_tick", next_tick));
+
             forest.compact_finish();
         }
 
@@ -690,20 +735,21 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             assert(forest.progress.?.compact.trees_done);
             assert(forest.progress.?.compact.manifest_log_done);
             maybe(forest.resource_pool.idle());
+
             assert(forest.resource_pool.blocks_acquired() <=
                 compaction_block_count_beat_min + constants.lsm_compaction_iops_write_max);
 
             forest.verify_table_extents();
-
             assert(forest.progress.? == .compact);
+
             const op = forest.progress.?.compact.op;
-
             const compaction_beat = op % constants.lsm_compaction_ops;
-
             const first_beat = compaction_beat == 0;
             const half_beat = compaction_beat == @divExact(constants.lsm_compaction_ops, 2);
+
             const last_half_beat = compaction_beat ==
                 @divExact(constants.lsm_compaction_ops, 2) - 1;
+
             const last_beat = compaction_beat == constants.lsm_compaction_ops - 1;
 
             log.debug("{}: entering forest.compact_finish() op={} " ++
@@ -755,6 +801,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                         const tree = tree_for_id(forest, tree_id);
 
                         log.debug("swap_mutable_and_immutable({s})", .{tree.config.name});
+
                         tree.swap_mutable_and_immutable(
                             snapshot_min_for_table_output(compaction_op_min(op)),
                         );
@@ -776,6 +823,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         fn flush_callback(flush: *Grid.Flush) void {
             const forest: *Forest = @alignCast(@fieldParentPtr("flush", flush));
+
             forest.compact_finish_dispatch_callback();
         }
 
@@ -793,6 +841,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             }
 
             const callback = forest.progress.?.compact.callback;
+
             forest.progress = null;
 
             callback(forest);
@@ -808,23 +857,28 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         fn checkpoint_iop_release_callback(ctx: *anyopaque) void {
             const forest: *Forest = @alignCast(@ptrCast(ctx));
+
             assert(forest.progress.? == .checkpoint);
 
             if (!forest.resource_pool.idle()) return;
 
             assert(!forest.progress.?.checkpoint.trees_done);
+
             forest.progress.?.checkpoint.trees_done = true;
             forest.resource_pool.iop_release_resume = null;
 
             if (forest.progress.?.checkpoint.all_done()) {
                 const callback = forest.progress.?.checkpoint.callback;
+
                 forest.progress = null;
+
                 callback(forest);
             }
         }
 
         pub fn checkpoint(forest: *Forest, callback: Callback) void {
             assert(forest.progress == null);
+
             forest.verify_table_extents();
 
             forest.progress = .{ .checkpoint = .{
@@ -860,16 +914,21 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         fn checkpoint_manifest_log_callback(manifest_log: *ManifestLog) void {
             const forest: *Forest = @alignCast(@fieldParentPtr("manifest_log", manifest_log));
+
             assert(forest.progress.? == .checkpoint);
+
             forest.verify_table_extents();
             forest.verify_tables_recovered();
 
             assert(!forest.progress.?.checkpoint.manifest_log_done);
+
             forest.progress.?.checkpoint.manifest_log_done = true;
 
             if (forest.progress.?.checkpoint.all_done()) {
                 const callback = forest.progress.?.checkpoint.callback;
+
                 forest.progress = null;
+
                 callback(forest);
             }
         }
@@ -880,6 +939,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         fn TreeForIdType(comptime tree_id: TreeID) type {
             const tree_info = tree_infos[@intFromEnum(tree_id) - tree_id_range.min];
+
             assert(tree_info.tree_id == @intFromEnum(tree_id));
 
             return tree_info.Tree;
@@ -887,6 +947,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         pub fn tree_info_for_id(comptime tree_id: TreeID) TreeInfo {
             const tree_info = tree_infos[@intFromEnum(tree_id) - tree_id_range.min];
+
             assert(tree_info.tree_id == @intFromEnum(tree_id));
 
             return tree_info;
@@ -894,6 +955,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 
         pub fn tree_for_id(forest: *Forest, comptime tree_id: TreeID) *TreeForIdType(tree_id) {
             const tree_info = tree_infos[@intFromEnum(tree_id) - tree_id_range.min];
+
             assert(tree_info.tree_id == @intFromEnum(tree_id));
 
             var groove = &@field(forest.grooves, tree_info.groove_name);
@@ -910,6 +972,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             comptime tree_id: TreeID,
         ) *const TreeForIdType(tree_id) {
             const tree_info = tree_infos[@intFromEnum(tree_id) - tree_id_range.min];
+
             assert(tree_info.tree_id == @intFromEnum(tree_id));
 
             const groove = &@field(forest.grooves, tree_info.groove_name);
@@ -932,6 +995,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                     const tree = forest.tree_for_id_const(tree_id);
                     const Tree = Forest.TreeForIdType(tree_id);
                     const tree_table = Tree.Manifest.TreeTableInfo.decode(table);
+
                     for (&tree.manifest.levels) |manifest_level| {
                         if (manifest_level.find(&tree_table)) |level_table| {
                             assert(tree_table.checksum == level_table.table_info.checksum);
@@ -939,11 +1003,12 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                             assert(tree_table.key_min == level_table.table_info.key_min);
                             assert(tree_table.key_max == level_table.table_info.key_max);
                             assert(tree_table.snapshot_min == level_table.table_info.snapshot_min);
-
                             assert(tree_table.snapshot_max <= level_table.table_info.snapshot_max);
+
                             return true;
                         }
                     }
+
                     return false;
                 },
             }
@@ -954,19 +1019,23 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
         /// (Invoked between beats.)
         fn verify_table_extents(forest: *const Forest) void {
             var tables_count: usize = 0;
+
             inline for (comptime std.enums.values(TreeID)) |tree_id| {
                 for (0..constants.lsm_levels) |level| {
                     const tree_level = forest.tree_for_id_const(tree_id).manifest.levels[level];
+
                     tables_count += tree_level.tables.len();
 
                     if (constants.verify) {
                         var tables_iterator = tree_level.tables.iterator_from_index(0, .ascending);
+
                         while (tables_iterator.next()) |table| {
                             assert(forest.manifest_log.table_extents.get(table.address) != null);
                         }
                     }
                 }
             }
+
             assert(tables_count == forest.manifest_log.table_extents.count());
         }
 
@@ -991,6 +1060,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
         fn verify_tables_recovered(forest: *const Forest) void {
             const ForestTableIteratorType =
                 @import("./forest_table_iterator.zig").ForestTableIteratorType;
+
             const ForestTableIterator = ForestTableIteratorType(Forest);
 
             assert(forest.grid.superblock.opened);
@@ -1010,6 +1080,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                 manifest_block: u64,
                 manifest_entry: u32,
             }).init(forest.grid.superblock.storage.allocator);
+
             defer tables_latest.deinit();
 
             // Replay manifest events in chronological order.
@@ -1017,15 +1088,18 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             for (0..forest.manifest_log.log_block_checksums.count) |i| {
                 const block_checksum = forest.manifest_log.log_block_checksums.get(i).?;
                 const block_address = forest.manifest_log.log_block_addresses.get(i).?;
+
                 assert(block_address > 0);
 
                 const block = forest.grid.superblock.storage.grid_block(block_address).?;
                 const block_header = schema.header_from_block(block);
+
                 assert(block_header.address == block_address);
                 assert(block_header.checksum == block_checksum);
                 assert(block_header.block_type == .manifest);
 
                 const block_schema = schema.ManifestNode.from(block);
+
                 assert(block_schema.entry_count > 0);
                 assert(block_schema.entry_count <= schema.ManifestNode.entry_count_max);
 
@@ -1044,8 +1118,10 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                 if (i > 0) {
                     // Verify the linked-list.
                     const block_previous = schema.ManifestNode.previous(block).?;
+
                     assert(block_previous.checksum ==
                         forest.manifest_log.log_block_checksums.get(i - 1).?);
+
                     assert(block_previous.address ==
                         forest.manifest_log.log_block_addresses.get(i - 1).?);
                 }
@@ -1054,19 +1130,24 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
             // Verify that the SuperBlock Manifest's table extents are correct.
             var tables_latest_iterator = tables_latest.valueIterator();
             var table_extent_counts: usize = 0;
+
             while (tables_latest_iterator.next()) |table| {
                 const table_extent = forest.manifest_log.table_extents.get(table.table.address).?;
+
                 assert(table.manifest_block == table_extent.block);
                 assert(table.manifest_entry == table_extent.entry);
 
                 table_extent_counts += 1;
             }
+
             assert(table_extent_counts == forest.manifest_log.table_extents.count());
 
             // Verify the tables in `tables` are exactly the tables recovered by the Forest.
             var forest_tables_iterator = ForestTableIterator{};
+
             while (forest_tables_iterator.next(forest)) |forest_table_item| {
                 const table_latest = tables_latest.get(forest_table_item.checksum).?;
+
                 assert(table_latest.table.label.level == forest_table_item.label.level);
                 assert(std.meta.eql(table_latest.table.key_min, forest_table_item.key_min));
                 assert(std.meta.eql(table_latest.table.key_max, forest_table_item.key_max));
@@ -1077,8 +1158,10 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
                 assert(table_latest.table.tree_id == forest_table_item.tree_id);
 
                 const table_removed = tables_latest.remove(forest_table_item.checksum);
+
                 assert(table_removed);
             }
+
             assert(tables_latest.count() == 0);
         }
 
@@ -1092,18 +1175,21 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
         /// after checkpoint trigger.
         pub fn compaction_blocks_released_per_pipeline_max() usize {
             const half_bar_ops = @divExact(constants.lsm_compaction_ops, 2);
+
             const pipeline_half_bars =
                 stdx.div_ceil(constants.pipeline_prepare_queue_max, half_bar_ops);
 
             // Maximum number of blocks released within a single half-bar by compaction.
             const compaction_blocks_released_half_bar_max = blocks: {
                 var blocks: usize = 0;
+
                 inline for (Forest.tree_infos) |tree_info| {
                     blocks +=
                         stdx.div_ceil(constants.lsm_levels, 2) *
                         (compaction_input_tables_max *
                             (1 + tree_info.Tree.Table.layout.value_block_count_max));
                 }
+
                 break :blocks blocks;
             };
 
@@ -1127,6 +1213,7 @@ pub fn ForestType(comptime _Storage: type, comptime groove_cfg: anytype) type {
 fn level_active(options: struct { level_b: usize, op: u64 }) bool {
     const half_bar_beat_count = @divExact(constants.lsm_compaction_ops, 2);
     const compaction_beat = options.op % constants.lsm_compaction_ops;
+
     return (compaction_beat < half_bar_beat_count) == (options.level_b % 2 == 1);
 }
 
@@ -1134,7 +1221,6 @@ test level_active {
     assert(!level_active(.{ .level_b = 0, .op = constants.lsm_compaction_ops }));
     assert(level_active(.{ .level_b = 1, .op = constants.lsm_compaction_ops }));
     assert(!level_active(.{ .level_b = 2, .op = constants.lsm_compaction_ops }));
-
     assert(level_active(.{ .level_b = 0, .op = @divExact(constants.lsm_compaction_ops, 2) }));
     assert(!level_active(.{ .level_b = 1, .op = @divExact(constants.lsm_compaction_ops, 2) }));
     assert(level_active(.{ .level_b = 2, .op = @divExact(constants.lsm_compaction_ops, 2) }));

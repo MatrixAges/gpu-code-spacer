@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const uefi = std.os.uefi;
 const Event = uefi.Event;
 const Guid = uefi.Guid;
@@ -28,6 +29,7 @@ pub const AbsolutePointer = extern struct {
     /// Retrieves the current state of a pointer device.
     pub fn getState(self: *const AbsolutePointer) GetStateError!State {
         var state: State = undefined;
+
         switch (self._get_state(self, &state)) {
             .success => return state,
             .not_ready => return Error.NotReady,

@@ -32,6 +32,7 @@ const expect = std.testing.expect;
 /// | -inf  |  fin  |  -pi/2  |
 pub fn atan2(y: anytype, x: anytype) @TypeOf(x, y) {
     const T = @TypeOf(x, y);
+
     return switch (T) {
         f32 => atan2_32(y, x),
         f64 => atan2_64(y, x),
@@ -57,6 +58,7 @@ fn atan2_32(y: f32, x: f32) f32 {
 
     // 2 * sign(x) + sign(y)
     const m = ((iy >> 31) & 1) | ((ix >> 30) & 2);
+
     ix &= 0x7FFFFFFF;
     iy &= 0x7FFFFFFF;
 
@@ -147,6 +149,7 @@ fn atan2_64(y: f64, x: f64) f64 {
 
     // 2 * sign(x) + sign(y)
     const m = ((iy >> 31) & 1) | ((ix >> 30) & 2);
+
     ix &= 0x7FFFFFFF;
     iy &= 0x7FFFFFFF;
 
@@ -219,6 +222,7 @@ test atan2 {
     const x32: f32 = 0.21;
     const y64: f64 = 0.2;
     const x64: f64 = 0.21;
+
     try expect(atan2(y32, x32) == atan2_32(0.2, 0.21));
     try expect(atan2(y64, x64) == atan2_64(0.2, 0.21));
 }

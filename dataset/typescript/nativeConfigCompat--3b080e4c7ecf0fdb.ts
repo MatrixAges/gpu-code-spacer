@@ -56,12 +56,14 @@ export function classifyImportRef(
   file: string,
 ): NativeConfigIncompatibility | undefined {
   const { specifier, line, column } = ref
+
   const base = { file, line, column, specifier }
 
   if (specifier.endsWith('.json')) {
     if (!ref.hasTypeJsonAttribute) {
       return { type: 'json-without-attributes', ...base }
     }
+
     if (ref.namedImportLoc) {
       return {
         type: 'json-named-import',
@@ -71,6 +73,7 @@ export function classifyImportRef(
         specifier,
       }
     }
+
     return undefined
   }
 
@@ -80,6 +83,7 @@ export function classifyImportRef(
     if (!ref.hasTypeJsonAttribute) {
       return { type: 'json-without-attributes', ...base }
     }
+
     if (ref.namedImportLoc) {
       return {
         type: 'json-named-import',
@@ -92,15 +96,18 @@ export function classifyImportRef(
   }
 
   const lastSegment = lastSegmentOf(specifier)
+
   const specifierNamesIndex =
     lastSegment === 'index' || indexFileRE.test(lastSegment)
 
   if (indexFileRE.test(path.basename(resolvedId)) && !specifierNamesIndex) {
     return { type: 'directory-index-import', ...base }
   }
+
   if (!jsTsExtRE.test(lastSegment)) {
     return { type: 'extensionless-import', ...base }
   }
+
   return undefined
 }
 
@@ -111,6 +118,7 @@ const hasTypeJson = (
 ): boolean =>
   !!attributes?.some((attr) => {
     const key = attr.key.type === 'Identifier' ? attr.key.name : attr.key.value
+
     return key === 'type' && attr.value?.value === 'json'
   })
 
@@ -121,9 +129,11 @@ const findNonDefaultNamedBinding = (
     if (s.type === 'ImportSpecifier') {
       return !isDefaultModuleExportName(s.imported)
     }
+
     if (s.type === 'ExportSpecifier') {
       return !isDefaultModuleExportName(s.local)
     }
+
     return false
   })
 
@@ -154,10 +164,13 @@ export function analyzeConfigModuleReferences(
     if (!isPathSpecifier(source.value) && !source.value.endsWith('.json')) {
       return
     }
+
     const { line, column } = numberToPos(code, source.start)
+
     const namedImportLoc = namedBinding
       ? numberToPos(code, namedBinding.start)
       : undefined
+
     imports.push({
       specifier: source.value,
       line,
@@ -170,6 +183,7 @@ export function analyzeConfigModuleReferences(
   eswalk(ast as any, {
     enter(_node) {
       const node = _node as ESTree.Node
+
       switch (node.type) {
         case 'ImportDeclaration':
           addImportRef(
@@ -177,6 +191,7 @@ export function analyzeConfigModuleReferences(
             hasTypeJson(node.attributes),
             findNonDefaultNamedBinding(node.specifiers),
           )
+
           break
         case 'ExportNamedDeclaration':
         case 'ExportAllDeclaration':
@@ -188,6 +203,7 @@ export function analyzeConfigModuleReferences(
                 ? findNonDefaultNamedBinding(node.specifiers)
                 : undefined,
             )
+
           break
         case 'ImportExpression':
           if (
@@ -197,18 +213,24 @@ export function analyzeConfigModuleReferences(
             // if a second (options) arg is present, assume the required attributes is set
             addImportRef(node.source, node.options != null, undefined)
           }
+
           break
       }
     },
   })
 
   const globals: NativeConfigIncompatibility[] = []
+
   if (code.includes('__dirname') || code.includes('__filename')) {
     const { globals: freeReferences } = analyze(ast as any)
+
     for (const [name, type] of Object.entries(DIRNAME_FILENAME)) {
       const node = freeReferences.get(name) as ESTree.Node | undefined
+
       if (!node) continue
+
       const { line, column } = numberToPos(code, node.start)
+
       globals.push({ type, file, line, column })
     }
   }
@@ -231,9 +253,11 @@ export function findEsmSyntaxInCjs(
   for (const node of ast.body) {
     if (esmStatementTypes.has(node.type)) {
       const { line, column } = numberToPos(code, (node as ESTree.Node).start)
+
       return { type: 'esm-syntax-in-cjs', file, line, column }
     }
   }
+
   return undefined
 }
 
@@ -243,6 +267,7 @@ function describeIncompatibility(
 ): string {
   // 1-based column so terminals can link `file:line:column` to the exact position
   const loc = `${normalizePath(path.relative(root, item.file))}:${item.line}:${item.column + 1}`
+
   switch (item.type) {
     case 'dirname':
       return `\`__dirname\` (${loc}). Use \`import.meta.dirname\` instead`
@@ -271,8 +296,10 @@ export function formatNativeConfigIncompatWarning(
     `Your Vite config uses features that are unsupported by ` +
     `\`configLoader: 'native'\`, which is planned to become the default in a ` +
     `future major version of Vite:`
+
   const lines = items.map((it) => `  - ${describeIncompatibility(it, root)}`)
   const footer = `Set \`VITE_CONFIG_NATIVE_IGNORE_WARNING=true\` to suppress this warning.`
+
   return colors.yellow([`(!) ${header}`, ...lines, footer].join('\n'))
 }
 
@@ -294,9 +321,12 @@ export function createNativeConfigCompatPlugin(
           typeof process.versions.deno === 'string' || isFilePathESM(id)
 
         let program: ESTree.Program
+
         try {
           const result = parseSync(id, code)
+
           if (result.errors.length > 0) return null
+
           program = result.program
         } catch {
           return null
@@ -307,7 +337,9 @@ export function createNativeConfigCompatPlugin(
         // under the native loader.
         if (!isESM) {
           const finding = findEsmSyntaxInCjs(code, program, id)
+
           if (finding) collector.push(finding)
+
           return null
         }
 
@@ -316,19 +348,26 @@ export function createNativeConfigCompatPlugin(
           program,
           id,
         )
+
         for (const g of globals) collector.push(g)
+
         for (const ref of imports) {
           let resolvedId: string | null = null
+
           if (
             !ref.specifier.endsWith('.json') &&
             !specifierHasJsExtension(ref.specifier)
           ) {
             const resolved = await this.resolve(ref.specifier, id)
+
             resolvedId = resolved?.id ?? null
           }
+
           const finding = classifyImportRef(ref, resolvedId, id)
+
           if (finding) collector.push(finding)
         }
+
         return null
       },
     },

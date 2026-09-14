@@ -23,10 +23,13 @@ pub const BufSet = struct {
     /// Free a BufSet along with all stored keys.
     pub fn deinit(self: *BufSet) void {
         var it = self.hash_map.keyIterator();
+
         while (it.next()) |key_ptr| {
             self.free(key_ptr.*);
         }
+
         self.hash_map.deinit();
+
         self.* = undefined;
     }
 
@@ -35,9 +38,11 @@ pub const BufSet = struct {
     /// passed string immediately.
     pub fn insert(self: *BufSet, value: []const u8) !void {
         const gop = try self.hash_map.getOrPut(value);
+
         if (!gop.found_existing) {
             gop.key_ptr.* = self.copy(value) catch |err| {
                 _ = self.hash_map.remove(value);
+
                 return err;
             };
         }
@@ -51,6 +56,7 @@ pub const BufSet = struct {
     /// Remove an item from the set.
     pub fn remove(self: *BufSet, value: []const u8) void {
         const kv = self.hash_map.fetchRemove(value) orelse return;
+
         self.free(kv.key);
     }
 
@@ -78,6 +84,7 @@ pub const BufSet = struct {
         const cloned_hashmap = try self.hash_map.cloneWithAllocator(new_allocator);
         const cloned = BufSet{ .hash_map = cloned_hashmap };
         var it = cloned.hash_map.keyIterator();
+
         while (it.next()) |key_ptr| {
             key_ptr.* = try cloned.copy(key_ptr.*);
         }
@@ -92,11 +99,15 @@ pub const BufSet = struct {
 
     test clone {
         var original = BufSet.init(testing.allocator);
+
         defer original.deinit();
+
         try original.insert("x");
 
         var cloned = try original.clone();
+
         defer cloned.deinit();
+
         cloned.remove("x");
         try testing.expect(original.count() == 1);
         try testing.expect(cloned.count() == 0);
@@ -113,13 +124,16 @@ pub const BufSet = struct {
 
     fn copy(self: *const BufSet, value: []const u8) ![]const u8 {
         const result = try self.hash_map.allocator.alloc(u8, value.len);
+
         @memcpy(result, value);
+
         return result;
     }
 };
 
 test BufSet {
     var bufset = BufSet.init(std.testing.allocator);
+
     defer bufset.deinit();
 
     try bufset.insert("x");
@@ -135,10 +149,13 @@ test BufSet {
 test "clone with arena" {
     const allocator = std.testing.allocator;
     var arena = std.heap.ArenaAllocator.init(allocator);
+
     defer arena.deinit();
 
     var buf = BufSet.init(allocator);
+
     defer buf.deinit();
+
     try buf.insert("member1");
     try buf.insert("member2");
 

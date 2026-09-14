@@ -19,6 +19,7 @@ const maxInt = std.math.maxInt;
 ///  - tanh(nan)   = nan
 pub fn tanh(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => tanh32(x),
         f64 => tanh64(x),
@@ -44,22 +45,26 @@ fn tanh32(x: f32) f32 {
             t = 1.0 + 0 / x;
         } else {
             t = math.expm1(2 * ax);
+
             t = 1 - 2 / (t + 2);
         }
     }
     // |x| > log(5 / 3) / 2 ~= 0.2554
     else if (ux > 0x3E82C578) {
         t = math.expm1(2 * ax);
+
         t = t / (t + 2);
     }
     // |x| >= 0x1.0p-126
     else if (ux >= 0x00800000) {
         t = math.expm1(-2 * ax);
+
         t = -t / (t + 2);
     }
     // |x| is subnormal
     else {
         mem.doNotOptimizeAway(ax * ax);
+
         t = ax;
     }
 
@@ -82,22 +87,26 @@ fn tanh64(x: f64) f64 {
             t = 1.0 - 0 / ax;
         } else {
             t = math.expm1(2 * ax);
+
             t = 1 - 2 / (t + 2);
         }
     }
     // |x| > log(5 / 3) / 2 ~= 0.2554
     else if (w > 0x3FD058AE) {
         t = math.expm1(2 * ax);
+
         t = t / (t + 2);
     }
     // |x| >= 0x1.0p-1022
     else if (w >= 0x00100000) {
         t = math.expm1(-2 * ax);
+
         t = -t / (t + 2);
     }
     // |x| is subnormal
     else {
         mem.doNotOptimizeAway(@as(f32, @floatCast(ax)));
+
         t = ax;
     }
 

@@ -44,7 +44,9 @@ export function loadEnv(
         `the .local postfix for .env files.`,
     )
   }
+
   prefixes = arraify(prefixes)
+
   const env: Record<string, string> = {}
   const envFiles = getEnvFilesForMode(mode, envDir)
 
@@ -53,10 +55,12 @@ export function loadEnv(
   const parsed = Object.fromEntries(
     envFiles.flatMap((filePath) => {
       const stat = tryStatSync(filePath)
+
       // Support FIFOs (named pipes) for apps like 1Password
       if (!stat || (!stat.isFile() && !stat.isFIFO())) return []
 
       const parsedEnv = parseEnv(fs.readFileSync(filePath, 'utf-8'))
+
       return Object.entries(parsedEnv as Record<string, string>)
     }),
   )
@@ -67,10 +71,12 @@ export function loadEnv(
   if (parsed.NODE_ENV && process.env.VITE_USER_NODE_ENV === undefined) {
     process.env.VITE_USER_NODE_ENV = parsed.NODE_ENV
   }
+
   // support BROWSER and BROWSER_ARGS env variables
   if (parsed.BROWSER && process.env.BROWSER === undefined) {
     process.env.BROWSER = parsed.BROWSER
   }
+
   if (parsed.BROWSER_ARGS && process.env.BROWSER_ARGS === undefined) {
     process.env.BROWSER_ARGS = parsed.BROWSER_ARGS
   }
@@ -78,6 +84,7 @@ export function loadEnv(
   // let environment variables use each other. make a copy of `process.env` so that `dotenv-expand`
   // doesn't re-assign the expanded values to the global `process.env`.
   const processEnv = { ...process.env } as DotenvPopulateInput
+
   expand({ parsed, processEnv })
 
   // only keys that start with prefix are exposed to client
@@ -110,11 +117,13 @@ export function resolveEnvPrefix({
   envPrefix = 'VITE_',
 }: UserConfig): string[] {
   envPrefix = arraify(envPrefix)
+
   if (envPrefix.includes('')) {
     throw new Error(
       `envPrefix option contains value '', which could lead unexpected exposure of sensitive information.`,
     )
   }
+
   if (envPrefix.some((prefix) => /\s/.test(prefix))) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -123,5 +132,6 @@ export function resolveEnvPrefix({
       ),
     )
   }
+
   return envPrefix
 }

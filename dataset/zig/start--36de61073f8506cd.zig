@@ -86,6 +86,7 @@ comptime {
                     .reactor => "_initialize",
                     .command => "_start",
                 };
+
                 if (!@hasDecl(root, wasm_start_sym) and @hasDecl(root, "main")) {
                     // Only call main when defined. For WebAssembly it's allowed to pass `-fno-entry` in which
                     // case it's not required to provide an entrypoint such as main.
@@ -164,6 +165,7 @@ fn EfiMain(handle: uefi.Handle, system_table: *uefi.tables.SystemTable) callconv
         },
         void => {
             root.main();
+
             return 0;
         },
         uefi.Status => {
@@ -174,6 +176,7 @@ fn EfiMain(handle: uefi.Handle, system_table: *uefi.tables.SystemTable) callconv
                 error.Unexpected => @panic("EfiMain: unexpected error"),
                 else => {
                     const status = uefi.Status.fromError(@errorCast(err));
+
                     return @intFromEnum(status);
                 },
             };
@@ -538,6 +541,7 @@ fn wWinMainCRTStartup() callconv(.withStackAlign(.c, 1)) noreturn {
     std.debug.maybeEnableSegfaultHandler();
 
     const result: std.os.windows.INT = call_wWinMain();
+
     std.os.windows.ntdll.RtlExitUserProcess(@as(std.os.windows.UINT, @bitCast(result)));
 }
 
@@ -550,22 +554,27 @@ fn posixCallMainAndExit(argc_argv_ptr: [*]usize) callconv(.c) noreturn {
     @setRuntimeSafety(false);
     // Code coverage instrumentation might try to use thread local variables.
     @disableInstrumentation();
+
     const argc = argc_argv_ptr[0];
     const argv: [*][*:0]u8 = @ptrCast(argc_argv_ptr + 1);
 
     const envp_optional: [*:null]?[*:0]u8 = @ptrCast(@alignCast(argv + argc + 1));
     var envp_count: usize = 0;
+
     while (envp_optional[envp_count]) |_| : (envp_count += 1) {}
+
     const envp = @as([*][*:0]u8, @ptrCast(envp_optional))[0..envp_count];
 
     // Find the beginning of the auxiliary vector
     const auxv: [*]elf.Auxv = @ptrCast(@alignCast(envp.ptr + envp_count + 1));
 
     var at_hwcap: usize = 0;
+
     const phdrs = init: {
         var i: usize = 0;
         var at_phdr: usize = 0;
         var at_phnum: usize = 0;
+
         while (auxv[i].a_type != elf.AT_NULL) : (i += 1) {
             switch (auxv[i].a_type) {
                 elf.AT_PHNUM => at_phnum = auxv[i].a_un.a_val,
@@ -574,6 +583,7 @@ fn posixCallMainAndExit(argc_argv_ptr: [*]usize) callconv(.c) noreturn {
                 else => continue,
             }
         }
+
         break :init @as([*]elf.Phdr, @ptrFromInt(at_phdr))[0..at_phnum];
     };
 
@@ -617,13 +627,16 @@ fn posixCallMainAndExit(argc_argv_ptr: [*]usize) callconv(.c) noreturn {
         .name = "__init_array_start",
         .linkage = .weak,
     });
+
     const opt_init_array_end = @extern([*]const *const fn () callconv(.c) void, .{
         .name = "__init_array_end",
         .linkage = .weak,
     });
+
     if (opt_init_array_start) |init_array_start| {
         const init_array_end = opt_init_array_end.?;
         const slice = init_array_start[0 .. init_array_end - init_array_start];
+
         for (slice) |func| func();
     }
 
@@ -635,6 +648,7 @@ fn expandStackSize(phdrs: []elf.Phdr) void {
         switch (phdr.p_type) {
             elf.PT_GNU_STACK => {
                 if (phdr.p_memsz == 0) break;
+
                 assert(phdr.p_memsz % std.heap.page_size_min == 0);
 
                 // Silently fail if we are unable to get limits.
@@ -658,6 +672,7 @@ fn expandStackSize(phdrs: []elf.Phdr) void {
                         // https://github.com/ziglang/zig/issues/1006
                     };
                 }
+
                 break;
             },
             else => {},
@@ -676,13 +691,16 @@ inline fn callMainWithArgs(argc: usize, argv: [*][*:0]u8, envp: [][*:0]u8) u8 {
 
 fn main(c_argc: c_int, c_argv: [*][*:0]c_char, c_envp: [*:null]?[*:0]c_char) callconv(.c) c_int {
     var env_count: usize = 0;
+
     while (c_envp[env_count] != null) : (env_count += 1) {}
+
     const envp = @as([*][*:0]u8, @ptrCast(c_envp))[0..env_count];
 
     if (builtin.os.tag == .linux) {
         const at_phdr = std.c.getauxval(elf.AT_PHDR);
         const at_phnum = std.c.getauxval(elf.AT_PHNUM);
         const phdrs = (@as([*]elf.Phdr, @ptrFromInt(at_phdr)))[0..at_phnum];
+
         expandStackSize(phdrs);
     }
 
@@ -691,6 +709,7 @@ fn main(c_argc: c_int, c_argv: [*][*:0]c_char, c_envp: [*:null]?[*:0]c_char) cal
 
 fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.c) c_int {
     std.os.argv = @as([*][*:0]u8, @ptrCast(c_argv))[0..@intCast(c_argc)];
+
     return callMain();
 }
 
@@ -703,6 +722,7 @@ pub inline fn callMain() u8 {
     switch (ReturnType) {
         void => {
             root.main();
+
             return 0;
         },
         noreturn, u8 => {
@@ -717,17 +737,21 @@ pub inline fn callMain() u8 {
                     .stage2_riscv64,
                     => {
                         _ = std.posix.write(std.posix.STDERR_FILENO, "error: failed with error\n") catch {};
+
                         return 1;
                     },
                     else => {},
                 }
+
                 std.log.err("{s}", .{@errorName(err)});
+
                 switch (native_os) {
                     .freestanding, .other => {},
                     else => if (@errorReturnTrace()) |trace| {
                         std.debug.dumpStackTrace(trace);
                     },
                 }
+
                 return 1;
             };
 
@@ -761,9 +785,11 @@ pub fn call_wWinMain() std.os.windows.INT {
         //   - nShowCmd is always SW_SHOWDEFAULT
         const SW_SHOWDEFAULT = 10;
         const STARTF_USESHOWWINDOW = 1;
+
         if (peb.ProcessParameters.dwFlags & STARTF_USESHOWWINDOW != 0) {
             break :nShowCmd @truncate(peb.ProcessParameters.dwShowWindow);
         }
+
         break :nShowCmd SW_SHOWDEFAULT;
     };
 

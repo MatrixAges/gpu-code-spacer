@@ -28,6 +28,7 @@ pub fn create(
 ) *CheckObject {
     const gpa = owner.allocator;
     const check_object = gpa.create(CheckObject) catch @panic("OOM");
+
     check_object.* = .{
         .step = .init(.{
             .id = base_id,
@@ -39,7 +40,9 @@ pub fn create(
         .checks = std.array_list.Managed(Check).init(gpa),
         .obj_format = obj_format,
     };
+
     check_object.source.addStepDependencies(&check_object.step);
+
     return check_object;
 }
 
@@ -49,6 +52,7 @@ const SearchPhrase = struct {
 
     fn resolve(phrase: SearchPhrase, b: *std.Build, step: *Step) []const u8 {
         const lazy_path = phrase.lazy_path orelse return phrase.string;
+
         return b.fmt("{s} {s}", .{ phrase.string, lazy_path.getPath2(b, step) });
     }
 };
@@ -78,6 +82,7 @@ const Action = struct {
         global_vars: anytype,
     ) !bool {
         assert(act.tag == .extract);
+
         const hay = mem.trim(u8, haystack, " ");
         const phrase = mem.trim(u8, act.phrase.resolve(b, step), " ");
 
@@ -87,13 +92,18 @@ const Action = struct {
 
         while (needle_it.next()) |needle_tok| {
             const hay_tok = hay_it.next() orelse break;
+
             if (mem.startsWith(u8, needle_tok, "{")) {
                 const closing_brace = mem.indexOf(u8, needle_tok, "}") orelse return error.MissingClosingBrace;
+
                 if (closing_brace != needle_tok.len - 1) return error.ClosingBraceNotLast;
 
                 const name = needle_tok[1..closing_brace];
+
                 if (name.len == 0) return error.MissingBraceValue;
+
                 const value = std.fmt.parseInt(u64, hay_tok, 16) catch return false;
+
                 try candidate_vars.append(.{
                     .name = name,
                     .value = value,
@@ -118,8 +128,10 @@ const Action = struct {
         haystack: []const u8,
     ) bool {
         assert(act.tag == .exact);
+
         const hay = mem.trim(u8, haystack, " ");
         const phrase = mem.trim(u8, act.phrase.resolve(b, step), " ");
+
         return mem.eql(u8, hay, phrase);
     }
 
@@ -131,8 +143,10 @@ const Action = struct {
         haystack: []const u8,
     ) bool {
         assert(act.tag == .contains);
+
         const hay = mem.trim(u8, haystack, " ");
         const phrase = mem.trim(u8, act.phrase.resolve(b, step), " ");
+
         return mem.indexOf(u8, hay, phrase) != null;
     }
 
@@ -144,6 +158,7 @@ const Action = struct {
         haystack: []const u8,
     ) bool {
         assert(act.tag == .not_present);
+
         return !contains(.{
             .tag = .contains,
             .phrase = act.phrase,
@@ -161,6 +176,7 @@ const Action = struct {
         var values = std.array_list.Managed(u64).init(gpa);
 
         var it = mem.tokenizeScalar(u8, phrase, ' ');
+
         while (it.next()) |next| {
             if (mem.eql(u8, next, "+")) {
                 try op_stack.append(.add);
@@ -179,17 +195,21 @@ const Action = struct {
                             \\{s}
                             \\=================================================
                         , .{next});
+
                         return error.UnknownVariable;
                     };
                 };
+
                 try values.append(val);
             }
         }
 
         var op_i: usize = 1;
         var reduced: u64 = values.items[0];
+
         for (op_stack.items) |op| {
             const other = values.items[op_i];
+
             switch (op) {
                 .add => {
                     reduced += other;
@@ -204,6 +224,7 @@ const Action = struct {
                     reduced *= other;
                 },
             }
+
             op_i += 1;
         }
 
@@ -215,16 +236,19 @@ const Action = struct {
                     \\{s}
                     \\=================================================
                 , .{name});
+
                 return error.UnknownVariable;
             },
             .literal => |x| x,
         };
+
         return math.compare(reduced, act.expected.?.op, exp_value);
     }
 };
 
 const ComputeCompareExpected = struct {
     op: math.CompareOperator,
+
     value: union(enum) {
         variable: []const u8,
         literal: u64,
@@ -232,6 +256,7 @@ const ComputeCompareExpected = struct {
 
     pub fn format(value: ComputeCompareExpected, w: *Writer) Writer.Error!void {
         try w.print("{t} ", .{value.op});
+
         switch (value.value) {
             .variable => |name| try w.writeAll(name),
             .literal => |x| try w.print("{x}", .{x}),
@@ -257,8 +282,11 @@ const Check = struct {
     fn dumpSection(allocator: Allocator, name: [:0]const u8) Check {
         var check = Check.create(allocator, .dump_section);
         const off: u32 = @intCast(check.data.items.len);
+
         check.data.print("{s}\x00", .{name}) catch @panic("OOM");
+
         check.payload = .{ .dump_section = off };
+
         return check;
     }
 
@@ -324,6 +352,7 @@ const Check = struct {
 /// Creates a new empty sequence of actions.
 fn checkStart(check_object: *CheckObject, kind: Check.Kind) void {
     const check = Check.create(check_object.step.owner.allocator, kind);
+
     check_object.checks.append(check) catch @panic("OOM");
 }
 
@@ -340,7 +369,9 @@ pub fn checkExactPath(check_object: *CheckObject, phrase: []const u8, lazy_path:
 
 fn checkExactInner(check_object: *CheckObject, phrase: []const u8, lazy_path: ?std.Build.LazyPath) void {
     assert(check_object.checks.items.len > 0);
+
     const last = &check_object.checks.items[check_object.checks.items.len - 1];
+
     last.exact(.{ .string = check_object.step.owner.dupe(phrase), .lazy_path = lazy_path });
 }
 
@@ -361,7 +392,9 @@ pub fn checkContainsPath(
 
 fn checkContainsInner(check_object: *CheckObject, phrase: []const u8, lazy_path: ?std.Build.LazyPath) void {
     assert(check_object.checks.items.len > 0);
+
     const last = &check_object.checks.items[check_object.checks.items.len - 1];
+
     last.contains(.{ .string = check_object.step.owner.dupe(phrase), .lazy_path = lazy_path });
 }
 
@@ -378,7 +411,9 @@ pub fn checkExtractLazyPath(check_object: *CheckObject, phrase: []const u8, lazy
 
 fn checkExtractInner(check_object: *CheckObject, phrase: []const u8, lazy_path: ?std.Build.LazyPath) void {
     assert(check_object.checks.items.len > 0);
+
     const last = &check_object.checks.items[check_object.checks.items.len - 1];
+
     last.extract(.{ .string = check_object.step.owner.dupe(phrase), .lazy_path = lazy_path });
 }
 
@@ -396,7 +431,9 @@ pub fn checkNotPresentLazyPath(check_object: *CheckObject, phrase: []const u8, l
 
 fn checkNotPresentInner(check_object: *CheckObject, phrase: []const u8, lazy_path: ?std.Build.LazyPath) void {
     assert(check_object.checks.items.len > 0);
+
     const last = &check_object.checks.items[check_object.checks.items.len - 1];
+
     last.notPresent(.{ .string = check_object.step.owner.dupe(phrase), .lazy_path = lazy_path });
 }
 
@@ -415,6 +452,7 @@ pub fn checkInSymtab(check_object: *CheckObject) void {
         .coff => @panic("TODO symtab for coff"),
         else => @panic("TODO other file formats"),
     };
+
     check_object.checkStart(.symtab);
     check_object.checkExact(label);
 }
@@ -427,6 +465,7 @@ pub fn checkInDyldRebase(check_object: *CheckObject) void {
         .macho => MachODumper.dyld_rebase_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.dyld_rebase);
     check_object.checkExact(label);
 }
@@ -439,6 +478,7 @@ pub fn checkInDyldBind(check_object: *CheckObject) void {
         .macho => MachODumper.dyld_bind_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.dyld_bind);
     check_object.checkExact(label);
 }
@@ -451,6 +491,7 @@ pub fn checkInDyldWeakBind(check_object: *CheckObject) void {
         .macho => MachODumper.dyld_weak_bind_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.dyld_weak_bind);
     check_object.checkExact(label);
 }
@@ -463,6 +504,7 @@ pub fn checkInDyldLazyBind(check_object: *CheckObject) void {
         .macho => MachODumper.dyld_lazy_bind_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.dyld_lazy_bind);
     check_object.checkExact(label);
 }
@@ -475,6 +517,7 @@ pub fn checkInExports(check_object: *CheckObject) void {
         .macho => MachODumper.exports_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.exports);
     check_object.checkExact(label);
 }
@@ -487,6 +530,7 @@ pub fn checkInIndirectSymtab(check_object: *CheckObject) void {
         .macho => MachODumper.indirect_symtab_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.indirect_symtab);
     check_object.checkExact(label);
 }
@@ -499,6 +543,7 @@ pub fn checkInDynamicSymtab(check_object: *CheckObject) void {
         .elf => ElfDumper.dynamic_symtab_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.dynamic_symtab);
     check_object.checkExact(label);
 }
@@ -511,6 +556,7 @@ pub fn checkInDynamicSection(check_object: *CheckObject) void {
         .elf => ElfDumper.dynamic_section_label,
         else => @panic("Unsupported target platform"),
     };
+
     check_object.checkStart(.dynamic_section);
     check_object.checkExact(label);
 }
@@ -522,12 +568,14 @@ pub fn checkInArchiveSymtab(check_object: *CheckObject) void {
         .elf => ElfDumper.archive_symtab_label,
         else => @panic("TODO other file formats"),
     };
+
     check_object.checkStart(.archive_symtab);
     check_object.checkExact(label);
 }
 
 pub fn dumpSection(check_object: *CheckObject, name: [:0]const u8) void {
     const check = Check.dumpSection(check_object.step.owner.allocator, name);
+
     check_object.checks.append(check) catch @panic("OOM");
 }
 
@@ -540,18 +588,22 @@ pub fn checkComputeCompare(
     expected: ComputeCompareExpected,
 ) void {
     var check = Check.create(check_object.step.owner.allocator, .compute_compare);
+
     check.computeCmp(.{ .string = check_object.step.owner.dupe(program) }, expected);
     check_object.checks.append(check) catch @panic("OOM");
 }
 
 fn make(step: *Step, make_options: Step.MakeOptions) !void {
     _ = make_options;
+
     const b = step.owner;
     const gpa = b.allocator;
     const check_object: *CheckObject = @fieldParentPtr("step", step);
+
     try step.singleUnchangingWatchInput(check_object.source);
 
     const src_path = check_object.source.getPath3(b, step);
+
     const contents = src_path.root_dir.handle.readFileAllocOptions(
         src_path.sub_path,
         gpa,
@@ -563,15 +615,20 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
     });
 
     var vars: std.StringHashMap(u64) = .init(gpa);
+
     for (check_object.checks.items) |chk| {
         if (chk.kind == .compute_compare) {
             assert(chk.actions.items.len == 1);
+
             const act = chk.actions.items[0];
+
             assert(act.tag == .compute_cmp);
+
             const res = act.computeCmp(b, step, vars) catch |err| switch (err) {
                 error.UnknownVariable => return step.fail("Unknown variable", .{}),
                 else => |e| return e,
             };
+
             if (!res) {
                 return step.fail(
                     \\
@@ -580,6 +637,7 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
                     \\===================================================
                 , .{ act.phrase.resolve(b, step), act.expected.? });
             }
+
             continue;
         }
 
@@ -616,6 +674,7 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
         }.fmtMessageString;
 
         var it = mem.tokenizeAny(u8, output, "\r\n");
+
         for (chk.actions.items) |act| {
             switch (act.tag) {
                 .exact => {
@@ -661,6 +720,7 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
                 .not_present => {
                     while (it.next()) |line| {
                         if (act.notPresent(b, step, line)) continue;
+
                         return step.fail(
                             \\
                             \\========= expected not to find: ===================
@@ -731,12 +791,15 @@ const MachODumper = struct {
         fn parse(ctx: *ObjectContext) !void {
             var it = try ctx.getLoadCommandIterator();
             var i: usize = 0;
+
             while (try it.next()) |cmd| {
                 switch (cmd.hdr.cmd) {
                     .SEGMENT_64 => {
                         const seg = cmd.cast(macho.segment_command_64).?;
+
                         try ctx.segments.append(ctx.gpa, seg);
                         try ctx.sections.ensureUnusedCapacity(ctx.gpa, seg.nsects);
+
                         for (cmd.getSections()) |sect| {
                             ctx.sections.appendAssumeCapacity(sect);
                         }
@@ -745,12 +808,14 @@ const MachODumper = struct {
                         const lc = cmd.cast(macho.symtab_command).?;
                         const symtab = @as([*]align(1) const macho.nlist_64, @ptrCast(ctx.data.ptr + lc.symoff))[0..lc.nsyms];
                         const strtab = ctx.data[lc.stroff..][0..lc.strsize];
+
                         try ctx.symtab.appendUnalignedSlice(ctx.gpa, symtab);
                         try ctx.strtab.appendSlice(ctx.gpa, strtab);
                     },
                     .DYSYMTAB => {
                         const lc = cmd.cast(macho.dysymtab_command).?;
                         const indexes = @as([*]align(1) const u32, @ptrCast(ctx.data.ptr + lc.indirectsymoff))[0..lc.nindirectsyms];
+
                         try ctx.indsymtab.appendUnalignedSlice(ctx.gpa, indexes);
                     },
                     .LOAD_DYLIB,
@@ -768,6 +833,7 @@ const MachODumper = struct {
 
         fn getString(ctx: ObjectContext, off: u32) [:0]const u8 {
             assert(off < ctx.strtab.items.len);
+
             return mem.sliceTo(@as([*:0]const u8, @ptrCast(ctx.strtab.items.ptr + off)), 0);
         }
 
@@ -777,9 +843,11 @@ const MachODumper = struct {
 
         fn getLoadCommand(ctx: ObjectContext, cmd: macho.LC) !?macho.LoadCommandIterator.LoadCommand {
             var it = try ctx.getLoadCommandIterator();
+
             while (try it.next()) |lc| if (lc.hdr.cmd == cmd) {
                 return lc;
             };
+
             return null;
         }
 
@@ -787,6 +855,7 @@ const MachODumper = struct {
             for (ctx.segments.items) |seg| {
                 if (mem.eql(u8, seg.segName(), name)) return seg;
             }
+
             return null;
         }
 
@@ -794,6 +863,7 @@ const MachODumper = struct {
             for (ctx.sections.items) |sect| {
                 if (mem.eql(u8, sect.segName(), segname) and mem.eql(u8, sect.sectName(), sectname)) return sect;
             }
+
             return null;
         }
 
@@ -803,6 +873,7 @@ const MachODumper = struct {
                 macho.CPU_TYPE_X86_64 => "X86_64",
                 else => "Unknown",
             };
+
             const filetype = switch (hdr.filetype) {
                 macho.MH_OBJECT => "MH_OBJECT",
                 macho.MH_EXECUTE => "MH_EXECUTE",
@@ -876,7 +947,9 @@ const MachODumper = struct {
             switch (lc.hdr.cmd) {
                 .SEGMENT_64 => {
                     const seg = lc.cast(macho.segment_command_64).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\segname {s}
                         \\vmaddr {x}
@@ -893,6 +966,7 @@ const MachODumper = struct {
 
                     for (lc.getSections()) |sect| {
                         try writer.writeByte('\n');
+
                         try writer.print(
                             \\sectname {s}
                             \\addr {x}
@@ -915,7 +989,9 @@ const MachODumper = struct {
                 .REEXPORT_DYLIB,
                 => {
                     const dylib = lc.cast(macho.dylib_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\name {s}
                         \\timestamp {d}
@@ -931,7 +1007,9 @@ const MachODumper = struct {
 
                 .MAIN => {
                     const main = lc.cast(macho.entry_point_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\entryoff {x}
                         \\stacksize {x}
@@ -940,6 +1018,7 @@ const MachODumper = struct {
 
                 .RPATH => {
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\path {s}
                     , .{
@@ -949,6 +1028,7 @@ const MachODumper = struct {
 
                 .UUID => {
                     const uuid = lc.cast(macho.uuid_command).?;
+
                     try writer.writeByte('\n');
                     try writer.print("uuid {x}", .{&uuid.uuid});
                 },
@@ -958,7 +1038,9 @@ const MachODumper = struct {
                 .CODE_SIGNATURE,
                 => {
                     const llc = lc.cast(macho.linkedit_data_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\dataoff {x}
                         \\datasize {x}
@@ -967,7 +1049,9 @@ const MachODumper = struct {
 
                 .DYLD_INFO_ONLY => {
                     const dlc = lc.cast(macho.dyld_info_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\rebaseoff {x}
                         \\rebasesize {x}
@@ -995,7 +1079,9 @@ const MachODumper = struct {
 
                 .SYMTAB => {
                     const slc = lc.cast(macho.symtab_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\symoff {x}
                         \\nsyms {x}
@@ -1011,7 +1097,9 @@ const MachODumper = struct {
 
                 .DYSYMTAB => {
                     const dlc = lc.cast(macho.dysymtab_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\ilocalsym {x}
                         \\nlocalsym {x}
@@ -1035,7 +1123,9 @@ const MachODumper = struct {
 
                 .BUILD_VERSION => {
                     const blc = lc.cast(macho.build_version_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\platform {s}
                         \\minos {d}.{d}.{d}
@@ -1051,12 +1141,15 @@ const MachODumper = struct {
                         @as(u8, @truncate(blc.sdk)),
                         blc.ntools,
                     });
+
                     for (lc.getBuildVersionTools()) |tool| {
                         try writer.writeByte('\n');
+
                         switch (tool.tool) {
                             .CLANG, .SWIFT, .LD, .LLD, .ZIG => try writer.print("tool {s}\n", .{@tagName(tool.tool)}),
                             else => |x| try writer.print("tool {d}\n", .{@intFromEnum(x)}),
                         }
+
                         try writer.print(
                             \\version {d}.{d}.{d}
                         , .{
@@ -1073,7 +1166,9 @@ const MachODumper = struct {
                 .VERSION_MIN_TVOS,
                 => {
                     const vlc = lc.cast(macho.version_min_command).?;
+
                     try writer.writeByte('\n');
+
                     try writer.print(
                         \\version {d}.{d}.{d}
                         \\sdk {d}.{d}.{d}
@@ -1096,58 +1191,82 @@ const MachODumper = struct {
 
             for (ctx.symtab.items) |sym| {
                 const sym_name = ctx.getString(sym.n_strx);
+
                 if (sym.n_type.bits.is_stab != 0) {
                     const tt = switch (sym.n_type.stab) {
                         _ => "UNKNOWN STAB",
                         else => @tagName(sym.n_type.stab),
                     };
+
                     try writer.print("{x}", .{sym.n_value});
+
                     if (sym.n_sect > 0) {
                         const sect = ctx.sections.items[sym.n_sect - 1];
+
                         try writer.print(" ({s},{s})", .{ sect.segName(), sect.sectName() });
                     }
+
                     try writer.print(" {s} (stab) {s}\n", .{ tt, sym_name });
                 } else if (sym.n_type.bits.type == .sect) {
                     const sect = ctx.sections.items[sym.n_sect - 1];
+
                     try writer.print("{x} ({s},{s})", .{
                         sym.n_value,
                         sect.segName(),
                         sect.sectName(),
                     });
+
                     if (sym.n_desc.referenced_dynamically) try writer.writeAll(" [referenced dynamically]");
                     if (sym.n_desc.weak_def_or_ref_to_weak) try writer.writeAll(" weak");
                     if (sym.n_desc.weak_ref) try writer.writeAll(" weakref");
+
                     if (sym.n_type.bits.ext) {
                         if (sym.n_type.bits.pext) try writer.writeAll(" private");
+
                         try writer.writeAll(" external");
                     } else if (sym.n_type.bits.pext) try writer.writeAll(" (was private external)");
+
                     try writer.print(" {s}\n", .{sym_name});
                 } else if (sym.tentative()) {
                     const alignment = (@as(u16, @bitCast(sym.n_desc)) >> 8) & 0x0F;
+
                     try writer.print("  0x{x:0>16} (common) (alignment 2^{d})", .{ sym.n_value, alignment });
+
                     if (sym.n_type.bits.ext) try writer.writeAll(" external");
+
                     try writer.print(" {s}\n", .{sym_name});
                 } else if (sym.n_type.bits.type == .undf) {
                     const ordinal = @divFloor(@as(i16, @bitCast(sym.n_desc)), macho.N_SYMBOL_RESOLVER);
+
                     const import_name = blk: {
                         if (ordinal <= 0) {
                             if (ordinal == macho.BIND_SPECIAL_DYLIB_SELF)
                                 break :blk "self import";
+
                             if (ordinal == macho.BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE)
                                 break :blk "main executable";
+
                             if (ordinal == macho.BIND_SPECIAL_DYLIB_FLAT_LOOKUP)
                                 break :blk "flat lookup";
+
                             unreachable;
                         }
+
                         const full_path = ctx.imports.items[@as(u16, @bitCast(ordinal)) - 1];
                         const basename = fs.path.basename(full_path);
+
                         assert(basename.len > 0);
+
                         const ext = mem.lastIndexOfScalar(u8, basename, '.') orelse basename.len;
+
                         break :blk basename[0..ext];
                     };
+
                     try writer.writeAll("(undefined)");
+
                     if (sym.n_desc.weak_ref) try writer.writeAll(" weakref");
                     if (sym.n_type.bits.ext) try writer.writeAll(" external");
+
                     try writer.print(" {s} (from {s})\n", .{
                         sym_name,
                         import_name,
@@ -1160,46 +1279,58 @@ const MachODumper = struct {
             try writer.writeAll(indirect_symtab_label ++ "\n");
 
             var sects_buffer: [3]macho.section_64 = undefined;
+
             const sects = blk: {
                 var count: usize = 0;
+
                 if (ctx.getSectionByName("__TEXT", "__stubs")) |sect| {
                     sects_buffer[count] = sect;
                     count += 1;
                 }
+
                 if (ctx.getSectionByName("__DATA_CONST", "__got")) |sect| {
                     sects_buffer[count] = sect;
                     count += 1;
                 }
+
                 if (ctx.getSectionByName("__DATA", "__la_symbol_ptr")) |sect| {
                     sects_buffer[count] = sect;
                     count += 1;
                 }
+
                 break :blk sects_buffer[0..count];
             };
 
             const sortFn = struct {
                 fn sortFn(c: void, lhs: macho.section_64, rhs: macho.section_64) bool {
                     _ = c;
+
                     return lhs.reserved1 < rhs.reserved1;
                 }
             }.sortFn;
+
             mem.sort(macho.section_64, sects, {}, sortFn);
 
             var i: usize = 0;
+
             while (i < sects.len) : (i += 1) {
                 const sect = sects[i];
                 const start = sect.reserved1;
                 const end = if (i + 1 >= sects.len) ctx.indsymtab.items.len else sects[i + 1].reserved1;
+
                 const entry_size = blk: {
                     if (mem.eql(u8, sect.sectName(), "__stubs")) break :blk sect.reserved2;
+
                     break :blk @sizeOf(u64);
                 };
 
                 try writer.print("{s},{s}\n", .{ sect.segName(), sect.sectName() });
                 try writer.print("nentries {d}\n", .{end - start});
+
                 for (ctx.indsymtab.items[start..end], 0..) |index, j| {
                     const sym = ctx.symtab.items[index];
                     const addr = sect.addr + entry_size * j;
+
                     try writer.print("0x{x} {d} {s}\n", .{ addr, index, ctx.getString(sym.n_strx) });
                 }
             }
@@ -1207,9 +1338,12 @@ const MachODumper = struct {
 
         fn dumpRebaseInfo(ctx: ObjectContext, data: []const u8, writer: anytype) !void {
             var rebases = std.array_list.Managed(u64).init(ctx.gpa);
+
             defer rebases.deinit();
+
             try ctx.parseRebaseInfo(data, &rebases);
             mem.sort(u64, rebases.items, {}, std.sort.asc(u64));
+
             for (rebases.items) |addr| {
                 try writer.print("0x{x}\n", .{addr});
             }
@@ -1220,10 +1354,12 @@ const MachODumper = struct {
 
             var seg_id: ?u8 = null;
             var offset: u64 = 0;
+
             while (true) {
                 const byte = reader.takeByte() catch break;
                 const opc = byte & macho.REBASE_OPCODE_MASK;
                 const imm = byte & macho.REBASE_IMMEDIATE_MASK;
+
                 switch (opc) {
                     macho.REBASE_OPCODE_DONE => break,
                     macho.REBASE_OPCODE_SET_TYPE_IMM => {},
@@ -1236,13 +1372,16 @@ const MachODumper = struct {
                     },
                     macho.REBASE_OPCODE_ADD_ADDR_ULEB => {
                         const addend = try reader.takeLeb128(u64);
+
                         offset += addend;
                     },
                     macho.REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB => {
                         const addend = try reader.takeLeb128(u64);
                         const seg = ctx.segments.items[seg_id.?];
                         const addr = seg.vmaddr + offset;
+
                         try rebases.append(addr);
+
                         offset += addend + @sizeOf(u64);
                     },
                     macho.REBASE_OPCODE_DO_REBASE_IMM_TIMES,
@@ -1251,6 +1390,7 @@ const MachODumper = struct {
                     => {
                         var ntimes: u64 = 1;
                         var skip: u64 = 0;
+
                         switch (opc) {
                             macho.REBASE_OPCODE_DO_REBASE_IMM_TIMES => {
                                 ntimes = imm;
@@ -1264,12 +1404,16 @@ const MachODumper = struct {
                             },
                             else => unreachable,
                         }
+
                         const seg = ctx.segments.items[seg_id.?];
                         const base_addr = seg.vmaddr;
                         var count: usize = 0;
+
                         while (count < ntimes) : (count += 1) {
                             const addr = base_addr + offset;
+
                             try rebases.append(addr);
+
                             offset += skip + @sizeOf(u64);
                         }
                     },
@@ -1291,6 +1435,7 @@ const MachODumper = struct {
 
             fn lessThan(ctx: void, lhs: Binding, rhs: Binding) bool {
                 _ = ctx;
+
                 return lhs.address < rhs.address;
             }
 
@@ -1304,24 +1449,31 @@ const MachODumper = struct {
 
         fn dumpBindInfo(ctx: ObjectContext, data: []const u8, writer: anytype) !void {
             var bindings = std.array_list.Managed(Binding).init(ctx.gpa);
+
             defer {
                 for (bindings.items) |*b| {
                     b.deinit(ctx.gpa);
                 }
+
                 bindings.deinit();
             }
+
             var data_reader: std.Io.Reader = .fixed(data);
+
             try ctx.parseBindInfo(&data_reader, &bindings);
             mem.sort(Binding, bindings.items, {}, Binding.lessThan);
+
             for (bindings.items) |binding| {
                 try writer.print("0x{x} [addend: {d}]", .{ binding.address, binding.addend });
                 try writer.writeAll(" (");
+
                 switch (binding.tag) {
                     .self => try writer.writeAll("self"),
                     .exe => try writer.writeAll("main executable"),
                     .flat => try writer.writeAll("flat lookup"),
                     .ord => try writer.writeAll(std.fs.path.basename(ctx.imports.items[binding.ordinal - 1])),
                 }
+
                 try writer.print(") {s}\n", .{binding.name});
             }
         }
@@ -1334,12 +1486,14 @@ const MachODumper = struct {
             var addend: i64 = 0;
 
             var name_buf = std.array_list.Managed(u8).init(ctx.gpa);
+
             defer name_buf.deinit();
 
             while (true) {
                 const byte = reader.takeByte() catch break;
                 const opc = byte & macho.BIND_OPCODE_MASK;
                 const imm = byte & macho.BIND_IMMEDIATE_MASK;
+
                 switch (opc) {
                     macho.BIND_OPCODE_DONE,
                     macho.BIND_OPCODE_SET_TYPE_IMM,
@@ -1369,6 +1523,7 @@ const MachODumper = struct {
                     },
                     macho.BIND_OPCODE_ADD_ADDR_ULEB => {
                         const x = try reader.takeLeb128(u64);
+
                         offset = @intCast(@as(i64, @intCast(offset)) + @as(i64, @bitCast(x)));
                     },
                     macho.BIND_OPCODE_DO_BIND,
@@ -1397,8 +1552,10 @@ const MachODumper = struct {
 
                         const seg = ctx.segments.items[seg_id.?];
                         var i: u64 = 0;
+
                         while (i < count) : (i += 1) {
                             const addr: u64 = @intCast(@as(i64, @intCast(seg.vmaddr + offset)));
+
                             try bindings.append(.{
                                 .address = addr,
                                 .addend = addend,
@@ -1406,6 +1563,7 @@ const MachODumper = struct {
                                 .ordinal = ordinal,
                                 .name = try ctx.gpa.dupe(u8, name_buf.items),
                             });
+
                             offset += skip + @sizeOf(u64) + add_addr;
                         }
                     },
@@ -1418,10 +1576,12 @@ const MachODumper = struct {
             const seg = ctx.getSegmentByName("__TEXT") orelse return;
 
             var arena = std.heap.ArenaAllocator.init(ctx.gpa);
+
             defer arena.deinit();
 
             var exports = std.array_list.Managed(Export).init(arena.allocator());
             var it: TrieIterator = .{ .stream = .fixed(data) };
+
             try parseTrieNode(arena.allocator(), &it, "", &exports);
 
             mem.sort(Export, exports.items, {}, Export.lessThan);
@@ -1430,18 +1590,23 @@ const MachODumper = struct {
                 switch (exp.tag) {
                     .@"export" => {
                         const info = exp.data.@"export";
+
                         if (info.kind != .regular or info.weak) {
                             try writer.writeByte('[');
                         }
+
                         switch (info.kind) {
                             .regular => {},
                             .absolute => try writer.writeAll("ABS, "),
                             .tlv => try writer.writeAll("THREAD_LOCAL, "),
                         }
+
                         if (info.weak) try writer.writeAll("WEAK");
+
                         if (info.kind != .regular or info.weak) {
                             try writer.writeAll("] ");
                         }
+
                         try writer.print("{x} ", .{seg.vmaddr + info.vmoffset});
                     },
                     else => {},
@@ -1470,13 +1635,16 @@ const MachODumper = struct {
         const Export = struct {
             name: []const u8,
             tag: enum { @"export", reexport, stub_resolver },
+
             data: union {
                 @"export": struct {
                     kind: enum { regular, absolute, tlv },
                     weak: bool = false,
                     vmoffset: u64,
                 },
+
                 reexport: u64,
+
                 stub_resolver: struct {
                     stub_offset: u64,
                     resolver_offset: u64,
@@ -1493,6 +1661,7 @@ const MachODumper = struct {
 
             fn lessThan(ctx: void, lhs: Export, rhs: Export) bool {
                 _ = ctx;
+
                 if (lhs.rankByTag() == rhs.rankByTag()) {
                     return switch (lhs.tag) {
                         .@"export" => lhs.data.@"export".vmoffset < rhs.data.@"export".vmoffset,
@@ -1500,6 +1669,7 @@ const MachODumper = struct {
                         .stub_resolver => lhs.data.stub_resolver.stub_offset < rhs.data.stub_resolver.stub_offset,
                     };
                 }
+
                 return lhs.rankByTag() < rhs.rankByTag();
             }
         };
@@ -1511,12 +1681,15 @@ const MachODumper = struct {
             exports: *std.array_list.Managed(Export),
         ) !void {
             const size = try it.takeLeb128();
+
             if (size > 0) {
                 const flags = try it.takeLeb128();
+
                 switch (flags) {
                     macho.EXPORT_SYMBOL_FLAGS_REEXPORT => {
                         const ord = try it.takeLeb128();
                         const name = try arena.dupe(u8, try it.readString());
+
                         try exports.append(.{
                             .name = if (name.len > 0) name else prefix,
                             .tag = .reexport,
@@ -1526,6 +1699,7 @@ const MachODumper = struct {
                     macho.EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER => {
                         const stub_offset = try it.takeLeb128();
                         const resolver_offset = try it.takeLeb128();
+
                         try exports.append(.{
                             .name = prefix,
                             .tag = .stub_resolver,
@@ -1537,6 +1711,7 @@ const MachODumper = struct {
                     },
                     else => {
                         const vmoff = try it.takeLeb128();
+
                         try exports.append(.{
                             .name = prefix,
                             .tag = .@"export",
@@ -1556,19 +1731,24 @@ const MachODumper = struct {
             }
 
             const nedges = try it.takeByte();
+
             for (0..nedges) |_| {
                 const label = try it.readString();
                 const off = try it.takeLeb128();
                 const prefix_label = try std.fmt.allocPrint(arena, "{s}{s}", .{ prefix, label });
                 const curr = it.stream.seek;
+
                 it.stream.seek = off;
+
                 try parseTrieNode(arena, it, prefix_label, exports);
+
                 it.stream.seek = curr;
             }
         }
 
         fn dumpSection(ctx: ObjectContext, sect: macho.section_64, writer: anytype) !void {
             const data = ctx.data[sect.offset..][0..sect.size];
+
             try writer.print("{s}", .{data});
         }
     };
@@ -1576,15 +1756,19 @@ const MachODumper = struct {
     fn parseAndDumpObject(step: *Step, check: Check, bytes: []const u8) ![]const u8 {
         const gpa = step.owner.allocator;
         const hdr = @as(*align(1) const macho.mach_header_64, @ptrCast(bytes.ptr)).*;
+
         if (hdr.magic != macho.MH_MAGIC_64) {
             return error.InvalidMagicNumber;
         }
 
         var ctx = ObjectContext{ .gpa = gpa, .data = bytes, .header = hdr };
+
         try ctx.parse();
 
         var output: std.Io.Writer.Allocating = .init(gpa);
+
         defer output.deinit();
+
         const writer = &output.writer;
 
         switch (check.kind) {
@@ -1593,6 +1777,7 @@ const MachODumper = struct {
 
                 var it = try ctx.getLoadCommandIterator();
                 var i: usize = 0;
+
                 while (try it.next()) |cmd| {
                     try ObjectContext.dumpLoadCommand(cmd, i, writer);
                     try writer.writeByte('\n');
@@ -1616,29 +1801,34 @@ const MachODumper = struct {
             => {
                 const cmd = try ctx.getLoadCommand(.DYLD_INFO_ONLY) orelse
                     return step.fail("no dyld info found", .{});
+
                 const lc = cmd.cast(macho.dyld_info_command).?;
 
                 switch (check.kind) {
                     .dyld_rebase => if (lc.rebase_size > 0) {
                         const data = ctx.data[lc.rebase_off..][0..lc.rebase_size];
+
                         try writer.writeAll(dyld_rebase_label ++ "\n");
                         try ctx.dumpRebaseInfo(data, writer);
                     } else return step.fail("no rebase data found", .{}),
 
                     .dyld_bind => if (lc.bind_size > 0) {
                         const data = ctx.data[lc.bind_off..][0..lc.bind_size];
+
                         try writer.writeAll(dyld_bind_label ++ "\n");
                         try ctx.dumpBindInfo(data, writer);
                     } else return step.fail("no bind data found", .{}),
 
                     .dyld_weak_bind => if (lc.weak_bind_size > 0) {
                         const data = ctx.data[lc.weak_bind_off..][0..lc.weak_bind_size];
+
                         try writer.writeAll(dyld_weak_bind_label ++ "\n");
                         try ctx.dumpBindInfo(data, writer);
                     } else return step.fail("no weak bind data found", .{}),
 
                     .dyld_lazy_bind => if (lc.lazy_bind_size > 0) {
                         const data = ctx.data[lc.lazy_bind_off..][0..lc.lazy_bind_size];
+
                         try writer.writeAll(dyld_lazy_bind_label ++ "\n");
                         try ctx.dumpBindInfo(data, writer);
                     } else return step.fail("no lazy bind data found", .{}),
@@ -1650,24 +1840,32 @@ const MachODumper = struct {
             .exports => blk: {
                 if (try ctx.getLoadCommand(.DYLD_INFO_ONLY)) |cmd| {
                     const lc = cmd.cast(macho.dyld_info_command).?;
+
                     if (lc.export_size > 0) {
                         const data = ctx.data[lc.export_off..][0..lc.export_size];
+
                         try writer.writeAll(exports_label ++ "\n");
                         try ctx.dumpExportsTrie(data, writer);
+
                         break :blk;
                     }
                 }
+
                 return step.fail("no exports data found", .{});
             },
 
             .dump_section => {
                 const name = mem.sliceTo(@as([*:0]const u8, @ptrCast(check.data.items.ptr + check.payload.dump_section)), 0);
+
                 const sep_index = mem.indexOfScalar(u8, name, ',') orelse
                     return step.fail("invalid section name: {s}", .{name});
+
                 const segname = name[0..sep_index];
                 const sectname = name[sep_index + 1 ..];
+
                 const sect = ctx.getSectionByName(segname, sectname) orelse
                     return step.fail("section '{s}' not found", .{name});
+
                 try ctx.dumpSection(sect, writer);
             },
 
@@ -1696,6 +1894,7 @@ const ElfDumper = struct {
         var reader: std.Io.Reader = .fixed(bytes);
 
         const magic = try reader.takeArray(elf.ARMAG.len);
+
         if (!mem.eql(u8, magic, elf.ARMAG)) {
             return error.InvalidArchiveMagicNumber;
         }
@@ -1705,10 +1904,12 @@ const ElfDumper = struct {
             .data = bytes,
             .strtab = &[0]u8{},
         };
+
         defer {
             for (ctx.objects.items) |*object| {
                 gpa.free(object.name);
             }
+
             ctx.objects.deinit(gpa);
         }
 
@@ -1721,20 +1922,27 @@ const ElfDumper = struct {
             if (!mem.eql(u8, &hdr.ar_fmag, elf.ARFMAG)) return error.InvalidArchiveHeaderMagicNumber;
 
             const size = try hdr.size();
+
             defer reader.seek += size;
 
             if (hdr.isSymtab()) {
                 try ctx.parseSymtab(ctx.data[reader.seek..][0..size], .p32);
+
                 continue;
             }
+
             if (hdr.isSymtab64()) {
                 try ctx.parseSymtab(ctx.data[reader.seek..][0..size], .p64);
+
                 continue;
             }
+
             if (hdr.isStrtab()) {
                 ctx.strtab = ctx.data[reader.seek..][0..size];
+
                 continue;
             }
+
             if (hdr.isSymdef() or hdr.isSymdefSorted()) continue;
 
             const name = if (hdr.name()) |name|
@@ -1748,7 +1956,9 @@ const ElfDumper = struct {
         }
 
         var output: std.Io.Writer.Allocating = .init(gpa);
+
         defer output.deinit();
+
         const writer = &output.writer;
 
         switch (check.kind) {
@@ -1773,14 +1983,17 @@ const ElfDumper = struct {
 
         fn parseSymtab(ctx: *ArchiveContext, raw: []const u8, ptr_width: enum { p32, p64 }) !void {
             var reader: std.Io.Reader = .fixed(raw);
+
             const num = switch (ptr_width) {
                 .p32 => try reader.takeInt(u32, .big),
                 .p64 => try reader.takeInt(u64, .big),
             };
+
             const ptr_size: usize = switch (ptr_width) {
                 .p32 => @sizeOf(u32),
                 .p64 => @sizeOf(u64),
             };
+
             const strtab_off = (num + 1) * ptr_size;
             const strtab_len = raw.len - strtab_off;
             const strtab = raw[strtab_off..][0..strtab_len];
@@ -1788,20 +2001,26 @@ const ElfDumper = struct {
             try ctx.symtab.ensureTotalCapacityPrecise(ctx.gpa, num);
 
             var stroff: usize = 0;
+
             for (0..num) |_| {
                 const off = switch (ptr_width) {
                     .p32 => try reader.takeInt(u32, .big),
                     .p64 => try reader.takeInt(u64, .big),
                 };
+
                 const name = mem.sliceTo(@as([*:0]const u8, @ptrCast(strtab.ptr + stroff)), 0);
+
                 stroff += name.len + 1;
+
                 ctx.symtab.appendAssumeCapacity(.{ .off = off, .name = name });
             }
         }
 
         fn dumpSymtab(ctx: ArchiveContext, writer: anytype) !void {
             var files = std.AutoHashMap(usize, []const u8).init(ctx.gpa);
+
             defer files.deinit();
+
             try files.ensureUnusedCapacity(@intCast(ctx.objects.items.len));
 
             for (ctx.objects.items) |object| {
@@ -1809,24 +2028,30 @@ const ElfDumper = struct {
             }
 
             var symbols = std.AutoArrayHashMap(usize, std.array_list.Managed([]const u8)).init(ctx.gpa);
+
             defer {
                 for (symbols.values()) |*value| {
                     value.deinit();
                 }
+
                 symbols.deinit();
             }
 
             for (ctx.symtab.items) |entry| {
                 const gop = try symbols.getOrPut(@intCast(entry.off));
+
                 if (!gop.found_existing) {
                     gop.value_ptr.* = std.array_list.Managed([]const u8).init(ctx.gpa);
                 }
+
                 try gop.value_ptr.append(entry.name);
             }
 
             try writer.print("{s}\n", .{archive_symtab_label});
+
             for (symbols.keys(), symbols.values()) |off, values| {
                 try writer.print("in object {s}\n", .{files.get(off).?});
+
                 for (values.items) |value| {
                     try writer.print("{s}\n", .{value});
                 }
@@ -1836,15 +2061,20 @@ const ElfDumper = struct {
         fn dumpObjects(ctx: ArchiveContext, step: *Step, check: Check, writer: anytype) !void {
             for (ctx.objects.items) |object| {
                 try writer.print("object {s}\n", .{object.name});
+
                 const output = try parseAndDumpObject(step, check, ctx.data[object.off..][0..object.len]);
+
                 defer ctx.gpa.free(output);
+
                 try writer.print("{s}\n", .{output});
             }
         }
 
         fn getString(ctx: ArchiveContext, off: u32) []const u8 {
             assert(off < ctx.strtab.len);
+
             const name = mem.sliceTo(@as([*:'\n']const u8, @ptrCast(ctx.strtab.ptr + off)), 0);
+
             return name[0 .. name.len - 1];
         }
 
@@ -1862,18 +2092,24 @@ const ElfDumper = struct {
         const hdr = try elf.Header.read(&reader);
 
         var shdrs = try gpa.alloc(elf.Elf64_Shdr, hdr.shnum);
+
         defer gpa.free(shdrs);
+
         {
             var shdr_it = hdr.iterateSectionHeadersBuffer(bytes);
             var shdr_i: usize = 0;
+
             while (try shdr_it.next()) |shdr| : (shdr_i += 1) shdrs[shdr_i] = shdr;
         }
 
         var phdrs = try gpa.alloc(elf.Elf64_Phdr, hdr.shnum);
+
         defer gpa.free(phdrs);
+
         {
             var phdr_it = hdr.iterateProgramHeadersBuffer(bytes);
             var phdr_i: usize = 0;
+
             while (try phdr_it.next()) |phdr| : (phdr_i += 1) phdrs[phdr_i] = phdr;
         }
 
@@ -1885,6 +2121,7 @@ const ElfDumper = struct {
             .phdrs = phdrs,
             .shstrtab = undefined,
         };
+
         ctx.shstrtab = ctx.getSectionContents(ctx.hdr.shstrndx);
 
         defer gpa.free(ctx.symtab.symbols);
@@ -1898,6 +2135,7 @@ const ElfDumper = struct {
                 const symbols = try gpa.alloc(elf.Elf64_Sym, nsyms);
 
                 var r: std.Io.Reader = .fixed(raw);
+
                 for (0..nsyms) |si| symbols[si] = r.takeStruct(elf.Elf64_Sym, ctx.hdr.endian) catch unreachable;
 
                 const strings = ctx.getSectionContents(shdr.sh_link);
@@ -1924,6 +2162,7 @@ const ElfDumper = struct {
                 const dyns = try gpa.alloc(elf.Elf64_Dyn, ndyns);
 
                 var r: std.Io.Reader = .fixed(raw);
+
                 for (0..ndyns) |si| dyns[si] = r.takeStruct(elf.Elf64_Dyn, ctx.hdr.endian) catch unreachable;
 
                 ctx.dyns = dyns;
@@ -1934,7 +2173,9 @@ const ElfDumper = struct {
         };
 
         var output: std.Io.Writer.Allocating = .init(gpa);
+
         defer output.deinit();
+
         const writer = &output.writer;
 
         switch (check.kind) {
@@ -1959,6 +2200,7 @@ const ElfDumper = struct {
             .dump_section => {
                 const name = mem.sliceTo(@as([*:0]const u8, @ptrCast(check.data.items.ptr + check.payload.dump_section)), 0);
                 const shndx = ctx.getSectionByName(name) orelse return step.fail("no '{s}' section found", .{name});
+
                 try ctx.dumpSection(shndx, writer);
             },
 
@@ -2003,23 +2245,31 @@ const ElfDumper = struct {
 
                 {
                     const flags = phdr.p_flags;
+
                     try writer.writeAll("flags");
+
                     if (flags > 0) try writer.writeByte(' ');
+
                     if (flags & elf.PF_R != 0) {
                         try writer.writeByte('R');
                     }
+
                     if (flags & elf.PF_W != 0) {
                         try writer.writeByte('W');
                     }
+
                     if (flags & elf.PF_X != 0) {
                         try writer.writeByte('E');
                     }
+
                     if (flags & elf.PF_MASKOS != 0) {
                         try writer.writeAll("OS");
                     }
+
                     if (flags & elf.PF_MASKPROC != 0) {
                         try writer.writeAll("PROC");
                     }
+
                     try writer.writeByte('\n');
                 }
             }
@@ -2084,6 +2334,7 @@ const ElfDumper = struct {
                     elf.DT_NULL => "NULL",
                     else => "UNKNOWN",
                 };
+
                 try writer.print("{s}", .{key_str});
 
                 switch (key) {
@@ -2093,6 +2344,7 @@ const ElfDumper = struct {
                     elf.DT_RUNPATH,
                     => {
                         const name = getString(ctx.dyns_strings, @intCast(value));
+
                         try writer.print(" {s}", .{name});
                     },
 
@@ -2170,6 +2422,7 @@ const ElfDumper = struct {
 
                     else => try writer.print(" {x}", .{value}),
                 }
+
                 try writer.writeByte('\n');
             }
         }
@@ -2199,6 +2452,7 @@ const ElfDumper = struct {
                                 elf.SHN_LIVEPATCH => "LIV",
                                 else => "UNK",
                             };
+
                             try writer.print(" {s}", .{sym_ndx});
                         }
                     } else if (sym.st_shndx == elf.SHN_UNDEF) {
@@ -2210,6 +2464,7 @@ const ElfDumper = struct {
 
                 blk: {
                     const tt = sym.st_type();
+
                     const sym_type = switch (tt) {
                         elf.STT_NOTYPE => "NOTYPE",
                         elf.STT_OBJECT => "OBJECT",
@@ -2226,11 +2481,13 @@ const ElfDumper = struct {
                             break :blk try writer.print(" LOOS+{d}", .{tt - elf.STT_LOOS});
                         } else "UNK",
                     };
+
                     try writer.print(" {s}", .{sym_type});
                 }
 
                 blk: {
                     const bind = sym.st_bind();
+
                     const sym_bind = switch (bind) {
                         elf.STB_LOCAL => "LOCAL",
                         elf.STB_GLOBAL => "GLOBAL",
@@ -2242,34 +2499,41 @@ const ElfDumper = struct {
                             break :blk try writer.print(" LOOS+{d}", .{bind - elf.STB_LOOS});
                         } else "UNKNOWN",
                     };
+
                     try writer.print(" {s}", .{sym_bind});
                 }
 
                 const sym_vis = @as(elf.STV, @enumFromInt(@as(u3, @truncate(sym.st_other))));
+
                 try writer.print(" {s}", .{@tagName(sym_vis)});
 
                 const sym_name = switch (sym.st_type()) {
                     elf.STT_SECTION => ctx.getSectionName(sym.st_shndx),
                     else => symtab.getName(index).?,
                 };
+
                 try writer.print(" {s}\n", .{sym_name});
             }
         }
 
         fn dumpSection(ctx: ObjectContext, shndx: usize, writer: anytype) !void {
             const data = ctx.getSectionContents(shndx);
+
             try writer.print("{s}", .{data});
         }
 
         inline fn getSectionName(ctx: ObjectContext, shndx: usize) []const u8 {
             const shdr = ctx.shdrs[shndx];
+
             return getString(ctx.shstrtab, shdr.sh_name);
         }
 
         fn getSectionContents(ctx: ObjectContext, shndx: usize) []const u8 {
             const shdr = ctx.shdrs[shndx];
+
             assert(shdr.sh_offset < ctx.data.len);
             assert(shdr.sh_offset + shdr.sh_size <= ctx.data.len);
+
             return ctx.data[shdr.sh_offset..][0..shdr.sh_size];
         }
 
@@ -2286,17 +2550,20 @@ const ElfDumper = struct {
 
         fn get(st: Symtab, index: usize) ?elf.Elf64_Sym {
             if (index >= st.symbols.len) return null;
+
             return st.symbols[index];
         }
 
         fn getName(st: Symtab, index: usize) ?[]const u8 {
             const sym = st.get(index) orelse return null;
+
             return getString(st.strings, sym.st_name);
         }
     };
 
     fn getString(strtab: []const u8, off: u32) []const u8 {
         assert(off < strtab.len);
+
         return mem.sliceTo(@as([*:0]const u8, @ptrCast(strtab.ptr + off)), 0);
     }
 
@@ -2337,6 +2604,7 @@ const ElfDumper = struct {
                 return try writer.print("LOUSER+0x{x}", .{sh_type - elf.SHT_LOUSER});
             } else "UNKNOWN",
         };
+
         try writer.writeAll(name);
     }
 
@@ -2364,6 +2632,7 @@ const ElfDumper = struct {
                 return try writer.print("LOPROC+0x{x}", .{ph_type - elf.PT_LOPROC});
             } else "UNKNOWN",
         };
+
         try writer.writeAll(p_type);
     }
 };
@@ -2376,19 +2645,24 @@ const WasmDumper = struct {
         var reader: std.Io.Reader = .fixed(bytes);
 
         const buf = try reader.takeArray(8);
+
         if (!mem.eql(u8, buf[0..4], &std.wasm.magic)) {
             return error.InvalidMagicByte;
         }
+
         if (!mem.eql(u8, buf[4..], &std.wasm.version)) {
             return error.UnsupportedWasmVersion;
         }
 
         var output: std.Io.Writer.Allocating = .init(gpa);
+
         defer output.deinit();
+
         parseAndDumpInner(step, check, bytes, &reader, &output.writer) catch |err| switch (err) {
             error.EndOfStream => try output.writer.writeAll("\n<UnexpectedEndOfStream>"),
             else => |e| return e,
         };
+
         return output.toOwnedSlice();
     }
 
@@ -2407,7 +2681,9 @@ const WasmDumper = struct {
                     };
 
                     const section_length = try reader.takeLeb128(u32);
+
                     try parseAndDumpSection(step, section, bytes[reader.seek..][0..section_length], writer);
+
                     reader.seek += section_length;
                 } else |_| {} // reached end of stream
             },
@@ -2442,13 +2718,17 @@ const WasmDumper = struct {
             .data,
             => {
                 const entries = try reader.takeLeb128(u32);
+
                 try writer.print("\nentries {d}\n", .{entries});
+
                 try parseSection(step, section, data[reader.seek..], entries, writer);
             },
             .custom => {
                 const name_length = try reader.takeLeb128(u32);
                 const name = data[reader.seek..][0..name_length];
+
                 reader.seek += name_length;
+
                 try writer.print("\nname {s}\n", .{name});
 
                 if (mem.eql(u8, name, "name")) {
@@ -2462,10 +2742,12 @@ const WasmDumper = struct {
             },
             .start => {
                 const start = try reader.takeLeb128(u32);
+
                 try writer.print("\nstart {d}\n", .{start});
             },
             .data_count => {
                 const count = try reader.takeLeb128(u32);
+
                 try writer.print("\ncount {d}\n", .{count});
             },
             else => {}, // skip unknown sections
@@ -2478,19 +2760,28 @@ const WasmDumper = struct {
         switch (section) {
             .type => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     const func_type = try reader.takeByte();
+
                     if (func_type != std.wasm.function_type) {
                         return step.fail("expected function type, found byte '{d}'", .{func_type});
                     }
+
                     const params = try reader.takeLeb128(u32);
+
                     try writer.print("params {d}\n", .{params});
+
                     var index: u32 = 0;
+
                     while (index < params) : (index += 1) {
                         _ = try parseDumpType(step, std.wasm.Valtype, &reader, writer);
                     } else index = 0;
+
                     const returns = try reader.takeLeb128(u32);
+
                     try writer.print("returns {d}\n", .{returns});
+
                     while (index < returns) : (index += 1) {
                         _ = try parseDumpType(step, std.wasm.Valtype, &reader, writer);
                     }
@@ -2498,12 +2789,16 @@ const WasmDumper = struct {
             },
             .import => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     const module_name_len = try reader.takeLeb128(u32);
                     const module_name = data[reader.seek..][0..module_name_len];
+
                     reader.seek += module_name_len;
+
                     const name_len = try reader.takeLeb128(u32);
                     const name = data[reader.seek..][0..name_len];
+
                     reader.seek += name_len;
 
                     const kind = std.enums.fromInt(std.wasm.ExternalKind, try reader.takeByte()) orelse {
@@ -2515,7 +2810,9 @@ const WasmDumper = struct {
                         \\name {s}
                         \\kind {s}
                     , .{ module_name, name, @tagName(kind) });
+
                     try writer.writeByte('\n');
+
                     switch (kind) {
                         .function => {
                             try writer.print("index {d}\n", .{try reader.takeLeb128(u32)});
@@ -2525,10 +2822,12 @@ const WasmDumper = struct {
                         },
                         .global => {
                             _ = try parseDumpType(step, std.wasm.Valtype, &reader, writer);
+
                             try writer.print("mutable {}\n", .{0x01 == try reader.takeLeb128(u32)});
                         },
                         .table => {
                             _ = try parseDumpType(step, std.wasm.RefType, &reader, writer);
+
                             try parseDumpLimits(&reader, writer);
                         },
                     }
@@ -2536,59 +2835,77 @@ const WasmDumper = struct {
             },
             .function => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     try writer.print("index {d}\n", .{try reader.takeLeb128(u32)});
                 }
             },
             .table => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     _ = try parseDumpType(step, std.wasm.RefType, &reader, writer);
+
                     try parseDumpLimits(&reader, writer);
                 }
             },
             .memory => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     try parseDumpLimits(&reader, writer);
                 }
             },
             .global => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     _ = try parseDumpType(step, std.wasm.Valtype, &reader, writer);
+
                     try writer.print("mutable {}\n", .{0x01 == try reader.takeLeb128(u1)});
+
                     try parseDumpInit(step, &reader, writer);
                 }
             },
             .@"export" => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     const name_len = try reader.takeLeb128(u32);
                     const name = data[reader.seek..][0..name_len];
+
                     reader.seek += name_len;
+
                     const kind_byte = try reader.takeLeb128(u8);
+
                     const kind = std.enums.fromInt(std.wasm.ExternalKind, kind_byte) orelse {
                         return step.fail("invalid export kind value '{d}'", .{kind_byte});
                     };
+
                     const index = try reader.takeLeb128(u32);
+
                     try writer.print(
                         \\name {s}
                         \\kind {s}
                         \\index {d}
                     , .{ name, @tagName(kind), index });
+
                     try writer.writeByte('\n');
                 }
             },
             .element => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     try writer.print("table index {d}\n", .{try reader.takeLeb128(u32)});
+
                     try parseDumpInit(step, &reader, writer);
 
                     const function_indexes = try reader.takeLeb128(u32);
                     var function_index: u32 = 0;
+
                     try writer.print("indexes {d}\n", .{function_indexes});
+
                     while (function_index < function_indexes) : (function_index += 1) {
                         try writer.print("index {d}\n", .{try reader.takeLeb128(u32)});
                     }
@@ -2597,18 +2914,23 @@ const WasmDumper = struct {
             .code => {}, // code section is considered opaque to linker
             .data => {
                 var i: u32 = 0;
+
                 while (i < entries) : (i += 1) {
                     const flags = try reader.takeLeb128(u32);
+
                     const index = if (flags & 0x02 != 0)
                         try reader.takeLeb128(u32)
                     else
                         0;
+
                     try writer.print("memory index 0x{x}\n", .{index});
+
                     if (flags == 0) {
                         try parseDumpInit(step, &reader, writer);
                     }
 
                     const size = try reader.takeLeb128(u32);
+
                     try writer.print("size {d}\n", .{size});
                     try reader.discardAll(size); // we do not care about the content of the segments
                 }
@@ -2619,10 +2941,13 @@ const WasmDumper = struct {
 
     fn parseDumpType(step: *Step, comptime E: type, reader: *std.Io.Reader, writer: *std.Io.Writer) !E {
         const byte = try reader.takeByte();
+
         const tag = std.enums.fromInt(E, byte) orelse {
             return step.fail("invalid wasm type value '{d}'", .{byte});
         };
+
         try writer.print("type {s}\n", .{@tagName(tag)});
+
         return tag;
     }
 
@@ -2631,6 +2956,7 @@ const WasmDumper = struct {
         const min = try reader.takeLeb128(u32);
 
         try writer.print("min {x}\n", .{min});
+
         if (flags != 0) {
             try writer.print("max {x}\n", .{try reader.takeLeb128(u32)});
         }
@@ -2638,9 +2964,11 @@ const WasmDumper = struct {
 
     fn parseDumpInit(step: *Step, reader: *std.Io.Reader, writer: *std.Io.Writer) !void {
         const byte = try reader.takeByte();
+
         const opcode = std.enums.fromInt(std.wasm.Opcode, byte) orelse {
             return step.fail("invalid wasm opcode '{d}'", .{byte});
         };
+
         switch (opcode) {
             .i32_const => try writer.print("i32.const {x}\n", .{try reader.takeLeb128(i32)}),
             .i64_const => try writer.print("i64.const {x}\n", .{try reader.takeLeb128(i64)}),
@@ -2649,7 +2977,9 @@ const WasmDumper = struct {
             .global_get => try writer.print("global.get {x}\n", .{try reader.takeLeb128(u32)}),
             else => unreachable,
         }
+
         const end_opcode = try reader.takeLeb128(u8);
+
         if (end_opcode != @intFromEnum(std.wasm.Opcode.end)) {
             return step.fail("expected 'end' opcode in init expression", .{});
         }
@@ -2664,9 +2994,12 @@ const WasmDumper = struct {
                 .module => {
                     const size = try reader.takeLeb128(u32);
                     const name_len = try reader.takeLeb128(u32);
+
                     if (size != name_len + 1) return error.BadSubsectionSize;
                     if (reader.seek + name_len > data.len) return error.UnexpectedEndOfStream;
+
                     try writer.print("name {s}\n", .{data[reader.seek..][0..name_len]});
+
                     reader.seek += name_len;
                 },
 
@@ -2675,16 +3008,21 @@ const WasmDumper = struct {
                 .function, .global, .data_segment => {
                     const size = try reader.takeLeb128(u32);
                     const entries = try reader.takeLeb128(u32);
+
                     try writer.print(
                         \\size {d}
                         \\names {d}
                         \\
                     , .{ size, entries });
+
                     for (0..entries) |_| {
                         const index = try reader.takeLeb128(u32);
                         const name_len = try reader.takeLeb128(u32);
+
                         if (reader.seek + name_len > data.len) return error.UnexpectedEndOfStream;
+
                         const name = data[reader.seek..][0..name_len];
+
                         reader.seek += name.len;
 
                         try writer.print(
@@ -2709,33 +3047,44 @@ const WasmDumper = struct {
 
     fn parseDumpProducers(reader: *std.Io.Reader, writer: *std.Io.Writer, data: []const u8) !void {
         const field_count = try reader.takeLeb128(u32);
+
         try writer.print("fields {d}\n", .{field_count});
+
         var current_field: u32 = 0;
+
         while (current_field < field_count) : (current_field += 1) {
             const field_name_length = try reader.takeLeb128(u32);
             const field_name = data[reader.seek..][0..field_name_length];
+
             reader.seek += field_name_length;
 
             const value_count = try reader.takeLeb128(u32);
+
             try writer.print(
                 \\field_name {s}
                 \\values {d}
             , .{ field_name, value_count });
+
             try writer.writeByte('\n');
+
             var current_value: u32 = 0;
+
             while (current_value < value_count) : (current_value += 1) {
                 const value_length = try reader.takeLeb128(u32);
                 const value = data[reader.seek..][0..value_length];
+
                 reader.seek += value_length;
 
                 const version_length = try reader.takeLeb128(u32);
                 const version = data[reader.seek..][0..version_length];
+
                 reader.seek += version_length;
 
                 try writer.print(
                     \\value_name {s}
                     \\version {s}
                 , .{ value, version });
+
                 try writer.writeByte('\n');
             }
         }
@@ -2743,13 +3092,16 @@ const WasmDumper = struct {
 
     fn parseDumpFeatures(reader: *std.Io.Reader, writer: *std.Io.Writer, data: []const u8) !void {
         const feature_count = try reader.takeLeb128(u32);
+
         try writer.print("features {d}\n", .{feature_count});
 
         var index: u32 = 0;
+
         while (index < feature_count) : (index += 1) {
             const prefix_byte = try reader.takeLeb128(u8);
             const name_length = try reader.takeLeb128(u32);
             const feature_name = data[reader.seek..][0..name_length];
+
             reader.seek += name_length;
 
             try writer.print("{c} {s}\n", .{ prefix_byte, feature_name });

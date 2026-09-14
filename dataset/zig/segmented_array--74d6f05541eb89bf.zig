@@ -6,8 +6,10 @@ const mem = std.mem;
 
 const stdx = @import("stdx");
 const div_ceil = stdx.div_ceil;
+
 const binary_search_values_upsert_index =
     @import("binary_search.zig").binary_search_values_upsert_index;
+
 const binary_search_keys = @import("binary_search.zig").binary_search_keys;
 const Direction = @import("../direction.zig").Direction;
 
@@ -76,6 +78,7 @@ fn SegmentedArrayBaseType(
 
             assert(capacity >= 2);
             assert(capacity % 2 == 0);
+
             break :blk capacity;
         };
 
@@ -96,6 +99,7 @@ fn SegmentedArrayBaseType(
             // the worst possible space overhead is when all nodes are half full.
             // This uses flooring division, we want to examine the worst case here.
             const elements_per_node_min = @divExact(node_capacity, 2);
+
             break :blk div_ceil(element_count_max, elements_per_node_min);
         };
 
@@ -129,12 +133,15 @@ fn SegmentedArrayBaseType(
 
         pub fn init(allocator: mem.Allocator) !SegmentedArray {
             const nodes = try allocator.create([node_count_max]?*[node_capacity]T);
+
             errdefer allocator.destroy(nodes);
 
             const indexes = try allocator.create([node_count_max + 1]u32);
+
             errdefer allocator.destroy(indexes);
 
             @memset(nodes, null);
+
             indexes[0] = 0;
 
             const array = SegmentedArray{
@@ -153,6 +160,7 @@ fn SegmentedArrayBaseType(
             for (array.nodes[0..array.node_count]) |node| {
                 node_pool.release(@ptrCast(@alignCast(node.?)));
             }
+
             allocator.free(array.nodes);
             allocator.free(array.indexes);
         }
@@ -163,9 +171,11 @@ fn SegmentedArrayBaseType(
             for (array.nodes[0..array.node_count]) |node| {
                 node_pool.release(@ptrCast(@alignCast(node.?)));
             }
+
             @memset(array.nodes, null);
 
             array.indexes[0] = 0;
+
             array.* = .{
                 .nodes = array.nodes,
                 .indexes = array.indexes,
@@ -176,6 +186,7 @@ fn SegmentedArrayBaseType(
 
         pub fn verify(array: SegmentedArray) void {
             assert(array.node_count <= node_count_max);
+
             for (array.nodes, 0..) |node, node_index| {
                 if (node_index < array.node_count) {
                     // The first node_count pointers are non-null.
@@ -185,25 +196,32 @@ fn SegmentedArrayBaseType(
                     assert(node == null);
                 }
             }
+
             for (array.nodes[0..array.node_count], 0..) |_, node_index| {
                 const c = array.count(@intCast(node_index));
+
                 // Every node is at most full.
                 assert(c <= node_capacity);
+
                 // Every node is at least half-full, except the last.
                 if (node_index < array.node_count - 1) {
                     assert(c >= @divTrunc(node_capacity, 2));
                 }
             }
+
             if (Key) |K| {
                 // If Key is not null then the elements must be sorted by key_from_value (but not
                 // necessarily unique).
                 var key_prior_or_null: ?K = null;
+
                 for (array.nodes[0..array.node_count], 0..) |_, node_index| {
                     for (array.node_elements(@intCast(node_index))) |*value| {
                         const key = key_from_value(value);
+
                         if (key_prior_or_null) |key_prior| {
                             assert(key_prior <= key);
                         }
+
                         key_prior_or_null = key;
                     }
                 }
@@ -218,17 +236,20 @@ fn SegmentedArrayBaseType(
             element: T,
         ) u32 {
             comptime assert(Key != null);
+
             if (options.verify) array.verify();
 
             const count_before = array.len();
 
             const cursor = array.search(key_from_value(&element));
             const absolute_index = array.absolute_index_for_cursor(cursor);
+
             array.insert_elements_at_absolute_index(node_pool, absolute_index, &[_]T{element});
 
             if (options.verify) array.verify();
 
             const count_after = array.len();
+
             assert(count_after == count_before + 1);
 
             return absolute_index;
@@ -242,9 +263,11 @@ fn SegmentedArrayBaseType(
             elements: []const T,
         ) void {
             comptime assert(Key == null);
+
             if (options.verify) array.verify();
 
             const count_before = array.len();
+
             array.insert_elements_at_absolute_index(
                 node_pool,
                 absolute_index,
@@ -252,6 +275,7 @@ fn SegmentedArrayBaseType(
             );
 
             const count_after = array.len();
+
             assert(count_after == count_before + elements.len);
 
             if (options.verify) array.verify();
@@ -267,15 +291,19 @@ fn SegmentedArrayBaseType(
             assert(absolute_index + elements.len <= element_count_max);
 
             var i: u32 = 0;
+
             while (i < elements.len) {
                 const batch = @min(node_capacity, elements.len - i);
+
                 array.insert_elements_batch(
                     node_pool,
                     absolute_index + i,
                     elements[i..][0..batch],
                 );
+
                 i += batch;
             }
+
             assert(i == elements.len);
         }
 
@@ -301,13 +329,16 @@ fn SegmentedArrayBaseType(
             }
 
             const cursor = array.cursor_for_absolute_index(absolute_index);
+
             assert(cursor.node < array.node_count);
 
             const a = cursor.node;
             const a_pointer = array.nodes[a].?;
+
             assert(cursor.relative_index <= array.count(a));
 
             const total = array.count(a) + @as(u32, @intCast(elements.len));
+
             if (total <= node_capacity) {
                 stdx.copy_right(
                     .inexact,
@@ -315,19 +346,24 @@ fn SegmentedArrayBaseType(
                     a_pointer[cursor.relative_index + elements.len ..],
                     a_pointer[cursor.relative_index..array.count(a)],
                 );
+
                 stdx.copy_disjoint(.inexact, T, a_pointer[cursor.relative_index..], elements);
 
                 array.increment_indexes_after(a, @intCast(elements.len));
+
                 return;
             }
 
             // Insert a new node after the node being split.
             const b = a + 1;
+
             array.insert_empty_node_at(node_pool, b);
+
             const b_pointer = array.nodes[b].?;
 
             const a_half = div_ceil(total, 2);
             const b_half = total - a_half;
+
             assert(a_half >= b_half);
             assert(a_half + b_half == total);
 
@@ -394,6 +430,7 @@ fn SegmentedArrayBaseType(
             );
 
             array.indexes[b] = array.indexes[a] + a_half;
+
             array.increment_indexes_after(b, @intCast(elements.len));
         }
 
@@ -406,14 +443,19 @@ fn SegmentedArrayBaseType(
             source: []const T,
         ) void {
             assert(target + source.len <= a.len + b.len);
+
             const target_a = a[@min(target, a.len)..@min(target + source.len, a.len)];
             const target_b = b[target -| a.len..(target + source.len) -| a.len];
+
             assert(target_a.len + target_b.len == source.len);
+
             const source_a = source[0..target_a.len];
             const source_b = source[target_a.len..];
+
             if (target_b.ptr != source_b.ptr) {
                 stdx.copy_right(.exact, T, target_b, source_b);
             }
+
             if (target_a.ptr != source_a.ptr) {
                 stdx.copy_right(.exact, T, target_a, source_a);
             }
@@ -430,6 +472,7 @@ fn SegmentedArrayBaseType(
                 array.nodes[node + 1 .. array.node_count + 1],
                 array.nodes[node..array.node_count],
             );
+
             stdx.copy_right(
                 .exact,
                 u32,
@@ -438,13 +481,17 @@ fn SegmentedArrayBaseType(
             );
 
             array.node_count += 1;
+
             const node_pointer = node_pool.acquire();
+
             comptime {
                 // @ptrCast does not check that the size or alignment agree
                 assert(std.meta.alignment(@TypeOf(node_pointer)) >= @alignOf(T));
                 assert(@sizeOf(@TypeOf(node_pointer.*)) >= @sizeOf([node_capacity]T));
             }
+
             array.nodes[node] = @ptrCast(@alignCast(node_pointer));
+
             assert(array.indexes[node] == array.indexes[node + 1]);
         }
 
@@ -464,9 +511,12 @@ fn SegmentedArrayBaseType(
             const half = @divExact(node_capacity, 2);
 
             var i: u32 = remove_count;
+
             while (i > 0) {
                 const batch = @min(half, i);
+
                 array.remove_elements_batch(node_pool, absolute_index, batch);
+
                 i -= batch;
             }
 
@@ -484,13 +534,14 @@ fn SegmentedArrayBaseType(
             // Restricting the batch size to half node capacity ensures that elements
             // are removed from at most two nodes.
             const half = @divExact(node_capacity, 2);
+
             assert(remove_count <= half);
             assert(remove_count > 0);
-
             assert(absolute_index + remove_count <= element_count_max);
             assert(absolute_index + remove_count <= array.indexes[array.node_count]);
 
             const cursor = array.cursor_for_absolute_index(absolute_index);
+
             assert(cursor.node < array.node_count);
 
             const a = cursor.node;
@@ -507,8 +558,8 @@ fn SegmentedArrayBaseType(
                 );
 
                 array.decrement_indexes_after(a, remove_count);
-
                 array.maybe_remove_or_merge_node_with_next(node_pool, a);
+
                 return;
             }
 
@@ -516,6 +567,7 @@ fn SegmentedArrayBaseType(
 
             const b = a + 1;
             const b_pointer = array.nodes[b].?;
+
             const b_remaining = b_pointer[remove_count -
                 (array.count(a) - a_remaining) .. array.count(b)];
 
@@ -529,15 +581,15 @@ fn SegmentedArrayBaseType(
                 stdx.copy_left(.inexact, T, b_pointer, b_remaining);
 
                 array.indexes[b] = array.indexes[a] + a_remaining;
-                array.decrement_indexes_after(b, remove_count);
 
+                array.decrement_indexes_after(b, remove_count);
                 array.maybe_remove_or_merge_node_with_next(node_pool, b);
             } else if (b_remaining.len >= half) {
                 assert(a_remaining < half);
 
                 array.indexes[b] = array.indexes[a] + a_remaining;
-                array.decrement_indexes_after(b, remove_count);
 
+                array.decrement_indexes_after(b, remove_count);
                 array.maybe_merge_nodes(node_pool, a, b_remaining);
             } else {
                 assert(a_remaining < half and b_remaining.len < half);
@@ -547,8 +599,8 @@ fn SegmentedArrayBaseType(
 
                 array.indexes[b] =
                     array.indexes[a] + a_remaining + @as(u32, @intCast(b_remaining.len));
-                array.decrement_indexes_after(b, remove_count);
 
+                array.decrement_indexes_after(b, remove_count);
                 array.remove_empty_node_at(node_pool, b);
 
                 // Either:
@@ -567,12 +619,14 @@ fn SegmentedArrayBaseType(
 
             if (array.count(node) == 0) {
                 array.remove_empty_node_at(node_pool, node);
+
                 return;
             }
 
             if (node == array.node_count - 1) return;
 
             const next_elements = array.nodes[node + 1].?[0..array.count(node + 1)];
+
             array.maybe_merge_nodes(node_pool, node, next_elements);
         }
 
@@ -586,6 +640,7 @@ fn SegmentedArrayBaseType(
 
             const a = node;
             const a_pointer = array.nodes[a].?;
+
             assert(array.count(a) <= node_capacity);
 
             // The elements_next_node slice may not be at the start of the node,
@@ -593,6 +648,7 @@ fn SegmentedArrayBaseType(
             const b = a + 1;
             const b_pointer = array.nodes[b].?;
             const b_elements = elements_next_node;
+
             assert(b_elements.len == array.count(b));
             assert(b_elements.len > 0);
             assert(b_elements.len >= half or b == array.node_count - 1);
@@ -605,16 +661,19 @@ fn SegmentedArrayBaseType(
             assert(!(array.count(a) == 0 and b_pointer == b_elements.ptr));
 
             const total = array.count(a) + @as(u32, @intCast(b_elements.len));
+
             if (total <= node_capacity) {
                 stdx.copy_disjoint(.inexact, T, a_pointer[array.count(a)..], b_elements);
 
                 array.indexes[b] = array.indexes[b + 1];
+
                 array.remove_empty_node_at(node_pool, b);
 
                 assert(array.count(a) >= half or a == array.node_count - 1);
             } else if (array.count(a) < half) {
                 const a_half = div_ceil(total, 2);
                 const b_half = total - a_half;
+
                 assert(a_half >= b_half);
                 assert(a_half + b_half == total);
 
@@ -624,6 +683,7 @@ fn SegmentedArrayBaseType(
                     a_pointer[array.count(a)..a_half],
                     b_elements[0 .. a_half - array.count(a)],
                 );
+
                 stdx.copy_left(.inexact, T, b_pointer, b_elements[a_half - array.count(a) ..]);
 
                 array.indexes[b] = array.indexes[a] + a_half;
@@ -650,6 +710,7 @@ fn SegmentedArrayBaseType(
                 array.nodes[node .. array.node_count - 1],
                 array.nodes[node + 1 .. array.node_count],
             );
+
             stdx.copy_left(
                 .exact,
                 u32,
@@ -664,7 +725,9 @@ fn SegmentedArrayBaseType(
 
         inline fn count(array: SegmentedArray, node: u32) u32 {
             const result = array.indexes[node + 1] - array.indexes[node];
+
             assert(result <= node_capacity);
+
             return result;
         }
 
@@ -678,6 +741,7 @@ fn SegmentedArrayBaseType(
 
         pub inline fn node_elements(array: SegmentedArray, node: u32) []T {
             assert(node < array.node_count);
+
             return array.nodes[node].?[0..array.count(node)];
         }
 
@@ -707,7 +771,9 @@ fn SegmentedArrayBaseType(
 
         pub inline fn len(array: SegmentedArray) u32 {
             const result = array.indexes[array.node_count];
+
             assert(result <= element_count_max);
+
             return result;
         }
 
@@ -716,15 +782,19 @@ fn SegmentedArrayBaseType(
             if (array.node_count == 0) {
                 assert(cursor.node == 0);
                 assert(cursor.relative_index == 0);
+
                 return 0;
             }
+
             assert(cursor.node < array.node_count);
+
             if (cursor.node == array.node_count - 1) {
                 // Insertion may target the index one past the end of the array.
                 assert(cursor.relative_index <= array.count(cursor.node));
             } else {
                 assert(cursor.relative_index < array.count(cursor.node));
             }
+
             return array.indexes[cursor.node] + cursor.relative_index;
         }
 
@@ -732,7 +802,6 @@ fn SegmentedArrayBaseType(
             // This function could handle node_count == 0 by returning a zero Cursor.
             // However, this is an internal function and we don't require this behavior.
             assert(array.node_count > 0);
-
             assert(absolute_index < element_count_max);
             assert(absolute_index <= array.len());
 
@@ -751,12 +820,14 @@ fn SegmentedArrayBaseType(
             } else {
                 const node = result.index - 1;
                 const relative_index = absolute_index - array.indexes[node];
+
                 if (node == array.node_count - 1) {
                     // Insertion may target the index one past the end of the array.
                     assert(relative_index <= array.count(node));
                 } else {
                     assert(relative_index < array.count(node));
                 }
+
                 return .{
                     .node = node,
                     .relative_index = relative_index,
@@ -895,10 +966,12 @@ fn SegmentedArrayBaseType(
             array: *const SegmentedArray,
             key: K: {
                 assert(Key != null);
+
                 break :K Key.?;
             },
         ) Cursor {
             const K = Key.?;
+
             if (array.node_count == 0) {
                 return .{
                     .node = 0,
@@ -908,6 +981,7 @@ fn SegmentedArrayBaseType(
 
             var offset: usize = 0;
             var length: usize = array.node_count;
+
             while (length > 1) {
                 const half = length / 2;
                 const mid = offset + half;
@@ -916,6 +990,7 @@ fn SegmentedArrayBaseType(
 
                 if (key_from_value(node) < key) {
                     @branchHint(.unpredictable);
+
                     offset = mid;
                 }
 
@@ -929,6 +1004,7 @@ fn SegmentedArrayBaseType(
             // (If there are two adjacent nodes starting with keys A and C, and we search B,
             // we want to pick the A node.)
             const node: u32 = @intCast(offset);
+
             assert(node < array.node_count);
 
             const relative_index = binary_search_values_upsert_index(
@@ -965,6 +1041,7 @@ test "SortedSegmentedArray duplicate elements" {
 
     const NodePoolType = @import("node_pool.zig").NodePoolType;
     const TestPool = NodePoolType(128 * @sizeOf(u32), 2 * @alignOf(u32));
+
     const TestArray = SortedSegmentedArrayType(
         u32,
         TestPool,
@@ -979,23 +1056,30 @@ test "SortedSegmentedArray duplicate elements" {
     );
 
     var pool: TestPool = undefined;
+
     try pool.init(testing.allocator, TestArray.node_count_max);
+
     defer pool.deinit(testing.allocator);
 
     var array = try TestArray.init(testing.allocator);
+
     defer array.deinit(testing.allocator, &pool);
 
     for (0..3) |index| {
         // Elements are inserted to the left of a row of duplicates.
         var inserted_at = array.insert_element(&pool, 0);
+
         try testing.expectEqual(inserted_at, 0);
 
         inserted_at = array.insert_element(&pool, 100);
+
         try testing.expectEqual(inserted_at, @as(u32, @intCast(index + 1)));
 
         inserted_at = array.insert_element(&pool, math.maxInt(u32));
+
         try testing.expectEqual(inserted_at, @as(u32, @intCast((index + 1) * 2)));
     }
+
     try testing.expectEqual(array.len(), 9);
 
     // Search finds the leftmost element.
@@ -1009,12 +1093,14 @@ test "SortedSegmentedArray duplicate elements" {
     {
         const target: u32 = 0;
         var it = array.iterator_from_cursor(array.search(target), .ascending);
+
         try testing.expectEqual(it.next().?.*, 0);
         try testing.expectEqual(it.next().?.*, 0);
         try testing.expectEqual(it.next().?.*, 0);
         try testing.expectEqual(it.next().?.*, 100);
 
         it = array.iterator_from_cursor(array.search(target), .descending);
+
         try testing.expectEqual(it.next().?.*, 0);
         try testing.expectEqual(it.next(), null);
     }
@@ -1022,12 +1108,14 @@ test "SortedSegmentedArray duplicate elements" {
     {
         const target: u32 = 100;
         var it = array.iterator_from_cursor(array.search(target), .ascending);
+
         try testing.expectEqual(it.next().?.*, 100);
         try testing.expectEqual(it.next().?.*, 100);
         try testing.expectEqual(it.next().?.*, 100);
         try testing.expectEqual(it.next().?.*, math.maxInt(u32));
 
         it = array.iterator_from_cursor(array.search(target), .descending);
+
         try testing.expectEqual(it.next().?.*, 100);
         try testing.expectEqual(it.next().?.*, 0);
     }
@@ -1035,12 +1123,14 @@ test "SortedSegmentedArray duplicate elements" {
     {
         const target: u32 = math.maxInt(u32);
         var it = array.iterator_from_cursor(array.search(target), .ascending);
+
         try testing.expectEqual(it.next().?.*, math.maxInt(u32));
         try testing.expectEqual(it.next().?.*, math.maxInt(u32));
         try testing.expectEqual(it.next().?.*, math.maxInt(u32));
         try testing.expectEqual(it.next(), null);
 
         it = array.iterator_from_cursor(array.search(target), .descending);
+
         try testing.expectEqual(it.next().?.*, math.maxInt(u32));
         try testing.expectEqual(it.next().?.*, 100);
     }
@@ -1067,6 +1157,7 @@ fn FuzzContextType(
 
         // Test overaligned nodes to catch compile errors for missing @alignCast()
         const TestPool = NodePoolType(node_size, 2 * @alignOf(T));
+
         const TestArray = switch (element_order) {
             .sorted => SortedSegmentedArrayType(
                 T,
@@ -1103,27 +1194,32 @@ fn FuzzContextType(
             };
 
             try context.pool.init(allocator, TestArray.node_count_max);
+
             errdefer context.pool.deinit(allocator);
 
             context.array = try TestArray.init(allocator);
+
             errdefer context.array.deinit(allocator, &context.pool);
 
             context.reference = std.ArrayList(T).init(allocator);
+
             errdefer context.reference.deinit();
+
             try context.reference.ensureTotalCapacity(element_count_max);
         }
 
         fn deinit(context: *FuzzContext, allocator: std.mem.Allocator) void {
             context.array.deinit(allocator, &context.pool);
             context.pool.deinit(allocator);
-
             context.reference.deinit();
         }
 
         fn run(context: *FuzzContext) !void {
             const Action = enum { insert, remove };
+
             {
                 var i: usize = 0;
+
                 while (i < element_count_max * 2) : (i += 1) {
                     switch (context.prng.enum_weighted(
                         Action,
@@ -1140,6 +1236,7 @@ fn FuzzContextType(
 
             {
                 var i: usize = 0;
+
                 while (i < element_count_max * 2) : (i += 1) {
                     switch (context.prng.enum_weighted(
                         Action,
@@ -1164,12 +1261,14 @@ fn FuzzContextType(
                 while (context.array.len() < element_count_max) {
                     try context.insert_before_first();
                 }
+
                 assert(context.array.node_count >= TestArray.node_count_max - 1);
 
                 // Remove all-but-one elements from the last node and insert them into the first
                 // node.
                 const element_count_last = context.array.count(context.array.node_count - 1);
                 var element_index: usize = 0;
+
                 while (element_index < element_count_last - 1) : (element_index += 1) {
                     try context.remove_last();
                     try context.insert_before_first();
@@ -1191,6 +1290,7 @@ fn FuzzContextType(
             var buffer: [TestArray.node_capacity * 3]T = undefined;
             const count_max = @min(count_free, TestArray.node_capacity * 3);
             const count = context.prng.range_inclusive(u32, 1, count_max);
+
             context.prng.fill(mem.sliceAsBytes(buffer[0..count]));
 
             assert(context.reference.items.len <= element_count_max);
@@ -1207,11 +1307,13 @@ fn FuzzContextType(
                     for (buffer[0..count]) |value| {
                         const index_actual = context.array.insert_element(&context.pool, value);
                         const index_expect = context.reference_index(key_from_value(&value));
+
                         context.reference.insert(index_expect, value) catch unreachable;
                         try std.testing.expectEqual(index_expect, index_actual);
                     }
                 },
             }
+
             context.inserts += count;
 
             try context.verify();
@@ -1219,16 +1321,17 @@ fn FuzzContextType(
 
         fn remove(context: *FuzzContext) !void {
             const reference_len: u32 = @intCast(context.reference.items.len);
+
             if (reference_len == 0) return;
 
             const count_max = @min(reference_len, TestArray.node_capacity * 3);
             const count = context.prng.range_inclusive(u32, 1, count_max);
 
             assert(context.reference.items.len <= element_count_max);
+
             const index = context.prng.int_inclusive(u32, reference_len - count);
 
             context.array.remove_elements(&context.pool, index, count);
-
             context.reference.replaceRange(index, count, &[0]T{}) catch unreachable;
 
             context.removes += count;
@@ -1242,8 +1345,8 @@ fn FuzzContextType(
             const insert_index = context.array.absolute_index_for_cursor(context.array.first());
 
             var element: T = undefined;
-            context.prng.fill(mem.asBytes(&element));
 
+            context.prng.fill(mem.asBytes(&element));
             context.array.insert_elements(&context.pool, insert_index, &.{element});
             context.reference.insert(insert_index, element) catch unreachable;
 
@@ -1285,11 +1388,15 @@ fn FuzzContextType(
         fn verify(context: *FuzzContext) !void {
             if (log) {
                 std.debug.print("expect: ", .{});
+
                 for (context.reference.items) |i| std.debug.print("{}, ", .{i});
 
                 std.debug.print("\nactual: ", .{});
+
                 var it = context.array.iterator_from_index(0, .ascending);
+
                 while (it.next()) |i| std.debug.print("{}, ", .{i.*});
+
                 std.debug.print("\n", .{});
             }
 
@@ -1300,8 +1407,10 @@ fn FuzzContextType(
 
                 for (context.reference.items) |expect| {
                     const actual = it.next() orelse return error.TestUnexpectedResult;
+
                     try testing.expectEqual(expect, actual.*);
                 }
+
                 try testing.expectEqual(@as(?*const T, null), it.next());
             }
 
@@ -1312,13 +1421,16 @@ fn FuzzContextType(
                 );
 
                 var i = context.reference.items.len;
+
                 while (i > 0) {
                     i -= 1;
 
                     const expect = context.reference.items[i];
                     const actual = it.next() orelse return error.TestUnexpectedResult;
+
                     try testing.expectEqual(expect, actual.*);
                 }
+
                 try testing.expectEqual(@as(?*const T, null), it.next());
             }
 
@@ -1336,6 +1448,7 @@ fn FuzzContextType(
             if (element_order == .sorted) {
                 for (context.reference.items, 0..) |*expect, i| {
                     if (i == 0) continue;
+
                     try testing.expect(key_from_value(&context.reference.items[i - 1]) <=
                         key_from_value(expect));
                 }
@@ -1351,16 +1464,19 @@ fn FuzzContextType(
 
             {
                 var i: u32 = 0;
+
                 while (i < context.array.node_count -| 1) : (i += 1) {
                     try testing.expect(context.array.count(i) >=
                         @divExact(TestArray.node_capacity, 2));
                 }
             }
+
             if (element_order == .sorted) try context.verify_search();
         }
 
         fn verify_search(context: *FuzzContext) !void {
             var queries: [20]Key = undefined;
+
             context.prng.fill(mem.sliceAsBytes(&queries));
 
             // Test min/max exceptional values on different SegmentedArray shapes.
@@ -1379,6 +1495,7 @@ fn FuzzContextType(
                     context.array.search(math.maxInt(Key)),
                     .ascending,
                 );
+
                 while (iterator_end.next()) |item| {
                     try testing.expectEqual(key_from_value(item), math.maxInt(Key));
                 }
@@ -1391,6 +1508,7 @@ fn FuzzContextType(
                     context.array.search(0),
                     .descending,
                 );
+
                 if (context.reference.items.len == 0) {
                     try testing.expectEqual(iterator_start.next(), null);
                 } else {
@@ -1419,6 +1537,7 @@ pub fn run_fuzz(allocator: std.mem.Allocator, seed: u64, comptime options: Optio
     const CompositeKey = @import("composite_key.zig").CompositeKeyType(u64);
     const TableType = @import("table.zig").TableType;
     const TableInfoType = @import("manifest.zig").TreeTableInfoType;
+
     const TableInfo = TableInfoType(TableType(
         CompositeKey.Key,
         CompositeKey,
@@ -1483,7 +1602,9 @@ pub fn run_fuzz(allocator: std.mem.Allocator, seed: u64, comptime options: Optio
             );
 
             var context: FuzzContext = undefined;
+
             try context.init(allocator, &prng);
+
             defer context.deinit(allocator);
 
             try context.run();
@@ -1491,6 +1612,7 @@ pub fn run_fuzz(allocator: std.mem.Allocator, seed: u64, comptime options: Optio
             if (test_options.node_size % @sizeOf(test_options.element_type) != 0) {
                 tested_padding = true;
             }
+
             if (FuzzContext.TestArray.node_capacity == 2) tested_node_capacity_min = true;
         }
     }

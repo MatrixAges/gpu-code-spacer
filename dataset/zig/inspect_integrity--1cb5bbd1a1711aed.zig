@@ -38,15 +38,18 @@ pub fn command_inspect_integrity(
         args.path,
         args.lsm_forest_node_count,
     );
+
     defer integrity.deinit(gpa);
 
     // The superblock is checked as part of initializing and opening the checker - it cannot be
     // skipped. A fully corrupt superblock stops any further scrubbing.
     const checked_bytes_superblock = try integrity.open();
+
     checked_bytes += checked_bytes_superblock;
 
     if (!args.skip_wal) {
         const checked_bytes_wal = try integrity.check_wal();
+
         assert(
             checked_bytes_wal == vsr.Zone.wal_headers.size().? + vsr.Zone.wal_prepares.size().?,
         );
@@ -56,6 +59,7 @@ pub fn command_inspect_integrity(
 
     if (!args.skip_client_replies) {
         const checked_bytes_client_replies = try integrity.check_client_replies();
+
         assert(checked_bytes_client_replies == vsr.Zone.client_replies.size().?);
 
         checked_bytes += checked_bytes_client_replies;
@@ -71,10 +75,12 @@ pub fn command_inspect_integrity(
         const seed: u64 = seed_from_arg: {
             const seed_argument = args.seed orelse
                 break :seed_from_arg @truncate(stdx.unique_u128());
+
             break :seed_from_arg vsr.testing.parse_seed(seed_argument);
         };
 
         const checked_bytes_grid = try integrity.check_grid(seed);
+
         assert(checked_bytes_grid == grid_blocks_expected_count * constants.block_size);
 
         checked_bytes += checked_bytes_grid;
@@ -88,6 +94,7 @@ pub fn command_inspect_integrity(
                 checked_bytes_target += size;
             }
         }
+
         checked_bytes_target += grid_blocks_expected_count * constants.block_size;
         checked_bytes_target -= vsr.Zone.grid_padding.size().?;
 
@@ -143,6 +150,7 @@ fn init(
         .purpose = .inspect,
         .direct_io = .direct_io_optional,
     });
+
     errdefer integrity.storage.deinit();
 
     const data_file_stat = try (std.fs.File{ .handle = integrity.storage.fd }).stat();
@@ -158,14 +166,17 @@ fn init(
             ),
         },
     );
+
     errdefer integrity.superblock.deinit(gpa);
 
     // Opening the forest requires an open superblock, so this is done explicitly here and not in
     // open() like the others.
     var superblock_context: SuperBlock.Context = undefined;
+
     integrity.superblock.open(struct {
         fn superblock_open_callback(_: *SuperBlock.Context) void {}
     }.superblock_open_callback, &superblock_context);
+
     while (!integrity.superblock.opened) integrity.superblock.storage.run();
 
     // Unlike the other zones, the superblock has redundant copies internally. Consider the
@@ -193,6 +204,7 @@ fn init(
             .compaction_blocks_released_per_pipeline_max() +
             vsr.checkpoint_trailer.block_count_for_trailer_size(vsr.ClientSessions.encode_size),
     });
+
     errdefer integrity.grid.deinit(gpa);
 
     integrity.client_sessions_checkpoint = try CheckpointTrailer.init(
@@ -200,6 +212,7 @@ fn init(
         .client_sessions,
         vsr.ClientSessions.encode_size,
     );
+
     errdefer integrity.client_sessions_checkpoint.deinit(gpa);
 
     try integrity.forest.init(
@@ -222,6 +235,7 @@ fn init(
             .aof_recovery = false,
         }),
     );
+
     errdefer integrity.forest.deinit(gpa);
 
     integrity.grid_scrubber = try GridScrubber.init(
@@ -229,6 +243,7 @@ fn init(
         &integrity.forest,
         &integrity.client_sessions_checkpoint,
     );
+
     errdefer integrity.grid_scrubber.deinit(gpa);
 
     integrity.grid_blocks_scrubbed = try .initEmpty(
@@ -237,6 +252,7 @@ fn init(
         // storage_size_limit_max would increase the memory usage dramatically for small data files.
         @divFloor(data_file_stat.size, constants.block_size),
     );
+
     errdefer integrity.grid_blocks_scrubbed.deinit(gpa);
 
     integrity.buffer_headers = try gpa.alignedAlloc(
@@ -244,6 +260,7 @@ fn init(
         constants.sector_size,
         constants.journal_size_headers,
     );
+
     errdefer gpa.free(integrity.buffer_headers);
 
     integrity.buffer_prepare = try gpa.alignedAlloc(
@@ -251,6 +268,7 @@ fn init(
         constants.sector_size,
         constants.message_size_max,
     );
+
     errdefer gpa.free(integrity.buffer_prepare);
 }
 
@@ -258,7 +276,9 @@ fn open(integrity: *Integrity) !u64 {
     var checked_bytes: u64 = 0;
 
     assert(integrity.superblock.opened);
+
     integrity.superblock.working.vsr_state.assert_internally_consistent();
+
     for (integrity.superblock.reading) |_| {
         checked_bytes += vsr.superblock.superblock_copy_size;
     }
@@ -270,25 +290,31 @@ fn open(integrity: *Integrity) !u64 {
             fn client_sessions_checkpoint_callback(_: *CheckpointTrailer) void {}
         }.client_sessions_checkpoint_callback,
     );
+
     while (integrity.client_sessions_checkpoint.callback != .none) {
         try integrity.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
     }
+
     log.debug("client sessions checkpoint opened", .{});
 
     integrity.grid.open(struct {
         fn grid_open_callback(_: *Grid) void {}
     }.grid_open_callback);
+
     while (integrity.grid.callback != .none) {
         try integrity.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
     }
+
     log.debug("grid opened", .{});
 
     integrity.forest.open(struct {
         fn forest_open_callback(_: *Forest) void {}
     }.forest_open_callback);
+
     while (integrity.forest.progress != null) {
         try integrity.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
     }
+
     log.debug("forest opened", .{});
 
     return checked_bytes;
@@ -297,7 +323,6 @@ fn open(integrity: *Integrity) !u64 {
 fn deinit(integrity: *Integrity, gpa: std.mem.Allocator) void {
     gpa.free(integrity.buffer_headers);
     gpa.free(integrity.buffer_prepare);
-
     integrity.client_sessions_checkpoint.deinit(gpa);
     integrity.grid_blocks_scrubbed.deinit(gpa);
     integrity.grid_scrubber.deinit(gpa);
@@ -315,6 +340,7 @@ fn check_wal(integrity: *Integrity) !u64 {
         integrity.buffer_headers,
         vsr.Zone.wal_headers.start(),
     );
+
     assert(headers_bytes_read == integrity.buffer_headers.len);
 
     const wal_headers: []const vsr.Header.Prepare =
@@ -327,6 +353,7 @@ fn check_wal(integrity: *Integrity) !u64 {
             integrity.buffer_prepare,
             vsr.Zone.wal_prepares.start() + offset,
         );
+
         assert(bytes_read == integrity.buffer_prepare.len);
 
         const wal_prepare: *const vsr.Header.Prepare =
@@ -344,13 +371,16 @@ fn check_wal(integrity: *Integrity) !u64 {
         assert(wal_header.valid_checksum());
         assert(wal_prepare_body_valid);
         assert(wal_header.checksum == wal_prepare.checksum);
+
         checked_bytes += bytes_read;
     }
 
     assert(wal_headers.len == constants.journal_slot_count);
+
     checked_bytes += headers_bytes_read;
 
     log.info("successfully checked {} wal headers and prepares", .{wal_headers.len});
+
     return checked_bytes;
 }
 
@@ -365,6 +395,7 @@ fn check_client_replies(integrity: *Integrity) !u64 {
             integrity.buffer_prepare,
             vsr.Zone.client_replies.start() + offset,
         );
+
         assert(bytes_read == integrity.buffer_prepare.len);
 
         const reply: *const vsr.Header.Reply = std.mem.bytesAsValue(
@@ -373,14 +404,17 @@ fn check_client_replies(integrity: *Integrity) !u64 {
         );
 
         const reply_empty = reply.checksum == 0 and reply.checksum_body == 0;
+
         const reply_valid = reply.valid_checksum() and
             reply.valid_checksum_body(integrity.buffer_prepare[@sizeOf(vsr.Header)..reply.size]);
+
         assert(reply_empty or reply_valid);
 
         checked_bytes += bytes_read;
     }
 
     log.info("successfully checked {} client replies", .{constants.clients_max});
+
     return checked_bytes;
 }
 
@@ -402,12 +436,14 @@ fn check_grid(integrity: *Integrity, seed: u64) !u64 {
     });
 
     var prng = stdx.PRNG.from_seed(seed);
+
     integrity.grid_scrubber.open(&prng);
 
     const parent_progress_node = std.Progress.start(.{
         .root_name = "checking grid blocks",
         .estimated_total_items = blocks_expected_count,
     });
+
     defer parent_progress_node.end();
 
     var time: vsr.time.TimeOS = .{};
@@ -432,7 +468,9 @@ fn check_grid(integrity: *Integrity, seed: u64) !u64 {
             // run through index blocks multiple times.
             if (!block_set) {
                 integrity.grid_blocks_scrubbed.set(result.block.block_address - 1);
+
                 checked_bytes += constants.block_size;
+
                 parent_progress_node.completeOne();
             }
         }
@@ -446,6 +484,7 @@ fn check_grid(integrity: *Integrity, seed: u64) !u64 {
 
         try integrity.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
     }
+
     const grid_duration = timer.elapsed(time.monotonic());
 
     assert(integrity.grid_scrubber.tour == .done and
@@ -456,6 +495,7 @@ fn check_grid(integrity: *Integrity, seed: u64) !u64 {
     assert(integrity.grid_blocks_scrubbed.count() == blocks_expected_count);
 
     var acquired_iterator = grid.free_set.blocks_acquired.iterator(.{});
+
     while (acquired_iterator.next()) |block| {
         if (grid.free_set.blocks_released.isSet(block)) {
             continue;
@@ -466,6 +506,7 @@ fn check_grid(integrity: *Integrity, seed: u64) !u64 {
 
     // Check in reverse, too, that all the blocks we visited are listed in the free set.
     var visisted_iterator = integrity.grid_blocks_scrubbed.iterator(.{});
+
     while (visisted_iterator.next()) |entry| {
         const in_free_set = grid.free_set.blocks_acquired.isSet(entry) and
             !grid.free_set.blocks_released.isSet(entry);
@@ -502,6 +543,7 @@ fn sync_read_all(integrity: *Integrity, buffer: []u8, offset: u64) !u64 {
             context.bytes_read = result catch unreachable;
         }
     };
+
     var context: Context = .{};
     var bytes_read: u64 = 0;
 
@@ -521,9 +563,11 @@ fn sync_read_all(integrity: *Integrity, buffer: []u8, offset: u64) !u64 {
         }
 
         if (context.bytes_read.? == 0) break;
+
         bytes_read += context.bytes_read.?;
     }
 
     assert(bytes_read == buffer.len);
+
     return bytes_read;
 }

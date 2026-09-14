@@ -5,6 +5,7 @@
 // https://git.musl-libc.org/cgit/musl/tree/src/math/acos.c
 
 const std = @import("../std.zig");
+
 const math = std.math;
 const expect = std.testing.expect;
 
@@ -14,6 +15,7 @@ const expect = std.testing.expect;
 ///  - acos(x)   = nan if x < -1 or x > 1
 pub fn acos(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => acos32(x),
         f64 => acos64(x),
@@ -29,6 +31,7 @@ fn r32(z: f32) f32 {
 
     const p = z * (pS0 + z * (pS1 + z * pS2));
     const q = 1.0 + z * qS1;
+
     return p / q;
 }
 
@@ -66,6 +69,7 @@ fn acos32(x: f32) f32 {
         const z = (1 + x) * 0.5;
         const s = @sqrt(z);
         const w = r32(z) * s - pio2_lo;
+
         return 2 * (pio2_hi - (s + w));
     }
 
@@ -76,6 +80,7 @@ fn acos32(x: f32) f32 {
     const df = @as(f32, @bitCast(jx & 0xFFFFF000));
     const c = (z - df * df) / (s + df);
     const w = r32(z) * s + c;
+
     return 2 * (df + w);
 }
 
@@ -93,6 +98,7 @@ fn r64(z: f64) f64 {
 
     const p = z * (pS0 + z * (pS1 + z * (pS2 + z * (pS3 + z * (pS4 + z * pS5)))));
     const q = 1.0 + z * (qS1 + z * (qS2 + z * (qS3 + z * qS4)));
+
     return p / q;
 }
 
@@ -135,6 +141,7 @@ fn acos64(x: f64) f64 {
         const z = (1.0 + x) * 0.5;
         const s = @sqrt(z);
         const w = r64(z) * s - pio2_lo;
+
         return 2 * (pio2_hi - (s + w));
     }
 
@@ -145,6 +152,7 @@ fn acos64(x: f64) f64 {
     const df = @as(f64, @bitCast(jx & 0xFFFFFFFF00000000));
     const c = (z - df * df) / (s + df);
     const w = r64(z) * s + c;
+
     return 2 * (df + w);
 }
 

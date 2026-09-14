@@ -27,9 +27,11 @@ pub fn parseFloat(comptime T: type, s: []const u8) ParseFloatError!T {
 
     var i: usize = 0;
     const negative = s[i] == '-';
+
     if (s[i] == '-' or s[i] == '+') {
         i += 1;
     }
+
     if (s.len == i) {
         return error.InvalidCharacter;
     }
@@ -55,6 +57,7 @@ pub fn parseFloat(comptime T: type, s: []const u8) ParseFloatError!T {
             if (!n.many_digits) {
                 return bf.toFloat(T, n.negative);
             }
+
             if (convertEiselLemire(T, n.exponent, n.mantissa + 1)) |bf2| {
                 if (bf.eql(bf2)) {
                     return bf.toFloat(T, n.negative);
@@ -82,7 +85,6 @@ test parseFloat {
         try expectEqual(try parseFloat(T, "0"), 0.0);
         try expectEqual(try parseFloat(T, "+0"), 0.0);
         try expectEqual(try parseFloat(T, "-0"), 0.0);
-
         try expectEqual(try parseFloat(T, "0e0"), 0);
         try expectEqual(try parseFloat(T, "2e3"), 2000.0);
         try expectEqual(try parseFloat(T, "1e0"), 1.0);
@@ -95,7 +97,6 @@ test parseFloat {
 
         try expectEqual(try parseFloat(T, "1e-5000"), 0);
         try expectEqual(try parseFloat(T, "1e+5000"), std.math.inf(T));
-
         try expectEqual(try parseFloat(T, "0.4e0066999999999999999999999999999999999999999999999999999"), std.math.inf(T));
         try expect(approxEqAbs(T, try parseFloat(T, "0_1_2_3_4_5_6.7_8_9_0_0_0e0_0_1_0"), @as(T, 123456.789000e10), epsilon));
 
@@ -108,7 +109,6 @@ test parseFloat {
 
         try expect(approxEqAbs(T, try parseFloat(T, "1e-2"), 0.01, epsilon));
         try expect(approxEqAbs(T, try parseFloat(T, "1234e-2"), 12.34, epsilon));
-
         try expect(approxEqAbs(T, try parseFloat(T, "1."), 1, epsilon));
         try expect(approxEqAbs(T, try parseFloat(T, "0."), 0, epsilon));
         try expect(approxEqAbs(T, try parseFloat(T, ".1"), 0.1, epsilon));
@@ -151,6 +151,7 @@ test "#11169" {
 test "many_digits hex" {
     const a: f32 = try parseFloat(f32, "0xffffffffffffffff.0p0");
     const b: f32 = @floatCast(try parseFloat(f128, "0xffffffffffffffff.0p0"));
+
     try std.testing.expectEqual(a, b);
 }
 
@@ -159,7 +160,6 @@ test "hex.special" {
     try testing.expect(math.isPositiveInf(try parseFloat(f32, "iNf")));
     try testing.expect(math.isPositiveInf(try parseFloat(f32, "+Inf")));
     try testing.expect(math.isNegativeInf(try parseFloat(f32, "-iNf")));
-
     try testing.expect(math.isPositiveInf(try parseFloat(f32, "0x9999p9999")));
     try testing.expect(math.isNegativeInf(try parseFloat(f32, "-0x9999p9999")));
 }

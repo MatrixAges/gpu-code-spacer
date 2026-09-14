@@ -35,6 +35,7 @@ import { $getMatchingParent, getDomSelection, stopEvent } from '@/Editor/utils'
 import { $findMatchingParent } from '@lexical/utils'
 
 import TableObserver from '../TableObserver'
+
 import {
 	$computeTableMap,
 	$createTableSelection,
@@ -67,6 +68,7 @@ export default (
 	editor: LexicalEditor
 ) => {
 	const observer = new TableObserver(editor, table_node.getKey())
+
 	const commands = [DELETE_WORD_COMMAND, DELETE_LINE_COMMAND, DELETE_CHARACTER_COMMAND]
 
 	table_element[LEXICAL_ELEMENT_KEY] = observer
@@ -352,6 +354,7 @@ export default (
 
 						for (let k = 0; k < cell_children.length; k++) {
 							const child = cell_children[k]
+
 							if ($isElementNode(child) && !child.isInline()) {
 								child.setFormat(format_type)
 							}
@@ -410,6 +413,7 @@ export default (
 			KEY_TAB_COMMAND,
 			event => {
 				const selection = $getSelection()
+
 				if (
 					!$isRangeSelection(selection) ||
 					!selection.isCollapsed() ||
@@ -449,9 +453,11 @@ export default (
 			SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
 			selection_payload => {
 				const { nodes, selection } = selection_payload
+
 				const anchor_and_focus = selection.getStartEndPoints()
 				const is_table_selection = $isTableSelection(selection)
 				const is_range_selection = $isRangeSelection(selection)
+
 				const is_selection_inside_of_grid =
 					(is_range_selection &&
 						$findMatchingParent(selection.anchor.getNode(), n => $isTableCellNode(n)) !==
@@ -470,14 +476,17 @@ export default (
 				}
 
 				const [anchor] = anchor_and_focus
+
 				const new_grid = nodes[0] as TableNode
 				const new_grid_rows = new_grid.getChildren() as Array<TableRowNode>
 				const new_column_count = new_grid.getFirstChildOrThrow<TableNode>().getChildrenSize()
 				const new_row_count = new_grid.getChildrenSize()
 				const grid_cell_node = $findMatchingParent(anchor.getNode(), n => $isTableCellNode(n))!
+
 				const grid_row_node =
 					grid_cell_node &&
 					($findMatchingParent(grid_cell_node, n => $isTableRowNode(n)) as TableRowNode)
+
 				const grid_node =
 					grid_row_node && ($findMatchingParent(grid_row_node, n => $isTableNode(n)) as TableNode)
 
@@ -498,6 +507,7 @@ export default (
 				const to_x = Math.max(start_x, stop_x)
 				const to_y = Math.max(start_y, stop_y)
 				const grid_row_nodes = grid_node.getChildren() as Array<TableRowNode>
+
 				let new_row_idx = 0
 				let new_anchor_cell_key: NodeKey
 				let new_focus_cell_key: NodeKey
@@ -517,6 +527,7 @@ export default (
 
 					const grid_cell_nodes = current_grid_row_node.getChildren()
 					const new_grid_cell_nodes = new_grid_row_node.getChildren()
+
 					let new_column_idx = 0
 
 					for (let c = from_x; c <= to_x; c++) {
@@ -543,6 +554,7 @@ export default (
 						new_grid_cell_node.getChildren().forEach(child => {
 							if ($isTextNode(child)) {
 								const paragraph_node = $createParagraphNode()
+
 								paragraph_node.append(child)
 								current_grid_cell_node.append(child)
 							} else {
@@ -551,6 +563,7 @@ export default (
 						})
 
 						original_children.forEach(n => n.remove())
+
 						new_column_idx++
 					}
 
@@ -580,16 +593,20 @@ export default (
 
 				if ($isRangeSelection(selection)) {
 					const { anchor, focus } = selection
+
 					const anchor_node = anchor.getNode()
 					const focus_node = focus.getNode()
 					const anchor_cell_node = $findCellNode(anchor_node)
 					const focus_cell_node = $findCellNode(focus_node)
+
 					const is_anchor_inside = !!(
 						anchor_cell_node && table_node.is($findTableNode(anchor_cell_node))
 					)
+
 					const is_focus_inside = !!(
 						focus_cell_node && table_node.is($findTableNode(focus_cell_node))
 					)
+
 					const is_partialy_within_table = is_anchor_inside !== is_focus_inside
 					const is_within_table = is_anchor_inside && is_focus_inside
 					const is_backward = selection.isBackward()
@@ -716,8 +733,10 @@ export default (
 				if (!table_row_node || !table_cell_node) return false
 
 				const is_last_row = table_node.getChildren().at(-1)!.getKey() === table_row_node.getKey()
+
 				const is_last_column =
 					table_row_node.getChildren().at(-1)!.getKey() === table_cell_node.getKey()
+
 				const children = table_cell_node.getChildren()
 				const children_length = children.length
 

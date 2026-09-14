@@ -18,6 +18,7 @@ export function baseMiddleware(
       // rewrite url to remove base. this ensures that other middleware does
       // not need to consider base being prepended or not
       req.url = stripBase(url, base)
+
       return next()
     }
 
@@ -31,31 +32,38 @@ export function baseMiddleware(
       res.writeHead(302, {
         Location: base + url.slice(pathname.length),
       })
+
       res.end()
+
       return
     }
 
     // non-based page visit
     const redirectPath =
       withTrailingSlash(url) !== base ? joinUrlSegments(base, url) : base
+
     if (req.headers.accept?.includes('text/html')) {
       res.writeHead(404, {
         'Content-Type': 'text/html',
       })
+
       res.end(
         `The server is configured with a public base URL of ${base} - ` +
           `did you mean to visit <a href="${redirectPath}">${redirectPath}</a> instead?`,
       )
+
       return
     } else {
       // not found for resources
       res.writeHead(404, {
         'Content-Type': 'text/plain',
       })
+
       res.end(
         `The server is configured with a public base URL of ${base} - ` +
           `did you mean to visit ${redirectPath} instead?`,
       )
+
       return
     }
   }

@@ -16,27 +16,36 @@ warnings: std.ArrayList([]const u8) = .empty,
 pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
     var self: NativePaths = .{ .arena = arena };
     var is_nix = false;
+
     if (process.getEnvVarOwned(arena, "NIX_CFLAGS_COMPILE")) |nix_cflags_compile| {
         is_nix = true;
+
         var it = mem.tokenizeScalar(u8, nix_cflags_compile, ' ');
+
         while (true) {
             const word = it.next() orelse break;
+
             if (mem.eql(u8, word, "-isystem")) {
                 const include_path = it.next() orelse {
                     try self.addWarning("Expected argument after -isystem in NIX_CFLAGS_COMPILE");
+
                     break;
                 };
+
                 try self.addIncludeDir(include_path);
             } else if (mem.eql(u8, word, "-iframework")) {
                 const framework_path = it.next() orelse {
                     try self.addWarning("Expected argument after -iframework in NIX_CFLAGS_COMPILE");
+
                     break;
                 };
+
                 try self.addFrameworkDir(framework_path);
             } else {
                 if (mem.startsWith(u8, word, "-frandom-seed=")) {
                     continue;
                 }
+
                 try self.addWarningFmt("Unrecognized C flag from NIX_CFLAGS_COMPILE: {s}", .{word});
             }
         }
@@ -45,30 +54,39 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
         error.EnvironmentVariableNotFound => {},
         error.OutOfMemory => |e| return e,
     }
+
     if (process.getEnvVarOwned(arena, "NIX_LDFLAGS")) |nix_ldflags| {
         is_nix = true;
+
         var it = mem.tokenizeScalar(u8, nix_ldflags, ' ');
+
         while (true) {
             const word = it.next() orelse break;
+
             if (mem.eql(u8, word, "-rpath")) {
                 const rpath = it.next() orelse {
                     try self.addWarning("Expected argument after -rpath in NIX_LDFLAGS");
+
                     break;
                 };
+
                 try self.addRPath(rpath);
             } else if (mem.eql(u8, word, "-L") or mem.eql(u8, word, "-l")) {
                 _ = it.next() orelse {
                     try self.addWarning("Expected argument after -L or -l in NIX_LDFLAGS");
+
                     break;
                 };
             } else if (mem.startsWith(u8, word, "-L")) {
                 const lib_path = word[2..];
+
                 try self.addLibDir(lib_path);
                 try self.addRPath(lib_path);
             } else if (mem.startsWith(u8, word, "-l")) {
                 // Ignore this argument.
             } else {
                 try self.addWarningFmt("Unrecognized C flag from NIX_LDFLAGS: {s}", .{word});
+
                 break;
             }
         }
@@ -77,6 +95,7 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
         error.EnvironmentVariableNotFound => {},
         error.OutOfMemory => |e| return e,
     }
+
     if (is_nix) {
         return self;
     }
@@ -85,6 +104,7 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
     if (builtin.target.os.tag.isDarwin()) {
         if (std.zig.system.darwin.isSdkInstalled(arena)) sdk: {
             const sdk = std.zig.system.darwin.getSdk(arena, native_target) orelse break :sdk;
+
             try self.addLibDir(try std.fs.path.join(arena, &.{ sdk, "usr/lib" }));
             try self.addFrameworkDir(try std.fs.path.join(arena, &.{ sdk, "System/Library/Frameworks" }));
             try self.addIncludeDir(try std.fs.path.join(arena, &.{ sdk, "usr/include" }));
@@ -103,7 +123,6 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
         try self.addLibDir("/usr/lib/64");
         try self.addLibDir("/usr/local/lib/64");
         try self.addLibDir("/lib/64");
-
         try self.addIncludeDir("/usr/include");
         try self.addIncludeDir("/usr/local/include");
 
@@ -114,6 +133,7 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
         try self.addLibDir("/system/non-packaged/lib");
         try self.addLibDir("/system/develop/lib");
         try self.addLibDir("/system/lib");
+
         return self;
     }
 
@@ -130,10 +150,8 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
         try self.addIncludeDir("/usr/local/include");
         try self.addLibDirFmt("/usr/local/lib{d}", .{qual});
         try self.addLibDir("/usr/local/lib");
-
         try self.addIncludeDirFmt("/usr/include/{s}", .{triple});
         try self.addLibDirFmt("/usr/lib/{s}", .{triple});
-
         try self.addIncludeDir("/usr/include");
         try self.addLibDirFmt("/lib{d}", .{qual});
         try self.addLibDir("/lib");
@@ -151,6 +169,7 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
         // windows, to get rid of unnecessary error handling.
         if (std.posix.getenv("C_INCLUDE_PATH")) |c_include_path| {
             var it = mem.tokenizeScalar(u8, c_include_path, ':');
+
             while (it.next()) |dir| {
                 try self.addIncludeDir(dir);
             }
@@ -158,6 +177,7 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
 
         if (std.posix.getenv("CPLUS_INCLUDE_PATH")) |cplus_include_path| {
             var it = mem.tokenizeScalar(u8, cplus_include_path, ':');
+
             while (it.next()) |dir| {
                 try self.addIncludeDir(dir);
             }
@@ -165,6 +185,7 @@ pub fn detect(arena: Allocator, native_target: *const std.Target) !NativePaths {
 
         if (std.posix.getenv("LIBRARY_PATH")) |library_path| {
             var it = mem.tokenizeScalar(u8, library_path, ':');
+
             while (it.next()) |dir| {
                 try self.addLibDir(dir);
             }
@@ -180,6 +201,7 @@ pub fn addIncludeDir(self: *NativePaths, s: []const u8) !void {
 
 pub fn addIncludeDirFmt(self: *NativePaths, comptime fmt: []const u8, args: anytype) !void {
     const item = try std.fmt.allocPrint(self.arena, fmt, args);
+
     try self.include_dirs.append(self.arena, item);
 }
 
@@ -189,6 +211,7 @@ pub fn addLibDir(self: *NativePaths, s: []const u8) !void {
 
 pub fn addLibDirFmt(self: *NativePaths, comptime fmt: []const u8, args: anytype) !void {
     const item = try std.fmt.allocPrint(self.arena, fmt, args);
+
     try self.lib_dirs.append(self.arena, item);
 }
 
@@ -202,11 +225,13 @@ pub fn addFrameworkDir(self: *NativePaths, s: []const u8) !void {
 
 pub fn addFrameworkDirFmt(self: *NativePaths, comptime fmt: []const u8, args: anytype) !void {
     const item = try std.fmt.allocPrint(self.arena, fmt, args);
+
     try self.framework_dirs.append(self.arena, item);
 }
 
 pub fn addWarningFmt(self: *NativePaths, comptime fmt: []const u8, args: anytype) !void {
     const item = try std.fmt.allocPrint(self.arena, fmt, args);
+
     try self.warnings.append(self.arena, item);
 }
 

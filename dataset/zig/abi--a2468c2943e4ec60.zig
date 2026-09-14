@@ -14,6 +14,7 @@ comptime {
     const check = struct {
         fn check(comptime T: type) void {
             const std = @import("std");
+
             std.debug.assert(@typeInfo(T) == .@"struct");
             std.debug.assert(@typeInfo(T).@"struct".layout == .@"extern");
             std.debug.assert(std.meta.hasUniqueRepresentation(T));
@@ -107,6 +108,7 @@ pub const Hello = extern struct {
         _: u15 = 0,
     };
 };
+
 /// WebSocket server->client.
 ///
 /// Indicates that the build status has changed.
@@ -114,16 +116,19 @@ pub const StatusUpdate = extern struct {
     tag: ToClientTag = .status_update,
     new: BuildStatus,
 };
+
 /// WebSocket server->client.
 ///
 /// Indicates a change in a step's status.
 pub const StepUpdate = extern struct {
     tag: ToClientTag = .step_update,
     step_idx: u32 align(1),
+
     bits: packed struct(u8) {
         status: Status,
         _: u6 = 0,
     },
+
     /// Keep in sync with indices in web UI `main.js:updateStepStatus`.
     pub const Status = enum(u2) {
         pending,
@@ -140,6 +145,7 @@ pub const Rebuild = extern struct {
 /// ABI bits specifically relating to the fuzzer interface.
 pub const fuzz = struct {
     pub const TestOne = *const fn (Slice) callconv(.c) void;
+
     pub extern fn fuzzer_init(cache_dir_path: Slice) void;
     pub extern fn fuzzer_coverage() Coverage;
     pub extern fn fuzzer_init_test(test_one: TestOne, unit_test_name: Slice) void;
@@ -184,6 +190,7 @@ pub const fuzz = struct {
             const ptr: [*]align(@alignOf(usize)) const u8 = @ptrCast(header);
             const header_end_ptr: [*]const usize = @ptrCast(ptr + @sizeOf(SeenPcsHeader));
             const pcs_len = header.pcs_len;
+
             return header_end_ptr[0 .. pcs_len + seenElemsLen(pcs_len)];
         }
 
@@ -197,6 +204,7 @@ pub const fuzz = struct {
 
         pub fn pcAddrs(header: *const SeenPcsHeader) []const usize {
             const pcs_len = header.pcs_len;
+
             return header.headerEnd()[seenElemsLen(pcs_len)..][0..pcs_len];
         }
     };
@@ -251,6 +259,7 @@ pub const fuzz = struct {
         pub fn locsLen(hdr: EntryPointHeader) u24 {
             return @bitCast(hdr.locs_len_raw);
         }
+
         pub fn init(locs_len: u24) EntryPointHeader {
             return .{ .locs_len_raw = @bitCast(locs_len) };
         }

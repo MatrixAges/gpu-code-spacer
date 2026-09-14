@@ -130,12 +130,15 @@ pub fn canBuildLibC(target: *const std.Target) bool {
                     if (ver.min.order(libc_os_ver) == .lt) return false;
                 }
             }
+
             if (libc.glibc_min) |glibc_min| {
                 if (target.os.versionRange().gnuLibCVersion().?.order(glibc_min) == .lt) return false;
             }
+
             return true;
         }
     }
+
     return false;
 }
 
@@ -251,6 +254,7 @@ pub fn glibcArchNameHeaders(arch: std.Target.Cpu.Arch) [:0]const u8 {
 
 pub fn glibcAbiNameHeaders(abi: std.Target.Abi) [:0]const u8 {
     _ = abi;
+
     return "gnu";
 }
 
@@ -287,54 +291,79 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.isMinGW()) {
         if (eqlIgnoreCase(ignore_case, name, "adsiid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "amstrmid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "bits"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "delayimp"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dloadhelper"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dmoguids"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dxerr8"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dxerr9"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dxguid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "ksguid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "largeint"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "m"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "mfuuid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "mingw32"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "mingwex"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "mingwthrd"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "moldname"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "msvcrt-os"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "portabledeviceguids"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "pthread"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "strmiids"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "uuid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "wbemuuid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "wiaguid"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "winpthread"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "wmcodecdspuuid"))
             return true;
 
@@ -344,14 +373,19 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.abi.isGnu() or target.abi.isMusl()) {
         if (eqlIgnoreCase(ignore_case, name, "m"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "rt"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "pthread"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "util"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "resolv"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dl"))
             return true;
     }
@@ -359,18 +393,23 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.abi.isMusl()) {
         if (eqlIgnoreCase(ignore_case, name, "crypt"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "xnet"))
             return true;
 
         if (target.os.tag == .wasi) {
             if (eqlIgnoreCase(ignore_case, name, "setjmp"))
                 return true;
+
             if (eqlIgnoreCase(ignore_case, name, "wasi-emulated-getpid"))
                 return true;
+
             if (eqlIgnoreCase(ignore_case, name, "wasi-emulated-mman"))
                 return true;
+
             if (eqlIgnoreCase(ignore_case, name, "wasi-emulated-process-clocks"))
                 return true;
+
             if (eqlIgnoreCase(ignore_case, name, "wasi-emulated-signal"))
                 return true;
         }
@@ -379,20 +418,28 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.os.tag.isDarwin()) {
         if (eqlIgnoreCase(ignore_case, name, "System"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dbm"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "dl"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "info"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "m"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "poll"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "proc"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "pthread"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "rpcsvc"))
             return true;
 
@@ -405,20 +452,28 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.isFreeBSDLibC()) {
         if (eqlIgnoreCase(ignore_case, name, "dl"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "execinfo"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "m"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "pthread"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "rt"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "stdthreads"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "thr"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "util"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "xnet"))
             return true;
     }
@@ -426,12 +481,16 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.isNetBSDLibC()) {
         if (eqlIgnoreCase(ignore_case, name, "execinfo"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "m"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "pthread"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "rt"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "util"))
             return true;
     }
@@ -439,6 +498,7 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.os.tag == .haiku) {
         if (eqlIgnoreCase(ignore_case, name, "root"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "network"))
             return true;
     }
@@ -446,10 +506,13 @@ pub fn isLibCLibName(target: *const std.Target, name: []const u8) bool {
     if (target.os.tag == .serenity) {
         if (eqlIgnoreCase(ignore_case, name, "dl"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "m"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "pthread"))
             return true;
+
         if (eqlIgnoreCase(ignore_case, name, "ssp"))
             return true;
     }
@@ -476,6 +539,7 @@ fn eqlIgnoreCase(ignore_case: bool, a: []const u8, b: []const u8) bool {
 
 pub fn intByteSize(target: *const std.Target, bits: u16) u16 {
     const previous_aligned = std.mem.alignBackward(u16, bits, 8);
+
     return std.mem.alignForward(u16, @divExact(previous_aligned, 8) + @intFromBool(previous_aligned != bits), intAlignment(target, bits));
 }
 

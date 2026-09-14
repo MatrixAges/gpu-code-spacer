@@ -11,6 +11,7 @@ const Alignment = std.mem.Alignment;
 pub fn getAutoHashFn(comptime K: type, comptime Context: type) (fn (Context, K) u64) {
     comptime {
         assert(@hasDecl(std, "StringHashMap")); // detect when the following message needs updated
+
         if (K == []const u8) {
             @compileError("std.hash.autoHash does not allow slices here (" ++
                 @typeName(K) ++
@@ -23,11 +24,14 @@ pub fn getAutoHashFn(comptime K: type, comptime Context: type) (fn (Context, K) 
     return struct {
         fn hash(ctx: Context, key: K) u64 {
             _ = ctx;
+
             if (std.meta.hasUniqueRepresentation(K)) {
                 return Wyhash.hash(0, std.mem.asBytes(&key));
             } else {
                 var hasher = Wyhash.init(0);
+
                 autoHash(&hasher, key);
+
                 return hasher.final();
             }
         }
@@ -38,6 +42,7 @@ pub fn getAutoEqlFn(comptime K: type, comptime Context: type) (fn (Context, K, K
     return struct {
         fn eql(ctx: Context, a: K, b: K) bool {
             _ = ctx;
+
             return std.meta.eql(a, b);
         }
     }.eql;
@@ -74,10 +79,13 @@ pub fn StringHashMapUnmanaged(comptime V: type) type {
 pub const StringContext = struct {
     pub fn hash(self: @This(), s: []const u8) u64 {
         _ = self;
+
         return hashString(s);
     }
+
     pub fn eql(self: @This(), a: []const u8, b: []const u8) bool {
         _ = self;
+
         return eqlString(a, b);
     }
 };
@@ -111,6 +119,7 @@ pub const StringIndexAdapter = struct {
 
     pub fn hash(_: @This(), adapted_key: []const u8) u64 {
         assert(mem.indexOfScalar(u8, adapted_key, 0) == null);
+
         return hashString(adapted_key);
     }
 };
@@ -171,6 +180,7 @@ pub fn HashMap(
             if (@sizeOf(Context) != 0) {
                 @compileError("Context must be specified! Call initContext(allocator, ctx) instead.");
             }
+
             return .{
                 .unmanaged = .empty,
                 .allocator = allocator,
@@ -210,6 +220,7 @@ pub fn HashMap(
         /// that that is done before calling this function.
         pub fn deinit(self: *Self) void {
             self.unmanaged.deinit(self.allocator);
+
             self.* = undefined;
         }
 
@@ -367,6 +378,7 @@ pub fn HashMap(
         pub fn get(self: Self, key: K) ?V {
             return self.unmanaged.getContext(key, self.ctx);
         }
+
         pub fn getAdapted(self: Self, key: anytype, ctx: anytype) ?V {
             return self.unmanaged.getAdapted(key, ctx);
         }
@@ -374,6 +386,7 @@ pub fn HashMap(
         pub fn getPtr(self: Self, key: K) ?*V {
             return self.unmanaged.getPtrContext(key, self.ctx);
         }
+
         pub fn getPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*V {
             return self.unmanaged.getPtrAdapted(key, ctx);
         }
@@ -382,6 +395,7 @@ pub fn HashMap(
         pub fn getKey(self: Self, key: K) ?K {
             return self.unmanaged.getKeyContext(key, self.ctx);
         }
+
         pub fn getKeyAdapted(self: Self, key: anytype, ctx: anytype) ?K {
             return self.unmanaged.getKeyAdapted(key, ctx);
         }
@@ -389,6 +403,7 @@ pub fn HashMap(
         pub fn getKeyPtr(self: Self, key: K) ?*K {
             return self.unmanaged.getKeyPtrContext(key, self.ctx);
         }
+
         pub fn getKeyPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*K {
             return self.unmanaged.getKeyPtrAdapted(key, ctx);
         }
@@ -440,18 +455,21 @@ pub fn HashMap(
         /// Creates a copy of this map, using the same allocator
         pub fn clone(self: Self) Allocator.Error!Self {
             var other = try self.unmanaged.cloneContext(self.allocator, self.ctx);
+
             return other.promoteContext(self.allocator, self.ctx);
         }
 
         /// Creates a copy of this map, using a specified allocator
         pub fn cloneWithAllocator(self: Self, new_allocator: Allocator) Allocator.Error!Self {
             var other = try self.unmanaged.cloneContext(new_allocator, self.ctx);
+
             return other.promoteContext(new_allocator, self.ctx);
         }
 
         /// Creates a copy of this map, using a specified context
         pub fn cloneWithContext(self: Self, new_ctx: anytype) Allocator.Error!HashMap(K, V, @TypeOf(new_ctx), max_load_percentage) {
             var other = try self.unmanaged.cloneContext(self.allocator, new_ctx);
+
             return other.promoteContext(self.allocator, new_ctx);
         }
 
@@ -462,6 +480,7 @@ pub fn HashMap(
             new_ctx: anytype,
         ) Allocator.Error!HashMap(K, V, @TypeOf(new_ctx), max_load_percentage) {
             var other = try self.unmanaged.cloneContext(new_allocator, new_ctx);
+
             return other.promoteContext(new_allocator, new_ctx);
         }
 
@@ -469,8 +488,11 @@ pub fn HashMap(
         /// returning a copy of the original.
         pub fn move(self: *Self) Self {
             self.unmanaged.pointer_stability.assertUnlocked();
+
             const result = self.*;
+
             self.unmanaged = .empty;
+
             return result;
         }
 
@@ -510,6 +532,7 @@ pub fn HashMapUnmanaged(
 ) type {
     if (max_load_percentage <= 0 or max_load_percentage >= 100)
         @compileError("max_load_percentage must be between 0 and 100.");
+
     return struct {
         const Self = @This();
 
@@ -610,6 +633,7 @@ pub fn HashMapUnmanaged(
             pub fn takeFingerprint(hash: Hash) FingerPrint {
                 const hash_bits = @typeInfo(Hash).int.bits;
                 const fp_bits = @typeInfo(FingerPrint).int.bits;
+
                 return @as(FingerPrint, @truncate(hash >> (hash_bits - fp_bits)));
             }
 
@@ -635,6 +659,7 @@ pub fn HashMapUnmanaged(
 
             pub fn next(it: *Iterator) ?Entry {
                 assert(it.index <= it.hm.capacity());
+
                 if (it.hm.size == 0) return null;
 
                 const cap = it.hm.capacity();
@@ -648,7 +673,9 @@ pub fn HashMapUnmanaged(
                     if (metadata[0].isUsed()) {
                         const key = &it.hm.keys()[it.index];
                         const value = &it.hm.values()[it.index];
+
                         it.index += 1;
+
                         return Entry{ .key_ptr = key, .value_ptr = value };
                     }
                 }
@@ -669,14 +696,18 @@ pub fn HashMapUnmanaged(
                 pub fn next(self: *@This()) ?*T {
                     while (self.len > 0) {
                         self.len -= 1;
+
                         const used = self.metadata[0].isUsed();
                         const item = &self.items[0];
+
                         self.metadata += 1;
                         self.items += 1;
+
                         if (used) {
                             return item;
                         }
                     }
+
                     return null;
                 }
             };
@@ -693,6 +724,7 @@ pub fn HashMapUnmanaged(
         pub fn promote(self: Self, allocator: Allocator) Managed {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call promoteContext instead.");
+
             return promoteContext(self, allocator, undefined);
         }
 
@@ -728,23 +760,30 @@ pub fn HashMapUnmanaged(
         pub fn deinit(self: *Self, allocator: Allocator) void {
             self.pointer_stability.assertUnlocked();
             self.deallocate(allocator);
+
             self.* = undefined;
         }
 
         fn capacityForSize(size: Size) Size {
             var new_cap: u32 = @intCast((@as(u64, size) * 100) / max_load_percentage + 1);
+
             new_cap = math.ceilPowerOfTwo(u32, new_cap) catch unreachable;
+
             return new_cap;
         }
 
         pub fn ensureTotalCapacity(self: *Self, allocator: Allocator, new_size: Size) Allocator.Error!void {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call ensureTotalCapacityContext instead.");
+
             return ensureTotalCapacityContext(self, allocator, new_size, undefined);
         }
+
         pub fn ensureTotalCapacityContext(self: *Self, allocator: Allocator, new_size: Size, ctx: Context) Allocator.Error!void {
             self.pointer_stability.lock();
+
             defer self.pointer_stability.unlock();
+
             if (new_size > self.size)
                 try self.growIfNeeded(allocator, new_size - self.size, ctx);
         }
@@ -752,17 +791,22 @@ pub fn HashMapUnmanaged(
         pub fn ensureUnusedCapacity(self: *Self, allocator: Allocator, additional_size: Size) Allocator.Error!void {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call ensureUnusedCapacityContext instead.");
+
             return ensureUnusedCapacityContext(self, allocator, additional_size, undefined);
         }
+
         pub fn ensureUnusedCapacityContext(self: *Self, allocator: Allocator, additional_size: Size, ctx: Context) Allocator.Error!void {
             return ensureTotalCapacityContext(self, allocator, self.count() + additional_size, ctx);
         }
 
         pub fn clearRetainingCapacity(self: *Self) void {
             self.pointer_stability.lock();
+
             defer self.pointer_stability.unlock();
+
             if (self.metadata) |_| {
                 self.initMetadatas();
+
                 self.size = 0;
                 self.available = @truncate((self.capacity() * max_load_percentage) / 100);
             }
@@ -770,8 +814,11 @@ pub fn HashMapUnmanaged(
 
         pub fn clearAndFree(self: *Self, allocator: Allocator) void {
             self.pointer_stability.lock();
+
             defer self.pointer_stability.unlock();
+
             self.deallocate(allocator);
+
             self.size = 0;
             self.available = 0;
         }
@@ -838,14 +885,19 @@ pub fn HashMapUnmanaged(
         pub fn putNoClobber(self: *Self, allocator: Allocator, key: K, value: V) Allocator.Error!void {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call putNoClobberContext instead.");
+
             return self.putNoClobberContext(allocator, key, value, undefined);
         }
+
         pub fn putNoClobberContext(self: *Self, allocator: Allocator, key: K, value: V, ctx: Context) Allocator.Error!void {
             {
                 self.pointer_stability.lock();
+
                 defer self.pointer_stability.unlock();
+
                 try self.growIfNeeded(allocator, 1, ctx);
             }
+
             self.putAssumeCapacityNoClobberContext(key, value, ctx);
         }
 
@@ -855,10 +907,13 @@ pub fn HashMapUnmanaged(
         pub fn putAssumeCapacity(self: *Self, key: K, value: V) void {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call putAssumeCapacityContext instead.");
+
             return self.putAssumeCapacityContext(key, value, undefined);
         }
+
         pub fn putAssumeCapacityContext(self: *Self, key: K, value: V, ctx: Context) void {
             const gop = self.getOrPutAssumeCapacityContext(key, ctx);
+
             gop.value_ptr.* = value;
         }
 
@@ -867,8 +922,10 @@ pub fn HashMapUnmanaged(
         pub fn putAssumeCapacityNoClobber(self: *Self, key: K, value: V) void {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call putAssumeCapacityNoClobberContext instead.");
+
             return self.putAssumeCapacityNoClobberContext(key, value, undefined);
         }
+
         pub fn putAssumeCapacityNoClobberContext(self: *Self, key: K, value: V, ctx: Context) void {
             assert(!self.containsContext(key, ctx));
 
@@ -877,16 +934,20 @@ pub fn HashMapUnmanaged(
             var idx: usize = @truncate(hash & mask);
 
             var metadata = self.metadata.? + idx;
+
             while (metadata[0].isUsed()) {
                 idx = (idx + 1) & mask;
                 metadata = self.metadata.? + idx;
             }
 
             assert(self.available > 0);
+
             self.available -= 1;
 
             const fingerprint = Metadata.takeFingerprint(hash);
+
             metadata[0].fill(fingerprint);
+
             self.keys()[idx] = key;
             self.values()[idx] = value;
 
@@ -897,18 +958,23 @@ pub fn HashMapUnmanaged(
         pub fn fetchPut(self: *Self, allocator: Allocator, key: K, value: V) Allocator.Error!?KV {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call fetchPutContext instead.");
+
             return self.fetchPutContext(allocator, key, value, undefined);
         }
+
         pub fn fetchPutContext(self: *Self, allocator: Allocator, key: K, value: V, ctx: Context) Allocator.Error!?KV {
             const gop = try self.getOrPutContext(allocator, key, ctx);
             var result: ?KV = null;
+
             if (gop.found_existing) {
                 result = KV{
                     .key = gop.key_ptr.*,
                     .value = gop.value_ptr.*,
                 };
             }
+
             gop.value_ptr.* = value;
+
             return result;
         }
 
@@ -917,18 +983,23 @@ pub fn HashMapUnmanaged(
         pub fn fetchPutAssumeCapacity(self: *Self, key: K, value: V) ?KV {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call fetchPutAssumeCapacityContext instead.");
+
             return self.fetchPutAssumeCapacityContext(key, value, undefined);
         }
+
         pub fn fetchPutAssumeCapacityContext(self: *Self, key: K, value: V, ctx: Context) ?KV {
             const gop = self.getOrPutAssumeCapacityContext(key, ctx);
             var result: ?KV = null;
+
             if (gop.found_existing) {
                 result = KV{
                     .key = gop.key_ptr.*,
                     .value = gop.value_ptr.*,
                 };
             }
+
             gop.value_ptr.* = value;
+
             return result;
         }
 
@@ -937,24 +1008,32 @@ pub fn HashMapUnmanaged(
         pub fn fetchRemove(self: *Self, key: K) ?KV {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call fetchRemoveContext instead.");
+
             return self.fetchRemoveContext(key, undefined);
         }
+
         pub fn fetchRemoveContext(self: *Self, key: K, ctx: Context) ?KV {
             return self.fetchRemoveAdapted(key, ctx);
         }
+
         pub fn fetchRemoveAdapted(self: *Self, key: anytype, ctx: anytype) ?KV {
             if (self.getIndex(key, ctx)) |idx| {
                 const old_key = &self.keys()[idx];
                 const old_val = &self.values()[idx];
+
                 const result = KV{
                     .key = old_key.*,
                     .value = old_val.*,
                 };
+
                 self.metadata.?[idx].remove();
+
                 old_key.* = undefined;
                 old_val.* = undefined;
+
                 self.size -= 1;
                 self.available += 1;
+
                 return result;
             }
 
@@ -967,6 +1046,7 @@ pub fn HashMapUnmanaged(
                 // We use cold instead of unlikely to force a jump to this case,
                 // no matter the weight of the opposing side.
                 @branchHint(.cold);
+
                 return null;
             }
 
@@ -981,6 +1061,7 @@ pub fn HashMapUnmanaged(
             var idx = @as(usize, @truncate(hash & mask));
 
             var metadata = self.metadata.? + idx;
+
             while (!metadata[0].isFree() and limit != 0) {
                 if (metadata[0].isUsed() and metadata[0].fingerprint == fingerprint) {
                     const test_key = &self.keys()[idx];
@@ -991,6 +1072,7 @@ pub fn HashMapUnmanaged(
                 }
 
                 limit -= 1;
+
                 idx = (idx + 1) & mask;
                 metadata = self.metadata.? + idx;
             }
@@ -1001,11 +1083,14 @@ pub fn HashMapUnmanaged(
         pub fn getEntry(self: Self, key: K) ?Entry {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getEntryContext instead.");
+
             return self.getEntryContext(key, undefined);
         }
+
         pub fn getEntryContext(self: Self, key: K, ctx: Context) ?Entry {
             return self.getEntryAdapted(key, ctx);
         }
+
         pub fn getEntryAdapted(self: Self, key: anytype, ctx: anytype) ?Entry {
             if (self.getIndex(key, ctx)) |idx| {
                 return Entry{
@@ -1013,6 +1098,7 @@ pub fn HashMapUnmanaged(
                     .value_ptr = &self.values()[idx],
                 };
             }
+
             return null;
         }
 
@@ -1020,10 +1106,13 @@ pub fn HashMapUnmanaged(
         pub fn put(self: *Self, allocator: Allocator, key: K, value: V) Allocator.Error!void {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call putContext instead.");
+
             return self.putContext(allocator, key, value, undefined);
         }
+
         pub fn putContext(self: *Self, allocator: Allocator, key: K, value: V, ctx: Context) Allocator.Error!void {
             const result = try self.getOrPutContext(allocator, key, ctx);
+
             result.value_ptr.* = value;
         }
 
@@ -1031,15 +1120,19 @@ pub fn HashMapUnmanaged(
         pub fn getKeyPtr(self: Self, key: K) ?*K {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getKeyPtrContext instead.");
+
             return self.getKeyPtrContext(key, undefined);
         }
+
         pub fn getKeyPtrContext(self: Self, key: K, ctx: Context) ?*K {
             return self.getKeyPtrAdapted(key, ctx);
         }
+
         pub fn getKeyPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*K {
             if (self.getIndex(key, ctx)) |idx| {
                 return &self.keys()[idx];
             }
+
             return null;
         }
 
@@ -1047,15 +1140,19 @@ pub fn HashMapUnmanaged(
         pub fn getKey(self: Self, key: K) ?K {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getKeyContext instead.");
+
             return self.getKeyContext(key, undefined);
         }
+
         pub fn getKeyContext(self: Self, key: K, ctx: Context) ?K {
             return self.getKeyAdapted(key, ctx);
         }
+
         pub fn getKeyAdapted(self: Self, key: anytype, ctx: anytype) ?K {
             if (self.getIndex(key, ctx)) |idx| {
                 return self.keys()[idx];
             }
+
             return null;
         }
 
@@ -1063,15 +1160,19 @@ pub fn HashMapUnmanaged(
         pub fn getPtr(self: Self, key: K) ?*V {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getPtrContext instead.");
+
             return self.getPtrContext(key, undefined);
         }
+
         pub fn getPtrContext(self: Self, key: K, ctx: Context) ?*V {
             return self.getPtrAdapted(key, ctx);
         }
+
         pub fn getPtrAdapted(self: Self, key: anytype, ctx: anytype) ?*V {
             if (self.getIndex(key, ctx)) |idx| {
                 return &self.values()[idx];
             }
+
             return null;
         }
 
@@ -1079,44 +1180,58 @@ pub fn HashMapUnmanaged(
         pub fn get(self: Self, key: K) ?V {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getContext instead.");
+
             return self.getContext(key, undefined);
         }
+
         pub fn getContext(self: Self, key: K, ctx: Context) ?V {
             return self.getAdapted(key, ctx);
         }
+
         pub fn getAdapted(self: Self, key: anytype, ctx: anytype) ?V {
             if (self.getIndex(key, ctx)) |idx| {
                 return self.values()[idx];
             }
+
             return null;
         }
 
         pub fn getOrPut(self: *Self, allocator: Allocator, key: K) Allocator.Error!GetOrPutResult {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getOrPutContext instead.");
+
             return self.getOrPutContext(allocator, key, undefined);
         }
+
         pub fn getOrPutContext(self: *Self, allocator: Allocator, key: K, ctx: Context) Allocator.Error!GetOrPutResult {
             const gop = try self.getOrPutContextAdapted(allocator, key, ctx, ctx);
+
             if (!gop.found_existing) {
                 gop.key_ptr.* = key;
             }
+
             return gop;
         }
+
         pub fn getOrPutAdapted(self: *Self, allocator: Allocator, key: anytype, key_ctx: anytype) Allocator.Error!GetOrPutResult {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getOrPutContextAdapted instead.");
+
             return self.getOrPutContextAdapted(allocator, key, key_ctx, undefined);
         }
+
         pub fn getOrPutContextAdapted(self: *Self, allocator: Allocator, key: anytype, key_ctx: anytype, ctx: Context) Allocator.Error!GetOrPutResult {
             {
                 self.pointer_stability.lock();
+
                 defer self.pointer_stability.unlock();
+
                 self.growIfNeeded(allocator, 1, ctx) catch |err| {
                     // If allocation fails, try to do the lookup anyway.
                     // If we find an existing item, we can return it.
                     // Otherwise return the error, we could not add another.
                     const index = self.getIndex(key, key_ctx) orelse return err;
+
                     return GetOrPutResult{
                         .key_ptr = &self.keys()[index],
                         .value_ptr = &self.values()[index],
@@ -1124,23 +1239,28 @@ pub fn HashMapUnmanaged(
                     };
                 };
             }
+
             return self.getOrPutAssumeCapacityAdapted(key, key_ctx);
         }
 
         pub fn getOrPutAssumeCapacity(self: *Self, key: K) GetOrPutResult {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getOrPutAssumeCapacityContext instead.");
+
             return self.getOrPutAssumeCapacityContext(key, undefined);
         }
+
         pub fn getOrPutAssumeCapacityContext(self: *Self, key: K, ctx: Context) GetOrPutResult {
             const result = self.getOrPutAssumeCapacityAdapted(key, ctx);
+
             if (!result.found_existing) {
                 result.key_ptr.* = key;
             }
+
             return result;
         }
-        pub fn getOrPutAssumeCapacityAdapted(self: *Self, key: anytype, ctx: anytype) GetOrPutResult {
 
+        pub fn getOrPutAssumeCapacityAdapted(self: *Self, key: anytype, ctx: anytype) GetOrPutResult {
             // If you get a compile error on this line, it means that your generic hash
             // function is invalid for these parameters.
             const hash: Hash = ctx.hash(key);
@@ -1152,12 +1272,13 @@ pub fn HashMapUnmanaged(
 
             var first_tombstone_idx: usize = self.capacity(); // invalid index
             var metadata = self.metadata.? + idx;
+
             while (!metadata[0].isFree() and limit != 0) {
                 if (metadata[0].isUsed() and metadata[0].fingerprint == fingerprint) {
                     const test_key = &self.keys()[idx];
+
                     // If you get a compile error on this line, it means that your generic eql
                     // function is invalid for these parameters.
-
                     if (ctx.eql(key, test_key.*)) {
                         return GetOrPutResult{
                             .key_ptr = test_key,
@@ -1170,6 +1291,7 @@ pub fn HashMapUnmanaged(
                 }
 
                 limit -= 1;
+
                 idx = (idx + 1) & mask;
                 metadata = self.metadata.? + idx;
             }
@@ -1177,16 +1299,21 @@ pub fn HashMapUnmanaged(
             if (first_tombstone_idx < self.capacity()) {
                 // Cheap try to lower probing lengths after deletions. Recycle a tombstone.
                 idx = first_tombstone_idx;
+
                 metadata = self.metadata.? + idx;
             }
+
             // We're using a slot previously free or a tombstone.
             self.available -= 1;
 
             metadata[0].fill(fingerprint);
+
             const new_key = &self.keys()[idx];
             const new_value = &self.values()[idx];
+
             new_key.* = undefined;
             new_value.* = undefined;
+
             self.size += 1;
 
             return GetOrPutResult{
@@ -1199,14 +1326,18 @@ pub fn HashMapUnmanaged(
         pub fn getOrPutValue(self: *Self, allocator: Allocator, key: K, value: V) Allocator.Error!Entry {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call getOrPutValueContext instead.");
+
             return self.getOrPutValueContext(allocator, key, value, undefined);
         }
+
         pub fn getOrPutValueContext(self: *Self, allocator: Allocator, key: K, value: V, ctx: Context) Allocator.Error!Entry {
             const res = try self.getOrPutAdapted(allocator, key, ctx);
+
             if (!res.found_existing) {
                 res.key_ptr.* = key;
                 res.value_ptr.* = value;
             }
+
             return Entry{ .key_ptr = res.key_ptr, .value_ptr = res.value_ptr };
         }
 
@@ -1214,19 +1345,24 @@ pub fn HashMapUnmanaged(
         pub fn contains(self: Self, key: K) bool {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call containsContext instead.");
+
             return self.containsContext(key, undefined);
         }
+
         pub fn containsContext(self: Self, key: K, ctx: Context) bool {
             return self.containsAdapted(key, ctx);
         }
+
         pub fn containsAdapted(self: Self, key: anytype, ctx: anytype) bool {
             return self.getIndex(key, ctx) != null;
         }
 
         fn removeByIndex(self: *Self, idx: usize) void {
             self.metadata.?[idx].remove();
+
             self.keys()[idx] = undefined;
             self.values()[idx] = undefined;
+
             self.size -= 1;
             self.available += 1;
         }
@@ -1240,6 +1376,7 @@ pub fn HashMapUnmanaged(
         pub fn remove(self: *Self, key: K) bool {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call removeContext instead.");
+
             return self.removeContext(key, undefined);
         }
 
@@ -1254,6 +1391,7 @@ pub fn HashMapUnmanaged(
         pub fn removeAdapted(self: *Self, key: anytype, ctx: anytype) bool {
             if (self.getIndex(key, ctx)) |idx| {
                 self.removeByIndex(idx);
+
                 return true;
             }
 
@@ -1286,7 +1424,9 @@ pub fn HashMapUnmanaged(
         // what has to stay under the max_load_percentage of capacity.
         fn load(self: Self) Size {
             const max_load = (self.capacity() * max_load_percentage) / 100;
+
             assert(max_load >= self.available);
+
             return @as(Size, @truncate(max_load - self.available));
         }
 
@@ -1299,25 +1439,32 @@ pub fn HashMapUnmanaged(
         pub fn clone(self: Self, allocator: Allocator) Allocator.Error!Self {
             if (@sizeOf(Context) != 0)
                 @compileError("Cannot infer context " ++ @typeName(Context) ++ ", call cloneContext instead.");
+
             return self.cloneContext(allocator, @as(Context, undefined));
         }
+
         pub fn cloneContext(self: Self, allocator: Allocator, new_ctx: anytype) Allocator.Error!HashMapUnmanaged(K, V, @TypeOf(new_ctx), max_load_percentage) {
             var other: HashMapUnmanaged(K, V, @TypeOf(new_ctx), max_load_percentage) = .empty;
+
             if (self.size == 0)
                 return other;
 
             const new_cap = capacityForSize(self.size);
+
             try other.allocate(allocator, new_cap);
             other.initMetadatas();
+
             other.available = @truncate((new_cap * max_load_percentage) / 100);
 
             var i: Size = 0;
             var metadata = self.metadata.?;
             const keys_ptr = self.keys();
             const values_ptr = self.values();
+
             while (i < self.capacity()) : (i += 1) {
                 if (metadata[i].isUsed()) {
                     other.putAssumeCapacityNoClobberContext(keys_ptr[i], values_ptr[i], new_ctx);
+
                     if (other.size == self.size)
                         break;
                 }
@@ -1330,8 +1477,11 @@ pub fn HashMapUnmanaged(
         /// returning a copy of the original.
         pub fn move(self: *Self) Self {
             self.pointer_stability.assertUnlocked();
+
             const result = self.*;
+
             self.* = .empty;
+
             return result;
         }
 
@@ -1365,10 +1515,13 @@ pub fn HashMapUnmanaged(
             // Now iterate over all the buckets, rehashing them
 
             curr = 0;
+
             while (curr < self.capacity()) {
                 if (!metadata[curr].isUsed()) {
                     assert(metadata[curr].isFree());
+
                     curr += 1;
+
                     continue;
                 }
 
@@ -1389,32 +1542,41 @@ pub fn HashMapUnmanaged(
 
                 if (idx < curr) {
                     assert(metadata[idx].isFree());
+
                     metadata[idx].fill(fingerprint);
+
                     keys_ptr[idx] = keys_ptr[curr];
                     values_ptr[idx] = values_ptr[curr];
 
                     metadata[curr].used = 0;
+
                     assert(metadata[curr].isFree());
+
                     keys_ptr[curr] = undefined;
                     values_ptr[curr] = undefined;
 
                     curr += 1;
                 } else if (idx == curr) {
                     metadata[idx].fingerprint = fingerprint;
+
                     curr += 1;
                 } else {
                     assert(metadata[idx].fingerprint != Metadata.tombstone);
+
                     metadata[idx].fingerprint = Metadata.tombstone;
+
                     if (metadata[idx].isUsed()) {
                         std.mem.swap(K, &keys_ptr[curr], &keys_ptr[idx]);
                         std.mem.swap(V, &values_ptr[curr], &values_ptr[idx]);
                     } else {
                         metadata[idx].used = 1;
+
                         keys_ptr[idx] = keys_ptr[curr];
                         values_ptr[idx] = values_ptr[curr];
 
                         metadata[curr].fingerprint = Metadata.free;
                         metadata[curr].used = 0;
+
                         keys_ptr[curr] = undefined;
                         values_ptr[curr] = undefined;
 
@@ -1426,32 +1588,42 @@ pub fn HashMapUnmanaged(
 
         fn grow(self: *Self, allocator: Allocator, new_capacity: Size, ctx: Context) Allocator.Error!void {
             @branchHint(.cold);
+
             const new_cap = @max(new_capacity, minimal_capacity);
+
             assert(new_cap > self.capacity());
             assert(std.math.isPowerOfTwo(new_cap));
 
             var map: Self = .{};
+
             try map.allocate(allocator, new_cap);
+
             errdefer comptime unreachable;
+
             map.pointer_stability.lock();
             map.initMetadatas();
+
             map.available = @truncate((new_cap * max_load_percentage) / 100);
 
             if (self.size != 0) {
                 const old_capacity = self.capacity();
+
                 for (
                     self.metadata.?[0..old_capacity],
                     self.keys()[0..old_capacity],
                     self.values()[0..old_capacity],
                 ) |m, k, v| {
                     if (!m.isUsed()) continue;
+
                     map.putAssumeCapacityNoClobberContext(k, v, ctx);
+
                     if (map.size == self.size) break;
                 }
             }
 
             self.size = 0;
             self.pointer_stability = .{};
+
             std.mem.swap(Self, self, &map);
             map.deinit(allocator);
         }
@@ -1464,11 +1636,11 @@ pub fn HashMapUnmanaged(
 
             const new_cap: usize = new_capacity;
             const meta_size = @sizeOf(Header) + new_cap * @sizeOf(Metadata);
+
             comptime assert(@alignOf(Metadata) == 1);
 
             const keys_start = std.mem.alignForward(usize, meta_size, key_align);
             const keys_end = keys_start + new_cap * @sizeOf(K);
-
             const vals_start = std.mem.alignForward(usize, keys_end, val_align);
             const vals_end = vals_start + new_cap * @sizeOf(V);
 
@@ -1480,13 +1652,17 @@ pub fn HashMapUnmanaged(
             const metadata = ptr + @sizeOf(Header);
 
             const hdr = @as(*Header, @ptrCast(@alignCast(ptr)));
+
             if (@sizeOf([*]V) != 0) {
                 hdr.values = @ptrCast(@alignCast((ptr + vals_start)));
             }
+
             if (@sizeOf([*]K) != 0) {
                 hdr.keys = @ptrCast(@alignCast((ptr + keys_start)));
             }
+
             hdr.capacity = new_capacity;
+
             self.metadata = @ptrCast(@alignCast(metadata));
         }
 
@@ -1500,17 +1676,18 @@ pub fn HashMapUnmanaged(
 
             const cap: usize = self.capacity();
             const meta_size = @sizeOf(Header) + cap * @sizeOf(Metadata);
+
             comptime assert(@alignOf(Metadata) == 1);
 
             const keys_start = std.mem.alignForward(usize, meta_size, key_align);
             const keys_end = keys_start + cap * @sizeOf(K);
-
             const vals_start = std.mem.alignForward(usize, keys_end, val_align);
             const vals_end = vals_start + cap * @sizeOf(V);
 
             const total_size = std.mem.alignForward(usize, vals_end, max_align);
 
             const slice = @as([*]align(max_align) u8, @ptrCast(@alignCast(self.header())))[0..total_size];
+
             allocator.free(slice);
 
             self.metadata = null;
@@ -1541,79 +1718,101 @@ const expectEqual = std.testing.expectEqual;
 
 test "basic usage" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     const count = 5;
     var i: u32 = 0;
     var total: u32 = 0;
+
     while (i < count) : (i += 1) {
         try map.put(i, i);
+
         total += i;
     }
 
     var sum: u32 = 0;
     var it = map.iterator();
+
     while (it.next()) |kv| {
         sum += kv.key_ptr.*;
     }
+
     try expectEqual(total, sum);
 
     i = 0;
     sum = 0;
+
     while (i < count) : (i += 1) {
         try expectEqual(i, map.get(i).?);
+
         sum += map.get(i).?;
     }
+
     try expectEqual(total, sum);
 }
 
 test "ensureTotalCapacity" {
     var map = AutoHashMap(i32, i32).init(std.testing.allocator);
+
     defer map.deinit();
 
     try map.ensureTotalCapacity(20);
+
     const initial_capacity = map.capacity();
+
     try testing.expect(initial_capacity >= 20);
+
     var i: i32 = 0;
+
     while (i < 20) : (i += 1) {
         try testing.expect(map.fetchPutAssumeCapacity(i, i + 10) == null);
     }
+
     // shouldn't resize from putAssumeCapacity
     try testing.expect(initial_capacity == map.capacity());
 }
 
 test "ensureUnusedCapacity with tombstones" {
     var map = AutoHashMap(i32, i32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var i: i32 = 0;
+
     while (i < 100) : (i += 1) {
         try map.ensureUnusedCapacity(1);
         map.putAssumeCapacity(i, i);
+
         _ = map.remove(i);
     }
 }
 
 test "clearRetainingCapacity" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     map.clearRetainingCapacity();
 
     try map.put(1, 1);
+
     try expectEqual(map.get(1).?, 1);
     try expectEqual(map.count(), 1);
 
     map.clearRetainingCapacity();
     map.putAssumeCapacity(1, 1);
+
     try expectEqual(map.get(1).?, 1);
     try expectEqual(map.count(), 1);
 
     const cap = map.capacity();
+
     try expect(cap > 0);
 
     map.clearRetainingCapacity();
     map.clearRetainingCapacity();
+
     try expectEqual(map.count(), 0);
     try expectEqual(map.capacity(), cap);
     try expect(!map.contains(1));
@@ -1621,25 +1820,32 @@ test "clearRetainingCapacity" {
 
 test "grow" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     const growTo = 12456;
-
     var i: u32 = 0;
+
     while (i < growTo) : (i += 1) {
         try map.put(i, i);
     }
+
     try expectEqual(map.count(), growTo);
 
     i = 0;
+
     var it = map.iterator();
+
     while (it.next()) |kv| {
         try expectEqual(kv.key_ptr.*, kv.value_ptr.*);
+
         i += 1;
     }
+
     try expectEqual(i, growTo);
 
     i = 0;
+
     while (i < growTo) : (i += 1) {
         try expectEqual(map.get(i).?, i);
     }
@@ -1647,9 +1853,11 @@ test "grow" {
 
 test "clone" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var a = try map.clone();
+
     defer a.deinit();
 
     try expectEqual(a.count(), 0);
@@ -1659,6 +1867,7 @@ test "clone" {
     try a.put(3, 3);
 
     var b = try a.clone();
+
     defer b.deinit();
 
     try expectEqual(b.count(), 3);
@@ -1667,17 +1876,21 @@ test "clone" {
     try expectEqual(b.get(3).?, 3);
 
     var original = AutoHashMap(i32, i32).init(std.testing.allocator);
+
     defer original.deinit();
 
     var i: u8 = 0;
+
     while (i < 10) : (i += 1) {
         try original.putNoClobber(i, i * 10);
     }
 
     var copy = try original.clone();
+
     defer copy.deinit();
 
     i = 0;
+
     while (i < 10) : (i += 1) {
         try testing.expect(copy.get(i).? == i * 10);
     }
@@ -1685,48 +1898,60 @@ test "clone" {
 
 test "ensureTotalCapacity with existing elements" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     try map.put(0, 0);
+
     try expectEqual(map.count(), 1);
     try expectEqual(map.capacity(), @TypeOf(map).Unmanaged.minimal_capacity);
 
     try map.ensureTotalCapacity(65);
+
     try expectEqual(map.count(), 1);
     try expectEqual(map.capacity(), 128);
 }
 
 test "ensureTotalCapacity satisfies max load factor" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     try map.ensureTotalCapacity(127);
+
     try expectEqual(map.capacity(), 256);
 }
 
 test "remove" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var i: u32 = 0;
+
     while (i < 16) : (i += 1) {
         try map.put(i, i);
     }
 
     i = 0;
+
     while (i < 16) : (i += 1) {
         if (i % 3 == 0) {
             _ = map.remove(i);
         }
     }
+
     try expectEqual(map.count(), 10);
+
     var it = map.iterator();
+
     while (it.next()) |kv| {
         try expectEqual(kv.key_ptr.*, kv.value_ptr.*);
         try expect(kv.key_ptr.* % 3 != 0);
     }
 
     i = 0;
+
     while (i < 16) : (i += 1) {
         if (i % 3 == 0) {
             try expect(!map.contains(i));
@@ -1738,18 +1963,24 @@ test "remove" {
 
 test "reverse removes" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var i: u32 = 0;
+
     while (i < 16) : (i += 1) {
         try map.putNoClobber(i, i);
     }
 
     i = 16;
+
     while (i > 0) : (i -= 1) {
         _ = map.remove(i - 1);
+
         try expect(!map.contains(i - 1));
+
         var j: u32 = 0;
+
         while (j < i - 1) : (j += 1) {
             try expectEqual(map.get(j).?, j);
         }
@@ -1760,9 +1991,11 @@ test "reverse removes" {
 
 test "multiple removes on same metadata" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var i: u32 = 0;
+
     while (i < 16) : (i += 1) {
         try map.put(i, i);
     }
@@ -1771,12 +2004,14 @@ test "multiple removes on same metadata" {
     _ = map.remove(15);
     _ = map.remove(14);
     _ = map.remove(13);
+
     try expect(!map.contains(7));
     try expect(!map.contains(15));
     try expect(!map.contains(14));
     try expect(!map.contains(13));
 
     i = 0;
+
     while (i < 13) : (i += 1) {
         if (i == 7) {
             try expect(!map.contains(i));
@@ -1789,7 +2024,9 @@ test "multiple removes on same metadata" {
     try map.put(13, 13);
     try map.put(14, 14);
     try map.put(7, 7);
+
     i = 0;
+
     while (i < 16) : (i += 1) {
         try expectEqual(map.get(i).?, i);
     }
@@ -1797,18 +2034,22 @@ test "multiple removes on same metadata" {
 
 test "put and remove loop in random order" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var keys = std.array_list.Managed(u32).init(std.testing.allocator);
+
     defer keys.deinit();
 
     const size = 32;
     const iterations = 100;
 
     var i: u32 = 0;
+
     while (i < size) : (i += 1) {
         try keys.append(i);
     }
+
     var prng = std.Random.DefaultPrng.init(std.testing.random_seed);
     const random = prng.random();
 
@@ -1818,11 +2059,13 @@ test "put and remove loop in random order" {
         for (keys.items) |key| {
             try map.put(key, key);
         }
+
         try expectEqual(map.count(), size);
 
         for (keys.items) |key| {
             _ = map.remove(key);
         }
+
         try expectEqual(map.count(), 0);
     }
 }
@@ -1830,19 +2073,24 @@ test "put and remove loop in random order" {
 test "remove many elements in random order" {
     const Map = AutoHashMap(u32, u32);
     const n = 1000 * 100;
+
     var map = Map.init(std.heap.page_allocator);
+
     defer map.deinit();
 
     var keys = std.array_list.Managed(u32).init(std.heap.page_allocator);
+
     defer keys.deinit();
 
     var i: u32 = 0;
+
     while (i < n) : (i += 1) {
         keys.append(i) catch unreachable;
     }
 
     var prng = std.Random.DefaultPrng.init(std.testing.random_seed);
     const random = prng.random();
+
     random.shuffle(u32, keys.items);
 
     for (keys.items) |key| {
@@ -1850,33 +2098,41 @@ test "remove many elements in random order" {
     }
 
     random.shuffle(u32, keys.items);
+
     i = 0;
+
     while (i < n) : (i += 1) {
         const key = keys.items[i];
+
         _ = map.remove(key);
     }
 }
 
 test "put" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var i: u32 = 0;
+
     while (i < 16) : (i += 1) {
         try map.put(i, i);
     }
 
     i = 0;
+
     while (i < 16) : (i += 1) {
         try expectEqual(map.get(i).?, i);
     }
 
     i = 0;
+
     while (i < 16) : (i += 1) {
         try map.put(i, i * 16 + 1);
     }
 
     i = 0;
+
     while (i < 16) : (i += 1) {
         try expectEqual(map.get(i).?, i * 16 + 1);
     }
@@ -1884,42 +2140,54 @@ test "put" {
 
 test "putAssumeCapacity" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     try map.ensureTotalCapacity(20);
+
     var i: u32 = 0;
+
     while (i < 20) : (i += 1) {
         map.putAssumeCapacityNoClobber(i, i);
     }
 
     i = 0;
+
     var sum = i;
+
     while (i < 20) : (i += 1) {
         sum += map.getPtr(i).?.*;
     }
+
     try expectEqual(sum, 190);
 
     i = 0;
+
     while (i < 20) : (i += 1) {
         map.putAssumeCapacity(i, 1);
     }
 
     i = 0;
     sum = i;
+
     while (i < 20) : (i += 1) {
         sum += map.get(i).?;
     }
+
     try expectEqual(sum, 20);
 }
 
 test "repeat putAssumeCapacity/remove" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     try map.ensureTotalCapacity(20);
+
     const limit = map.unmanaged.available;
 
     var i: u32 = 0;
+
     while (i < limit) : (i += 1) {
         map.putAssumeCapacityNoClobber(i, i);
     }
@@ -1927,8 +2195,10 @@ test "repeat putAssumeCapacity/remove" {
     // Repeatedly delete/insert an entry without resizing the map.
     // Put to different keys so entries don't land in the just-freed slot.
     i = 0;
+
     while (i < 10 * limit) : (i += 1) {
         try testing.expect(map.remove(i));
+
         if (i % 2 == 0) {
             map.putAssumeCapacityNoClobber(limit + i, i);
         } else {
@@ -1937,29 +2207,36 @@ test "repeat putAssumeCapacity/remove" {
     }
 
     i = 9 * limit;
+
     while (i < 10 * limit) : (i += 1) {
         try expectEqual(map.get(limit + i), i);
     }
+
     try expectEqual(map.unmanaged.available, 0);
     try expectEqual(map.unmanaged.count(), limit);
 }
 
 test "getOrPut" {
     var map = AutoHashMap(u32, u32).init(std.testing.allocator);
+
     defer map.deinit();
 
     var i: u32 = 0;
+
     while (i < 10) : (i += 1) {
         try map.put(i * 2, 2);
     }
 
     i = 0;
+
     while (i < 20) : (i += 1) {
         _ = try map.getOrPutValue(i, 1);
     }
 
     i = 0;
+
     var sum = i;
+
     while (i < 20) : (i += 1) {
         sum += map.get(i).?;
     }
@@ -1969,6 +2246,7 @@ test "getOrPut" {
 
 test "basic hash map usage" {
     var map = AutoHashMap(i32, i32).init(std.testing.allocator);
+
     defer map.deinit();
 
     try testing.expect((try map.fetchPut(1, 11)) == null);
@@ -1977,38 +2255,46 @@ test "basic hash map usage" {
     try testing.expect((try map.fetchPut(4, 44)) == null);
 
     try map.putNoClobber(5, 55);
+
     try testing.expect((try map.fetchPut(5, 66)).?.value == 55);
     try testing.expect((try map.fetchPut(5, 55)).?.value == 66);
 
     const gop1 = try map.getOrPut(5);
+
     try testing.expect(gop1.found_existing == true);
     try testing.expect(gop1.value_ptr.* == 55);
+
     gop1.value_ptr.* = 77;
+
     try testing.expect(map.getEntry(5).?.value_ptr.* == 77);
 
     const gop2 = try map.getOrPut(99);
+
     try testing.expect(gop2.found_existing == false);
+
     gop2.value_ptr.* = 42;
+
     try testing.expect(map.getEntry(99).?.value_ptr.* == 42);
 
     const gop3 = try map.getOrPutValue(5, 5);
+
     try testing.expect(gop3.value_ptr.* == 77);
 
     const gop4 = try map.getOrPutValue(100, 41);
-    try testing.expect(gop4.value_ptr.* == 41);
 
+    try testing.expect(gop4.value_ptr.* == 41);
     try testing.expect(map.contains(2));
     try testing.expect(map.getEntry(2).?.value_ptr.* == 22);
     try testing.expect(map.get(2).? == 22);
 
     const rmv1 = map.fetchRemove(2);
+
     try testing.expect(rmv1.?.key == 2);
     try testing.expect(rmv1.?.value == 22);
     try testing.expect(map.fetchRemove(2) == null);
     try testing.expect(map.remove(2) == false);
     try testing.expect(map.getEntry(2) == null);
     try testing.expect(map.get(2) == null);
-
     try testing.expect(map.remove(3) == true);
 }
 
@@ -2016,15 +2302,21 @@ test "getOrPutAdapted" {
     const AdaptedContext = struct {
         fn eql(self: @This(), adapted_key: []const u8, test_key: u64) bool {
             _ = self;
+
             return std.fmt.parseInt(u64, adapted_key, 10) catch unreachable == test_key;
         }
+
         fn hash(self: @This(), adapted_key: []const u8) u64 {
             _ = self;
+
             const key = std.fmt.parseInt(u64, adapted_key, 10) catch unreachable;
+
             return (AutoContext(u64){}).hash(key);
         }
     };
+
     var map = AutoHashMap(u64, u64).init(testing.allocator);
+
     defer map.deinit();
 
     const keys = [_][]const u8{
@@ -2044,8 +2336,11 @@ test "getOrPutAdapted" {
 
     inline for (keys, 0..) |key_str, i| {
         const result = try map.getOrPutAdapted(key_str, AdaptedContext{});
+
         try testing.expect(!result.found_existing);
+
         real_keys[i] = std.fmt.parseInt(u64, key_str, 10) catch unreachable;
+
         result.key_ptr.* = real_keys[i];
         result.value_ptr.* = i * 2;
     }
@@ -2054,6 +2349,7 @@ test "getOrPutAdapted" {
 
     inline for (keys, 0..) |key_str, i| {
         const result = map.getOrPutAssumeCapacityAdapted(key_str, AdaptedContext{});
+
         try testing.expect(result.found_existing);
         try testing.expectEqual(real_keys[i], result.key_ptr.*);
         try testing.expectEqual(@as(u64, i) * 2, result.value_ptr.*);
@@ -2063,10 +2359,13 @@ test "getOrPutAdapted" {
 
 test "ensureUnusedCapacity" {
     var map = AutoHashMap(u64, u64).init(testing.allocator);
+
     defer map.deinit();
 
     try map.ensureUnusedCapacity(32);
+
     const capacity = map.capacity();
+
     try map.ensureUnusedCapacity(32);
 
     // Repeated ensureUnusedCapacity() calls with no insertions between
@@ -2076,11 +2375,13 @@ test "ensureUnusedCapacity" {
 
 test "removeByPtr" {
     var map = AutoHashMap(i32, u64).init(testing.allocator);
+
     defer map.deinit();
 
     var i: i32 = undefined;
 
     i = 0;
+
     while (i < 10) : (i += 1) {
         try map.put(i, 0);
     }
@@ -2088,8 +2389,10 @@ test "removeByPtr" {
     try testing.expect(map.count() == 10);
 
     i = 0;
+
     while (i < 10) : (i += 1) {
         const key_ptr = map.getKeyPtr(i);
+
         try testing.expect(key_ptr != null);
 
         if (key_ptr) |ptr| {
@@ -2102,6 +2405,7 @@ test "removeByPtr" {
 
 test "removeByPtr 0 sized key" {
     var map = AutoHashMap(u0, u64).init(testing.allocator);
+
     defer map.deinit();
 
     try map.put(0, 0);
@@ -2109,6 +2413,7 @@ test "removeByPtr 0 sized key" {
     try testing.expect(map.count() == 1);
 
     const key_ptr = map.getKeyPtr(0);
+
     try testing.expect(key_ptr != null);
 
     if (key_ptr) |ptr| {
@@ -2120,6 +2425,7 @@ test "removeByPtr 0 sized key" {
 
 test "repeat fetchRemove" {
     var map: AutoHashMapUnmanaged(u64, void) = .empty;
+
     defer map.deinit(testing.allocator);
 
     try map.ensureTotalCapacity(testing.allocator, 4);
@@ -2131,8 +2437,10 @@ test "repeat fetchRemove" {
 
     // fetchRemove() should make slots available.
     var i: usize = 0;
+
     while (i < 10) : (i += 1) {
         try testing.expect(map.fetchRemove(3) != null);
+
         map.putAssumeCapacity(3, {});
     }
 
@@ -2144,11 +2452,13 @@ test "repeat fetchRemove" {
 
 test "getOrPut allocation failure" {
     var map: std.StringHashMapUnmanaged(void) = .empty;
+
     try testing.expectError(error.OutOfMemory, map.getOrPut(std.testing.failing_allocator, "hello"));
 }
 
 test "rehash" {
     var map = AutoHashMap(usize, usize).init(std.testing.allocator);
+
     defer map.deinit();
 
     var prng = std.Random.DefaultPrng.init(0);
@@ -2158,6 +2468,7 @@ test "rehash" {
 
     for (0..count) |i| {
         try map.put(i, i);
+
         if (i % 3 == 0) {
             try expectEqual(map.remove(i), true);
         }

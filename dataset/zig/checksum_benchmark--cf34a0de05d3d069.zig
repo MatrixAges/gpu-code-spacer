@@ -14,16 +14,19 @@ const repetitions = 35;
 
 test "benchmark: checksum" {
     var bench: Bench = .init();
+
     defer bench.deinit();
 
     const blob_size = bench.parameter("blob_size", KiB, MiB);
 
     var arena_instance = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena_instance.deinit();
 
     const arena = arena_instance.allocator();
     var prng = stdx.PRNG.from_seed(bench.seed);
     const blob = try arena.alignedAlloc(u8, cache_line_size, blob_size);
+
     prng.fill(blob);
 
     var duration_samples: [repetitions]stdx.Duration = undefined;
@@ -31,6 +34,7 @@ test "benchmark: checksum" {
 
     for (&duration_samples) |*duration| {
         bench.start();
+
         checksum_counter +%= checksum(blob);
         duration.* = bench.stop();
     }

@@ -5,6 +5,7 @@ import { DOMNodeTypes, isComment } from './hydration'
 // see https://caniuse.com/requestidlecallback
 const requestIdleCallback: Window['requestIdleCallback'] =
   getGlobalThis().requestIdleCallback || (cb => setTimeout(cb, 1))
+
 const cancelIdleCallback: Window['cancelIdleCallback'] =
   getGlobalThis().cancelIdleCallback || (id => clearTimeout(id))
 
@@ -30,6 +31,7 @@ export const hydrateOnIdle: HydrationStrategyFactory<number> =
   (timeout = 10000) =>
   hydrate => {
     const id = requestIdleCallback(hydrate, { timeout })
+
     return () => cancelIdleCallback(id)
   }
 
@@ -37,6 +39,7 @@ function elementIsVisibleInViewport(el: Element) {
   const { top, left, bottom, right } = el.getBoundingClientRect()
   // eslint-disable-next-line no-restricted-globals
   const { innerHeight, innerWidth } = window
+
   return (
     ((top > 0 && top < innerHeight) || (bottom > 0 && bottom < innerHeight)) &&
     ((left > 0 && left < innerWidth) || (right > 0 && right < innerWidth))
@@ -49,20 +52,29 @@ export const hydrateOnVisible: HydrationStrategyFactory<
   const ob = new IntersectionObserver(entries => {
     for (const e of entries) {
       if (!e.isIntersecting) continue
+
       ob.disconnect()
+
       hydrate()
+
       break
     }
   }, opts)
+
   forEach(el => {
     if (!(el instanceof Element)) return
+
     if (elementIsVisibleInViewport(el)) {
       hydrate()
+
       ob.disconnect()
+
       return false
     }
+
     ob.observe(el)
   })
+
   return () => ob.disconnect()
 }
 
@@ -70,10 +82,12 @@ export const hydrateOnMediaQuery: HydrationStrategyFactory<string> =
   query => hydrate => {
     if (query) {
       const mql = matchMedia(query)
+
       if (mql.matches) {
         hydrate()
       } else {
         mql.addEventListener('change', hydrate, { once: true })
+
         return () => mql.removeEventListener('change', hydrate)
       }
     }
@@ -85,16 +99,21 @@ export const hydrateOnInteraction: HydrationStrategyFactory<
   (interactions = []) =>
   (hydrate, forEach) => {
     if (isString(interactions)) interactions = [interactions]
+
     let hasHydrated = false
+
     const doHydrate = (e: Event) => {
       if (!hasHydrated) {
         hasHydrated = true
+
         teardown()
         hydrate()
+
         // replay event
         e.target!.dispatchEvent(new (e.constructor as any)(e.type, e))
       }
     }
+
     const teardown = () => {
       forEach(el => {
         for (const i of interactions) {
@@ -102,11 +121,13 @@ export const hydrateOnInteraction: HydrationStrategyFactory<
         }
       })
     }
+
     forEach(el => {
       for (const i of interactions) {
         el.addEventListener(i, doHydrate, { once: true })
       }
     })
+
     return teardown
   }
 
@@ -118,9 +139,11 @@ export function forEachElement(
   if (isComment(node) && node.data === '[') {
     let depth = 1
     let next = node.nextSibling
+
     while (next) {
       if (next.nodeType === DOMNodeTypes.ELEMENT) {
         const result = cb(next as Element)
+
         if (result === false) {
           break
         }
@@ -131,6 +154,7 @@ export function forEachElement(
           depth++
         }
       }
+
       next = next.nextSibling
     }
   } else {

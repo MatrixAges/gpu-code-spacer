@@ -10,10 +10,12 @@ const Error = Status.Error;
 pub const SimplePointer = struct {
     _reset: *const fn (*SimplePointer, bool) callconv(cc) Status,
     _get_state: *const fn (*const SimplePointer, *State) callconv(cc) Status,
+
     wait_for_input: Event,
     mode: *Mode,
 
     pub const ResetError = uefi.UnexpectedError || error{DeviceError};
+
     pub const GetStateError = uefi.UnexpectedError || error{
         NotReady,
         DeviceError,
@@ -31,6 +33,7 @@ pub const SimplePointer = struct {
     /// Retrieves the current state of a pointer device.
     pub fn getState(self: *const SimplePointer) GetStateError!State {
         var state: State = undefined;
+
         switch (self._get_state(self, &state)) {
             .success => return state,
             .not_ready => return Error.NotReady,

@@ -3,6 +3,7 @@ import DatePicker from 'antd/es/date-picker/locale/en_US'
 import TimePicker from 'antd/es/time-picker/locale/en_US'
 
 const typeTemplate = '${label} is not a valid ${type}'
+
 const localeValues = {
 	locale: 'en',
 	Pagination: {
@@ -155,4 +156,5 @@ const localeValues = {
 		presetEmpty: 'Empty'
 	}
 }
+
 export default localeValues

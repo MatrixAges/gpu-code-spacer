@@ -20,6 +20,7 @@ import { updateSort } from '@openages/stk/dnd'
 import { setStorageWhenChange, useInstanceWatch } from '@openages/stk/mobx'
 
 import { getTodo } from './initials'
+
 import {
 	archiveByTime,
 	check,
@@ -49,6 +50,7 @@ import type { Watch } from '@openages/stk/mobx'
 import type { Dayjs } from 'dayjs'
 import type { MangoQuerySelector, MangoQuerySortPart, RxDocument } from 'rxdb'
 import type { Subscription } from 'rxjs'
+
 import type {
 	ArchiveQueryParams,
 	ArgsCheck,
@@ -67,16 +69,21 @@ import type {
 	AnalysisDuration,
 	AnalysisTrending
 } from './types/model'
+
 import type { ArgsUpdateTodoData } from './types/services'
 import type { CleanTime } from '@/types'
+
 @injectable()
 export default class Index {
 	id = ''
 	mode = 'list' as Mode
 	zen_mode = true
+
 	timer_cycle: NodeJS.Timer | null = null
 	timer_archive: NodeJS.Timer | null = null
+
 	disable_watcher = false
+
 	open_items = [] as Array<string>
 
 	setting = {} as Todo.TodoSetting
@@ -89,7 +96,9 @@ export default class Index {
 	quad_items_watcher = [] as Array<Subscription>
 
 	archives = [] as Array<Todo.Todo>
+
 	archive_counts = 0
+
 	archive_query_params = {} as ArchiveQueryParams
 
 	items_sort_param = null as ItemsSortParams | null
@@ -103,6 +112,7 @@ export default class Index {
 	visible_activity_modal = false
 
 	current_angle_id = ''
+
 	current_detail_index = {} as CurrentDetailIndex
 
 	table_pagination = { current: 1, pageSize: 15, total: 0 }
@@ -124,6 +134,7 @@ export default class Index {
 			if (!this.id) return
 
 			this.visible_detail_modal = false
+
 			this.current_detail_index === ({} as CurrentDetailIndex)
 
 			if (this.mode === 'list') {
@@ -154,6 +165,7 @@ export default class Index {
 			} else {
 				this.loadmore.page = 0
 				this.loadmore.end = false
+
 				this.archive_query_params = {}
 			}
 		},
@@ -267,11 +279,13 @@ export default class Index {
 
 		if (!['list', 'table'].includes(v)) {
 			this.items = []
+
 			this.stopWatchItems()
 		}
 
 		if (!['kanban', 'flat', 'mindmap'].includes(v)) {
 			this.kanban_items = {}
+
 			this.stopWatchKanbanItems()
 		}
 
@@ -290,6 +304,7 @@ export default class Index {
 		const { id } = args
 
 		this.utils.acts = [...useInstanceWatch(this)]
+
 		this.id = id
 
 		const disposer_local = setStorageWhenChange([{ [`${id}_mode`]: 'mode' }], this)
@@ -299,7 +314,6 @@ export default class Index {
 		})
 
 		this.file.init(this.id)
-
 		this.on()
 
 		await this.watchSetting()
@@ -381,6 +395,7 @@ export default class Index {
 			data['angle_id'] = options?.dimension_id!
 		} else if (this.mode === 'quad') {
 			data['angle_id'] = this.current_angle_id || this.visible_angles[0].id
+
 			;(data as Todo.Todo)['level'] = Number(options?.dimension_id!.replace('level_', ''))
 		} else {
 			data['angle_id'] = this.current_angle_id
@@ -686,6 +701,7 @@ export default class Index {
 		} else {
 			const children_index = args.children_index
 			const data = item!.children![children_index]
+
 			const target_item = {
 				...getTodo(),
 				text: data.text,
@@ -824,8 +840,10 @@ export default class Index {
 			const target_tags = tags.filter(it => (item.tag_ids || []).includes(it.id))
 
 			item.status_text = $t(`todo.common.status.${item.status}`)
+
 			item.angle = target_angle?.text || ''
 			item.text = item.text ? getEditorText(item.text) : ''
+
 			item.tags = target_tags.map(it => it.text).join(' ')
 			item.create = dayjs(item.create_at).format('YYYY-MM-DD HH:mm')
 			item.done = item.done_time ? dayjs(item.done_time).format('YYYY-MM-DD HH:mm') : ''
@@ -1061,6 +1079,7 @@ export default class Index {
 			this.archives.findIndex(item => item.id === id),
 			1
 		)
+
 		this.archive_counts = this.archive_counts - 1
 	}
 
@@ -1166,6 +1185,7 @@ export default class Index {
 				if (this.disable_watcher) return
 
 				this.kanban_items[item.id].items = getDocItemsData(items) as Array<Todo.Todo>
+
 				this.kanban_items[item.id].loaded = true
 			})
 		})
@@ -1229,14 +1249,16 @@ export default class Index {
 	off() {
 		this.utils.off()
 		this.file.off()
-
 		this.setting_watcher?.unsubscribe?.()
+
 		this.setting_watcher = null
 
 		this.items_watcher?.unsubscribe?.()
+
 		this.items_watcher = null
 
 		this.kanban_items_watcher.forEach(item => item?.unsubscribe?.())
+
 		this.kanban_items_watcher = []
 
 		clearInterval(this.timer_cycle!)

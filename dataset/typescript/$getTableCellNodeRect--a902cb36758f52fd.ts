@@ -5,9 +5,12 @@ import type TableCellNode from '../TableCellNode'
 
 export default (table_cell_node: TableCellNode) => {
 	const [cell_node, , grid_node] = $getNodeTriplet(table_cell_node)
+
 	const rows = grid_node.getChildren<TableRowNode>()
+
 	const row_count = rows.length
 	const column_count = rows[0].getChildren().length
+
 	const cell_matrix = new Array(row_count)
 
 	for (let i = 0; i < row_count; i++) {
@@ -17,6 +20,7 @@ export default (table_cell_node: TableCellNode) => {
 	for (let row_index = 0; row_index < row_count; row_index++) {
 		const row = rows[row_index]
 		const cells = row.getChildren<TableCellNode>()
+
 		let column_index = 0
 
 		for (let cell_index = 0; cell_index < cells.length; cell_index++) {

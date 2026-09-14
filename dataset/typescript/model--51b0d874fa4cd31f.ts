@@ -7,6 +7,7 @@ import {
 	COMMAND_PRIORITY_HIGH,
 	COMMAND_PRIORITY_LOW
 } from 'lexical'
+
 import { makeAutoObservable } from 'mobx'
 import smoothScrollIntoView from 'smooth-scroll-into-view-if-needed'
 import { injectable } from 'tsyringe'
@@ -24,13 +25,16 @@ import type { FocusEvent } from 'react'
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
 	node = null as unknown as LinkNode
 	dom = null as unknown as HTMLAnchorElement
-	show_on_top = false
 
+	show_on_top = false
 	visible = false
+
 	position = null as unknown as { x: number; y: number }
+
 	link = ''
 
 	unregister = null as unknown as () => void
@@ -56,7 +60,9 @@ export default class Index {
 		this.dom = null as unknown as HTMLAnchorElement
 
 		this.visible = false
+
 		this.position = null as unknown as { x: number; y: number }
+
 		this.link = ''
 
 		return false
@@ -89,6 +95,7 @@ export default class Index {
 
 		if (target) {
 			this.node = target
+
 			this.link = target.getURL()
 			this.dom = this.editor.getElementByKey(target.__key) as HTMLAnchorElement
 
@@ -196,7 +203,6 @@ export default class Index {
 
 	off() {
 		this.utils.off()
-
 		this.removeListners()
 	}
 }

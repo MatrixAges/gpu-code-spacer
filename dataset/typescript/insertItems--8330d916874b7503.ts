@@ -6,6 +6,7 @@ import { getEditorJSON } from '@/utils/editor'
 import { todos_cn, todos_en } from './data'
 
 import type { Todo } from '@/types'
+
 type Args = { file_id: string; angles: Todo.Setting['angles'] }
 
 export default async (lang: 'cn' | 'en') => {

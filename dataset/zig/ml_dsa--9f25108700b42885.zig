@@ -161,61 +161,75 @@ const Poly = struct {
     // Add two polynomials (no normalization)
     fn add(a: Poly, b: Poly) Poly {
         var ret: Poly = undefined;
+
         for (0..N) |i| {
             ret.cs[i] = a.cs[i] + b.cs[i];
         }
+
         return ret;
     }
 
     // Subtract two polynomials (assumes b coefficients < 2q)
     fn sub(a: Poly, b: Poly) Poly {
         var ret: Poly = undefined;
+
         for (0..N) |i| {
             ret.cs[i] = a.cs[i] +% (@as(u32, 2 * Q) -% b.cs[i]);
         }
+
         return ret;
     }
 
     // Reduce each coefficient to < 2q
     fn reduceLe2Q(p: Poly) Poly {
         var ret = p;
+
         for (0..N) |i| {
             ret.cs[i] = le2Q(ret.cs[i]);
         }
+
         return ret;
     }
 
     // Normalize coefficients to [0, q)
     fn normalize(p: Poly) Poly {
         var ret = p;
+
         for (0..N) |i| {
             ret.cs[i] = modQ(ret.cs[i]);
         }
+
         return ret;
     }
 
     // Normalize assuming coefficients already < 2q
     fn normalizeAssumingLe2Q(p: Poly) Poly {
         var ret = p;
+
         for (0..N) |i| {
             ret.cs[i] = le2qModQ(ret.cs[i]);
         }
+
         return ret;
     }
 
     // Pointwise multiplication in NTT domain (Montgomery form)
     fn mulHat(a: Poly, b: Poly) Poly {
         var ret: Poly = undefined;
+
         for (0..N) |i| {
             ret.cs[i] = montReduceLe2Q(@as(u64, a.cs[i]) * @as(u64, b.cs[i]));
         }
+
         return ret;
     }
 
     // Forward NTT
     fn ntt(p: Poly) Poly {
         var ret = p;
+
         ret.nttInPlace();
+
         return ret;
     }
 
@@ -226,12 +240,15 @@ const Poly = struct {
 
         while (l > 0) : (l >>= 1) {
             var offset: usize = 0;
+
             while (offset < N - l) : (offset += 2 * l) {
                 k += 1;
+
                 const zeta: u64 = zetas[k];
 
                 for (offset..offset + l) |j| {
                     const t = montReduceLe2Q(zeta * @as(u64, p.cs[j + l]));
+
                     p.cs[j + l] = p.cs[j] +% (2 * Q -% t);
                     p.cs[j] +%= t;
                 }
@@ -242,7 +259,9 @@ const Poly = struct {
     // Inverse NTT
     fn invNTT(p: Poly) Poly {
         var ret = p;
+
         ret.invNTTInPlace();
+
         return ret;
     }
 
@@ -253,12 +272,15 @@ const Poly = struct {
 
         while (l < N) : (l <<= 1) {
             var offset: usize = 0;
+
             while (offset < N - l) : (offset += 2 * l) {
                 const zeta: u64 = inv_zetas[k];
+
                 k += 1;
 
                 for (offset..offset + l) |j| {
                     const t = p.cs[j];
+
                     p.cs[j] = t +% p.cs[j + l];
                     p.cs[j + l] = montReduceLe2Q(zeta * @as(u64, t +% 256 * Q -% p.cs[j + l]));
                 }
@@ -275,24 +297,30 @@ const Poly = struct {
     fn power2RoundPoly(p: Poly) struct { t0: Poly, t1: Poly } {
         var t0 = Poly.zero;
         var t1 = Poly.zero;
+
         for (0..N) |i| {
             const result = power2Round(p.cs[i]);
+
             t0.cs[i] = result.a0_plus_q;
             t1.cs[i] = result.a1;
         }
+
         return .{ .t0 = t0, .t1 = t1 };
     }
 
     // Check if infinity norm exceeds bound
     fn exceeds(p: Poly, bound: u32) bool {
         var result: u32 = 0;
+
         for (0..N) |i| {
             const x = @as(i32, @intCast((Q - 1) / 2)) - @as(i32, @intCast(p.cs[i]));
             const abs_x = x ^ (x >> 31);
             const norm = @as(i32, @intCast((Q - 1) / 2)) - abs_x;
             const exceeds_bit = @intFromBool(@as(u32, @intCast(norm)) >= bound);
+
             result |= exceeds_bit;
         }
+
         return result != 0;
     }
 };
@@ -307,27 +335,33 @@ fn PolyVec(comptime len: u8) type {
         /// Apply a unary operation to each polynomial in the vector
         fn map(v: Self, comptime op: fn (Poly) Poly) Self {
             var ret: Self = undefined;
+
             inline for (0..len) |i| {
                 ret.ps[i] = op(v.ps[i]);
             }
+
             return ret;
         }
 
         /// Apply a binary operation pairwise to two vectors
         fn mapBinary(a: Self, b: Self, comptime op: fn (Poly, Poly) Poly) Self {
             var ret: Self = undefined;
+
             inline for (0..len) |i| {
                 ret.ps[i] = op(a.ps[i], b.ps[i]);
             }
+
             return ret;
         }
 
         /// Apply a binary operation between a vector and a scalar polynomial
         fn mapBinaryPoly(v: Self, scalar: Poly, comptime op: fn (Poly, Poly) Poly) Self {
             var ret: Self = undefined;
+
             inline for (0..len) |i| {
                 ret.ps[i] = op(v.ps[i], scalar);
             }
+
             return ret;
         }
 
@@ -362,9 +396,11 @@ fn PolyVec(comptime len: u8) type {
         // Check if any polynomial in the vector exceeds the bound
         fn exceeds(v: Self, bound: u32) bool {
             var result = false;
+
             for (0..len) |i| {
                 result = result or v.ps[i].exceeds(bound);
             }
+
             return result;
         }
 
@@ -372,11 +408,14 @@ fn PolyVec(comptime len: u8) type {
         /// Returns both t0 and t1 vectors
         fn power2Round(v: Self, t0_out: *Self) Self {
             var t1: Self = undefined;
+
             for (0..len) |i| {
                 const result = v.ps[i].power2RoundPoly();
+
                 t0_out.ps[i] = result.t0;
                 t1.ps[i] = result.t1;
             }
+
             return t1;
         }
 
@@ -389,6 +428,7 @@ fn PolyVec(comptime len: u8) type {
         ) void {
             inline for (0..len) |i| {
                 const offset = i * poly_size;
+
                 pack_fn(v.ps[i], buf[offset..][0..poly_size]);
             }
         }
@@ -400,102 +440,122 @@ fn PolyVec(comptime len: u8) type {
             buf: []const u8,
         ) Self {
             var result: Self = undefined;
+
             inline for (0..len) |i| {
                 const offset = i * poly_size;
+
                 result.ps[i] = unpack_fn(buf[offset..][0..poly_size]);
             }
+
             return result;
         }
 
         /// Pack T1 vector to bytes
         fn packT1(v: Self, buf: []u8) void {
             const poly_size = (N * (Q_BITS - D)) / 8;
+
             packWith(v, buf, poly_size, polyPackT1);
         }
 
         /// Unpack T1 vector from bytes
         fn unpackT1(bytes: []const u8) Self {
             const poly_size = (N * (Q_BITS - D)) / 8;
+
             return unpackWith(poly_size, polyUnpackT1, bytes);
         }
 
         /// Pack T0 vector to bytes
         fn packT0(v: Self, buf: []u8) void {
             const poly_size = (N * D) / 8;
+
             packWith(v, buf, poly_size, polyPackT0);
         }
 
         /// Unpack T0 vector from bytes
         fn unpackT0(buf: []const u8) Self {
             const poly_size = (N * D) / 8;
+
             return unpackWith(poly_size, polyUnpackT0, buf);
         }
 
         /// Pack vector with coefficients in [-eta, eta]
         fn packLeqEta(v: Self, comptime eta: u8, buf: []u8) void {
             const poly_size = if (eta == 2) 96 else 128;
+
             const pack_fn = struct {
                 fn pack(p: Poly, b: []u8) void {
                     polyPackLeqEta(p, eta, b);
                 }
             }.pack;
+
             packWith(v, buf, poly_size, pack_fn);
         }
 
         /// Unpack vector with coefficients in [-eta, eta]
         fn unpackLeqEta(comptime eta: u8, buf: []const u8) Self {
             const poly_size = if (eta == 2) 96 else 128;
+
             const unpack_fn = struct {
                 fn unpack(b: []const u8) Poly {
                     return polyUnpackLeqEta(eta, b);
                 }
             }.unpack;
+
             return unpackWith(poly_size, unpack_fn, buf);
         }
 
         /// Pack vector of polynomials with coefficients < gamma1
         fn packLeGamma1(v: Self, comptime gamma1_bits: u8, buf: []u8) void {
             const poly_size = ((gamma1_bits + 1) * N) / 8;
+
             const pack_fn = struct {
                 fn pack(p: Poly, b: []u8) void {
                     polyPackLeGamma1(p, gamma1_bits, b);
                 }
             }.pack;
+
             packWith(v, buf, poly_size, pack_fn);
         }
 
         /// Unpack vector of polynomials with coefficients < gamma1
         fn unpackLeGamma1(comptime gamma1_bits: u8, buf: []const u8) Self {
             const poly_size = ((gamma1_bits + 1) * N) / 8;
+
             const unpack_fn = struct {
                 fn unpack(b: []const u8) Poly {
                     return polyUnpackLeGamma1(gamma1_bits, b);
                 }
             }.unpack;
+
             return unpackWith(poly_size, unpack_fn, buf);
         }
 
         /// Pack high bits w1 for signature verification
         fn packW1(v: Self, comptime gamma1_bits: u8, buf: []u8) void {
             const poly_size = (N * (Q_BITS - gamma1_bits)) / 8;
+
             const pack_fn = struct {
                 fn pack(p: Poly, b: []u8) void {
                     polyPackW1(p, gamma1_bits, b);
                 }
             }.pack;
+
             packWith(v, buf, poly_size, pack_fn);
         }
 
         /// Decompose each polynomial in the vector into high and low bits
         fn decomposeVec(v: Self, comptime gamma2: u32, w0_out: *Self) Self {
             var w1: Self = undefined;
+
             for (0..len) |i| {
                 for (0..N) |j| {
                     const r = decompose(v.ps[i].cs[j], gamma2);
+
                     w0_out.ps[i].cs[j] = r.a0_plus_q;
                     w1.ps[i].cs[j] = r.a1;
                 }
             }
+
             return w1;
         }
 
@@ -503,31 +563,39 @@ fn PolyVec(comptime len: u8) type {
         fn makeHintVec(w0mcs2pct0: Self, w1: Self, comptime gamma2: u32) struct { hint: Self, pop: u32 } {
             var hint: Self = undefined;
             var pop: u32 = 0;
+
             for (0..len) |i| {
                 const result = polyMakeHint(w0mcs2pct0.ps[i], w1.ps[i], gamma2);
+
                 hint.ps[i] = result.hint;
+
                 pop += result.count;
             }
+
             return .{ .hint = hint, .pop = pop };
         }
 
         /// Apply hints to recover high bits
         fn useHint(v: Self, hint: Self, comptime gamma2: u32) Self {
             var result: Self = undefined;
+
             for (0..len) |i| {
                 result.ps[i] = polyUseHint(v.ps[i], hint.ps[i], gamma2);
             }
+
             return result;
         }
 
         /// Multiply vector by 2^D (left shift)
         fn mulBy2toD(v: Self) Self {
             var result: Self = undefined;
+
             for (0..len) |i| {
                 for (0..N) |j| {
                     result.ps[i].cs[j] = v.ps[i].cs[j] << D;
                 }
             }
+
             return result;
         }
 
@@ -535,9 +603,11 @@ fn PolyVec(comptime len: u8) type {
         /// Wraps expandMask (FIPS 204: ExpandMask)
         fn deriveUniformLeGamma1(comptime gamma1_bits: u8, seed: *const [64]u8, nonce: u16) Self {
             var result: Self = undefined;
+
             for (0..len) |i| {
                 result.ps[i] = expandMask(gamma1_bits, seed, nonce + @as(u16, @intCast(i)));
             }
+
             return result;
         }
 
@@ -566,9 +636,11 @@ fn PolyVec(comptime len: u8) type {
                 for (0..N) |j| {
                     if (v.ps[i].cs[j] != 0) {
                         buf[idx] = @intCast(j);
+
                         idx += 1;
                     }
                 }
+
                 buf[omega + i] = @intCast(idx);
             }
 
@@ -586,26 +658,33 @@ fn PolyVec(comptime len: u8) type {
 
             for (0..len) |i| {
                 const sop = buf[omega + i]; // switch-over-point
+
                 if (sop < prev_sop or sop > omega) {
                     return null; // ensures switch-over-points are increasing
                 }
 
                 var j = prev_sop;
+
                 while (j < sop) : (j += 1) {
                     // Validation: indices must be strictly increasing within each polynomial
                     if (j > prev_sop and buf[j] <= buf[j - 1]) {
                         return null;
                     }
+
                     const pos = buf[j];
+
                     if (pos >= N) {
                         return null;
                     }
+
                     result.ps[i].cs[pos] = 1;
                 }
+
                 prev_sop = sop;
             }
 
             var j = prev_sop;
+
             while (j < omega) : (j += 1) {
                 if (buf[j] != 0) {
                     return null;
@@ -631,16 +710,20 @@ fn Mat(comptime k: u8, comptime l: u8) type {
         /// This is the ExpandA function from FIPS 204
         fn derive(rho: *const [32]u8) Self {
             var m: Self = undefined;
+
             for (0..k) |i| {
                 if (i + 1 < k) {
                     @prefetch(&m.rows[i + 1], .{ .rw = .write, .locality = 2 });
                 }
+
                 for (0..l) |j| {
                     // Nonce is i*256 + j
                     const nonce: u16 = (@as(u16, @intCast(i)) << 8) | @as(u16, @intCast(j));
+
                     m.rows[i].ps[j] = polyDeriveUniform(rho, nonce);
                 }
             }
+
             return m;
         }
 
@@ -648,11 +731,13 @@ fn Mat(comptime k: u8, comptime l: u8) type {
         /// Takes a vector in NTT form and returns the product in regular form.
         fn mulVec(self: Self, v_hat: VecL) VecK {
             var result = VecK.zero;
+
             for (0..k) |i| {
                 result.ps[i] = dotHat(l, self.rows[i], v_hat);
                 result.ps[i] = result.ps[i].reduceLe2Q();
                 result.ps[i] = result.ps[i].invNTT();
             }
+
             return result;
         }
 
@@ -660,9 +745,11 @@ fn Mat(comptime k: u8, comptime l: u8) type {
         /// Takes a vector in NTT form and returns the product in NTT form.
         fn mulVecHat(self: Self, v_hat: VecL) VecK {
             var result: VecK = undefined;
+
             for (0..k) |i| {
                 result.ps[i] = dotHat(l, self.rows[i], v_hat);
             }
+
             return result;
         }
     };
@@ -671,10 +758,13 @@ fn Mat(comptime k: u8, comptime l: u8) type {
 // Dot product in NTT domain
 fn dotHat(comptime len: u8, a: PolyVec(len), b: PolyVec(len)) Poly {
     var ret = Poly.zero;
+
     for (0..len) |i| {
         const prod = a.ps[i].mulHat(b.ps[i]);
+
         ret = ret.add(prod);
     }
+
     return ret;
 }
 
@@ -687,6 +777,7 @@ fn le2Q(x: u32) u32 {
     // and x2 + x1 * 2^13 - x1 <= 2^23 + 2^13 < 2q
     const x1 = x >> 23;
     const x2 = x & 0x7FFFFF; // 2^23 - 1
+
     return x2 +% (x1 << 13) -% x1;
 }
 
@@ -699,6 +790,7 @@ fn modQ(x: u32) u32 {
 fn le2qModQ(x: u32) u32 {
     const r = x -% Q;
     const mask = signMask(u32, r);
+
     return r +% (mask & Q);
 }
 
@@ -706,6 +798,7 @@ fn le2qModQ(x: u32) u32 {
 // where R = 2^32. This is used for efficient modular multiplication in NTT operations.
 fn montReduceLe2Q(x: u64) u32 {
     const m = (x *% Q_INV) & 0xffffffff;
+
     return @truncate((x +% m * @as(u64, Q)) >> 32);
 }
 
@@ -715,11 +808,13 @@ const zetas = computeZetas();
 
 fn computeZetas() [N]u32 {
     @setEvalBranchQuota(100000);
+
     var ret: [N]u32 = undefined;
 
     for (0..N) |i| {
         const brv_i = @bitReverse(@as(u8, @intCast(i)));
         const power = modularPow(u32, ZETA, brv_i, Q);
+
         ret[i] = toMont(power);
     }
 
@@ -731,6 +826,7 @@ const inv_zetas = computeInvZetas();
 
 fn computeInvZetas() [N]u32 {
     @setEvalBranchQuota(100000);
+
     var ret: [N]u32 = undefined;
 
     const inv_zeta = modularInverse(u32, ZETA, Q);
@@ -771,14 +867,17 @@ fn toMont(x: u32) u32 {
     const r_mod_q = comptime blk: {
         // 2^32 mod q - compute by successive squaring
         var r: u64 = 1;
+
         for (0..32) |_| {
             r = (r * 2) % Q;
         }
+
         break :blk @as(u32, @intCast(r));
     };
 
     const r2_mod_q = comptime blk: {
         const r = @as(u64, r_mod_q);
+
         break :blk @as(u32, @intCast((r * r) % Q));
     };
 
@@ -930,7 +1029,9 @@ fn polyMakeHint(p0: Poly, p1: Poly, comptime gamma2: u32) struct { hint: Poly, c
 
     for (0..N) |i| {
         const h = makeHint(p0.cs[i], p1.cs[i], gamma2);
+
         hint.cs[i] = h;
+
         count += h;
     }
 
@@ -966,6 +1067,7 @@ fn polyPackLeqEta(p: Poly, comptime eta: u8, buf: []u8) void {
         // 3 bits per coefficient: pack 8 coefficients into 3 bytes
         var j: usize = 0;
         var i: usize = 0;
+
         while (i < buf.len) : (i += 3) {
             const c0 = Q + eta - p.cs[j];
             const c1 = Q + eta - p.cs[j + 1];
@@ -985,10 +1087,13 @@ fn polyPackLeqEta(p: Poly, comptime eta: u8, buf: []u8) void {
     } else { // eta == 4
         // 4 bits per coefficient: pack 2 coefficients into 1 byte
         var j: usize = 0;
+
         for (0..buf.len) |i| {
             const c0 = Q + eta - p.cs[j];
             const c1 = Q + eta - p.cs[j + 1];
+
             buf[i] = @truncate(c0 | (c1 << 4));
+
             j += 2;
         }
     }
@@ -1009,6 +1114,7 @@ fn polyUnpackLeqEta(comptime eta: u8, buf: []const u8) Poly {
         // 3 bits per coefficient: unpack 8 coefficients from 3 bytes
         var j: usize = 0;
         var i: usize = 0;
+
         while (i < buf.len) : (i += 3) {
             p.cs[j] = Q + eta - (buf[i] & 7);
             p.cs[j + 1] = Q + eta - ((buf[i] >> 3) & 7);
@@ -1018,14 +1124,17 @@ fn polyUnpackLeqEta(comptime eta: u8, buf: []const u8) Poly {
             p.cs[j + 5] = Q + eta - ((buf[i + 1] >> 7) | ((buf[i + 2] << 1) & 7));
             p.cs[j + 6] = Q + eta - ((buf[i + 2] >> 2) & 7);
             p.cs[j + 7] = Q + eta - ((buf[i + 2] >> 5) & 7);
+
             j += 8;
         }
     } else { // eta == 4
         // 4 bits per coefficient: unpack 2 coefficients from 1 byte
         var j: usize = 0;
+
         for (0..buf.len) |i| {
             p.cs[j] = Q + eta - (buf[i] & 15);
             p.cs[j + 1] = Q + eta - (buf[i] >> 4);
+
             j += 2;
         }
     }
@@ -1039,12 +1148,14 @@ fn polyUnpackLeqEta(comptime eta: u8, buf: []const u8) Poly {
 fn polyPackT1(p: Poly, buf: []u8) void {
     var j: usize = 0;
     var i: usize = 0;
+
     while (i < buf.len) : (i += 5) {
         buf[i] = @truncate(p.cs[j]);
         buf[i + 1] = @truncate((p.cs[j] >> 8) | (p.cs[j + 1] << 2));
         buf[i + 2] = @truncate((p.cs[j + 1] >> 6) | (p.cs[j + 2] << 4));
         buf[i + 3] = @truncate((p.cs[j + 2] >> 4) | (p.cs[j + 3] << 6));
         buf[i + 4] = @truncate(p.cs[j + 3] >> 2);
+
         j += 4;
     }
 }
@@ -1055,13 +1166,16 @@ fn polyUnpackT1(buf: []const u8) Poly {
     var p = Poly.zero;
     var j: usize = 0;
     var i: usize = 0;
+
     while (i < buf.len) : (i += 5) {
         p.cs[j] = (@as(u32, buf[i]) | (@as(u32, buf[i + 1]) << 8)) & 0x3ff;
         p.cs[j + 1] = ((@as(u32, buf[i + 1]) >> 2) | (@as(u32, buf[i + 2]) << 6)) & 0x3ff;
         p.cs[j + 2] = ((@as(u32, buf[i + 2]) >> 4) | (@as(u32, buf[i + 3]) << 4)) & 0x3ff;
         p.cs[j + 3] = ((@as(u32, buf[i + 3]) >> 6) | (@as(u32, buf[i + 4]) << 2)) & 0x3ff;
+
         j += 4;
     }
+
     return p;
 }
 
@@ -1072,6 +1186,7 @@ fn polyPackT0(p: Poly, buf: []u8) void {
     const bound = 1 << (D - 1);
     var j: usize = 0;
     var i: usize = 0;
+
     while (i < buf.len) : (i += 13) {
         const p0 = Q + bound - p.cs[j];
         const p1 = Q + bound - p.cs[j + 1];
@@ -1107,6 +1222,7 @@ fn polyUnpackT0(buf: []const u8) Poly {
     var p = Poly.zero;
     var j: usize = 0;
     var i: usize = 0;
+
     while (i < buf.len) : (i += 13) {
         p.cs[j] = Q + bound - ((@as(u32, buf[i]) | (@as(u32, buf[i + 1]) << 8)) & 0x1fff);
         p.cs[j + 1] = Q + bound - (((@as(u32, buf[i + 1]) >> 5) | (@as(u32, buf[i + 2]) << 3) | (@as(u32, buf[i + 3]) << 11)) & 0x1fff);
@@ -1116,8 +1232,10 @@ fn polyUnpackT0(buf: []const u8) Poly {
         p.cs[j + 5] = Q + bound - (((@as(u32, buf[i + 8]) >> 1) | (@as(u32, buf[i + 9]) << 7)) & 0x1fff);
         p.cs[j + 6] = Q + bound - (((@as(u32, buf[i + 9]) >> 6) | (@as(u32, buf[i + 10]) << 2) | (@as(u32, buf[i + 11]) << 10)) & 0x1fff);
         p.cs[j + 7] = Q + bound - ((@as(u32, buf[i + 11]) >> 3) | (@as(u32, buf[i + 12]) << 5));
+
         j += 8;
     }
+
     return p;
 }
 
@@ -1125,7 +1243,9 @@ fn polyUnpackT0(buf: []const u8) Poly {
 /// Transforms value from [0,γ₁] ∪ (Q-γ₁, Q) to [0, 2γ₁).
 fn centeredToPositive(val: u32, comptime gamma1: u32) u32 {
     var result = gamma1 -% val;
+
     result +%= (signMask(u32, result) & Q);
+
     return result;
 }
 
@@ -1140,6 +1260,7 @@ fn polyPackLeGamma1(p: Poly, comptime gamma1_bits: u8, buf: []u8) void {
         // Pack 4 coefficients into 9 bytes (18 bits each)
         var j: usize = 0;
         var i: usize = 0;
+
         while (i < buf.len) : (i += 9) {
             // Convert from [0,γ₁] ∪ (Q-γ₁, Q) to [0, 2γ₁)
             const p0 = centeredToPositive(p.cs[j], gamma1);
@@ -1163,6 +1284,7 @@ fn polyPackLeGamma1(p: Poly, comptime gamma1_bits: u8, buf: []u8) void {
         // Pack 2 coefficients into 5 bytes (20 bits each)
         var j: usize = 0;
         var i: usize = 0;
+
         while (i < buf.len) : (i += 5) {
             const p0 = centeredToPositive(p.cs[j], gamma1);
             const p1 = centeredToPositive(p.cs[j + 1], gamma1);
@@ -1190,6 +1312,7 @@ fn polyUnpackLeGamma1(comptime gamma1_bits: u8, buf: []const u8) Poly {
         // Unpack 4 coefficients from 9 bytes (18 bits each)
         var j: usize = 0;
         var i: usize = 0;
+
         while (i < buf.len) : (i += 9) {
             var p0 = @as(u32, buf[i]) | (@as(u32, buf[i + 1]) << 8) | ((@as(u32, buf[i + 2]) & 0x3) << 16);
             var p1 = (@as(u32, buf[i + 2]) >> 2) | (@as(u32, buf[i + 3]) << 6) | ((@as(u32, buf[i + 4]) & 0xf) << 14);
@@ -1213,6 +1336,7 @@ fn polyUnpackLeGamma1(comptime gamma1_bits: u8, buf: []const u8) Poly {
         // Unpack 2 coefficients from 5 bytes (20 bits each)
         var j: usize = 0;
         var i: usize = 0;
+
         while (i < buf.len) : (i += 5) {
             var p0 = @as(u32, buf[i]) | (@as(u32, buf[i + 1]) << 8) | ((@as(u32, buf[i + 2]) & 0xf) << 16);
             var p1 = (@as(u32, buf[i + 2]) >> 4) | (@as(u32, buf[i + 3]) << 4) | (@as(u32, buf[i + 4]) << 12);
@@ -1241,17 +1365,21 @@ fn polyPackW1(p: Poly, comptime gamma1_bits: u8, buf: []u8) void {
         // Pack 4 coefficients into 3 bytes (6 bits each)
         var j: usize = 0;
         var i: usize = 0;
+
         while (i < buf.len) : (i += 3) {
             buf[i] = @truncate(p.cs[j] | (p.cs[j + 1] << 6));
             buf[i + 1] = @truncate((p.cs[j + 1] >> 2) | (p.cs[j + 2] << 4));
             buf[i + 2] = @truncate((p.cs[j + 2] >> 4) | (p.cs[j + 3] << 2));
+
             j += 4;
         }
     } else if (gamma1_bits == 19) {
         // Pack 2 coefficients into 1 byte (4 bits each) - equivalent to packLe16
         var j: usize = 0;
+
         for (0..buf.len) |i| {
             buf[i] = @truncate(p.cs[j] | (p.cs[j + 1] << 4));
+
             j += 2;
         }
     } else {
@@ -1261,6 +1389,7 @@ fn polyPackW1(p: Poly, comptime gamma1_bits: u8, buf: []u8) void {
 
 fn polyDeriveUniform(seed: *const [32]u8, nonce: u16) Poly {
     var domain_sep: [2]u8 = undefined;
+
     domain_sep[0] = @truncate(nonce);
     domain_sep[1] = @truncate(nonce >> 8);
 
@@ -1292,11 +1421,14 @@ fn expandS(comptime eta: u8, seed: *const [64]u8, nonce: u16) Poly {
 
     // Prepare input: seed || nonce (little-endian u16)
     var input: [66]u8 = undefined;
+
     @memcpy(input[0..64], seed);
+
     input[64] = @truncate(nonce);
     input[65] = @truncate(nonce >> 8);
 
     var h = sha3.Shake256.init(.{});
+
     h.update(&input);
 
     while (i < N) {
@@ -1304,6 +1436,7 @@ fn expandS(comptime eta: u8, seed: *const [64]u8, nonce: u16) Poly {
 
         // Process buffer: extract two samples per byte (4-bit nibbles)
         var j: usize = 0;
+
         while (j < buf.len and i < N) : (j += 1) {
             var t1 = @as(u32, buf[j]) & 15;
             var t2 = @as(u32, buf[j]) >> 4;
@@ -1312,22 +1445,30 @@ fn expandS(comptime eta: u8, seed: *const [64]u8, nonce: u16) Poly {
                 // For eta=2: reject if t > 14, then reduce mod 5
                 if (t1 <= 14) {
                     t1 -%= ((205 * t1) >> 10) * 5; // reduce mod 5
+
                     p.cs[i] = Q + eta - t1;
+
                     i += 1;
                 }
+
                 if (t2 <= 14 and i < N) {
                     t2 -%= ((205 * t2) >> 10) * 5; // reduce mod 5
+
                     p.cs[i] = Q + eta - t2;
+
                     i += 1;
                 }
             } else if (eta == 4) {
                 // For eta=4: accept if t <= 2*eta = 8
                 if (t1 <= 2 * eta) {
                     p.cs[i] = Q + eta - t1;
+
                     i += 1;
                 }
+
                 if (t2 <= 2 * eta and i < N) {
                     p.cs[i] = Q + eta - t2;
+
                     i += 1;
                 }
             }
@@ -1347,19 +1488,23 @@ fn sampleInBall(comptime tau: u16, seed: []const u8) Poly {
     var buf: [sha3.Shake256.block_length]u8 = undefined; // SHAKE-256 rate is 136 bytes
 
     var h = sha3.Shake256.init(.{});
+
     h.update(seed);
     h.squeeze(&buf);
 
     // Extract signs from first 8 bytes
     var signs: u64 = 0;
+
     for (0..8) |j| {
         signs |= @as(u64, buf[j]) << @intCast(j * 8);
     }
+
     var buf_off: usize = 8;
 
     // Generate tau non-zero coefficients using Fisher-Yates shuffle
     // Start with N-tau zeros, then add tau ±1 values
     var i: u16 = N - tau;
+
     while (i < N) : (i += 1) {
         var b: u16 = undefined;
 
@@ -1367,10 +1512,12 @@ fn sampleInBall(comptime tau: u16, seed: []const u8) Poly {
         while (true) {
             if (buf_off >= buf.len) {
                 h.squeeze(&buf);
+
                 buf_off = 0;
             }
 
             b = buf[buf_off];
+
             buf_off += 1;
 
             if (b <= i) {
@@ -1383,8 +1530,10 @@ fn sampleInBall(comptime tau: u16, seed: []const u8) Poly {
 
         // Set position b to ±1 based on sign bit
         p.cs[b] = 1;
+
         const sign_bit: u1 = @truncate(signs);
         const mask = bitMask(u32, sign_bit);
+
         p.cs[b] ^= mask & (1 | (Q - 1));
         signs >>= 1;
     }
@@ -1401,11 +1550,14 @@ fn expandMask(comptime gamma1_bits: u8, seed: *const [64]u8, nonce: u16) Poly {
 
     // Construct IV: seed || nonce (little-endian)
     var iv: [66]u8 = undefined;
+
     @memcpy(iv[0..64], seed);
+
     iv[64] = @truncate(nonce & 0xFF);
     iv[65] = @truncate(nonce >> 8);
 
     var h = sha3.Shake256.init(.{});
+
     h.update(&iv);
     h.squeeze(&buf);
 
@@ -1448,6 +1600,7 @@ fn MLDSAImpl(comptime p: Params) type {
             // For eta=2: 3 bits per coefficient (values in [0,4])
             // For eta=4: 4 bits per coefficient (values in [0,8])
             const double_eta_bits = if (p.eta == 2) 3 else 4;
+
             return (N * double_eta_bits) / 8;
         }
 
@@ -1471,11 +1624,15 @@ fn MLDSAImpl(comptime p: Params) type {
         /// This consolidates the repeated pattern of init-update-squeeze for hash operations.
         fn crh(comptime outsize: usize, inputs: anytype) [outsize]u8 {
             var h = sha3.Shake256.init(.{});
+
             inline for (inputs) |input| {
                 h.update(input);
             }
+
             var out: [outsize]u8 = undefined;
+
             h.squeeze(&out);
+
             return out;
         }
 
@@ -1483,6 +1640,7 @@ fn MLDSAImpl(comptime p: Params) type {
         /// This is used during key generation and public key reconstruction.
         fn computeT(A: MatKxL, s1_hat: PolyVecL, s2: PolyVecK) PolyVecK {
             const t = A.mulVec(s1_hat).add(s2);
+
             return t.normalize();
         }
 
@@ -1502,14 +1660,17 @@ fn MLDSAImpl(comptime p: Params) type {
             /// Encode public key to bytes
             pub fn toBytes(self: PublicKey) [encoded_length]u8 {
                 var out: [encoded_length]u8 = undefined;
+
                 @memcpy(out[0..32], &self.rho);
                 @memcpy(out[32..], &self.t1_packed);
+
                 return out;
             }
 
             /// Decode public key from bytes
             pub fn fromBytes(bytes: [encoded_length]u8) !PublicKey {
                 var pk: PublicKey = undefined;
+
                 @memcpy(&pk.rho, bytes[0..32]);
                 @memcpy(&pk.t1_packed, bytes[32..]);
 
@@ -1546,12 +1707,15 @@ fn MLDSAImpl(comptime p: Params) type {
                 var offset: usize = 0;
 
                 @memcpy(out[offset .. offset + 32], &self.rho);
+
                 offset += 32;
 
                 @memcpy(out[offset .. offset + 32], &self.key);
+
                 offset += 32;
 
                 @memcpy(out[offset .. offset + p.tr_size], &self.tr);
+
                 offset += p.tr_size;
 
                 if (p.eta == 2) {
@@ -1559,6 +1723,7 @@ fn MLDSAImpl(comptime p: Params) type {
                 } else {
                     self.s1.packLeqEta(4, out[offset..][0 .. p.l * polyLeqEtaPackedSize()]);
                 }
+
                 offset += p.l * polyLeqEtaPackedSize();
 
                 if (p.eta == 2) {
@@ -1566,9 +1731,11 @@ fn MLDSAImpl(comptime p: Params) type {
                 } else {
                     self.s2.packLeqEta(4, out[offset..][0 .. p.k * polyLeqEtaPackedSize()]);
                 }
+
                 offset += p.k * polyLeqEtaPackedSize();
 
                 self.t0.packT0(out[offset..][0 .. p.k * polyT0PackedSize()]);
+
                 offset += p.k * polyT0PackedSize();
 
                 return out;
@@ -1580,27 +1747,33 @@ fn MLDSAImpl(comptime p: Params) type {
                 var offset: usize = 0;
 
                 @memcpy(&sk.rho, bytes[offset .. offset + 32]);
+
                 offset += 32;
 
                 @memcpy(&sk.key, bytes[offset .. offset + 32]);
+
                 offset += 32;
 
                 @memcpy(&sk.tr, bytes[offset .. offset + p.tr_size]);
+
                 offset += p.tr_size;
 
                 sk.s1 = if (p.eta == 2)
                     PolyVecL.unpackLeqEta(2, bytes[offset..][0 .. p.l * polyLeqEtaPackedSize()])
                 else
                     PolyVecL.unpackLeqEta(4, bytes[offset..][0 .. p.l * polyLeqEtaPackedSize()]);
+
                 offset += p.l * polyLeqEtaPackedSize();
 
                 sk.s2 = if (p.eta == 2)
                     PolyVecK.unpackLeqEta(2, bytes[offset..][0 .. p.k * polyLeqEtaPackedSize()])
                 else
                     PolyVecK.unpackLeqEta(4, bytes[offset..][0 .. p.k * polyLeqEtaPackedSize()]);
+
                 offset += p.k * polyLeqEtaPackedSize();
 
                 sk.t0 = PolyVecK.unpackT0(bytes[offset..][0 .. p.k * polyT0PackedSize()]);
+
                 offset += p.k * polyT0PackedSize();
 
                 // Compute cached NTT values for efficient signing
@@ -1615,6 +1788,7 @@ fn MLDSAImpl(comptime p: Params) type {
             /// Compute the public key from this private key
             pub fn public(self: *const SecretKey) PublicKey {
                 var pk: PublicKey = undefined;
+
                 pk.rho = self.rho;
                 pk.A = self.A;
                 pk.tr = self.tr;
@@ -1624,7 +1798,9 @@ fn MLDSAImpl(comptime p: Params) type {
                 const t = computeT(self.A, self.s1_hat, self.s2);
 
                 var t0_unused: PolyVecK = undefined;
+
                 pk.t1 = t.power2Round(&t0_unused);
+
                 pk.t1.packT1(&pk.t1_packed);
 
                 return pk;
@@ -1655,14 +1831,18 @@ fn MLDSAImpl(comptime p: Params) type {
             const e_seed = crh(128, .{ seed, &[_]u8{ p.k, p.l } });
 
             @memcpy(&pk.rho, e_seed[0..32]);
+
             const s_seed = e_seed[32..96];
+
             @memcpy(&sk.key, e_seed[96..128]);
             @memcpy(&sk.rho, &pk.rho);
 
             sk.A = MatKxL.derive(&pk.rho);
+
             pk.A = sk.A;
 
             const s_seed_array: *const [64]u8 = s_seed[0..64];
+
             for (0..p.l) |i| {
                 sk.s1.ps[i] = expandS(p.eta, s_seed_array, @intCast(i));
             }
@@ -1678,11 +1858,13 @@ fn MLDSAImpl(comptime p: Params) type {
 
             pk.t1 = t.power2Round(&sk.t0);
             sk.t0_hat = sk.t0.ntt();
+
             pk.t1.packT1(&pk.t1_packed);
 
             // tr = H(pk) = H(rho || t1)
             const pk_bytes = pk.toBytes();
             const tr = crh(p.tr_size, .{&pk_bytes});
+
             sk.tr = tr;
             pk.tr = tr;
 
@@ -1705,9 +1887,11 @@ fn MLDSAImpl(comptime p: Params) type {
                 var offset: usize = 0;
 
                 @memcpy(out[offset .. offset + p.ctilde_size], &self.c_tilde);
+
                 offset += p.ctilde_size;
 
                 self.z.packLeGamma1(p.gamma1_bits, out[offset .. offset + polyLeGamma1PackedSize() * p.l]);
+
                 offset += polyLeGamma1PackedSize() * p.l;
 
                 _ = self.hint.packHint(p.omega, out[offset..]);
@@ -1721,9 +1905,11 @@ fn MLDSAImpl(comptime p: Params) type {
                 var offset: usize = 0;
 
                 @memcpy(&sig.c_tilde, bytes[offset .. offset + p.ctilde_size]);
+
                 offset += p.ctilde_size;
 
                 sig.z = PolyVecL.unpackLeGamma1(p.gamma1_bits, bytes[offset .. offset + polyLeGamma1PackedSize() * p.l]);
+
                 offset += polyLeGamma1PackedSize() * p.l;
 
                 // Validate ||z||_inf < gamma1 - beta per FIPS 204
@@ -1762,14 +1948,19 @@ fn MLDSAImpl(comptime p: Params) type {
                 }
 
                 var h = sha3.Shake256.init(.{});
+
                 h.update(&public_key.tr);
                 h.update(&[_]u8{0}); // Domain separator: 0 for pure ML-DSA
                 h.update(&[_]u8{@intCast(context.len)});
+
                 if (context.len > 0) {
                     h.update(context);
                 }
+
                 h.update(msg);
+
                 var mu: [64]u8 = undefined;
+
                 h.squeeze(&mu);
 
                 const z_hat = sig.z.ntt();
@@ -1777,12 +1968,16 @@ fn MLDSAImpl(comptime p: Params) type {
 
                 // Compute w' ≈ Az - 2^d·c·t1 (approximate w used in signing)
                 var Az2dct1 = public_key.t1.mulBy2toD();
+
                 Az2dct1 = Az2dct1.ntt();
+
                 const c_poly = sampleInBall(p.tau, &sig.c_tilde);
                 const c_hat = c_poly.ntt();
+
                 for (0..p.k) |i| {
                     Az2dct1.ps[i] = Az2dct1.ps[i].mulHat(c_hat);
                 }
+
                 Az2dct1 = Az.sub(Az2dct1);
                 Az2dct1 = Az2dct1.reduceLe2Q();
                 Az2dct1 = Az2dct1.invNTT();
@@ -1791,6 +1986,7 @@ fn MLDSAImpl(comptime p: Params) type {
                 // Apply hints to recover high bits w1'
                 var w1_prime = Az2dct1.useHint(sig.hint, p.gamma2);
                 var w1_packed: [polyW1PackedSize() * p.k]u8 = undefined;
+
                 w1_prime.packW1(p.gamma1_bits, &w1_packed);
 
                 const c_prime = crh(p.ctilde_size, .{ &mu, &w1_packed });
@@ -1829,9 +2025,11 @@ fn MLDSAImpl(comptime p: Params) type {
                 }
 
                 var h = sha3.Shake256.init(.{});
+
                 h.update(&secret_key.tr);
                 h.update(&[_]u8{0}); // Domain separator: 0 for pure ML-DSA
                 h.update(&[_]u8{@intCast(context.len)});
+
                 if (context.len > 0) {
                     h.update(context);
                 }
@@ -1851,6 +2049,7 @@ fn MLDSAImpl(comptime p: Params) type {
             /// Compute a signature over the entire message.
             pub fn finalize(self: *Signer) Signature {
                 var mu: [64]u8 = undefined;
+
                 self.h.squeeze(&mu);
 
                 const rho_prime = crh(64, .{ &self.secret_key.key, &self.rnd, &mu });
@@ -1860,23 +2059,29 @@ fn MLDSAImpl(comptime p: Params) type {
 
                 // Rejection sampling loop (FIPS 204 Algorithm 2, steps 5-16)
                 var attempt: u32 = 0;
+
                 while (true) {
                     attempt += 1;
+
                     if (attempt >= 576) { // (6/7)⁵⁷⁶ < 2⁻¹²⁸
                         @branchHint(.unlikely);
+
                         unreachable;
                     }
 
                     const y = PolyVecL.deriveUniformLeGamma1(p.gamma1_bits, &rho_prime, y_nonce);
+
                     y_nonce += @intCast(p.l);
 
                     const y_hat = y.ntt();
                     var w = self.secret_key.A.mulVec(y_hat);
 
                     w = w.normalize();
+
                     var w0: PolyVecK = undefined;
                     const w1 = w.decomposeVec(p.gamma2, &w0);
                     var w1_packed: [polyW1PackedSize() * p.k]u8 = undefined;
+
                     w1.packW1(p.gamma1_bits, &w1_packed);
 
                     sig.c_tilde = crh(p.ctilde_size, .{ &mu, &w1_packed });
@@ -1886,10 +2091,12 @@ fn MLDSAImpl(comptime p: Params) type {
 
                     // Rejection check: ensure masking is effective
                     var w0mcs2: PolyVecK = undefined;
+
                     for (0..p.k) |i| {
                         w0mcs2.ps[i] = c_hat.mulHat(self.secret_key.s2_hat.ps[i]);
                         w0mcs2.ps[i] = w0mcs2.ps[i].invNTT();
                     }
+
                     w0mcs2 = w0.sub(w0mcs2);
                     w0mcs2 = w0mcs2.normalize();
 
@@ -1902,6 +2109,7 @@ fn MLDSAImpl(comptime p: Params) type {
                         sig.z.ps[i] = c_hat.mulHat(self.secret_key.s1_hat.ps[i]);
                         sig.z.ps[i] = sig.z.ps[i].invNTT();
                     }
+
                     sig.z = sig.z.add(y);
                     sig.z = sig.z.normalize();
 
@@ -1910,10 +2118,12 @@ fn MLDSAImpl(comptime p: Params) type {
                     }
 
                     var ct0: PolyVecK = undefined;
+
                     for (0..p.k) |i| {
                         ct0.ps[i] = c_hat.mulHat(self.secret_key.t0_hat.ps[i]);
                         ct0.ps[i] = ct0.ps[i].invNTT();
                     }
+
                     ct0 = ct0.reduceLe2Q();
                     ct0 = ct0.normalize();
 
@@ -1923,12 +2133,16 @@ fn MLDSAImpl(comptime p: Params) type {
 
                     // Generate hints for verification
                     var w0mcs2pct0 = w0mcs2.add(ct0);
+
                     w0mcs2pct0 = w0mcs2pct0.reduceLe2Q();
                     w0mcs2pct0 = w0mcs2pct0.normalizeAssumingLe2Q();
+
                     const hint_result = PolyVecK.makeHintVec(w0mcs2pct0, w1, p.gamma2);
+
                     if (hint_result.pop > p.omega) {
                         continue;
                     }
+
                     sig.hint = hint_result.hint;
 
                     return sig;
@@ -1954,9 +2168,11 @@ fn MLDSAImpl(comptime p: Params) type {
                 }
 
                 var h = sha3.Shake256.init(.{});
+
                 h.update(&public_key.tr);
                 h.update(&[_]u8{0}); // Domain separator: 0 for pure ML-DSA
                 h.update(&[_]u8{@intCast(context.len)}); // Context length
+
                 if (context.len > 0) {
                     h.update(context);
                 }
@@ -1976,6 +2192,7 @@ fn MLDSAImpl(comptime p: Params) type {
             /// Verify that the signature is valid for the entire message.
             pub fn verify(self: *Verifier) SignatureVerificationError!void {
                 var mu: [64]u8 = undefined;
+
                 self.h.squeeze(&mu);
 
                 const z_hat = self.signature.z.ntt();
@@ -1983,12 +2200,16 @@ fn MLDSAImpl(comptime p: Params) type {
 
                 // Compute w' ≈ Az - 2^d·c·t1 (approximate w used in signing)
                 var Az2dct1 = self.public_key.t1.mulBy2toD();
+
                 Az2dct1 = Az2dct1.ntt();
+
                 const c_poly = sampleInBall(p.tau, &self.signature.c_tilde);
                 const c_hat = c_poly.ntt();
+
                 for (0..p.k) |i| {
                     Az2dct1.ps[i] = Az2dct1.ps[i].mulHat(c_hat);
                 }
+
                 Az2dct1 = Az.sub(Az2dct1);
                 Az2dct1 = Az2dct1.reduceLe2Q();
                 Az2dct1 = Az2dct1.invNTT();
@@ -1997,6 +2218,7 @@ fn MLDSAImpl(comptime p: Params) type {
                 // Apply hints to recover high bits w1'
                 var w1_prime = Az2dct1.useHint(self.signature.hint, p.gamma2);
                 var w1_packed: [polyW1PackedSize() * p.k]u8 = undefined;
+
                 w1_prime.packW1(p.gamma1_bits, &w1_packed);
 
                 const c_prime = crh(p.ctilde_size, .{ &mu, &w1_packed });
@@ -2024,7 +2246,9 @@ fn MLDSAImpl(comptime p: Params) type {
             /// `crypto.random.bytes` must be supported by the target.
             pub fn generate() KeyPair {
                 var seed: [Self.seed_length]u8 = undefined;
+
                 crypto.random.bytes(&seed);
+
                 return generateDeterministic(seed) catch unreachable;
             }
 
@@ -2033,6 +2257,7 @@ fn MLDSAImpl(comptime p: Params) type {
             /// The seed should be generated using a cryptographically secure random source.
             pub fn generateDeterministic(seed: [32]u8) !KeyPair {
                 const keys = newKeyFromSeed(&seed);
+
                 return .{
                     .public_key = keys.pk,
                     .secret_key = keys.sk,
@@ -2043,6 +2268,7 @@ fn MLDSAImpl(comptime p: Params) type {
             /// This recomputes the public key components from the secret key.
             pub fn fromSecretKey(sk: SecretKey) !KeyPair {
                 var pk: PublicKey = undefined;
+
                 pk.rho = sk.rho;
                 pk.tr = sk.tr;
                 pk.A = sk.A;
@@ -2050,7 +2276,9 @@ fn MLDSAImpl(comptime p: Params) type {
                 const t = computeT(sk.A, sk.s1_hat, sk.s2);
 
                 var t0: PolyVecK = undefined;
+
                 pk.t1 = t.power2Round(&t0);
+
                 pk.t1.packT1(&pk.t1_packed);
 
                 return .{
@@ -2096,7 +2324,9 @@ fn MLDSAImpl(comptime p: Params) type {
                 context: []const u8,
             ) ContextTooLongError!Signature {
                 var st = try kp.signerWithContext(noise, context);
+
                 st.update(msg);
+
                 return st.finalize();
             }
         };
@@ -2107,6 +2337,7 @@ test "modular arithmetic" {
     // Test Montgomery reduction
     const x: u64 = 12345678;
     const y = montReduceLe2Q(x);
+
     try testing.expect(y < 2 * Q);
 
     // Test modQ
@@ -2116,14 +2347,17 @@ test "modular arithmetic" {
 
 test "polynomial operations" {
     var p1 = Poly.zero;
+
     p1.cs[0] = 1;
     p1.cs[1] = 2;
 
     var p2 = Poly.zero;
+
     p2.cs[0] = 3;
     p2.cs[1] = 4;
 
     const p3 = p1.add(p2);
+
     try testing.expectEqual(@as(u32, 4), p3.cs[0]);
     try testing.expectEqual(@as(u32, 6), p3.cs[1]);
 }
@@ -2131,6 +2365,7 @@ test "polynomial operations" {
 test "NTT and inverse NTT" {
     // Create a test polynomial in REGULAR FORM (not Montgomery)
     var p = Poly.zero;
+
     for (0..N) |i| {
         p.cs[i] = @intCast(i % Q);
     }
@@ -2154,6 +2389,7 @@ test "NTT and inverse NTT" {
         const original: u32 = @intCast(i % Q);
         const expected = toMont(original);
         const expected_norm = modQ(expected);
+
         try testing.expectEqual(expected_norm, p_norm.cs[i]);
     }
 }
@@ -2186,6 +2422,7 @@ test "compare zetas with Go implementation" {
 test "NTT with simple polynomial" {
     // Test with a very simple polynomial: just one coefficient set to 1 in regular form
     var p = Poly.zero;
+
     p.cs[0] = 1;
 
     var p_ntt = p.ntt();
@@ -2200,6 +2437,7 @@ test "NTT with simple polynomial" {
     const p_norm = p_reduced.normalize();
 
     const expected = modQ(toMont(1));
+
     try testing.expectEqual(expected, p_norm.cs[0]);
 
     // All other coefficients should be 0 * R = 0
@@ -2246,6 +2484,7 @@ test "compare inv_zetas with Go implementation" {
         if (inv_zetas[i] != go_inv_zetas[i]) {
             std.debug.print("Mismatch at inv_zetas[{d}]: got {d}, expected {d}\n", .{ i, inv_zetas[i], go_inv_zetas[i] });
         }
+
         try testing.expectEqual(go_inv_zetas[i], inv_zetas[i]);
     }
 }
@@ -2267,10 +2506,12 @@ test "power2Round correctness" {
 
         // Check reconstruction: a = a1*2^D + a0
         const reconstructed = @as(i32, @bitCast(a1 << D)) + a0;
+
         try testing.expectEqual(@as(i32, @bitCast(a)), reconstructed);
 
         // Check a0 bounds: -2^(D-1) < a0 <= 2^(D-1)
         const bound: i32 = 1 << (D - 1);
+
         try testing.expect(a0 > -bound and a0 <= bound);
     }
 }
@@ -2291,11 +2532,14 @@ test "decompose correctness for ML-DSA-65" {
 
         // Check reconstruction: a = a1*alpha + a0 (mod Q)
         var reconstructed: i64 = @as(i64, @intCast(a1)) * @as(i64, @intCast(alpha)) + @as(i64, a0);
+
         reconstructed = @mod(reconstructed, @as(i64, Q));
+
         try testing.expectEqual(@as(i64, @intCast(a)), reconstructed);
 
         // Check a0 bounds (approximately)
         const bound: i32 = @intCast(alpha / 2);
+
         try testing.expect(@abs(a0) <= bound);
     }
 }
@@ -2316,11 +2560,14 @@ test "decompose correctness for ML-DSA-87" {
 
         // Check reconstruction: a = a1*alpha + a0 (mod Q)
         var reconstructed: i64 = @as(i64, @intCast(a1)) * @as(i64, @intCast(alpha)) + @as(i64, a0);
+
         reconstructed = @mod(reconstructed, @as(i64, Q));
+
         try testing.expectEqual(@as(i64, @intCast(a)), reconstructed);
 
         // Check a0 bounds (approximately)
         const bound: i32 = @intCast(alpha / 2);
+
         try testing.expect(@abs(a0) <= bound);
     }
 }
@@ -2353,12 +2600,15 @@ test "polyDeriveUniform different nonces" {
 
     // Should be different
     var different = false;
+
     for (0..N) |i| {
         if (p1.cs[i] != p2.cs[i]) {
             different = true;
+
             break;
         }
     }
+
     try testing.expect(different);
 }
 
@@ -2374,6 +2624,7 @@ test "expandS with eta=2" {
     // So coefficients are in [Q-eta, Q+eta]
     for (0..N) |i| {
         const c = p.cs[i];
+
         // Check that c is in [Q-2, Q+2]
         try testing.expect(c >= Q - 2 and c <= Q + 2);
     }
@@ -2391,6 +2642,7 @@ test "expandS with eta=4" {
         const c = p.cs[i];
         // Check bounds (coefficients are around Q ± eta)
         const diff = if (c >= Q) c - Q else Q - c;
+
         try testing.expect(diff <= 4);
     }
 }
@@ -2404,9 +2656,11 @@ test "sampleInBall has correct weight" {
 
     // Count non-zero coefficients
     var count: u32 = 0;
+
     for (0..N) |i| {
         if (p.cs[i] != 0) {
             count += 1;
+
             // Non-zero coefficients should be 1 or Q-1
             try testing.expect(p.cs[i] == 1 or p.cs[i] == Q - 1);
         }
@@ -2435,14 +2689,17 @@ test "polyPackLeqEta / polyUnpackLeqEta roundtrip for eta=2" {
 
     // Create a test polynomial with coefficients in [Q-eta, Q+eta]
     var p = Poly.zero;
+
     for (0..N) |i| {
         // Use various values in range
         const val = @as(u32, @intCast(i % 5)); // 0, 1, 2, 3, 4
+
         p.cs[i] = Q + eta - val;
     }
 
     // Pack it
     var buf: [96]u8 = undefined; // eta=2: 3 bits per coeff = 96 bytes
+
     polyPackLeqEta(p, eta, &buf);
 
     // Unpack it
@@ -2460,14 +2717,17 @@ test "polyPackLeqEta / polyUnpackLeqEta roundtrip for eta=4" {
 
     // Create a test polynomial with coefficients in [Q-eta, Q+eta]
     var p = Poly.zero;
+
     for (0..N) |i| {
         // Use various values in range
         const val = @as(u32, @intCast(i % 9)); // 0, 1, 2, ..., 8
+
         p.cs[i] = Q + eta - val;
     }
 
     // Pack it
     var buf: [128]u8 = undefined; // eta=4: 4 bits per coeff = 128 bytes
+
     polyPackLeqEta(p, eta, &buf);
 
     // Unpack it
@@ -2482,12 +2742,14 @@ test "polyPackLeqEta / polyUnpackLeqEta roundtrip for eta=4" {
 test "polyPackT1 / polyUnpackT1 roundtrip" {
     // Create a test polynomial with coefficients < 1024
     var p = Poly.zero;
+
     for (0..N) |i| {
         p.cs[i] = @intCast(i % 1024);
     }
 
     // Pack it
     var buf: [320]u8 = undefined; // (256 * 10) / 8 = 320 bytes
+
     polyPackT1(p, &buf);
 
     // Unpack it
@@ -2504,16 +2766,19 @@ test "polyPackT0 / polyUnpackT0 roundtrip" {
     // This is the range (-2^12, 2^12] represented as unsigned around Q
     const bound = 1 << 12; // 2^(D-1) where D=13
     var p = Poly.zero;
+
     for (0..N) |i| {
         // Cycle through valid range for T0
         // Values should be Q + offset where offset is in (-bound, bound]
         const cycle_val = @as(i32, @intCast(i % (2 * bound))); // 0 to 2*bound-1
         const offset = cycle_val - bound + 1; // (-bound+1) to bound
+
         p.cs[i] = @as(u32, @intCast(@as(i32, Q) + offset));
     }
 
     // Pack it
     var buf: [416]u8 = undefined; // (256 * 13) / 8 = 416 bytes
+
     polyPackT0(p, &buf);
 
     // Unpack it
@@ -2532,6 +2797,7 @@ test "polyPackLeGamma1 / polyUnpackLeGamma1 roundtrip gamma1_bits=17" {
     // Create a test polynomial with coefficients in (-gamma1, gamma1]
     // Normalized: [0, gamma1] ∪ (Q-gamma1, Q)
     var p = Poly.zero;
+
     for (0..N) |i| {
         if (i % 2 == 0) {
             // Positive values: [0, gamma1]
@@ -2539,12 +2805,14 @@ test "polyPackLeGamma1 / polyUnpackLeGamma1 roundtrip gamma1_bits=17" {
         } else {
             // Negative values: (Q-gamma1, Q)
             const neg_val: u32 = @intCast(((i / 2) % gamma1) + 1);
+
             p.cs[i] = Q - neg_val;
         }
     }
 
     // Pack it
     var buf: [576]u8 = undefined; // (256 * 18) / 8 = 576 bytes
+
     polyPackLeGamma1(p, gamma1_bits, &buf);
 
     // Unpack it
@@ -2562,6 +2830,7 @@ test "polyPackLeGamma1 / polyUnpackLeGamma1 roundtrip gamma1_bits=19" {
 
     // Create a test polynomial with coefficients in (-gamma1, gamma1]
     var p = Poly.zero;
+
     for (0..N) |i| {
         if (i % 2 == 0) {
             // Positive values: [0, gamma1]
@@ -2569,12 +2838,14 @@ test "polyPackLeGamma1 / polyUnpackLeGamma1 roundtrip gamma1_bits=19" {
         } else {
             // Negative values: (Q-gamma1, Q)
             const neg_val: u32 = @intCast(((i / 2) % gamma1) + 1);
+
             p.cs[i] = Q - neg_val;
         }
     }
 
     // Pack it
     var buf: [640]u8 = undefined; // (256 * 20) / 8 = 640 bytes
+
     polyPackLeGamma1(p, gamma1_bits, &buf);
 
     // Unpack it
@@ -2591,23 +2862,28 @@ test "polyPackW1 for gamma1_bits=17" {
 
     // Create a test polynomial with small coefficients (w1 values < 64)
     var p = Poly.zero;
+
     for (0..N) |i| {
         p.cs[i] = @intCast(i % 64); // 6-bit values
     }
 
     // Pack it
     var buf: [192]u8 = undefined; // (256 * 6) / 8 = 192 bytes
+
     polyPackW1(p, gamma1_bits, &buf);
 
     // Verify basic properties
     // All bytes should be used
     var non_zero = false;
+
     for (buf) |b| {
         if (b != 0) {
             non_zero = true;
+
             break;
         }
     }
+
     try testing.expect(non_zero);
 }
 
@@ -2616,22 +2892,27 @@ test "polyPackW1 for gamma1_bits=19" {
 
     // Create a test polynomial with small coefficients (w1 values < 16)
     var p = Poly.zero;
+
     for (0..N) |i| {
         p.cs[i] = @intCast(i % 16); // 4-bit values
     }
 
     // Pack it
     var buf: [128]u8 = undefined; // (256 * 4) / 8 = 128 bytes
+
     polyPackW1(p, gamma1_bits, &buf);
 
     // Verify basic properties
     var non_zero = false;
+
     for (buf) |b| {
         if (b != 0) {
             non_zero = true;
+
             break;
         }
     }
+
     try testing.expect(non_zero);
 }
 
@@ -2657,6 +2938,7 @@ test "makeHint and useHint correctness for gamma2=261888" {
             const hint_pos = makeHint(z0_pos, w1, gamma2);
             const w_perturbed_pos = (w +% Q -% f) % Q;
             const w1_recovered_pos = useHint(w_perturbed_pos, hint_pos, gamma2);
+
             try testing.expectEqual(w1, w1_recovered_pos);
 
             // Test -f (negative perturbation)
@@ -2665,6 +2947,7 @@ test "makeHint and useHint correctness for gamma2=261888" {
                 const hint_neg = makeHint(z0_neg, w1, gamma2);
                 const w_perturbed_neg = (w +% f) % Q;
                 const w1_recovered_neg = useHint(w_perturbed_neg, hint_neg, gamma2);
+
                 try testing.expectEqual(w1, w1_recovered_neg);
             }
         }
@@ -2693,6 +2976,7 @@ test "makeHint and useHint correctness for gamma2=95232" {
             const hint_pos = makeHint(z0_pos, w1, gamma2);
             const w_perturbed_pos = (w +% Q -% f) % Q;
             const w1_recovered_pos = useHint(w_perturbed_pos, hint_pos, gamma2);
+
             try testing.expectEqual(w1, w1_recovered_pos);
 
             // Test -f (negative perturbation)
@@ -2701,6 +2985,7 @@ test "makeHint and useHint correctness for gamma2=95232" {
                 const hint_neg = makeHint(z0_neg, w1, gamma2);
                 const w_perturbed_neg = (w +% f) % Q;
                 const w1_recovered_neg = useHint(w_perturbed_neg, hint_neg, gamma2);
+
                 try testing.expectEqual(w1, w1_recovered_neg);
             }
         }
@@ -2732,9 +3017,11 @@ test "polyMakeHint basic functionality" {
 
     // Verify that count matches the number of 1s in hint
     var actual_count: u32 = 0;
+
     for (0..N) |i| {
         actual_count += hint.cs[i];
     }
+
     try testing.expectEqual(count, actual_count);
 }
 
@@ -2743,6 +3030,7 @@ test "polyUseHint reconstruction" {
 
     // Create a test polynomial q
     var q = Poly.zero;
+
     for (0..N) |i| {
         q.cs[i] = @intCast((i * 123) % Q);
     }
@@ -2750,8 +3038,10 @@ test "polyUseHint reconstruction" {
     // Decompose q to get high and low bits
     var q0_plus_q_array: [N]u32 = undefined;
     var q1_array: [N]u32 = undefined;
+
     for (0..N) |i| {
         const decomp = decompose(q.cs[i], gamma2);
+
         q0_plus_q_array[i] = decomp.a0_plus_q;
         q1_array[i] = decomp.a1;
     }
@@ -2777,6 +3067,7 @@ test "hint roundtrip with perturbation" {
 
     // Create a test polynomial w
     var w = Poly.zero;
+
     for (0..N) |i| {
         w.cs[i] = @intCast((i * 7919) % Q);
     }
@@ -2784,23 +3075,28 @@ test "hint roundtrip with perturbation" {
     // Decompose w to get w0 and w1
     var w0_plus_q = Poly.zero;
     var w1 = Poly.zero;
+
     for (0..N) |i| {
         const decomp = decompose(w.cs[i], gamma2);
+
         w0_plus_q.cs[i] = decomp.a0_plus_q;
         w1.cs[i] = decomp.a1;
     }
 
     // Apply a small perturbation
     var f = Poly.zero;
+
     for (0..N) |i| {
         // Small perturbation in [-gamma2, gamma2]
         const f_val = @as(u32, @intCast(i % 1000));
+
         f.cs[i] = if (i % 2 == 0) f_val else Q -% f_val;
     }
 
     // Compute w' = w - f and z0 = w0 - f
     var w_prime = Poly.zero;
     var z0 = Poly.zero;
+
     for (0..N) |i| {
         w_prime.cs[i] = (w.cs[i] +% Q -% f.cs[i]) % Q;
         z0.cs[i] = (w0_plus_q.cs[i] +% Q -% f.cs[i]) % Q;
@@ -2837,12 +3133,14 @@ fn testKeyGenerationBasic(comptime MlDsa: type, seed: [32]u8) !void {
     // Test toBytes/fromBytes round-trip for public key
     const pk_bytes = pk.toBytes();
     const pk2 = try MlDsa.PublicKey.fromBytes(pk_bytes);
+
     try testing.expectEqualSlices(u8, &pk.rho, &pk2.rho);
     try testing.expectEqualSlices(u8, &pk.tr, &pk2.tr);
 
     // Test toBytes/fromBytes round-trip for secret key
     const sk_bytes = sk.toBytes();
     const sk2 = try MlDsa.SecretKey.fromBytes(sk_bytes);
+
     try testing.expectEqualSlices(u8, &sk.rho, &sk2.rho);
     try testing.expectEqualSlices(u8, &sk.key, &sk2.key);
     try testing.expectEqualSlices(u8, &sk.tr, &sk2.tr);
@@ -2855,6 +3153,7 @@ test "Key generation basic - all variants" {
         .{ .variant = MLDSA87, .seed_byte = 0x87 },
     }) |config| {
         const seed = [_]u8{config.seed_byte} ** 32;
+
         try testKeyGenerationBasic(config.variant, seed);
     }
 }
@@ -2869,10 +3168,12 @@ test "Key generation determinism" {
     // They should be identical
     const pk_bytes1 = result1.pk.toBytes();
     const pk_bytes2 = result2.pk.toBytes();
+
     try testing.expectEqualSlices(u8, &pk_bytes1, &pk_bytes2);
 
     const sk_bytes1 = result1.sk.toBytes();
     const sk_bytes2 = result2.sk.toBytes();
+
     try testing.expectEqualSlices(u8, &sk_bytes1, &sk_bytes2);
 }
 
@@ -2911,6 +3212,7 @@ test "Sign and verify - all variants" {
         .{ .variant = MLDSA87, .seed_byte = 0x87, .message = "Hello, ML-DSA-87!" },
     }) |config| {
         const seed = [_]u8{config.seed_byte} ** 32;
+
         try testSignAndVerify(config.variant, seed, config.message);
     }
 }
@@ -2927,12 +3229,16 @@ test "Invalid signature rejection" {
 
     // Verify with wrong message should fail
     const wrong_message = "Modified message";
+
     try testing.expectError(error.SignatureVerificationFailed, sig.verify(wrong_message, kp.public_key));
 
     // Modify signature and verify should fail
     var corrupted_sig_bytes = sig.toBytes();
+
     corrupted_sig_bytes[0] ^= 0xFF;
+
     const corrupted_sig = try MLDSA44.Signature.fromBytes(corrupted_sig_bytes);
+
     try testing.expectError(error.SignatureVerificationFailed, corrupted_sig.verify(message, kp.public_key));
 }
 
@@ -2969,10 +3275,12 @@ test "Context string support" {
     // Test maximum context length (255 bytes)
     const max_context = [_]u8{0xBB} ** 255;
     const sig3 = try kp.signWithContext(message, null, &max_context);
+
     try sig3.verifyWithContext(message, kp.public_key, &max_context);
 
     // Test context too long (256 bytes should fail)
     const too_long_context = [_]u8{0xCC} ** 256;
+
     try testing.expectError(error.ContextTooLong, kp.signWithContext(message, null, &too_long_context));
 }
 
@@ -2987,18 +3295,22 @@ test "Context string with streaming API" {
 
     // Sign using streaming API with context
     var signer = try kp.signerWithContext(null, context);
+
     signer.update(message_part1);
     signer.update(message_part2);
+
     const sig = signer.finalize();
 
     // Verify using streaming API with context
     var verifier = try sig.verifierWithContext(kp.public_key, context);
+
     verifier.update(message_part1);
     verifier.update(message_part2);
     try verifier.verify();
 
     // Verify with wrong context should fail
     var verifier_wrong = try sig.verifierWithContext(kp.public_key, "wrong");
+
     verifier_wrong.update(message_part1);
     verifier_wrong.update(message_part2);
     try testing.expectError(error.SignatureVerificationFailed, verifier_wrong.verify());
@@ -3014,11 +3326,15 @@ test "Signature determinism (same rnd)" {
 
     // Sign twice with same randomness using streaming API
     var st1 = try sk.signer(rnd);
+
     st1.update(message);
+
     const sig1 = st1.finalize();
 
     var st2 = try sk.signer(rnd);
+
     st2.update(message);
+
     const sig2 = st2.finalize();
 
     // Signatures should be identical
@@ -3079,9 +3395,11 @@ fn hexToBytes(comptime hex: []const u8, out: []u8) !void {
     if (hex.len != out.len * 2) return error.InvalidLength;
 
     var i: usize = 0;
+
     while (i < out.len) : (i += 1) {
         const hi = try std.fmt.charToDigit(hex[i * 2], 16);
         const lo = try std.fmt.charToDigit(hex[i * 2 + 1], 16);
+
         out[i] = (hi << 4) | lo;
     }
 }
@@ -3095,6 +3413,7 @@ test "ML-DSA-44 KAT test vector 0" {
 
     // Parse xi (32-byte seed for key generation)
     var xi: [32]u8 = undefined;
+
     try hexToBytes(xi_hex, &xi);
 
     // Generate keys from xi
@@ -3106,6 +3425,7 @@ test "ML-DSA-44 KAT test vector 0" {
     const pk_bytes = pk.toBytes();
 
     var expected_pk_start: [32]u8 = undefined;
+
     try hexToBytes(pk_hex_start, &expected_pk_start);
 
     // Check first 32 bytes of public key match
@@ -3113,6 +3433,7 @@ test "ML-DSA-44 KAT test vector 0" {
 
     // Parse message
     var msg: [16]u8 = undefined;
+
     try hexToBytes(msg_hex, &msg);
 
     // Sign the message (deterministic mode with fixed randomness)
@@ -3132,6 +3453,7 @@ test "ML-DSA-65 KAT test vector 0" {
 
     // Parse xi (32-byte seed for key generation)
     var xi: [32]u8 = undefined;
+
     try hexToBytes(xi_hex, &xi);
 
     // Generate keys from xi
@@ -3143,6 +3465,7 @@ test "ML-DSA-65 KAT test vector 0" {
     const pk_bytes = pk.toBytes();
 
     var expected_pk_start: [32]u8 = undefined;
+
     try hexToBytes(pk_hex_start, &expected_pk_start);
 
     // Check first 32 bytes of public key match
@@ -3150,6 +3473,7 @@ test "ML-DSA-65 KAT test vector 0" {
 
     // Parse message
     var msg: [16]u8 = undefined;
+
     try hexToBytes(msg_hex, &msg);
 
     // Sign the message
@@ -3169,6 +3493,7 @@ test "ML-DSA-87 KAT test vector 0" {
 
     // Parse xi (32-byte seed for key generation)
     var xi: [32]u8 = undefined;
+
     try hexToBytes(xi_hex, &xi);
 
     // Generate keys from xi
@@ -3180,6 +3505,7 @@ test "ML-DSA-87 KAT test vector 0" {
     const pk_bytes = pk.toBytes();
 
     var expected_pk_start: [32]u8 = undefined;
+
     try hexToBytes(pk_hex_start, &expected_pk_start);
 
     // Check first 32 bytes of public key match
@@ -3187,6 +3513,7 @@ test "ML-DSA-87 KAT test vector 0" {
 
     // Parse message
     var msg: [16]u8 = undefined;
+
     try hexToBytes(msg_hex, &msg);
 
     // Sign the message
@@ -3218,6 +3545,7 @@ test "KeyPair API - generateDeterministic" {
     // Same seed should produce same keys
     const pk1_bytes = kp1.public_key.toBytes();
     const pk2_bytes = kp2.public_key.toBytes();
+
     try testing.expectEqualSlices(u8, &pk1_bytes, &pk2_bytes);
 }
 
@@ -3231,6 +3559,7 @@ test "KeyPair API - fromSecretKey" {
     // Public keys should match
     const pk1_bytes = kp1.public_key.toBytes();
     const pk2_bytes = kp2.public_key.toBytes();
+
     try testing.expectEqualSlices(u8, &pk1_bytes, &pk2_bytes);
 }
 
@@ -3257,6 +3586,7 @@ test "Signature verification failure" {
 
     // Verify with wrong message should fail
     const wrong_msg = "Different message";
+
     try testing.expectError(error.SignatureVerificationFailed, sig.verify(wrong_msg, kp.public_key));
 }
 
@@ -3268,11 +3598,14 @@ test "Streaming API - sign and verify" {
 
     // Sign using streaming API
     var signer = try kp.signer(null);
+
     signer.update(msg);
+
     const sig = signer.finalize();
 
     // Verify using streaming API
     var verifier = try sig.verifier(kp.public_key);
+
     verifier.update(msg);
     try verifier.verify();
 }
@@ -3289,14 +3622,18 @@ test "Streaming API - chunked message" {
 
     // Sign with chunks
     var signer = try kp.signer(null);
+
     signer.update(chunk1);
     signer.update(chunk2);
     signer.update(chunk3);
+
     const sig_chunked = signer.finalize();
 
     // Sign with full message for comparison
     var signer2 = try kp.signer(null);
+
     signer2.update(full_msg);
+
     const sig_full = signer2.finalize();
 
     // Signatures should be identical
@@ -3305,6 +3642,7 @@ test "Streaming API - chunked message" {
     // Verify with chunks
     const sig = sig_chunked;
     var verifier = try sig.verifier(kp.public_key);
+
     verifier.update(chunk1);
     verifier.update(chunk2);
     verifier.update(chunk3);
@@ -3319,22 +3657,27 @@ test "Streaming API - large message" {
     const chunk_size = 4096;
     const num_chunks = 256;
     var chunk: [chunk_size]u8 = undefined;
+
     for (0..chunk_size) |i| {
         chunk[i] = @intCast(i % 256);
     }
 
     // Sign streaming
     var signer = try kp.signer(null);
+
     for (0..num_chunks) |_| {
         signer.update(&chunk);
     }
+
     const sig = signer.finalize();
 
     // Verify streaming
     var verifier = try sig.verifier(kp.public_key);
+
     for (0..num_chunks) |_| {
         verifier.update(&chunk);
     }
+
     try verifier.verify();
 }
 
@@ -3346,9 +3689,12 @@ test "Streaming API - all parameter sets" {
         const seed = [_]u8{0x44} ** 32;
         const kp = try MLDSA44.KeyPair.generateDeterministic(seed);
         var signer = try kp.signer(null);
+
         signer.update(test_msg);
+
         const sig = signer.finalize();
         var verifier = try sig.verifier(kp.public_key);
+
         verifier.update(test_msg);
         try verifier.verify();
     }
@@ -3358,9 +3704,12 @@ test "Streaming API - all parameter sets" {
         const seed = [_]u8{0x65} ** 32;
         const kp = try MLDSA65.KeyPair.generateDeterministic(seed);
         var signer = try kp.signer(null);
+
         signer.update(test_msg);
+
         const sig = signer.finalize();
         var verifier = try sig.verifier(kp.public_key);
+
         verifier.update(test_msg);
         try verifier.verify();
     }
@@ -3370,9 +3719,12 @@ test "Streaming API - all parameter sets" {
         const seed = [_]u8{0x87} ** 32;
         const kp = try MLDSA87.KeyPair.generateDeterministic(seed);
         var signer = try kp.signer(null);
+
         signer.update(test_msg);
+
         const sig = signer.finalize();
         var verifier = try sig.verifier(kp.public_key);
+
         verifier.update(test_msg);
         try verifier.verify();
     }
@@ -3391,14 +3743,17 @@ fn extendedEuclidean(comptime T: type, comptime a_: T, comptime b_: T) struct { 
     while (b != 0) {
         const q = @divTrunc(a, b);
         const temp_a = a;
+
         a = b;
         b = temp_a - q * b;
 
         const temp_x = x0;
+
         x0 = x1;
         x1 = temp_x - q * x1;
 
         const temp_y = y0;
+
         y0 = y1;
         y1 = temp_y - q * y1;
     }
@@ -3411,6 +3766,7 @@ fn extendedEuclidean(comptime T: type, comptime a_: T, comptime b_: T) struct { 
 fn modularInverse(comptime T: type, comptime a: T, comptime p: T) T {
     // Use a signed type for EEA computation
     const type_info = @typeInfo(T);
+
     const SignedT = if (type_info == .int and type_info.int.signedness == .unsigned)
         std.meta.Int(.signed, type_info.int.bits)
     else
@@ -3420,10 +3776,12 @@ fn modularInverse(comptime T: type, comptime a: T, comptime p: T) T {
     const p_signed = @as(SignedT, @intCast(p));
 
     const r = extendedEuclidean(SignedT, a_signed, p_signed);
+
     assert(r.gcd == 1);
 
     // Normalize result to [0, p)
     var result = r.x;
+
     while (result < 0) {
         result += p_signed;
     }
@@ -3445,6 +3803,7 @@ fn modularPow(comptime T: type, comptime a: T, s: T, comptime p: T) T {
         if (exp & 1 == 1) {
             ret = @intCast((@as(WideT, ret) * @as(WideT, base)) % p);
         }
+
         base = @intCast((@as(WideT, base) * @as(WideT, base)) % p);
         exp >>= 1;
     }
@@ -3456,9 +3815,11 @@ fn modularPow(comptime T: type, comptime a: T, s: T, comptime p: T) T {
 /// Returns all 1s (0xFF...FF) if bit == 1, all 0s if bit == 0.
 fn bitMask(comptime T: type, bit: T) T {
     const type_info = @typeInfo(T);
+
     if (type_info != .int or type_info.int.signedness != .unsigned) {
         @compileError("bitMask requires an unsigned integer type");
     }
+
     return -%bit;
 }
 
@@ -3466,6 +3827,7 @@ fn bitMask(comptime T: type, bit: T) T {
 /// Returns all 1s (0xFF...FF) if x < 0, all 0s if x >= 0.
 fn signMask(comptime T: type, x: T) std.meta.Int(.unsigned, @typeInfo(T).int.bits) {
     const type_info = @typeInfo(T);
+
     if (type_info != .int) {
         @compileError("signMask requires an integer type");
     }
@@ -3476,6 +3838,7 @@ fn signMask(comptime T: type, x: T) std.meta.Int(.unsigned, @typeInfo(T).int.bit
     // Convert to signed if needed, arithmetic right shift to propagate sign bit
     const x_signed: SignedT = if (type_info.int.signedness == .signed) x else @bitCast(x);
     const shifted = x_signed >> (bits - 1);
+
     return @bitCast(shifted);
 }
 
@@ -3499,6 +3862,7 @@ fn montgomeryReduce(
 
     const yR = x -% @as(InT, m) * @as(InT, q);
     const y_shifted = @as(std.meta.Int(.unsigned, @typeInfo(InT).Int.bits), @bitCast(yR)) >> r_bits;
+
     return @bitCast(@as(std.meta.Int(.unsigned, @typeInfo(OutT).Int.bits), @truncate(y_shifted)));
 }
 
@@ -3521,6 +3885,7 @@ fn sampleUniformRejection(
     domain_sep: []const u8,
 ) PolyType {
     var h = sha3.Shake128.init(.{});
+
     h.update(seed);
     h.update(domain_sep);
 
@@ -3536,6 +3901,7 @@ fn sampleUniformRejection(
             h.squeeze(&buf);
 
             var j: usize = 0;
+
             while (j < buf_len) : (j += 3) {
                 const b0 = @as(u16, buf[j]);
                 const b1 = @as(u16, buf[j + 1]);
@@ -3550,6 +3916,7 @@ fn sampleUniformRejection(
                     if (t < q) {
                         ret.cs[coef_idx] = @intCast(t);
                         coef_idx += 1;
+
                         if (coef_idx == n) break :outer;
                     }
                 }
@@ -3561,6 +3928,7 @@ fn sampleUniformRejection(
             h.squeeze(&buf);
 
             var j: usize = 0;
+
             while (j < buf_len and coef_idx < n) : (j += 3) {
                 const t = (@as(u32, buf[j]) |
                     (@as(u32, buf[j + 1]) << 8) |

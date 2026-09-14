@@ -7,6 +7,7 @@ import {
 	COMMAND_PRIORITY_LOW,
 	SELECTION_CHANGE_COMMAND
 } from 'lexical'
+
 import { makeAutoObservable, runInAction } from 'mobx'
 import ntry from 'nice-try'
 import { injectable } from 'tsyringe'
@@ -33,16 +34,19 @@ import type { LexicalEditor } from 'lexical'
 import type TableNode from '../TableNode'
 import type TableRowNode from '../TableRowNode'
 import type TableCellNode from '../TableCellNode'
+
 import type {
 	CleanupFn,
 	BaseEventPayload,
 	ElementDragType
 } from '@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types'
+
 import type { TableMapValue } from '../types'
 
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
 	nodes = [] as [TableNode, TableRowNode, TableCellNode] | []
 	resize_observer = null as unknown as ResizeObserver
@@ -55,9 +59,12 @@ export default class Index {
 	position_row = { left: 0, top: 0 }
 	position_row_right = { left: 0, top: 0 }
 	position_col = { left: 0, top: 0 }
+
 	visible = false
+
 	visible_menu_type = '' as 'row' | 'row_right' | 'col'
 	dragging_type = '' as 'row' | 'col'
+
 	position_dragline = { left: 0, top: 0, width: 0, height: 0 }
 
 	unregister = null as unknown as () => void
@@ -69,6 +76,7 @@ export default class Index {
 			if (v) {
 				if (this.nodes[0]) {
 					const [table_node] = this.nodes
+
 					const table_node_el = this.editor.getElementByKey(table_node.getKey())!
 
 					table_node_el.addEventListener('scroll', this.onScroll)
@@ -82,6 +90,7 @@ export default class Index {
 			} else {
 				if (this.nodes[0]) {
 					const [table_node] = this.nodes
+
 					const table_node_el = this.editor.getElementByKey(table_node.getKey())!
 
 					table_node_el.removeEventListener('scroll', this.onScroll)
@@ -132,18 +141,22 @@ export default class Index {
 	reset() {
 		runInAction(() => {
 			this.drag_acts.map(fn => fn())
+
 			this.drag_acts = []
 		})
 
 		this.nodes = []
+
 		this.position_row = { left: 0, top: 0 }
 		this.position_row_right = { left: 0, top: 0 }
 		this.position_col = { left: 0, top: 0 }
+
 		this.visible = false
 	}
 
 	resetDragline() {
 		this.dragging_type = '' as Index['dragging_type']
+
 		this.position_dragline = { left: 0, top: 0, width: 0, height: 0 }
 
 		if (this.ref_overlay) {
@@ -167,7 +180,6 @@ export default class Index {
 		const exist_large_cell = this.editor.getEditorState().read(() => table_node.existRowspan())
 
 		if (exist_large_cell) return
-
 		if (!el) return
 
 		this.drag_acts.push(
@@ -202,6 +214,7 @@ export default class Index {
 						if (active.start_row === over.start_row) return this.resetDragline()
 
 						const [table_node] = this.nodes
+
 						const rows = table_node!.getChildren() as Array<TableRowNode>
 						const active_row = rows[active.start_row]
 						const over_row = rows[over.start_row]
@@ -229,7 +242,6 @@ export default class Index {
 		const exist_large_cell = this.editor.getEditorState().read(() => table_node.existColspan())
 
 		if (exist_large_cell) return
-
 		if (!el) return
 
 		this.drag_acts.push(
@@ -264,6 +276,7 @@ export default class Index {
 						if (active.start_column === over.start_column) return this.resetDragline()
 
 						const [table_node] = this.nodes
+
 						const rows = table_node!.getChildren() as Array<TableRowNode>
 
 						rows.forEach(row => {
@@ -296,12 +309,14 @@ export default class Index {
 		const { location } = args
 		const { current } = location
 		const { dropTargets } = current
+
 		const target = dropTargets.at(0)
 
 		if (!target) return
 
 		const cell_node = $getNearestNodeFromDOMNode(target.element) as TableCellNode
 		const table_node = $getMatchingParent(cell_node, $isTableNode) as TableNode
+
 		const [_, table_cell_map] = $computeTableMap(table_node, cell_node, null!)
 
 		return table_cell_map
@@ -313,7 +328,9 @@ export default class Index {
 		const { input } = current
 		const { clientX, clientY } = input
 		const [table_node, , table_cell_node] = this.nodes
+
 		const { start_row, start_column } = this.getDragActive()
+
 		const rows = table_node!.getChildren() as Array<TableRowNode>
 		const cell_el = this.editor.getElementByKey(table_cell_node!.getKey())!
 		const rect_el = cell_el.getBoundingClientRect()
@@ -420,7 +437,9 @@ export default class Index {
 	onClick(args: { key: string; keyPath: Array<string> }) {
 		const { key, keyPath } = args
 		const [table_node, table_row_node, table_cell_node] = this.nodes
+
 		const [table_map, cell_map] = $computeTableMap(table_node!, table_cell_node!, null!)
+
 		const { start_row, start_column } = cell_map
 
 		if (keyPath.length === 2) {
@@ -549,7 +568,6 @@ export default class Index {
 							const new_cell = $createTableCellNode({ is_header: cell.__is_header })
 
 							new_cell.append(...cell.getChildren().map(i => $cloneNode(i)))
-
 							cell.insertAfter(new_cell)
 						}
 
@@ -570,6 +588,7 @@ export default class Index {
 	getPosition() {
 		this.editor.getEditorState().read(() => {
 			const [table_node, table_row_node, table_cell_node] = this.nodes
+
 			const col_index = ntry(() => $getTableColumnIndexFromTableCellNode(table_cell_node!))
 
 			if (col_index === undefined) return
@@ -712,7 +731,6 @@ export default class Index {
 
 	off() {
 		this.utils.off()
-
 		this.removeListeners()
 	}
 }

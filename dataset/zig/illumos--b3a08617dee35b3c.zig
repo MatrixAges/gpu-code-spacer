@@ -122,6 +122,7 @@ pub const AF_SUN = struct {
 pub const procfs = struct {
     pub const misc_header = extern struct {
         size: u32,
+
         type: enum(u32) {
             Pathname,
             Socketname,
@@ -156,6 +157,7 @@ pub const procfs = struct {
         lockpid: pid_t,
         locksysid: i32,
         peerpid: pid_t,
+
         __filler: [25]c_int,
         peername: [15:0]u8,
         misc: [1]u8,
@@ -184,6 +186,7 @@ pub const signalfd_siginfo = extern struct {
     utime: u64,
     stime: u64,
     addr: u64,
+
     __pad: [48]u8,
 };
 
@@ -236,6 +239,7 @@ pub const file_obj = extern struct {
     mtim: timespec,
     /// Change time
     ctim: timespec,
+
     __pad: [3]usize,
     name: [*:0]u8,
 };
@@ -252,6 +256,7 @@ pub const lif_nd_req = extern struct {
     hdw_len: i32,
     flags: i32,
     __pad: i32,
+
     hdw_addr: [64]u8,
 };
 
@@ -269,14 +274,17 @@ pub const lifreq = extern struct {
         /// Interface name, e.g. "lo0", "en0".
         name: [IFNAMESIZE]u8,
     },
+
     ru1: extern union {
         /// For subnet/token etc.
         addrlen: i32,
         /// Driver's PPA (physical point of attachment).
         ppa: u32,
     },
+
     /// One of the IFT types, e.g. IFT_ETHER.
     type: u32,
+
     ifru: extern union {
         /// Address.
         addr: sockaddr.storage,
@@ -322,6 +330,7 @@ const IoCtlCommand = enum(u32) {
 fn ioImpl(cmd: IoCtlCommand, io_type: u8, nr: u8, comptime IOT: type) i32 {
     const size = @as(u32, @intCast(@as(u8, @truncate(@sizeOf(IOT))))) << 16;
     const t = @as(u32, @intCast(io_type)) << 8;
+
     return @as(i32, @bitCast(@intFromEnum(cmd) | size | t | nr));
 }
 
@@ -429,6 +438,7 @@ pub const IPV6 = struct {
     pub const PREFER_SRC_TMP = 0x08;
     pub const PREFER_SRC_NONCGA = 0x10;
     pub const PREFER_SRC_CGA = 0x20;
+
     pub const PREFER_SRC_MIPMASK = PREFER_SRC_HOME | PREFER_SRC_COA;
     pub const PREFER_SRC_MIPDEFAULT = PREFER_SRC_HOME;
     pub const PREFER_SRC_TMPMASK = PREFER_SRC_PUBLIC | PREFER_SRC_TMP;

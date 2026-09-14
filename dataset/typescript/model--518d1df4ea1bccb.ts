@@ -4,6 +4,7 @@ import { makeAutoObservable } from 'mobx'
 import { domToPng } from 'modern-screenshot'
 
 import getTodoItems from '@/modules/todo/utils/getTodoItems'
+
 import {
 	downloadImage,
 	getDays,
@@ -31,6 +32,7 @@ export type Todos = { todos: Array<TodoItem>; relative_date: RelativeDate } | Re
 
 type ChartItem = Record<string, Todos>
 type ChartItems = Array<ChartItem>
+
 type ChartData = {
 	items: ChartItems
 	percent: number
@@ -42,8 +44,10 @@ type ChartData = {
 export default class Index {
 	id = ''
 	type = 'day' as 'day' | 'week' | 'month' | 'year'
+
 	current = dayjs().format('YYYY-MM-DD HH:mm:ss') as string
 	current_date = dayjs()
+
 	index = null as { index: number; key: string } | null
 	data_items = [] as Array<TodoItem>
 	chart_data = null as ChartData
@@ -72,6 +76,7 @@ export default class Index {
 		this.index = null
 
 		const now = this.current_date
+
 		const selector: MangoQuerySelector<Todo.Todo> = { file_id: this.id, type: 'todo', status: 'checked' }
 
 		selector['done_time'] = {
@@ -91,6 +96,7 @@ export default class Index {
 		let pass = 0
 		let left = 0
 		let total_todos = data_items.length
+
 		let max = { time: '', count: 0 }
 
 		if (this.type === 'day') {
@@ -103,6 +109,7 @@ export default class Index {
 					(total, v) => {
 						const minute = v * 10
 						const time = now.hour(hour).minute(minute)
+
 						const relative_date = getRelativeMinute(
 							'YYYY-MM-DD HH:' + minute,
 							time,
@@ -150,6 +157,7 @@ export default class Index {
 						const next_minute = Math.floor(next_time.minute() / 10) * 10
 
 						max.count = day_items[key].todos.length
+
 						max.time =
 							$t('common.today') +
 							$t('common.letter_space') +
@@ -216,6 +224,7 @@ export default class Index {
 						const next_time = time.add(1, 'hour')
 
 						max.count = day_items[key].todos.length
+
 						max.time = time.format('YYYY-MM-DD HH:00') + ' - ' + next_time.format('HH:00')
 					}
 				}
@@ -249,6 +258,7 @@ export default class Index {
 
 					if (week_items[key].todos.length > max.count) {
 						max.count = week_items[key].todos.length
+
 						max.time = time.format('YYYY-MM-DD')
 					}
 				}
@@ -301,6 +311,7 @@ export default class Index {
 
 					if (month_items[key].todos.length > max.count) {
 						max.count = month_items[key].todos.length
+
 						max.time = time.format('YYYY-MM-DD')
 					}
 				}
@@ -334,6 +345,7 @@ export default class Index {
 
 	reset() {
 		this.current_date = dayjs()
+
 		this.index = null
 
 		this.query(this.type)

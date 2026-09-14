@@ -6,6 +6,7 @@ def batches(values, width, emit):
 
     for start in range(0, count, width):
         end = min(start + width, count)
+
         batch = values[start:end]
 
         emit(batch)

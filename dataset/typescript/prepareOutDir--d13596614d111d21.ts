@@ -10,6 +10,7 @@ import { getResolvedOutDirs, resolveEmptyOutDir } from '../watch'
 
 export function prepareOutDirPlugin(): Plugin {
   const rendered = new Set<Environment>()
+
   return {
     name: 'vite:prepare-out-dir',
     watchChange() {
@@ -23,20 +24,25 @@ export function prepareOutDirPlugin(): Plugin {
         }
 
         const { config } = this.environment
+
         if (config.build.write) {
           rendered.add(this.environment)
+
           const { root, build: options } = config
+
           const resolvedOutDirs = getResolvedOutDirs(
             root,
             options.outDir,
             options.rolldownOptions.output,
           )
+
           const emptyOutDir = resolveEmptyOutDir(
             options.emptyOutDir,
             root,
             resolvedOutDirs,
             this.environment.logger,
           )
+
           prepareOutDir(resolvedOutDirs, emptyOutDir, this.environment)
         }
       },
@@ -51,17 +57,20 @@ function prepareOutDir(
 ) {
   const { publicDir } = environment.config
   const outDirsArray = [...outDirs]
+
   for (const outDir of outDirs) {
     // When run inside Vite Task, `emptyDir` below reads the entries of
     // `outDir`. Without this, those reads would be recorded as build inputs
     // and mix with the writes that follow, tripping Vite Task's read-write
     // overlap check.
     ignoreInput(outDir)
+
     if (emptyOutDir !== false && fs.existsSync(outDir)) {
       // skip those other outDirs which are nested in current outDir
       const skipDirs = outDirsArray
         .map((dir) => {
           const relative = path.relative(outDir, dir)
+
           if (
             relative &&
             !relative.startsWith('..') &&
@@ -69,11 +78,14 @@ function prepareOutDir(
           ) {
             return relative
           }
+
           return ''
         })
         .filter(Boolean)
+
       emptyDir(outDir, [...skipDirs, '.git'])
     }
+
     if (
       environment.config.build.copyPublicDir &&
       publicDir &&
@@ -92,6 +104,7 @@ function prepareOutDir(
           ),
         )
       }
+
       copyDir(publicDir, outDir)
     }
   }
@@ -100,6 +113,7 @@ function prepareOutDir(
 function areSeparateFolders(a: string, b: string) {
   const na = normalizePath(a)
   const nb = normalizePath(b)
+
   return (
     na !== nb &&
     !na.startsWith(withTrailingSlash(nb)) &&

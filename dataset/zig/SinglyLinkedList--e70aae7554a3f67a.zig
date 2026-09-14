@@ -33,7 +33,9 @@ pub const Node = struct {
     /// Remove the node after the one provided, returning it.
     pub fn removeNext(node: *Node) ?*Node {
         const next_node = node.next orelse return null;
+
         node.next = next_node.next;
+
         return next_node;
     }
 
@@ -44,6 +46,7 @@ pub const Node = struct {
     /// using a different data structure.
     pub fn findLast(node: *Node) *Node {
         var it = node;
+
         while (true) {
             it = it.next orelse return it;
         }
@@ -57,9 +60,11 @@ pub const Node = struct {
     pub fn countChildren(node: *const Node) usize {
         var count: usize = 0;
         var it: ?*const Node = node.next;
+
         while (it) |n| : (it = n.next) {
             count += 1;
         }
+
         return count;
     }
 
@@ -71,7 +76,9 @@ pub const Node = struct {
         if (indirect.* == null) {
             return;
         }
+
         var current: *Node = indirect.*.?;
+
         while (current.next) |next| {
             current.next = next.next;
             next.next = indirect.*;
@@ -92,9 +99,11 @@ pub fn remove(list: *SinglyLinkedList, node: *Node) void {
         list.first = node.next;
     } else {
         var current_elm = list.first.?;
+
         while (current_elm.next != node) {
             current_elm = current_elm.next.?;
         }
+
         current_elm.next = node.next;
     }
 }
@@ -102,7 +111,9 @@ pub fn remove(list: *SinglyLinkedList, node: *Node) void {
 /// Remove and return the first node in the list.
 pub fn popFirst(list: *SinglyLinkedList) ?*Node {
     const first = list.first orelse return null;
+
     list.first = first.next;
+
     return first;
 }
 
@@ -123,6 +134,7 @@ test "basics" {
         data: u32,
         node: SinglyLinkedList.Node = .{},
     };
+
     var list: SinglyLinkedList = .{};
 
     try testing.expect(list.len() == 0);
@@ -145,9 +157,12 @@ test "basics" {
     {
         var it = list.first;
         var index: u32 = 1;
+
         while (it) |node| : (it = node.next) {
             const l: *L = @fieldParentPtr("node", node);
+
             try testing.expect(l.data == index);
+
             index += 1;
         }
     }

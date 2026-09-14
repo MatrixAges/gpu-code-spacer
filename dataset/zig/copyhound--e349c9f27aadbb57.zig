@@ -35,6 +35,7 @@ const stdx = @import("stdx");
 const MiB = stdx.MiB;
 
 const log = std.log;
+
 pub const std_options = .{
     .log_level = .info,
 };
@@ -47,11 +48,13 @@ const CLIArgs = union(enum) {
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+
     defer arena.deinit();
 
     const allocator = arena.allocator();
 
     var flags = stdx.Flags.init(allocator);
+
     defer flags.deinit(allocator);
 
     const cli_args = flags.parse(CLIArgs);
@@ -65,18 +68,22 @@ pub fn main() !void {
 
     const stdout = std.io.getStdOut();
     var buf_writer = std.io.bufferedWriter(stdout.writer());
+
     defer buf_writer.flush() catch {};
 
     var out_stream = buf_writer.writer();
 
     var current_function: ?[]const u8 = null;
     var current_function_size: u32 = 0;
+
     while (try in_stream.readUntilDelimiterOrEof(line_buffer, '\n')) |line| {
         if (std.mem.startsWith(u8, line, "define ")) {
             current_function = extract_function_name(line, func_buf) orelse {
                 log.err("can't parse define line={s}", .{line});
+
                 return error.BadDefine;
             };
+
             continue;
         }
 
@@ -85,16 +92,22 @@ pub fn main() !void {
                 if (cli_args == .funcsize) {
                     try out_stream.print("{s} {}\n", .{ function, current_function_size });
                 }
+
                 current_function = null;
                 current_function_size = 0;
+
                 continue;
             }
+
             current_function_size += 1;
+
             if (stdx.cut(line, "@llvm.memcpy")) |cut| {
                 const size = extract_memcpy_size(cut.suffix) orelse {
                     log.err("can't parse memcpy call line={s}", .{line});
+
                     return error.BadMemcpy;
                 };
+
                 if (cli_args == .memcpy) {
                     if (size > cli_args.memcpy.bytes) {
                         try out_stream.print("{s} {}\n", .{ function, size });
@@ -110,8 +123,10 @@ fn extract_function_name(define: []const u8, buf: []u8) ?[]const u8 {
     if (!std.mem.endsWith(u8, define, "{")) return null;
 
     _, const mangled_name = stdx.cut(define, "@") orelse return null;
+
     var buf_count: usize = 0;
     var level: u32 = 0;
+
     for (mangled_name) |c| {
         switch (c) {
             '(' => level += 1,
@@ -121,6 +136,7 @@ fn extract_function_name(define: []const u8, buf: []u8) ?[]const u8 {
                 if (level > 0) continue;
                 if (c == ' ') return buf[0..buf_count];
                 if (buf_count == buf.len) return null;
+
                 buf[buf_count] = c;
                 buf_count += 1;
             },
@@ -130,17 +146,20 @@ fn extract_function_name(define: []const u8, buf: []u8) ?[]const u8 {
 
 test "extract_function_name" {
     var buf: [1024]u8 = undefined;
+
     const func_name = extract_function_name(
         \\define internal fastcc i64 @".vsr.vsr.clock.ClockType(.vsr.time.Time).monotonic"
     ++
         \\(%.vsr.time.Time* %.0.1.val) unnamed_addr #1 !dbg !71485 {
     , &buf).?;
+
     try std.testing.expectEqualStrings(".vsr.vsr.clock.ClockType.monotonic", func_name);
 }
 
 /// Parses out the size argument of an memcpy call.
 fn extract_memcpy_size(memcpy_call: []const u8) ?u32 {
     _, const call_args = stdx.cut(memcpy_call, "(") orelse return null;
+
     var level: u32 = 0;
     var arg_count: u32 = 0;
 
@@ -150,7 +169,9 @@ fn extract_memcpy_size(memcpy_call: []const u8) ?u32 {
             ')' => level -= 1,
             ',' => {
                 if (level > 0) continue;
+
                 arg_count += 1;
+
                 if (!std.mem.startsWith(u8, call_args[i..], ", ")) return null;
                 if (arg_count == 2) break call_args[i + 2 ..];
             },
@@ -175,6 +196,7 @@ test "extract_memcpy_size" {
             want: ?u32,
         ) !void {
             const got = extract_memcpy_size(line);
+
             try std.testing.expectEqual(want, got);
         }
     };
@@ -198,6 +220,7 @@ test "extract_memcpy_size" {
 /// then exit with an exit code of 1.
 pub fn fatal(comptime fmt_string: []const u8, args: anytype) noreturn {
     const stderr = std.io.getStdErr().writer();
+
     stderr.print("error: " ++ fmt_string ++ "\n", args) catch {};
     std.posix.exit(1);
 }

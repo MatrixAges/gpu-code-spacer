@@ -43,12 +43,14 @@ pub fn StackType(comptime T: type) type {
         /// Returns the first element of the Stack list, and removes it.
         pub inline fn pop(self: *Stack) ?*T {
             const link = self.any.pop() orelse return null;
+
             return @fieldParentPtr("link", link);
         }
 
         /// Returns the first element of the Stack list, but does not remove it.
         pub inline fn peek(self: *const Stack) ?*T {
             const link = self.any.peek() orelse return null;
+
             return @fieldParentPtr("link", link);
         }
 
@@ -92,9 +94,11 @@ const StackAny = struct {
         assert((self.count == 0) == (self.head == null));
 
         const link = self.head orelse return null;
+
         self.head = link.next;
         link.next = null;
         self.count -= 1;
+
         return link;
     }
 
@@ -104,15 +108,20 @@ const StackAny = struct {
 
     fn empty(self: *const StackAny) bool {
         assert((self.count == 0) == (self.head == null));
+
         return self.head == null;
     }
 
     fn contains(self: *const StackAny, needle: *const StackLink) bool {
         assert(self.count <= self.capacity);
+
         var next = self.head;
+
         for (0..self.count + 1) |_| {
             const link = next orelse return false;
+
             if (link == needle) return true;
+
             next = link.next;
         } else unreachable;
     }
@@ -130,12 +139,14 @@ test "Stack: fuzz" {
         id: u32,
         link: StackType(@This()).Link,
     };
+
     const Stack = StackType(Item);
 
     const item_count_max = 1024;
     const events_max = 1 << 10;
 
     const Event = enum { push, pop };
+
     const event_weights = stdx.PRNG.EnumWeightsType(Event){
         .push = 2,
         .pop = 1,
@@ -143,6 +154,7 @@ test "Stack: fuzz" {
 
     // Allocate a pool of nodes.
     var items = try allocator.alloc(Item, item_count_max);
+
     defer allocator.free(items);
 
     for (items, 0..) |*item, i| {
@@ -151,6 +163,7 @@ test "Stack: fuzz" {
 
     // A bit set that tracks which nodes are available.
     var items_free = try std.DynamicBitSetUnmanaged.initFull(allocator, item_count_max);
+
     defer items_free.deinit(allocator);
 
     var stack = Stack.init(.{
@@ -160,6 +173,7 @@ test "Stack: fuzz" {
 
     // Reference model: a dynamic array of node IDs in Stack order (last is the top).
     var model = try std.ArrayList(u32).initCapacity(allocator, item_count_max);
+
     defer model.deinit();
 
     // Run a sequence of randomized events.
@@ -169,11 +183,13 @@ test "Stack: fuzz" {
         assert(model.items.len == 0 or !stack.empty());
 
         const event = prng.enum_weighted(Event, event_weights);
+
         switch (event) {
             .push => {
                 // Only push if a free node is available.
                 const free_index = items_free.findFirstSet() orelse continue;
                 const item = &items[free_index];
+
                 stack.push(item);
                 try model.append(item.id);
                 items_free.unset(item.id);
@@ -183,7 +199,9 @@ test "Stack: fuzz" {
                     // The reference model should have the same node at the top.
                     const id = item.id;
                     const expected = model.pop();
+
                     assert(id == expected);
+
                     items_free.set(id);
                 } else {
                     assert(model.items.len == 0);
@@ -193,11 +211,14 @@ test "Stack: fuzz" {
                 }
             },
         }
+
         // Verify that peek() returns the same as the last element in our model.
         if (model.items.len > 0) {
             const top = stack.peek() orelse unreachable;
             const top_ref = model.pop().?;
+
             assert(top.id == top_ref);
+
             try model.append(top_ref);
         } else {
             assert(stack.empty());
@@ -210,9 +231,12 @@ test "Stack: fuzz" {
     while (stack.pop()) |item| {
         const id = item.id;
         const expected = model.pop();
+
         assert(id == expected);
+
         items_free.set(id);
     }
+
     assert(model.items.len == 0);
     assert(stack.empty());
     assert(stack.count() == 0);

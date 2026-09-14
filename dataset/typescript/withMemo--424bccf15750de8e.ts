@@ -8,13 +8,16 @@ export function withMemo(
   index: number,
 ): VNode<any, any> {
   const cached = cache[index] as VNode | undefined
+
   if (cached && isMemoSame(cached, memo)) {
     return cached
   }
+
   const ret = render()
 
   // shallow clone
   ret.memo = memo.slice()
+
   ret.cacheIndex = index
 
   return (cache[index] = ret)
@@ -22,6 +25,7 @@ export function withMemo(
 
 export function isMemoSame(cached: VNode, memo: any[]): boolean {
   const prev: any[] = cached.memo!
+
   if (prev.length != memo.length) {
     return false
   }
@@ -36,5 +40,6 @@ export function isMemoSame(cached: VNode, memo: any[]): boolean {
   if (isBlockTreeEnabled > 0 && currentBlock) {
     currentBlock.push(cached)
   }
+
   return true
 }

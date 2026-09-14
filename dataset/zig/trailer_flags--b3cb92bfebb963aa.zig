@@ -19,16 +19,21 @@ pub fn TrailerFlags(comptime Fields: type) type {
         pub const FieldEnum = std.meta.FieldEnum(Fields);
 
         pub const ActiveFields = std.enums.EnumFieldStruct(FieldEnum, bool, false);
+
         pub const FieldValues = blk: {
             var field_names: [bit_count][]const u8 = undefined;
             var field_types: [bit_count]type = undefined;
             var field_attrs: [bit_count]std.builtin.Type.StructField.Attributes = undefined;
+
             for (@typeInfo(Fields).@"struct".fields, &field_names, &field_types, &field_attrs) |field, *new_name, *NewType, *new_attrs| {
                 new_name.* = field.name;
                 NewType.* = ?field.type;
+
                 const default: ?field.type = null;
+
                 new_attrs.* = .{ .default_value_ptr = &default };
             }
+
             break :blk @Struct(.auto, null, &field_names, &field_types, &field_attrs);
         };
 
@@ -36,27 +41,32 @@ pub fn TrailerFlags(comptime Fields: type) type {
 
         pub fn has(self: Self, comptime field: FieldEnum) bool {
             const field_index = @intFromEnum(field);
+
             return (self.bits & (1 << field_index)) != 0;
         }
 
         pub fn get(self: Self, p: [*]align(@alignOf(Fields)) const u8, comptime field: FieldEnum) ?Field(field) {
             if (!self.has(field))
                 return null;
+
             return self.ptrConst(p, field).*;
         }
 
         pub fn setFlag(self: *Self, comptime field: FieldEnum) void {
             const field_index = @intFromEnum(field);
+
             self.bits |= 1 << field_index;
         }
 
         /// `fields` is a boolean struct where each active field is set to `true`
         pub fn init(fields: ActiveFields) Self {
             var self: Self = .{ .bits = 0 };
+
             inline for (@typeInfo(Fields).@"struct".fields, 0..) |field, i| {
                 if (@field(fields, field.name))
                     self.bits |= 1 << i;
             }
+
             return self;
         }
 
@@ -80,23 +90,30 @@ pub fn TrailerFlags(comptime Fields: type) type {
         pub fn ptr(self: Self, p: [*]align(@alignOf(Fields)) u8, comptime field: FieldEnum) *Field(field) {
             if (@sizeOf(Field(field)) == 0)
                 return undefined;
+
             const off = self.offset(field);
+
             return @ptrCast(@alignCast(p + off));
         }
 
         pub fn ptrConst(self: Self, p: [*]align(@alignOf(Fields)) const u8, comptime field: FieldEnum) *const Field(field) {
             if (@sizeOf(Field(field)) == 0)
                 return undefined;
+
             const off = self.offset(field);
+
             return @ptrCast(@alignCast(p + off));
         }
 
         pub fn offset(self: Self, comptime field: FieldEnum) usize {
             var off: usize = 0;
+
             inline for (@typeInfo(Fields).@"struct".fields, 0..) |field_info, i| {
                 const active = (self.bits & (1 << i)) != 0;
+
                 if (i == @intFromEnum(field)) {
                     assert(active);
+
                     return mem.alignForward(usize, off, @alignOf(field_info.type));
                 } else if (active) {
                     off = mem.alignForward(usize, off, @alignOf(field_info.type));
@@ -111,14 +128,17 @@ pub fn TrailerFlags(comptime Fields: type) type {
 
         pub fn sizeInBytes(self: Self) usize {
             var off: usize = 0;
+
             inline for (@typeInfo(Fields).@"struct".fields, 0..) |field, i| {
                 if (@sizeOf(field.type) == 0)
                     continue;
+
                 if ((self.bits & (1 << i)) != 0) {
                     off = mem.alignForward(usize, off, @alignOf(field.type));
                     off += @sizeOf(field.type);
                 }
             }
+
             return off;
         }
     };
@@ -130,13 +150,16 @@ test TrailerFlags {
         b: bool,
         c: u64,
     });
+
     try testing.expectEqual(u2, meta.Tag(Flags.FieldEnum));
 
     var flags = Flags.init(.{
         .b = true,
         .c = true,
     });
+
     const slice = try testing.allocator.alignedAlloc(u8, .@"8", flags.sizeInBytes());
+
     defer testing.allocator.free(slice);
 
     flags.set(slice.ptr, .b, false);

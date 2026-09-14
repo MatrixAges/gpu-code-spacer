@@ -18,14 +18,17 @@ pub fn rescanMac(cb: *Bundle, gpa: Allocator, io: Io, now: Io.Timestamp) RescanM
     };
 
     _ = io; // TODO migrate file system to use std.Io
+
     for (keychain_paths) |keychain_path| {
         const bytes = std.fs.cwd().readFileAlloc(keychain_path, gpa, .limited(std.math.maxInt(u32))) catch |err| switch (err) {
             error.StreamTooLong => return error.FileTooBig,
             else => |e| return e,
         };
+
         defer gpa.free(bytes);
 
         var reader: Io.Reader = .fixed(bytes);
+
         scanReader(cb, gpa, &reader, now.toSeconds()) catch |err| switch (err) {
             error.ReadFailed => unreachable, // prebuffered
             else => |e| return e,
@@ -37,6 +40,7 @@ pub fn rescanMac(cb: *Bundle, gpa: Allocator, io: Io, now: Io.Timestamp) RescanM
 
 fn scanReader(cb: *Bundle, gpa: Allocator, reader: *Io.Reader, now_sec: i64) !void {
     const db_header = try reader.takeStruct(ApplDbHeader, .big);
+
     assert(mem.eql(u8, &db_header.signature, "kych"));
 
     reader.seek = db_header.schema_offset;
@@ -44,9 +48,11 @@ fn scanReader(cb: *Bundle, gpa: Allocator, reader: *Io.Reader, now_sec: i64) !vo
     const db_schema = try reader.takeStruct(ApplDbSchema, .big);
 
     var table_list = try gpa.alloc(u32, db_schema.table_count);
+
     defer gpa.free(table_list);
 
     var table_idx: u32 = 0;
+
     while (table_idx < table_list.len) : (table_idx += 1) {
         table_list[table_idx] = try reader.takeInt(u32, .big);
     }
@@ -61,9 +67,11 @@ fn scanReader(cb: *Bundle, gpa: Allocator, reader: *Io.Reader, now_sec: i64) !vo
         }
 
         var record_list = try gpa.alloc(u32, table_header.record_count);
+
         defer gpa.free(record_list);
 
         var record_idx: u32 = 0;
+
         while (record_idx < record_list.len) : (record_idx += 1) {
             record_list[record_idx] = try reader.takeInt(u32, .big);
         }
@@ -81,6 +89,7 @@ fn scanReader(cb: *Bundle, gpa: Allocator, reader: *Io.Reader, now_sec: i64) !vo
 
             const cert_start: u32 = @intCast(cb.bytes.items.len);
             const dest_buf = try cb.bytes.addManyAsSlice(gpa, cert_header.cert_size);
+
             try reader.readSliceAll(dest_buf);
 
             try cb.parseCert(gpa, cert_start, now_sec);

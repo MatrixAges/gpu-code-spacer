@@ -18,33 +18,42 @@ pub const featureSetHasAll = CpuFeature.FeatureSetFns(Feature).featureSetHasAll;
 
 pub const all_features = blk: {
     const len = @typeInfo(Feature).@"enum".fields.len;
+
     std.debug.assert(len <= CpuFeature.Set.needed_bit_count);
+
     var result: [len]CpuFeature = undefined;
+
     result[@intFromEnum(Feature.bwx)] = .{
         .llvm_name = null,
         .description = "Enable byte/word extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.cix)] = .{
         .llvm_name = null,
         .description = "Enable counting extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fix)] = .{
         .llvm_name = null,
         .description = "Enable floating point move and square root extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.max)] = .{
         .llvm_name = null,
         .description = "Enable motion video extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     const ti = @typeInfo(Feature);
+
     for (&result, 0..) |*elem, i| {
         elem.index = i;
         elem.name = ti.@"enum".fields[i].name;
     }
+
     break :blk result;
 };
 
@@ -54,16 +63,19 @@ pub const cpu = struct {
         .llvm_name = null,
         .features = featureSet(&[_]Feature{}),
     };
+
     pub const ev45: CpuModel = .{
         .name = "ev45",
         .llvm_name = null,
         .features = featureSet(&[_]Feature{}),
     };
+
     pub const ev5: CpuModel = .{
         .name = "ev5",
         .llvm_name = null,
         .features = featureSet(&[_]Feature{}),
     };
+
     pub const ev56: CpuModel = .{
         .name = "ev56",
         .llvm_name = null,
@@ -71,6 +83,7 @@ pub const cpu = struct {
             .bwx,
         }),
     };
+
     pub const ev6: CpuModel = .{
         .name = "ev6",
         .llvm_name = null,
@@ -80,6 +93,7 @@ pub const cpu = struct {
             .max,
         }),
     };
+
     pub const ev67: CpuModel = .{
         .name = "ev67",
         .llvm_name = null,
@@ -90,6 +104,7 @@ pub const cpu = struct {
             .max,
         }),
     };
+
     pub const pca56: CpuModel = .{
         .name = "pca56",
         .llvm_name = null,

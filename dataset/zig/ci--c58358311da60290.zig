@@ -18,17 +18,22 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
 
     {
         log.info("running tests", .{});
+
         var tmp_beetle = try TmpTigerBeetle.init(gpa, .{
             .development = true,
         });
+
         defer tmp_beetle.deinit(gpa);
+
         errdefer tmp_beetle.log_stderr();
 
         const tigerbeetle_exe = comptime "tigerbeetle" ++ builtin.target.exeFileExt();
+
         const tigerbeetle_path = try shell.project_root.realpathAlloc(
             shell.arena.allocator(),
             tigerbeetle_exe,
         );
+
         try shell.env.put("TIGERBEETLE_BINARY", tigerbeetle_path);
 
         try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -40,12 +45,15 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
         log.info("testing sample '{s}'", .{sample});
 
         try shell.pushd("./samples/" ++ sample);
+
         defer shell.popd();
 
         var tmp_beetle = try TmpTigerBeetle.init(gpa, .{
             .development = true,
         });
+
         defer tmp_beetle.deinit(gpa);
+
         errdefer tmp_beetle.log_stderr();
 
         try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -66,6 +74,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
     tigerbeetle: []const u8,
 }) !void {
     const tmp_dir = try shell.create_tmp_dir();
+
     defer shell.cwd.deleteTree(tmp_dir) catch {};
 
     try shell.env.put("GEM_HOME", tmp_dir);
@@ -80,6 +89,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
             log.warn("waiting for 5 minutes for the {s} version to appear in RubyGems", .{
                 options.release,
             });
+
             std.time.sleep(5 * std.time.ns_per_min);
         }
     } else {
@@ -87,6 +97,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
             .release = options.release,
         }) catch |err| {
             log.err("package is not available in RubyGems", .{});
+
             return err;
         };
     }
@@ -95,7 +106,9 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
         .development = true,
         .prebuilt = options.tigerbeetle,
     });
+
     defer tmp_beetle.deinit(gpa);
+
     errdefer tmp_beetle.log_stderr();
 
     try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -106,6 +119,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
         shell.cwd,
         "main.rb",
     );
+
     try shell.exec("ruby main.rb", .{});
 }
 

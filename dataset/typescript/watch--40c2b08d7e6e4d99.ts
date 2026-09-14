@@ -10,9 +10,11 @@ import {
   isSet,
   remove,
 } from '@vue/shared'
+
 import { warn } from './warning'
 import type { ComputedRef } from './computed'
 import { ReactiveFlags } from './constants'
+
 import {
   type DebuggerOptions,
   EffectFlags,
@@ -21,6 +23,7 @@ import {
   pauseTracking,
   resetTracking,
 } from './effect'
+
 import { isReactive, isShallow } from './reactive'
 import { type Ref, isRef } from './ref'
 import { getCurrentScope } from './effectScope'
@@ -80,6 +83,7 @@ const INITIAL_WATCHER_VALUE = {}
 export type WatchScheduler = (job: () => void, isFirstRun: boolean) => void
 
 const cleanupMap: WeakMap<ReactiveEffect, (() => void)[]> = new WeakMap()
+
 let activeWatcher: ReactiveEffect | undefined = undefined
 
 /**
@@ -107,7 +111,9 @@ export function onWatcherCleanup(
 ): void {
   if (owner) {
     let cleanups = cleanupMap.get(owner)
+
     if (!cleanups) cleanupMap.set(owner, (cleanups = []))
+
     cleanups.push(cleanupFn)
   } else if (__DEV__ && !failSilently) {
     warn(
@@ -136,9 +142,11 @@ export function watch(
   const reactiveGetter = (source: object) => {
     // traverse will happen in wrapped getter below
     if (deep) return source
+
     // for `deep: false | 0` or shallow reactive, only traverse root-level properties
     if (isShallow(source) || deep === false || deep === 0)
       return traverse(source, 1)
+
     // for `deep: undefined` on a reactive object, deeply traverse all properties
     return traverse(source)
   }
@@ -152,13 +160,17 @@ export function watch(
 
   if (isRef(source)) {
     getter = () => source.value
+
     forceTrigger = isShallow(source)
   } else if (isReactive(source)) {
     getter = () => reactiveGetter(source)
+
     forceTrigger = true
   } else if (isArray(source)) {
     isMultiSource = true
+
     forceTrigger = source.some(s => isReactive(s) || isShallow(s))
+
     getter = () =>
       source.map(s => {
         if (isRef(s)) {
@@ -182,14 +194,18 @@ export function watch(
       getter = () => {
         if (cleanup) {
           pauseTracking()
+
           try {
             cleanup()
           } finally {
             resetTracking()
           }
         }
+
         const currentEffect = activeWatcher
+
         activeWatcher = effect
+
         try {
           return call
             ? call(source, WatchErrorCodes.WATCH_CALLBACK, [boundCleanup])
@@ -201,18 +217,22 @@ export function watch(
     }
   } else {
     getter = NOOP
+
     __DEV__ && warnInvalidSource(source)
   }
 
   if (cb && deep) {
     const baseGetter = getter
     const depth = deep === true ? Infinity : deep
+
     getter = () => traverse(baseGetter(), depth)
   }
 
   const scope = getCurrentScope()
+
   const watchHandle: WatchHandle = () => {
     effect.stop()
+
     if (scope && scope.active) {
       remove(scope.effects, effect)
     }
@@ -220,9 +240,12 @@ export function watch(
 
   if (once && cb) {
     const _cb = cb
+
     cb = (...args) => {
       const res = _cb(...args)
+
       watchHandle()
+
       return res
     }
   }
@@ -238,9 +261,11 @@ export function watch(
     ) {
       return
     }
+
     if (cb) {
       // watch(source, cb)
       const newValue = effect.run()
+
       if (
         immediateFirstRun ||
         deep ||
@@ -253,8 +278,11 @@ export function watch(
         if (cleanup) {
           cleanup()
         }
+
         const currentWatcher = activeWatcher
+
         activeWatcher = effect
+
         try {
           const args = [
             newValue,
@@ -266,7 +294,9 @@ export function watch(
                 : oldValue,
             boundCleanup,
           ]
+
           oldValue = newValue
+
           call
             ? call(cb!, WatchErrorCodes.WATCH_CALLBACK, args)
             : // @ts-expect-error
@@ -295,12 +325,14 @@ export function watch(
 
   cleanup = effect.onStop = () => {
     const cleanups = cleanupMap.get(effect)
+
     if (cleanups) {
       if (call) {
         call(cleanups, WatchErrorCodes.WATCH_CLEANUP)
       } else {
         for (const cleanup of cleanups) cleanup()
       }
+
       cleanupMap.delete(effect)
     }
   }
@@ -325,6 +357,7 @@ export function watch(
 
   watchHandle.pause = effect.pause.bind(effect)
   watchHandle.resume = effect.resume.bind(effect)
+
   watchHandle.stop = watchHandle
 
   return watchHandle
@@ -340,11 +373,15 @@ export function traverse(
   }
 
   seen = seen || new Map()
+
   if ((seen.get(value) || 0) >= depth) {
     return value
   }
+
   seen.set(value, depth)
+
   depth--
+
   if (isRef(value)) {
     traverse(value.value, depth, seen)
   } else if (isArray(value)) {
@@ -359,11 +396,13 @@ export function traverse(
     for (const key in value) {
       traverse(value[key], depth, seen)
     }
+
     for (const key of Object.getOwnPropertySymbols(value)) {
       if (Object.prototype.propertyIsEnumerable.call(value, key)) {
         traverse(value[key as any], depth, seen)
       }
     }
   }
+
   return value
 }

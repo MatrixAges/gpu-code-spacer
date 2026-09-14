@@ -9,6 +9,7 @@ pub fn copysign(magnitude: anytype, sign: @TypeOf(magnitude)) @TypeOf(magnitude)
     const sign_bit_mask = @as(TBits, 1) << (@bitSizeOf(T) - 1);
     const mag = @as(TBits, @bitCast(magnitude)) & ~sign_bit_mask;
     const sgn = @as(TBits, @bitCast(sign)) & sign_bit_mask;
+
     return @as(T, @bitCast(mag | sgn));
 }
 

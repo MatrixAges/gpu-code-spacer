@@ -137,6 +137,7 @@ export class ReactiveEffect<T = any>
   resume(): void {
     if (this.flags & EffectFlags.PAUSED) {
       this.flags &= ~EffectFlags.PAUSED
+
       if (pausedQueueEffects.has(this)) {
         pausedQueueEffects.delete(this)
         this.trigger()
@@ -154,6 +155,7 @@ export class ReactiveEffect<T = any>
     ) {
       return
     }
+
     if (!(this.flags & EffectFlags.NOTIFIED)) {
       batch(this)
     }
@@ -168,10 +170,13 @@ export class ReactiveEffect<T = any>
     }
 
     this.flags |= EffectFlags.RUNNING
+
     cleanupEffect(this)
     prepareDeps(this)
+
     const prevEffect = activeSub
     const prevShouldTrack = shouldTrack
+
     activeSub = this
     shouldTrack = true
 
@@ -184,9 +189,12 @@ export class ReactiveEffect<T = any>
             'this is likely a Vue internal bug.',
         )
       }
+
       cleanupDeps(this)
+
       activeSub = prevEffect
       shouldTrack = prevShouldTrack
+
       this.flags &= ~EffectFlags.RUNNING
     }
   }
@@ -196,9 +204,13 @@ export class ReactiveEffect<T = any>
       for (let link = this.deps; link; link = link.nextDep) {
         removeSub(link)
       }
+
       this.deps = this.depsTail = undefined
+
       cleanupEffect(this)
+
       this.onStop && this.onStop()
+
       this.flags &= ~EffectFlags.ACTIVE
     }
   }
@@ -250,11 +262,14 @@ let batchedComputed: Subscriber | undefined
 
 export function batch(sub: Subscriber, isComputed = false): void {
   sub.flags |= EffectFlags.NOTIFIED
+
   if (isComputed) {
     sub.next = batchedComputed
     batchedComputed = sub
+
     return
   }
+
   sub.next = batchedSub
   batchedSub = sub
 }
@@ -277,23 +292,34 @@ export function endBatch(): void {
 
   if (batchedComputed) {
     let e: Subscriber | undefined = batchedComputed
+
     batchedComputed = undefined
+
     while (e) {
       const next: Subscriber | undefined = e.next
+
       e.next = undefined
+
       e.flags &= ~EffectFlags.NOTIFIED
+
       e = next
     }
   }
 
   let error: unknown
+
   while (batchedSub) {
     let e: Subscriber | undefined = batchedSub
+
     batchedSub = undefined
+
     while (e) {
       const next: Subscriber | undefined = e.next
+
       e.next = undefined
+
       e.flags &= ~EffectFlags.NOTIFIED
+
       if (e.flags & EffectFlags.ACTIVE) {
         try {
           // ACTIVE flag is effect-only
@@ -302,6 +328,7 @@ export function endBatch(): void {
           if (!error) error = err
         }
       }
+
       e = next
     }
   }
@@ -326,10 +353,13 @@ function cleanupDeps(sub: Subscriber) {
   let head
   let tail = sub.depsTail
   let link = tail
+
   while (link) {
     const prev = link.prevDep
+
     if (link.version === -1) {
       if (link === tail) tail = prev
+
       // unused - remove it from the dep's subscribing effect list
       removeSub(link)
       // also remove it from this effect's dep list
@@ -345,6 +375,7 @@ function cleanupDeps(sub: Subscriber) {
     link.prevActiveLink = undefined
     link = prev
   }
+
   // set the new head & tail
   sub.deps = head
   sub.depsTail = tail
@@ -361,11 +392,13 @@ function isDirty(sub: Subscriber): boolean {
       return true
     }
   }
+
   // @ts-expect-error only for backwards compatibility where libs manually set
   // this flag - e.g. Pinia's testing module
   if (sub._dirty) {
     return true
   }
+
   return false
 }
 
@@ -380,6 +413,7 @@ export function refreshComputed(computed: ComputedRefImpl): undefined {
   ) {
     return
   }
+
   computed.flags &= ~EffectFlags.DIRTY
 
   // Global version fast path when no reactive changes has happened since
@@ -387,6 +421,7 @@ export function refreshComputed(computed: ComputedRefImpl): undefined {
   if (computed.globalVersion === globalVersion) {
     return
   }
+
   computed.globalVersion = globalVersion
 
   // In SSR there will be no render effect, so the computed has no subscriber
@@ -402,43 +437,55 @@ export function refreshComputed(computed: ComputedRefImpl): undefined {
   ) {
     return
   }
+
   computed.flags |= EffectFlags.RUNNING
 
   const dep = computed.dep
   const prevSub = activeSub
   const prevShouldTrack = shouldTrack
+
   activeSub = computed
   shouldTrack = true
 
   try {
     prepareDeps(computed)
+
     const value = computed.fn(computed._value)
+
     if (dep.version === 0 || hasChanged(value, computed._value)) {
       computed.flags |= EffectFlags.EVALUATED
+
       computed._value = value
+
       dep.version++
     }
   } catch (err) {
     dep.version++
+
     throw err
   } finally {
     activeSub = prevSub
     shouldTrack = prevShouldTrack
+
     cleanupDeps(computed)
+
     computed.flags &= ~EffectFlags.RUNNING
   }
 }
 
 function removeSub(link: Link, soft = false) {
   const { dep, prevSub, nextSub } = link
+
   if (prevSub) {
     prevSub.nextSub = nextSub
     link.prevSub = undefined
   }
+
   if (nextSub) {
     nextSub.prevSub = prevSub
     link.nextSub = undefined
   }
+
   if (__DEV__ && dep.subsHead === link) {
     // was previous head, point new head to next
     dep.subsHead = nextSub
@@ -452,6 +499,7 @@ function removeSub(link: Link, soft = false) {
       // if computed, unsubscribe it from all its deps so this computed and its
       // value can be GCed
       dep.computed.flags &= ~EffectFlags.TRACKING
+
       for (let l = dep.computed.deps; l; l = l.nextDep) {
         // here we are only "soft" unsubscribing because the computed still keeps
         // referencing the deps and the dep should not decrease its sub count
@@ -471,10 +519,12 @@ function removeSub(link: Link, soft = false) {
 
 function removeDep(link: Link) {
   const { prevDep, nextDep } = link
+
   if (prevDep) {
     prevDep.nextDep = nextDep
     link.prevDep = undefined
   }
+
   if (nextDep) {
     nextDep.prevDep = prevDep
     link.nextDep = undefined
@@ -490,17 +540,23 @@ export function effect<T = any>(
   }
 
   const e = new ReactiveEffect(fn)
+
   if (options) {
     extend(e, options)
   }
+
   try {
     e.run()
   } catch (err) {
     e.stop()
+
     throw err
   }
+
   const runner = e.run.bind(e) as ReactiveEffectRunner
+
   runner.effect = e
+
   return runner
 }
 
@@ -517,6 +573,7 @@ export function stop(runner: ReactiveEffectRunner): void {
  * @internal
  */
 export let shouldTrack = true
+
 const trackStack: boolean[] = []
 
 /**
@@ -524,6 +581,7 @@ const trackStack: boolean[] = []
  */
 export function pauseTracking(): void {
   trackStack.push(shouldTrack)
+
   shouldTrack = false
 }
 
@@ -532,6 +590,7 @@ export function pauseTracking(): void {
  */
 export function enableTracking(): void {
   trackStack.push(shouldTrack)
+
   shouldTrack = true
 }
 
@@ -540,6 +599,7 @@ export function enableTracking(): void {
  */
 export function resetTracking(): void {
   const last = trackStack.pop()
+
   shouldTrack = last === undefined ? true : last
 }
 
@@ -568,11 +628,15 @@ export function onEffectCleanup(fn: () => void, failSilently = false): void {
 
 function cleanupEffect(e: ReactiveEffect) {
   const { cleanup } = e
+
   e.cleanup = undefined
+
   if (cleanup) {
     // run cleanup without active effect
     const prevSub = activeSub
+
     activeSub = undefined
+
     try {
       cleanup()
     } finally {

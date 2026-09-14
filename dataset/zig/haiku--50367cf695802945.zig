@@ -31,7 +31,9 @@ pub extern "root" fn _kern_read_stat(fd: fd_t, path: [*:0]const u8, traverseLink
 
 pub const area_info = extern struct {
     area: u32,
+
     name: [32]u8,
+
     size: usize,
     lock: u32,
     protection: u32,
@@ -40,6 +42,7 @@ pub const area_info = extern struct {
     copy_count: u32,
     in_count: u32,
     out_count: u32,
+
     address: *anyopaque,
 };
 
@@ -48,13 +51,18 @@ pub const image_info = extern struct {
     image_type: u32,
     sequence: i32,
     init_order: i32,
+
     init_routine: *anyopaque,
     term_routine: *anyopaque,
+
     device: i32,
     node: i64,
+
     name: [PATH_MAX]u8,
+
     text: *anyopaque,
     data: *anyopaque,
+
     text_size: i32,
     data_size: i32,
     api_version: i32,
@@ -82,9 +90,11 @@ pub const system_info = extern struct {
     used_threads: u32,
     max_teams: u32,
     used_teams: u32,
+
     kernel_name: [256]u8,
     kernel_build_date: [32]u8,
     kernel_build_time: [32]u8,
+
     kernel_version: i64,
     abi: u32,
 };
@@ -97,7 +107,9 @@ pub const team_info = extern struct {
     debugger_nub_thread: i32,
     debugger_nub_port: i32,
     argc: i32,
+
     args: [64]u8,
+
     uid: uid_t,
     gid: gid_t,
 };
@@ -116,6 +128,7 @@ pub const thread_id = i32;
 
 pub const E = enum(i32) {
     pub const B_GENERAL_ERROR_BASE: i32 = std.math.minInt(i32);
+
     pub const B_OS_ERROR_BASE = B_GENERAL_ERROR_BASE + 0x1000;
     pub const B_APP_ERROR_BASE = B_GENERAL_ERROR_BASE + 0x2000;
     pub const B_INTERFACE_ERROR_BASE = B_GENERAL_ERROR_BASE + 0x3000;
@@ -127,9 +140,7 @@ pub const E = enum(i32) {
     pub const B_MAIL_ERROR_BASE = B_GENERAL_ERROR_BASE + 0x8000;
     pub const B_PRINT_ERROR_BASE = B_GENERAL_ERROR_BASE + 0x9000;
     pub const B_DEVICE_ERROR_BASE = B_GENERAL_ERROR_BASE + 0xa000;
-
     pub const B_ERRORS_END = B_GENERAL_ERROR_BASE + 0xffff;
-
     pub const B_NO_MEMORY = B_GENERAL_ERROR_BASE + 0;
     pub const B_IO_ERROR = B_GENERAL_ERROR_BASE + 1;
     pub const B_PERMISSION_DENIED = B_GENERAL_ERROR_BASE + 2;
@@ -149,7 +160,6 @@ pub const E = enum(i32) {
     pub const B_NOT_ALLOWED = B_GENERAL_ERROR_BASE + 15;
     pub const B_BAD_DATA = B_GENERAL_ERROR_BASE + 16;
     pub const B_DONT_DO_THAT = B_GENERAL_ERROR_BASE + 17;
-
     pub const B_BAD_IMAGE_ID = B_OS_ERROR_BASE + 0x300;
     pub const B_BAD_ADDRESS = B_OS_ERROR_BASE + 0x301;
     pub const B_NOT_AN_EXECUTABLE = B_OS_ERROR_BASE + 0x302;
@@ -157,7 +167,6 @@ pub const E = enum(i32) {
     pub const B_MISSING_SYMBOL = B_OS_ERROR_BASE + 0x304;
     pub const B_UNKNOWN_EXECUTABLE = B_OS_ERROR_BASE + 0x305;
     pub const B_LEGACY_EXECUTABLE = B_OS_ERROR_BASE + 0x306;
-
     pub const B_FILE_ERROR = B_STORAGE_ERROR_BASE + 0;
     pub const B_FILE_EXISTS = B_STORAGE_ERROR_BASE + 2;
     pub const B_ENTRY_NOT_FOUND = B_STORAGE_ERROR_BASE + 3;
@@ -286,6 +295,7 @@ pub const DirEnt = extern struct {
     reclen: u16,
     /// name of the entry (null byte terminated)
     name: [0]u8,
+
     pub fn getName(dirent: *const DirEnt) [*:0]const u8 {
         return @ptrCast(&dirent.name);
     }

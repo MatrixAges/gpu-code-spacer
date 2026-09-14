@@ -47,25 +47,31 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
         fn addUnchecked(self: *Self, elem: T) void {
             self.items.len += 1;
             self.items[self.items.len - 1] = elem;
+
             siftUp(self, self.items.len - 1);
         }
 
         fn siftUp(self: *Self, start_index: usize) void {
             const child = self.items[start_index];
             var child_index = start_index;
+
             while (child_index > 0) {
                 const parent_index = ((child_index - 1) >> 1);
                 const parent = self.items[parent_index];
+
                 if (compareFn(self.context, child, parent) != .lt) break;
+
                 self.items[child_index] = parent;
                 child_index = parent_index;
             }
+
             self.items[child_index] = child;
         }
 
         /// Add each element in `items` to the queue.
         pub fn addSlice(self: *Self, items: []const T) !void {
             try self.ensureUnusedCapacity(items.len);
+
             for (items) |e| {
                 self.addUnchecked(e);
             }
@@ -94,8 +100,10 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
         /// order.
         pub fn removeIndex(self: *Self, index: usize) T {
             assert(self.items.len > index);
+
             const last = self.items[self.items.len - 1];
             const item = self.items[index];
+
             self.items[index] = last;
             self.items.len -= 1;
 
@@ -106,6 +114,7 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
             } else {
                 const parent_index = ((index - 1) >> 1);
                 const parent = self.items[parent_index];
+
                 if (compareFn(self.context, last, parent) == .gt) {
                     siftDown(self, index);
                 } else {
@@ -138,11 +147,14 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
         fn siftDown(self: *Self, target_index: usize) void {
             const target_element = self.items[target_index];
             var index = target_index;
+
             while (true) {
                 var lesser_child_i = (std.math.mul(usize, index, 2) catch break) | 1;
+
                 if (!(lesser_child_i < self.items.len)) break;
 
                 const next_child_i = lesser_child_i + 1;
+
                 if (next_child_i < self.items.len and compareFn(self.context, self.items[next_child_i], self.items[lesser_child_i]) == .lt) {
                     lesser_child_i = next_child_i;
                 }
@@ -152,6 +164,7 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
                 self.items[index] = self.items[lesser_child_i];
                 index = lesser_child_i;
             }
+
             self.items[index] = target_element;
         }
 
@@ -167,21 +180,28 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
             };
 
             var i = self.items.len >> 1;
+
             while (i > 0) {
                 i -= 1;
+
                 self.siftDown(i);
             }
+
             return self;
         }
 
         /// Ensure that the queue can fit at least `new_capacity` items.
         pub fn ensureTotalCapacity(self: *Self, new_capacity: usize) !void {
             var better_capacity = self.cap;
+
             if (better_capacity >= new_capacity) return;
+
             while (true) {
                 better_capacity += better_capacity / 2 + 8;
+
                 if (better_capacity >= new_capacity) break;
             }
+
             try self.ensureTotalCapacityPrecise(better_capacity);
         }
 
@@ -190,6 +210,7 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
 
             const old_memory = self.allocatedSlice();
             const new_memory = try self.allocator.realloc(old_memory, new_capacity);
+
             self.items.ptr = new_memory.ptr;
             self.cap = new_memory.len;
         }
@@ -207,6 +228,7 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
             assert(new_capacity >= self.items.len);
 
             const old_memory = self.allocatedSlice();
+
             const new_memory = self.allocator.realloc(old_memory, new_capacity) catch |e| switch (e) {
                 error.OutOfMemory => { // no problem, capacity is still correct then.
                     return;
@@ -223,6 +245,7 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
 
         pub fn clearAndFree(self: *Self) void {
             self.allocator.free(self.allocatedSlice());
+
             self.items.len = 0;
             self.cap = 0;
         }
@@ -230,14 +253,20 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
         pub fn update(self: *Self, elem: T, new_elem: T) !void {
             const update_index = blk: {
                 var idx: usize = 0;
+
                 while (idx < self.items.len) : (idx += 1) {
                     const item = self.items[idx];
+
                     if (compareFn(self.context, item, elem) == .eq) break :blk idx;
                 }
+
                 return error.ElementNotFound;
             };
+
             const old_elem: T = self.items[update_index];
+
             self.items[update_index] = new_elem;
+
             switch (compareFn(self.context, new_elem, old_elem)) {
                 .lt => siftUp(self, update_index),
                 .gt => siftDown(self, update_index),
@@ -251,8 +280,11 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
 
             pub fn next(it: *Iterator) ?T {
                 if (it.count >= it.queue.items.len) return null;
+
                 const out = it.count;
+
                 it.count += 1;
+
                 return it.queue.items[out];
             }
 
@@ -273,15 +305,20 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
 
         fn dump(self: *Self) void {
             const print = std.debug.print;
+
             print("{{ ", .{});
             print("items: ", .{});
+
             for (self.items) |e| {
                 print("{}, ", .{e});
             }
+
             print("array: ", .{});
+
             for (self.items) |e| {
                 print("{}, ", .{e});
             }
+
             print("len: {} ", .{self.items.len});
             print("capacity: {}", .{self.cap});
             print(" }}\n", .{});
@@ -291,6 +328,7 @@ pub fn PriorityQueue(comptime T: type, comptime Context: type, comptime compareF
 
 fn lessThan(context: void, a: u32, b: u32) Order {
     _ = context;
+
     return std.math.order(a, b);
 }
 
@@ -303,6 +341,7 @@ const PQgt = PriorityQueue(u32, void, greaterThan);
 
 test "add and remove min heap" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(54);
@@ -321,6 +360,7 @@ test "add and remove min heap" {
 
 test "add and remove same min heap" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(1);
@@ -339,6 +379,7 @@ test "add and remove same min heap" {
 
 test "removeOrNull on empty" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try expect(queue.removeOrNull() == null);
@@ -346,6 +387,7 @@ test "removeOrNull on empty" {
 
 test "edge case 3 elements" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(9);
@@ -358,6 +400,7 @@ test "edge case 3 elements" {
 
 test "peek" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try expect(queue.peek() == null);
@@ -370,13 +413,17 @@ test "peek" {
 
 test "sift up with odd indices" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
+
     const items = [_]u32{ 15, 7, 21, 14, 13, 22, 12, 6, 7, 25, 5, 24, 11, 16, 15, 24, 2, 1 };
+
     for (items) |e| {
         try queue.add(e);
     }
 
     const sorted_items = [_]u32{ 1, 2, 5, 6, 7, 7, 11, 12, 13, 14, 15, 15, 16, 21, 22, 24, 24, 25 };
+
     for (sorted_items) |e| {
         try expectEqual(e, queue.remove());
     }
@@ -384,11 +431,15 @@ test "sift up with odd indices" {
 
 test "addSlice" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
+
     const items = [_]u32{ 15, 7, 21, 14, 13, 22, 12, 6, 7, 25, 5, 24, 11, 16, 15, 24, 2, 1 };
+
     try queue.addSlice(items[0..]);
 
     const sorted_items = [_]u32{ 1, 2, 5, 6, 7, 7, 11, 12, 13, 14, 15, 15, 16, 21, 22, 24, 24, 25 };
+
     for (sorted_items) |e| {
         try expectEqual(e, queue.remove());
     }
@@ -398,7 +449,9 @@ test "fromOwnedSlice trivial case 0" {
     const items = [0]u32{};
     const queue_items = try testing.allocator.dupe(u32, &items);
     var queue = PQlt.fromOwnedSlice(testing.allocator, queue_items[0..], {});
+
     defer queue.deinit();
+
     try expectEqual(@as(usize, 0), queue.count());
     try expect(queue.removeOrNull() == null);
 }
@@ -407,6 +460,7 @@ test "fromOwnedSlice trivial case 1" {
     const items = [1]u32{1};
     const queue_items = try testing.allocator.dupe(u32, &items);
     var queue = PQlt.fromOwnedSlice(testing.allocator, queue_items[0..], {});
+
     defer queue.deinit();
 
     try expectEqual(@as(usize, 1), queue.count());
@@ -418,9 +472,11 @@ test "fromOwnedSlice" {
     const items = [_]u32{ 15, 7, 21, 14, 13, 22, 12, 6, 7, 25, 5, 24, 11, 16, 15, 24, 2, 1 };
     const heap_items = try testing.allocator.dupe(u32, items[0..]);
     var queue = PQlt.fromOwnedSlice(testing.allocator, heap_items[0..], {});
+
     defer queue.deinit();
 
     const sorted_items = [_]u32{ 1, 2, 5, 6, 7, 7, 11, 12, 13, 14, 15, 15, 16, 21, 22, 24, 24, 25 };
+
     for (sorted_items) |e| {
         try expectEqual(e, queue.remove());
     }
@@ -428,6 +484,7 @@ test "fromOwnedSlice" {
 
 test "add and remove max heap" {
     var queue = PQgt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(54);
@@ -446,6 +503,7 @@ test "add and remove max heap" {
 
 test "add and remove same max heap" {
     var queue = PQgt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(1);
@@ -465,18 +523,22 @@ test "add and remove same max heap" {
 test "iterator" {
     var queue = PQlt.init(testing.allocator, {});
     var map = std.AutoHashMap(u32, void).init(testing.allocator);
+
     defer {
         queue.deinit();
         map.deinit();
     }
 
     const items = [_]u32{ 54, 12, 7, 23, 25, 13 };
+
     for (items) |e| {
         _ = try queue.add(e);
+
         try map.put(e, {});
     }
 
     var it = queue.iterator();
+
     while (it.next()) |e| {
         _ = map.remove(e);
     }
@@ -486,32 +548,41 @@ test "iterator" {
 
 test "remove at index" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     const items = [_]u32{ 2, 1, 8, 9, 3, 4, 5 };
+
     for (items) |e| {
         _ = try queue.add(e);
     }
 
     var it = queue.iterator();
     var idx: usize = 0;
+
     const two_idx = while (it.next()) |elem| {
         if (elem == 2)
             break idx;
+
         idx += 1;
     } else unreachable;
+
     const sorted_items = [_]u32{ 1, 3, 4, 5, 8, 9 };
+
     try expectEqual(queue.removeIndex(two_idx), 2);
 
     var i: usize = 0;
+
     while (queue.removeOrNull()) |n| : (i += 1) {
         try expectEqual(n, sorted_items[i]);
     }
+
     try expectEqual(queue.removeOrNull(), null);
 }
 
 test "iterator while empty" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     var it = queue.iterator();
@@ -521,11 +592,11 @@ test "iterator while empty" {
 
 test "shrinkAndFree" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.ensureTotalCapacity(4);
     try expect(queue.capacity() >= 4);
-
     try queue.add(1);
     try queue.add(2);
     try queue.add(3);
@@ -533,9 +604,9 @@ test "shrinkAndFree" {
     try expectEqual(@as(usize, 3), queue.count());
 
     queue.shrinkAndFree(3);
+
     try expectEqual(@as(usize, 3), queue.capacity());
     try expectEqual(@as(usize, 3), queue.count());
-
     try expectEqual(@as(u32, 1), queue.remove());
     try expectEqual(@as(u32, 2), queue.remove());
     try expectEqual(@as(u32, 3), queue.remove());
@@ -544,6 +615,7 @@ test "shrinkAndFree" {
 
 test "update min heap" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(55);
@@ -559,6 +631,7 @@ test "update min heap" {
 
 test "update same min heap" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(1);
@@ -575,6 +648,7 @@ test "update same min heap" {
 
 test "update max heap" {
     var queue = PQgt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(55);
@@ -590,6 +664,7 @@ test "update max heap" {
 
 test "update same max heap" {
     var queue = PQgt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(1);
@@ -606,6 +681,7 @@ test "update same max heap" {
 
 test "update after remove" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.add(1);
@@ -615,6 +691,7 @@ test "update after remove" {
 
 test "siftUp in remove" {
     var queue = PQlt.init(testing.allocator, {});
+
     defer queue.deinit();
 
     try queue.addSlice(&.{ 0, 1, 100, 2, 3, 101, 102, 4, 5, 6, 7, 103, 104, 105, 106, 8 });
@@ -622,6 +699,7 @@ test "siftUp in remove" {
     _ = queue.removeIndex(std.mem.indexOfScalar(u32, queue.items[0..queue.count()], 102).?);
 
     const sorted_items = [_]u32{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 100, 101, 103, 104, 105, 106 };
+
     for (sorted_items) |e| {
         try expectEqual(e, queue.remove());
     }
@@ -635,8 +713,8 @@ const CPQlt = PriorityQueue(usize, []const u32, contextLessThan);
 
 test "add and remove min heap with context comparator" {
     const context = [_]u32{ 5, 3, 4, 2, 2, 8, 0 };
-
     var queue = CPQlt.init(testing.allocator, context[0..]);
+
     defer queue.deinit();
 
     try queue.add(0);

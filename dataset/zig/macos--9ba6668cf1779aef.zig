@@ -46,10 +46,12 @@ pub fn detect(target_os: *Target.Os) !void {
     // such that I am comfortable with implementing a minimalistic parser.
     // Things like string and general escapes are not supported.
     const prefixSlash = "/System/Library/CoreServices/";
+
     const paths = [_][]const u8{
         prefixSlash ++ "SystemVersion.plist",
         prefixSlash ++ ".SystemVersionPlatform.plist",
     };
+
     for (paths) |path| {
         // approx. 4 times historical file size
         var buf: [2048]u8 = undefined;
@@ -60,10 +62,13 @@ pub fn detect(target_os: *Target.Os) !void {
                 if (!(ver.major == 10 and ver.minor >= 16)) {
                     assert(ver.pre == null);
                     assert(ver.build == null);
+
                     target_os.version_range.semver.min = ver;
                     target_os.version_range.semver.max = ver;
+
                     return;
                 }
+
                 continue;
             } else |_| {
                 return error.OSVersionDetectionFail;
@@ -72,20 +77,29 @@ pub fn detect(target_os: *Target.Os) !void {
             return error.OSVersionDetectionFail;
         }
     }
+
     return error.OSVersionDetectionFail;
 }
 
 fn parseSystemVersion(buf: []const u8) !std.SemanticVersion {
     var svt = SystemVersionTokenizer{ .bytes = buf };
+
     try svt.skipUntilTag(.start, "dict");
+
     while (true) {
         try svt.skipUntilTag(.start, "key");
+
         const content = try svt.expectContent();
+
         try svt.skipUntilTag(.end, "key");
+
         if (mem.eql(u8, content, "ProductVersion")) break;
     }
+
     try svt.skipUntilTag(.start, "string");
+
     const ver = try svt.expectContent();
+
     try svt.skipUntilTag(.end, "string");
 
     return try std.Target.Query.parseVersion(ver);
@@ -103,11 +117,14 @@ const SystemVersionTokenizer = struct {
 
         while (self.index < self.bytes.len) {
             const char = self.bytes[self.index];
+
             switch (self.state) {
                 .begin => switch (char) {
                     '<' => {
                         self.state = .tag0;
+
                         self.index += 1;
+
                         tag = Tag{};
                         mark = self.index;
                     },
@@ -126,25 +143,32 @@ const SystemVersionTokenizer = struct {
                     },
                     '>' => {
                         self.state = .begin;
+
                         self.index += 1;
+
                         tag.name = self.bytes[mark..self.index];
+
                         return Token{ .tag = tag };
                     },
                     '"' => {
                         self.state = .tag_string;
+
                         self.index += 1;
                     },
                     '/' => {
                         self.state = .tag0_end_or_empty;
+
                         self.index += 1;
                     },
                     'A'...'Z', 'a'...'z' => {
                         self.state = .tagN;
                         tag.kind = .start;
+
                         self.index += 1;
                     },
                     else => {
                         self.state = .tagN;
+
                         self.index += 1;
                     },
                 },
@@ -156,13 +180,16 @@ const SystemVersionTokenizer = struct {
                         self.state = .begin;
                         tag.kind = .empty;
                         tag.name = self.bytes[self.index..self.index];
+
                         self.index += 1;
+
                         return Token{ .tag = tag };
                     },
                     else => {
                         self.state = .tagN;
                         tag.kind = .end;
                         mark = self.index;
+
                         self.index += 1;
                     },
                 },
@@ -173,16 +200,20 @@ const SystemVersionTokenizer = struct {
                     '>' => {
                         self.state = .begin;
                         tag.name = self.bytes[mark..self.index];
+
                         self.index += 1;
+
                         return Token{ .tag = tag };
                     },
                     '"' => {
                         self.state = .tag_string;
+
                         self.index += 1;
                     },
                     '/' => {
                         self.state = .tagN_end;
                         tag.kind = .end;
+
                         self.index += 1;
                     },
                     else => {
@@ -193,7 +224,9 @@ const SystemVersionTokenizer = struct {
                     '>' => {
                         self.state = .begin;
                         tag.name = self.bytes[mark..self.index];
+
                         self.index += 1;
+
                         return Token{ .tag = tag };
                     },
                     else => {
@@ -203,6 +236,7 @@ const SystemVersionTokenizer = struct {
                 .tag_string => switch (char) {
                     '"' => {
                         self.state = .tagN;
+
                         self.index += 1;
                     },
                     else => {
@@ -213,9 +247,12 @@ const SystemVersionTokenizer = struct {
                     '<' => {
                         self.state = .tag0;
                         content = self.bytes[mark..self.index];
+
                         self.index += 1;
+
                         tag = Tag{};
                         mark = self.index;
+
                         return Token{ .content = content };
                     },
                     '>' => {
@@ -240,6 +277,7 @@ const SystemVersionTokenizer = struct {
                 else => {},
             }
         }
+
         return error.UnexpectedToken;
     }
 
@@ -252,6 +290,7 @@ const SystemVersionTokenizer = struct {
                 else => {},
             }
         }
+
         return error.TagNotFound;
     }
 
@@ -391,6 +430,7 @@ test "detect" {
     inline for (cases) |case| {
         const ver0 = try parseSystemVersion(case[0]);
         const ver1 = case[1];
+
         try testing.expectEqual(std.math.Order.eq, ver0.order(ver1));
     }
 }
@@ -398,6 +438,7 @@ test "detect" {
 pub fn detectNativeCpuAndFeatures() ?Target.Cpu {
     var cpu_family: std.c.CPUFAMILY = undefined;
     var len: usize = @sizeOf(std.c.CPUFAMILY);
+
     std.posix.sysctlbynameZ("hw.cpufamily", &cpu_family, &len, null, 0) catch |err| switch (err) {
         error.PermissionDenied => unreachable, // only when setting values,
         error.SystemResources => unreachable, // memory already on the stack
@@ -406,6 +447,7 @@ pub fn detectNativeCpuAndFeatures() ?Target.Cpu {
     };
 
     const current_arch = builtin.cpu.arch;
+
     switch (current_arch) {
         .aarch64, .aarch64_be => {
             const model = switch (cpu_family) {

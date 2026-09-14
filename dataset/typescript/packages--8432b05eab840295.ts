@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { Plugin } from './plugin'
 import type { InternalResolveOptions } from './plugins/resolve'
+
 import {
   createFilter,
   isInNodeModules,
@@ -13,6 +14,7 @@ import {
 } from './utils'
 
 let pnp: typeof import('pnpapi') | undefined
+
 if (process.versions.pnp) {
   try {
     pnp = createRequire(/** #__KEEP__ */ import.meta.url)('pnpapi')
@@ -25,15 +27,18 @@ export type PackageCache = Map<string, PackageData>
 export interface PackageData {
   dir: string
   hasSideEffects: (id: string) => boolean | 'no-treeshake' | null
+
   setResolvedCache: (
     key: string,
     entry: string,
     options: InternalResolveOptions,
   ) => void
+
   getResolvedCache: (
     key: string,
     options: InternalResolveOptions,
   ) => string | undefined
+
   data: {
     [field: string]: any
     name: string
@@ -53,6 +58,7 @@ function invalidatePackageData(
   pkgPath: string,
 ): void {
   const pkgDir = normalizePath(path.dirname(pkgPath))
+
   packageCache.forEach((pkg, cacheKey) => {
     if (pkg.dir === pkgDir) {
       packageCache.delete(cacheKey)
@@ -68,16 +74,20 @@ export function resolvePackageData(
 ): PackageData | null {
   if (pnp) {
     const cacheKey = getRpdCacheKey(pkgName, basedir, preserveSymlinks)
+
     if (packageCache?.has(cacheKey)) return packageCache.get(cacheKey)!
 
     try {
       const pkg = pnp.resolveToUnqualified(pkgName, basedir, {
         considerBuiltins: false,
       })
+
       if (!pkg) return null
 
       const pkgData = loadPackageData(path.join(pkg, 'package.json'))
+
       packageCache?.set(cacheKey, pkgData)
+
       return pkgData
     } catch {
       return null
@@ -85,6 +95,7 @@ export function resolvePackageData(
   }
 
   const originalBasedir = basedir
+
   while (basedir) {
     if (packageCache) {
       const cached = getRpdCache(
@@ -94,10 +105,12 @@ export function resolvePackageData(
         originalBasedir,
         preserveSymlinks,
       )
+
       if (cached) return cached
     }
 
     const pkg = path.join(basedir, 'node_modules', pkgName, 'package.json')
+
     try {
       if (fs.existsSync(pkg)) {
         const pkgPath = preserveSymlinks ? pkg : safeRealpathSync(pkg)
@@ -119,7 +132,9 @@ export function resolvePackageData(
     } catch {}
 
     const nextBasedir = path.dirname(basedir)
+
     if (nextBasedir === basedir) break
+
     basedir = nextBasedir
   }
 
@@ -131,13 +146,16 @@ export function findNearestPackageData(
   packageCache?: PackageCache,
 ): PackageData | null {
   const originalBasedir = basedir
+
   while (basedir) {
     if (packageCache) {
       const cached = getFnpdCache(packageCache, basedir, originalBasedir)
+
       if (cached) return cached
     }
 
     const pkgPath = path.join(basedir, 'package.json')
+
     if (tryStatSync(pkgPath)?.isFile()) {
       try {
         const pkgData = loadPackageData(pkgPath)
@@ -151,7 +169,9 @@ export function findNearestPackageData(
     }
 
     const nextBasedir = path.dirname(basedir)
+
     if (nextBasedir === basedir) break
+
     basedir = nextBasedir
   }
 
@@ -160,9 +180,11 @@ export function findNearestPackageData(
 
 function isNodeModulesPackageRoot(pkgDir: string): boolean {
   const parent = path.dirname(pkgDir)
+
   if (path.basename(parent) === 'node_modules') {
     return !path.basename(pkgDir).startsWith('@')
   }
+
   // scoped package root: `node_modules/@scope/pkg`
   return (
     path.basename(parent).startsWith('@') &&
@@ -178,7 +200,9 @@ export function findNearestMainPackageData(
   packageCache?: PackageCache,
 ): PackageData | null {
   const nearestPackage = findNearestPackageData(basedir, packageCache)
+
   if (!nearestPackage) return null
+
   if (
     isInNodeModules(nearestPackage.dir) &&
     !isNodeModulesPackageRoot(nearestPackage.dir)
@@ -188,7 +212,9 @@ export function findNearestMainPackageData(
       packageCache,
     )
   }
+
   if (nearestPackage.data.name) return nearestPackage
+
   return findNearestMainPackageData(
     path.dirname(nearestPackage.dir),
     packageCache,
@@ -198,8 +224,11 @@ export function findNearestMainPackageData(
 export function loadPackageData(pkgPath: string): PackageData {
   const data = JSON.parse(stripBomTag(fs.readFileSync(pkgPath, 'utf-8')))
   const pkgDir = normalizePath(path.dirname(pkgPath))
+
   const { sideEffects } = data
+
   let hasSideEffects: (id: string) => boolean | null
+
   if (typeof sideEffects === 'boolean') {
     hasSideEffects = () => sideEffects
   } else if (Array.isArray(sideEffects)) {
@@ -217,6 +246,7 @@ export function loadPackageData(pkgPath: string): PackageData {
         if (sideEffect.includes('/')) {
           return sideEffect
         }
+
         return `**/${sideEffect}`
       })
 
@@ -229,6 +259,7 @@ export function loadPackageData(pkgPath: string): PackageData {
   }
 
   const resolvedCache: Record<string, string | undefined> = {}
+
   const pkg: PackageData = {
     dir: pkgDir,
     data,
@@ -259,12 +290,15 @@ function getResolveCacheKey(key: string, options: InternalResolveOptions) {
 export function findNearestNodeModules(basedir: string): string | null {
   while (basedir) {
     const pkgPath = path.join(basedir, 'node_modules')
+
     if (tryStatSync(pkgPath)?.isDirectory()) {
       return pkgPath
     }
 
     const nextBasedir = path.dirname(basedir)
+
     if (nextBasedir === basedir) break
+
     basedir = nextBasedir
   }
 
@@ -279,14 +313,18 @@ export function watchPackageDataPlugin(packageCache: PackageCache): Plugin {
   const watchFileStub = (id: string) => {
     watchQueue.add(id)
   }
+
   let watchFile = watchFileStub
 
   const setPackageData = packageCache.set.bind(packageCache)
+
   packageCache.set = (id, pkg) => {
     if (!isInNodeModules(pkg.dir) && !watchedDirs.has(pkg.dir)) {
       watchedDirs.add(pkg.dir)
+
       watchFile(path.join(pkg.dir, 'package.json'))
     }
+
     return setPackageData(id, pkg)
   }
 
@@ -294,6 +332,7 @@ export function watchPackageDataPlugin(packageCache: PackageCache): Plugin {
     name: 'vite:watch-package-data',
     buildStart() {
       watchFile = this.addWatchFile.bind(this)
+
       watchQueue.forEach(watchFile)
       watchQueue.clear()
     },
@@ -324,10 +363,12 @@ function getRpdCache(
 ) {
   const cacheKey = getRpdCacheKey(pkgName, basedir, preserveSymlinks)
   const pkgData = packageCache.get(cacheKey)
+
   if (pkgData) {
     traverseBetweenDirs(originalBasedir, basedir, (dir) => {
       packageCache.set(getRpdCacheKey(pkgName, dir, preserveSymlinks), pkgData)
     })
+
     return pkgData
   }
 }
@@ -341,6 +382,7 @@ function setRpdCache(
   preserveSymlinks: boolean,
 ) {
   packageCache.set(getRpdCacheKey(pkgName, basedir, preserveSymlinks), pkgData)
+
   traverseBetweenDirs(originalBasedir, basedir, (dir) => {
     packageCache.set(getRpdCacheKey(pkgName, dir, preserveSymlinks), pkgData)
   })
@@ -369,10 +411,12 @@ function getFnpdCache(
 ) {
   const cacheKey = getFnpdCacheKey(basedir)
   const pkgData = packageCache.get(cacheKey)
+
   if (pkgData) {
     traverseBetweenDirs(originalBasedir, basedir, (dir) => {
       packageCache.set(getFnpdCacheKey(dir), pkgData)
     })
+
     return pkgData
   }
 }
@@ -384,6 +428,7 @@ function setFnpdCache(
   originalBasedir: string,
 ) {
   packageCache.set(getFnpdCacheKey(basedir), pkgData)
+
   traverseBetweenDirs(originalBasedir, basedir, (dir) => {
     packageCache.set(getFnpdCacheKey(dir), pkgData)
   })
@@ -406,6 +451,7 @@ function traverseBetweenDirs(
 ) {
   while (longerDir !== shorterDir) {
     cb(longerDir)
+
     longerDir = path.dirname(longerDir)
   }
 }

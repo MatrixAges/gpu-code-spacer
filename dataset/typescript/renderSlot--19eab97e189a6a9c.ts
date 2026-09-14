@@ -1,9 +1,11 @@
 import type { Data } from '../component'
 import type { RawSlots, Slots } from '../componentSlots'
+
 import {
   type ContextualRenderFn,
   currentRenderingInstance,
 } from '../componentRenderContext'
+
 import {
   Comment,
   Fragment,
@@ -16,6 +18,7 @@ import {
   isVNode,
   openBlock,
 } from '../vnode'
+
 import { PatchFlags, SlotFlags, extend, isSymbol } from '@vue/shared'
 import { warn } from '../warning'
 import { isAsyncWrapper } from '../apiAsyncComponent'
@@ -41,6 +44,7 @@ export function renderSlot(
   // always see an object. fresh object rather than EMPTY_OBJ because the
   // custom element branch mutates it
   if (props == null) props = {}
+
   if (
     currentRenderingInstance!.ce ||
     (currentRenderingInstance!.parent &&
@@ -51,11 +55,14 @@ export function renderSlot(
       branchKey != null && props.key == null
         ? extend({}, props, { key: branchKey })
         : props
+
     const hasProps = Object.keys(slotProps).length > 0
+
     // in custom element mode, render <slot/> as actual slot outlets
     // wrap it with a fragment because in shadowRoot: false mode the slot
     // element gets replaced by injected content
     if (name !== 'default') slotProps.name = name
+
     return (
       openBlock(),
       createBlock(
@@ -75,6 +82,7 @@ export function renderSlot(
         `function. You need to mark this component with $dynamic-slots in the ` +
         `parent template.`,
     )
+
     slot = () => []
   }
 
@@ -85,17 +93,23 @@ export function renderSlot(
   if (slot && (slot as ContextualRenderFn)._c) {
     ;(slot as ContextualRenderFn)._d = false
   }
+
   const prevStackSize = blockStack.length
+
   openBlock()
+
   let rendered: VNode
+
   try {
     const validSlotContent = slot && ensureValidVNode(slot(props))
+
     const slotKey =
       props.key ||
       branchKey ||
       // slot content array of a dynamic conditional slot may have a branch
       // key attached in the `createSlots` helper, respect that
       (validSlotContent && (validSlotContent as any).key)
+
     rendered = createBlock(
       Fragment,
       {
@@ -113,15 +127,18 @@ export function renderSlot(
     // close blocks left dangling when the slot throws mid-block
     // they would otherwise retain every vnode created afterwards (#15070)
     for (let i = blockStack.length; i > prevStackSize; i--) closeBlock()
+
     throw err
   } finally {
     if (slot && (slot as ContextualRenderFn)._c) {
       ;(slot as ContextualRenderFn)._d = true
     }
   }
+
   if (!noSlotted && rendered.scopeId) {
     rendered.slotScopeIds = [rendered.scopeId + '-s']
   }
+
   return rendered
 }
 
@@ -131,11 +148,13 @@ export function ensureValidVNode(
   return vnodes.some(child => {
     if (!isVNode(child)) return true
     if (child.type === Comment) return false
+
     if (
       child.type === Fragment &&
       !ensureValidVNode(child.children as VNodeArrayChildren)
     )
       return false
+
     return true
   })
     ? vnodes

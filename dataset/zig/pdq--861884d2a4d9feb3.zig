@@ -26,6 +26,7 @@ pub fn pdq(
             return mem.swap(T, &ctx.items[a], &ctx.items[b]);
         }
     };
+
     pdqContext(0, items.len, Context{ .items = items, .sub_ctx = context });
 }
 
@@ -75,6 +76,7 @@ pub fn pdqContext(a: usize, b: usize, context: anytype) void {
             // some elements around. Hopefully we'll choose a better pivot this time.
             if (!was_balanced) {
                 breakPatterns(range.a, range.b, context);
+
                 range.limit -= 1;
             }
 
@@ -86,6 +88,7 @@ pub fn pdqContext(a: usize, b: usize, context: anytype) void {
                 // The maximum number of swaps was performed, so items are likely
                 // in reverse order. Reverse it to make sorting faster.
                 reverseRange(range.a, range.b, context);
+
                 pivot = (range.b - 1) - (pivot - range.a);
                 hint = .increasing;
             }
@@ -103,16 +106,19 @@ pub fn pdqContext(a: usize, b: usize, context: anytype) void {
             // This case is usually hit when the slice contains many duplicate elements.
             if (range.a > a and !context.lessThan(range.a - 1, pivot)) {
                 range.a = partitionEqual(range.a, range.b, pivot, context);
+
                 continue;
             }
 
             // partition the slice.
             var mid = pivot;
+
             was_partitioned = partition(range.a, range.b, &mid, context);
 
             const left_len = mid - range.a;
             const right_len = range.b - mid;
             const balanced_threshold = len / 8;
+
             if (left_len < right_len) {
                 was_balanced = left_len >= balanced_threshold;
                 stack[top] = .{ .a = range.a, .b = mid, .limit = range.limit };
@@ -127,6 +133,7 @@ pub fn pdqContext(a: usize, b: usize, context: anytype) void {
         }
 
         top = math.sub(usize, top, 1) catch break;
+
         range = stack[top];
     }
 }
@@ -150,20 +157,25 @@ fn partition(a: usize, b: usize, pivot: *usize, context: anytype) bool {
     if (i > j) {
         // put pivot back to the middle
         context.swap(j, a);
+
         pivot.* = j;
+
         return true;
     }
 
     context.swap(i, j);
+
     i += 1;
     j -= 1;
 
     while (true) {
         while (i <= j and context.lessThan(i, a)) i += 1;
         while (i <= j and !context.lessThan(j, a)) j -= 1;
+
         if (i > j) break;
 
         context.swap(i, j);
+
         i += 1;
         j -= 1;
     }
@@ -171,7 +183,9 @@ fn partition(a: usize, b: usize, pivot: *usize, context: anytype) bool {
     // TODO: Enable the BlockQuicksort optimization
 
     context.swap(j, a);
+
     pivot.* = j;
+
     return false;
 }
 
@@ -189,9 +203,11 @@ fn partitionEqual(a: usize, b: usize, pivot: usize, context: anytype) usize {
     while (true) {
         while (i <= j and !context.lessThan(a, i)) i += 1;
         while (i <= j and context.lessThan(a, j)) j -= 1;
+
         if (i > j) break;
 
         context.swap(i, j);
+
         i += 1;
         j -= 1;
     }
@@ -211,6 +227,7 @@ fn partialInsertionSort(a: usize, b: usize, context: anytype) bool {
     const shortest_shifting = 50;
 
     var i = a + 1;
+
     for (0..max_steps) |_| {
         // find the next pair of adjacent out-of-order elements.
         while (i < b and !context.lessThan(i, i - 1)) i += 1;
@@ -227,8 +244,10 @@ fn partialInsertionSort(a: usize, b: usize, context: anytype) bool {
         // shift the smaller element to the left.
         if (i - a >= 2) {
             var j = i - 1;
+
             while (j > a) : (j -= 1) {
                 if (!context.lessThan(j, j - 1)) break;
+
                 context.swap(j, j - 1);
             }
         }
@@ -236,8 +255,10 @@ fn partialInsertionSort(a: usize, b: usize, context: anytype) bool {
         // shift the greater element to the right.
         if (b - i >= 2) {
             var j = i + 1;
+
             while (j < b) : (j += 1) {
                 if (!context.lessThan(j, j - 1)) break;
+
                 context.swap(j, j - 1);
             }
         }
@@ -250,12 +271,14 @@ fn breakPatterns(a: usize, b: usize, context: anytype) void {
     @branchHint(.cold);
 
     const len = b - a;
+
     if (len < 8) return;
 
     var rand = @as(u64, @intCast(len));
     const modulus = math.ceilPowerOfTwoAssert(u64, len);
 
     var i = a + (len / 4) * 2 - 1;
+
     while (i <= a + (len / 4) * 2 + 1) : (i += 1) {
         // xorshift64
         rand ^= rand << 13;
@@ -263,7 +286,9 @@ fn breakPatterns(a: usize, b: usize, context: anytype) void {
         rand ^= rand << 17;
 
         var other = @as(usize, @intCast(rand & (modulus - 1)));
+
         if (other >= len) other -= len;
+
         context.swap(i, a + other);
     }
 }
@@ -295,6 +320,7 @@ fn chosePivot(a: usize, b: usize, pivot: *usize, context: anytype) Hint {
     }
 
     pivot.* = j;
+
     return switch (swaps) {
         0 => .increasing,
         max_swaps => .decreasing,
@@ -305,16 +331,19 @@ fn chosePivot(a: usize, b: usize, pivot: *usize, context: anytype) Hint {
 fn sort3(a: usize, b: usize, c: usize, swaps: *usize, context: anytype) void {
     if (context.lessThan(b, a)) {
         swaps.* += 1;
+
         context.swap(b, a);
     }
 
     if (context.lessThan(c, b)) {
         swaps.* += 1;
+
         context.swap(c, b);
     }
 
     if (context.lessThan(b, a)) {
         swaps.* += 1;
+
         context.swap(b, a);
     }
 }
@@ -322,8 +351,10 @@ fn sort3(a: usize, b: usize, c: usize, swaps: *usize, context: anytype) void {
 fn reverseRange(a: usize, b: usize, context: anytype) void {
     var i = a;
     var j = b - 1;
+
     while (i < j) {
         context.swap(i, j);
+
         i += 1;
         j -= 1;
     }
@@ -341,6 +372,7 @@ test "pdqContext respects arbitrary range boundaries" {
 
     const TestContext = struct {
         items: []i32,
+
         range_start: usize,
         range_end: usize,
 
@@ -348,6 +380,7 @@ test "pdqContext respects arbitrary range boundaries" {
             // Assert indices are within the expected range
             testing.expect(a >= ctx.range_start and a < ctx.range_end) catch @panic("index a out of range");
             testing.expect(b >= ctx.range_start and b < ctx.range_end) catch @panic("index b out of range");
+
             return ctx.items[a] < ctx.items[b];
         }
 
@@ -362,6 +395,7 @@ test "pdqContext respects arbitrary range boundaries" {
     // Test sorting a sub-range that doesn't start at 0
     const start = 1118;
     const end = 1764;
+
     const ctx = TestContext{
         .items = &data,
         .range_start = start,

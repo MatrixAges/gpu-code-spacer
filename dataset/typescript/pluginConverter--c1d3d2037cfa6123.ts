@@ -1,5 +1,6 @@
 import { dirname } from 'node:path'
 import type * as esbuild from 'esbuild'
+
 import type {
   ImportKind,
   LoadResult,
@@ -11,12 +12,15 @@ import type {
 } from 'rolldown'
 
 type MaybePromise<T> = T | Promise<T>
+
 type EsbuildOnResolveCallback = (
   args: esbuild.OnResolveArgs,
 ) => MaybePromise<esbuild.OnResolveResult | null | undefined>
+
 type EsbuildOnLoadCallback = (
   args: esbuild.OnLoadArgs,
 ) => MaybePromise<esbuild.OnLoadResult | null | undefined>
+
 type ResolveIdHandler = (
   this: PluginContext,
   id: string,
@@ -26,6 +30,7 @@ type ResolveIdHandler = (
   | (PartialResolvedId & { namespace?: string })
   | Exclude<ResolveIdResult, PartialResolvedId>
 >
+
 type LoadHandler = (this: PluginContext, id: string) => MaybePromise<LoadResult>
 
 export function convertEsbuildPluginToRolldownPlugin(
@@ -34,10 +39,12 @@ export function convertEsbuildPluginToRolldownPlugin(
   const onStartCallbacks: Array<() => void> = []
   const onEndCallbacks: Array<(buildResult: esbuild.BuildResult) => void> = []
   const onDisposeCallbacks: Array<() => void> = []
+
   let resolveIdHandlers: ResolveIdHandler[]
   let loadHandlers: LoadHandler[]
 
   let isSetupDone = false
+
   const setup = async (
     plugins: RolldownPluginOption[],
     platform: 'browser' | 'node' | 'neutral',
@@ -45,6 +52,7 @@ export function convertEsbuildPluginToRolldownPlugin(
     const onResolveCallbacks: Array<
       [options: esbuild.OnResolveOptions, callback: EsbuildOnResolveCallback]
     > = []
+
     const onLoadCallbacks: Array<
       [options: esbuild.OnLoadOptions, callback: EsbuildOnLoadCallback]
     > = []
@@ -69,6 +77,7 @@ export function convertEsbuildPluginToRolldownPlugin(
         {
           get(target, p, _receiver) {
             if (p in target) return (target as any)[p]
+
             throw new Error('Not implemented')
           },
         },
@@ -104,13 +113,16 @@ export function convertEsbuildPluginToRolldownPlugin(
     resolveIdHandlers = onResolveCallbacks.map(([options, callback]) =>
       createResolveIdHandler(options, callback),
     )
+
     loadHandlers = onLoadCallbacks.map(([options, callback]) =>
       createLoadHandler(options, callback),
     )
+
     isSetupDone = true
   }
 
   const usedNamespaces = new Set<string>()
+
   return {
     name: esbuildPlugin.name,
     async options(inputOptions) {
@@ -146,10 +158,12 @@ export function convertEsbuildPluginToRolldownPlugin(
             if (prop in _target || typeof prop === 'symbol') {
               return (_target as any)[prop]
             }
+
             throw new Error('Not implemented property: ' + prop)
           },
         },
       )
+
       for (const cb of onEndCallbacks) {
         cb(buildResult)
       }
@@ -157,16 +171,20 @@ export function convertEsbuildPluginToRolldownPlugin(
     async resolveId(id, importer, opts) {
       for (const handler of resolveIdHandlers) {
         const result = await handler.call(this, id, importer, opts)
+
         if (result) {
           if (typeof result === 'object' && result.namespace) {
             usedNamespaces.add(result.namespace)
           }
+
           return result
         }
       }
+
       if (usedNamespaces.size) {
         const [importerWithoutNamespace, namespaceFromImporter] =
           idToPathAndNamespace(importer)
+
         if (usedNamespaces.has(namespaceFromImporter)) {
           return await this.resolve(id, importerWithoutNamespace, opts)
         }
@@ -175,6 +193,7 @@ export function convertEsbuildPluginToRolldownPlugin(
     async load(id) {
       for (const handler of loadHandlers) {
         const result = await handler.call(this, id)
+
         if (result) {
           return result
         }
@@ -202,12 +221,14 @@ function createResolveIdHandler(
   return async function (id, importer, opts) {
     const [importerWithoutNamespace, importerNamespace] =
       idToPathAndNamespace(importer)
+
     if (
       options.namespace !== undefined &&
       options.namespace !== importerNamespace
     ) {
       return
     }
+
     if (options.filter !== undefined && !options.filter.test(id)) {
       return
     }
@@ -226,10 +247,13 @@ function createResolveIdHandler(
       pluginData: {},
       with: {},
     })
+
     if (!result) return
+
     if (result.errors && result.errors.length > 0) {
       throw new AggregateError(result.errors)
     }
+
     if (
       (result.warnings && result.warnings.length > 0) ||
       (result.watchDirs && result.watchDirs.length > 0) ||
@@ -237,6 +261,7 @@ function createResolveIdHandler(
     ) {
       throw new Error('not implemented')
     }
+
     for (const file of result.watchFiles ?? []) {
       this.addWatchFile(file)
     }
@@ -255,8 +280,10 @@ function createLoadHandler(
   callback: EsbuildOnLoadCallback,
 ): LoadHandler {
   const textDecoder = new TextDecoder()
+
   return async function (id) {
     const [idWithoutNamespace, idNamespace] = idToPathAndNamespace(id)
+
     if (
       options.namespace !== undefined &&
       options.namespace !== 'file' &&
@@ -264,6 +291,7 @@ function createLoadHandler(
     ) {
       return
     }
+
     if (options.filter !== undefined && !options.filter.test(id)) {
       return
     }
@@ -275,10 +303,13 @@ function createLoadHandler(
       pluginData: {},
       with: {},
     })
+
     if (!result) return
+
     if (result.errors && result.errors.length > 0) {
       throw new AggregateError(result.errors)
     }
+
     if (
       (result.warnings && result.warnings.length > 0) ||
       (result.watchDirs && result.watchDirs.length > 0) ||
@@ -286,6 +317,7 @@ function createLoadHandler(
     ) {
       throw new Error('not implemented')
     }
+
     for (const file of result.watchFiles ?? []) {
       this.addWatchFile(file)
     }
@@ -301,15 +333,18 @@ function createLoadHandler(
 }
 
 function idToPathAndNamespace(id: string): [path: string, namespace: string]
+
 function idToPathAndNamespace(
   id: string | undefined,
 ): [path: string | undefined, namespace: string]
+
 function idToPathAndNamespace(
   id: string | undefined,
 ): [path: string | undefined, namespace: string] {
   if (id === undefined) return [undefined, 'file']
 
   const namespaceIndex = id.indexOf(':')
+
   if (namespaceIndex >= 0) {
     return [id.slice(namespaceIndex + 1), id.slice(0, namespaceIndex)]
   } else {

@@ -10,6 +10,7 @@ import type { LexicalEditor } from 'lexical'
 
 export default class Index {
 	editor = null as unknown as LexicalEditor
+
 	max_length = 0
 	linebreak = false
 
@@ -32,7 +33,6 @@ export default class Index {
 		this.editor = editor
 		this.max_length = max_length
 		this.linebreak = linebreak
-
 		this.onChange = onChange
 
 		if (onKeyDown) this.onKeyDown = onKeyDown
@@ -125,7 +125,6 @@ export default class Index {
 
 	off() {
 		this.unregister?.()
-
 		this.removeKeyDownListener()
 		this.removeFocusListener()
 	}

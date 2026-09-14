@@ -15,6 +15,7 @@ export function getResolvedOutDirs(
   outputOptions: OutputOptions[] | OutputOptions | undefined,
 ): Set<string> {
   const resolvedOutDir = path.resolve(root, outDir)
+
   if (!outputOptions) return new Set([resolvedOutDir])
 
   return new Set(
@@ -43,9 +44,11 @@ export function resolveEmptyOutDir(
             `Use --emptyOutDir to override.\n`,
         ),
       )
+
       return false
     }
   }
+
   return true
 }
 
@@ -75,6 +78,7 @@ export function resolveChokidarOptions(
     exclude,
     ...otherOptions
   } = options ?? {}
+
   const ignored: WatchOptions['ignored'] = [
     '**/.git/**',
     '**/node_modules/**',
@@ -82,6 +86,7 @@ export function resolveChokidarOptions(
     escapePath(cacheDir) + '/**',
     ...arraify(ignoredList || []),
   ]
+
   if (emptyOutDir) {
     ignored.push(
       ...[...resolvedOutDirs].map((outDir) => escapePath(outDir) + '/**'),

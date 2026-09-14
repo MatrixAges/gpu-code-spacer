@@ -42,11 +42,13 @@ test {
 // It must be kept in sync with all platforms.
 test "u128 consistency test" {
     const decimal: u128 = 214850178493633095719753766415838275046;
+
     const binary = [16]u8{
         0xe6, 0xe5, 0xe4, 0xe3, 0xe2, 0xe1,
         0xd2, 0xd1, 0xc2, 0xc1, 0xb2, 0xb1,
         0xa4, 0xa3, 0xa2, 0xa1,
     };
+
     const pair: extern struct { lower: u64, upper: u64 } = .{
         .lower = 15119395263638463974,
         .upper = 11647051514084770242,
@@ -54,7 +56,6 @@ test "u128 consistency test" {
 
     try std.testing.expectEqual(decimal, @as(u128, @bitCast(binary)));
     try std.testing.expectEqual(binary, @as([16]u8, @bitCast(decimal)));
-
     try std.testing.expectEqual(decimal, @as(u128, @bitCast(pair)));
     try std.testing.expectEqual(pair, @as(@TypeOf(pair), @bitCast(decimal)));
 }

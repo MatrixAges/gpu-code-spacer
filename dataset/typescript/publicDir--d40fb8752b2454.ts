@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { cleanUrl, withTrailingSlash } from '../shared/utils'
 import type { ResolvedConfig } from './config'
+
 import {
   ERR_SYMLINK_IN_RECURSIVE_READDIR,
   normalizePath,
@@ -14,18 +15,23 @@ export async function initPublicFiles(
   config: ResolvedConfig,
 ): Promise<Set<string> | undefined> {
   let fileNames: string[]
+
   try {
     fileNames = await recursiveReaddir(config.publicDir)
   } catch (e) {
     if (e.code === ERR_SYMLINK_IN_RECURSIVE_READDIR) {
       return
     }
+
     throw e
   }
+
   const publicFiles = new Set(
     fileNames.map((fileName) => fileName.slice(config.publicDir.length)),
   )
+
   publicFilesMap.set(config, publicFiles)
+
   return publicFiles
 }
 
@@ -40,6 +46,7 @@ export function checkPublicFile(
   // note if the file is in /public, the resolver would have returned it
   // as-is so it's not going to be a fully resolved path.
   const { publicDir } = config
+
   if (!publicDir || url[0] !== '/') {
     return
   }
@@ -48,6 +55,7 @@ export function checkPublicFile(
 
   // short-circuit if we have an in-memory publicFiles cache
   const publicFiles = getPublicFiles(config)
+
   if (publicFiles) {
     return publicFiles.has(fileName)
       ? normalizePath(path.join(publicDir, fileName))
@@ -55,6 +63,7 @@ export function checkPublicFile(
   }
 
   const publicFile = normalizePath(path.join(publicDir, fileName))
+
   if (!publicFile.startsWith(withTrailingSlash(publicDir))) {
     // can happen if URL starts with '../'
     return

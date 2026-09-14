@@ -29,6 +29,7 @@ pub fn QuorumsType(comptime options: Options) type {
 
             pub fn repairs(quorum: Quorum) RepairIterator {
                 assert(quorum.valid);
+
                 return .{ .slots = quorum.slots };
             }
         };
@@ -77,6 +78,7 @@ pub fn QuorumsType(comptime options: Options) type {
         };
 
         array: [options.superblock_copies]Quorum = undefined,
+
         count: u8 = 0,
 
         /// Returns the working superblock according to the quorum with the highest sequence number.
@@ -150,6 +152,7 @@ pub fn QuorumsType(comptime options: Options) type {
                         a.header.cluster,
                         b.header.cluster,
                     });
+
                     continue;
                 }
 
@@ -159,6 +162,7 @@ pub fn QuorumsType(comptime options: Options) type {
                         a.header.vsr_state.replica_id,
                         b.header.vsr_state.replica_id,
                     });
+
                     continue;
                 }
 
@@ -166,6 +170,7 @@ pub fn QuorumsType(comptime options: Options) type {
                     // Two quorums, same cluster+replica+sequence, but different checksums.
                     // This shouldn't ever happen — but if it does, we can't safely repair.
                     assert(a.header.checksum != b.header.checksum);
+
                     return error.Fork;
                 }
 
@@ -193,6 +198,7 @@ pub fn QuorumsType(comptime options: Options) type {
             }
 
             assert(b.header.valid_checksum());
+
             return b;
         }
 
@@ -207,6 +213,7 @@ pub fn QuorumsType(comptime options: Options) type {
 
             if (!copy.valid_checksum()) {
                 log.warn("copy: {}/{}: invalid checksum", .{ slot, options.superblock_copies });
+
                 return;
             }
 
@@ -233,6 +240,7 @@ pub fn QuorumsType(comptime options: Options) type {
             }
 
             var quorum = quorums.find_or_insert_quorum_for_copy(copy);
+
             assert(quorum.header.checksum == copy.checksum);
             assert(quorum.header.equal(copy));
 
@@ -244,14 +252,18 @@ pub fn QuorumsType(comptime options: Options) type {
                 // We make the assumption that this was not a double-fault (corrupt + misdirect) —
                 // that is, the copy is in the correct slot, and its copy index is simply corrupt.
                 quorum.slots[slot] = @intCast(slot);
+
                 quorum.copies.set(slot);
             } else if (quorum.copies.is_set(copy.copy)) {
                 // Ignore the duplicate copy.
             } else {
                 maybe(slot != copy.copy);
+
                 quorum.slots[slot] = @intCast(copy.copy);
+
                 quorum.copies.set(copy.copy);
             }
+
             assert(quorum.copies.count() >= 1);
 
             quorum.valid = quorum.copies.count() >= threshold.count();
@@ -282,10 +294,8 @@ pub fn QuorumsType(comptime options: Options) type {
 
             if (a.valid and !b.valid) return true;
             if (b.valid and !a.valid) return false;
-
             if (a.header.sequence > b.header.sequence) return true;
             if (b.header.sequence > a.header.sequence) return false;
-
             if (a.copies.count() > b.copies.count()) return true;
             if (b.copies.count() > a.copies.count()) return false;
 
@@ -337,6 +347,7 @@ pub fn QuorumsType(comptime options: Options) type {
                 for (iterator.slots) |slot| {
                     if (slot) |copy| {
                         if (copies_any.is_set(copy)) copies_duplicate.set(copy);
+
                         copies_any.set(copy);
                     }
                 }
@@ -348,9 +359,11 @@ pub fn QuorumsType(comptime options: Options) type {
                 var a: ?u8 = null;
                 var b: ?u8 = null;
                 var c: ?u8 = null;
+
                 for (iterator.slots, 0..) |slot, i| {
                     if (slot == null and !copies_any.is_set(i)) a = @intCast(i);
                     if (slot == null and copies_any.is_set(i)) b = @intCast(i);
+
                     if (slot) |slot_copy| {
                         if (slot_copy != i and copies_duplicate.is_set(slot_copy)) c = @intCast(i);
                     }
@@ -358,10 +371,12 @@ pub fn QuorumsType(comptime options: Options) type {
 
                 const repair = a orelse b orelse c orelse {
                     for (iterator.slots) |slot| assert(slot != null);
+
                     return null;
                 };
 
                 iterator.slots[repair] = repair;
+
                 return repair;
             }
         };

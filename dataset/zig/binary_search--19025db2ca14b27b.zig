@@ -42,6 +42,7 @@ pub fn binary_search_values_upsert_index(
 
     var offset: usize = 0;
     var length: usize = values.len;
+
     while (length > 1) {
         if (constants.verify) {
             assert(offset == 0 or switch (comptime config.mode) {
@@ -56,6 +57,7 @@ pub fn binary_search_values_upsert_index(
         }
 
         const half = length / 2;
+
         if (config.prefetch) {
             // Prefetching:
             // ARRAY LAYOUTS FOR COMPARISON-BASED SEARCHING, page 18.
@@ -72,17 +74,21 @@ pub fn binary_search_values_upsert_index(
             // Since these pointers are never dereferenced, it's safe to dismiss this extra cost
             // here.
             @setRuntimeSafety(constants.verify);
+
             const one_quarter = values.ptr + offset + half / 2;
             const three_quarters = one_quarter + half;
 
             // @sizeOf(Value) can be greater than a single cache line.
             // In that case, we need to prefetch multiple cache lines for a single value:
             comptime stdx.maybe(@sizeOf(Value) > constants.cache_line_size);
+
             const CacheLineBytes = [*]const [constants.cache_line_size]u8;
+
             const cache_lines_per_value = comptime stdx.div_ceil(
                 @sizeOf(Value),
                 constants.cache_line_size,
             );
+
             inline for (0..cache_lines_per_value) |i| {
                 // Locality = 0 means no temporal locality. That is, the data can be immediately
                 // dropped from the cache after it is accessed.
@@ -108,6 +114,7 @@ pub fn binary_search_values_upsert_index(
 
         if (take_upper_half) {
             @branchHint(.unpredictable);
+
             offset = mid;
         }
 
@@ -135,10 +142,12 @@ pub fn binary_search_values_upsert_index(
             .lower_bound => key_from_value(&values[offset - 1]) < key,
             .upper_bound => key_from_value(&values[offset - 1]) <= key,
         });
+
         assert(offset >= values.len - 1 or switch (config.mode) {
             .lower_bound => key <= key_from_value(&values[offset + 1]),
             .upper_bound => key < key_from_value(&values[offset + 1]),
         });
+
         assert(offset == values.len or
             key <= key_from_value(&values[offset]));
     }
@@ -187,11 +196,14 @@ pub inline fn binary_search_values(
         key,
         config,
     );
+
     const exact = index < values.len and key_from_value(&values[index]) == key;
 
     if (exact) {
         const value = &values[index];
+
         assert(key == key_from_value(value));
+
         return value;
     } else {
         // TODO: Figure out how to fuzz this without causing asymptotic
@@ -207,6 +219,7 @@ pub inline fn binary_search_keys(
     comptime config: Config,
 ) BinarySearchResult {
     const index = binary_search_keys_upsert_index(Key, keys, key, config);
+
     return .{
         .index = index,
         .exact = index < keys.len and keys[index] == key,
@@ -323,6 +336,7 @@ pub inline fn binary_search_values_range(
         upsert_indexes.end < values.len and
             key_max == key_from_value(&values[upsert_indexes.end]),
     );
+
     return .{
         .start = upsert_indexes.start,
         .count = upsert_indexes.end - upsert_indexes.start + inclusive,
@@ -362,19 +376,23 @@ const test_binary_search = struct {
 
     fn exhaustive_search(keys_count: u32, comptime mode: anytype) !void {
         const keys = try gpa.alloc(u32, keys_count);
+
         defer gpa.free(keys);
 
         for (keys, 0..) |*key, i| key.* = @intCast(7 * i + 3);
 
         var target_key: u32 = 0;
+
         while (target_key < keys_count + 13) : (target_key += 1) {
             var expect: BinarySearchResult = .{ .index = 0, .exact = false };
+
             for (keys, 0..) |key, i| {
                 switch (std.math.order(key, target_key)) {
                     .lt => expect.index = @intCast(i + 1),
                     .eq => {
                         expect.index = @intCast(i);
                         expect.exact = true;
+
                         if (mode == .lower_bound) break;
                     },
                     .gt => break,
@@ -383,7 +401,9 @@ const test_binary_search = struct {
 
             if (log) {
                 std.debug.print("keys:", .{});
+
                 for (keys) |k| std.debug.print("{},", .{k});
+
                 std.debug.print("\n", .{});
                 std.debug.print("target key: {}\n", .{target_key});
             }
@@ -396,6 +416,7 @@ const test_binary_search = struct {
             );
 
             if (log) std.debug.print("expected: {}, actual: {}\n", .{ expect, actual });
+
             try std.testing.expectEqual(expect.index, actual.index);
             try std.testing.expectEqual(expect.exact, actual.exact);
         }
@@ -412,17 +433,22 @@ const test_binary_search = struct {
         for (target_keys, 0..) |target_key, i| {
             if (log) {
                 std.debug.print("keys:", .{});
+
                 for (keys) |k| std.debug.print("{},", .{k});
+
                 std.debug.print("\n", .{});
                 std.debug.print("target key: {}\n", .{target_key});
             }
+
             const expect = expected_results[i];
+
             const actual = binary_search_keys(
                 u32,
                 keys,
                 target_key,
                 .{ .mode = mode },
             );
+
             try std.testing.expectEqual(expect.index, actual.index);
             try std.testing.expectEqual(expect.exact, actual.exact);
         }
@@ -439,7 +465,9 @@ const test_binary_search = struct {
         );
 
         const keys = try allocator.alloc(u32, keys_count);
+
         for (keys) |*key| key.* = fuzz.random_int_exponential(prng, u32, 100);
+
         std.mem.sort(u32, keys, {}, less_than_key);
 
         return keys;
@@ -447,17 +475,20 @@ const test_binary_search = struct {
 
     fn random_search(prng: *stdx.PRNG, iter: usize, comptime mode: anytype) !void {
         const keys = try random_sequence(std.testing.allocator, prng, iter);
+
         defer std.testing.allocator.free(keys);
 
         const target_key = fuzz.random_int_exponential(prng, u32, 100);
 
         var expect: BinarySearchResult = .{ .index = 0, .exact = false };
+
         for (keys, 0..) |key, i| {
             switch (std.math.order(key, target_key)) {
                 .lt => expect.index = @intCast(i + 1),
                 .eq => {
                     expect.index = @intCast(i);
                     expect.exact = true;
+
                     if (mode == .lower_bound) break;
                 },
                 .gt => break,
@@ -472,6 +503,7 @@ const test_binary_search = struct {
         );
 
         if (log) std.debug.print("expected: {}, actual: {}\n", .{ expect, actual });
+
         try std.testing.expectEqual(expect.index, actual.index);
         try std.testing.expectEqual(expect.exact, actual.exact);
     }
@@ -495,11 +527,13 @@ const test_binary_search = struct {
         // Make sure that the index is valid for slicing using the [start..][0..count] idiom:
         const expected_slice = sequence[expected.start..][0..expected.count];
         const actual_slice = sequence[actual.start..][0..actual.count];
+
         try std.testing.expectEqualSlices(u32, expected_slice, actual_slice);
     }
 
     fn random_range_search(prng: *stdx.PRNG, iter: usize) !void {
         const keys = try random_sequence(std.testing.allocator, prng, iter);
+
         defer std.testing.allocator.free(keys);
 
         const target_range = blk: {
@@ -517,6 +551,7 @@ const test_binary_search = struct {
                 fuzz.random_int_exponential(prng, u32, 100);
 
             if (key_max < key_min) std.mem.swap(u32, &key_min, &key_max);
+
             assert(key_min <= key_max);
 
             break :blk .{
@@ -527,6 +562,7 @@ const test_binary_search = struct {
 
         var expect: BinarySearchRange = .{ .start = 0, .count = 0 };
         var key_target: enum { key_min, key_max } = .key_min;
+
         for (keys) |key| {
             if (key_target == .key_min) {
                 switch (std.math.order(key, target_range.key_min)) {
@@ -553,6 +589,7 @@ const test_binary_search = struct {
         );
 
         if (log) std.debug.print("expected: {?}, actual: {?}\n", .{ expect, actual });
+
         try std.testing.expectEqual(expect.start, actual.start);
         try std.testing.expectEqual(expect.count, actual.count);
     }
@@ -560,8 +597,10 @@ const test_binary_search = struct {
 
 test "binary search: exhaustive" {
     if (test_binary_search.log) std.debug.print("\n", .{});
+
     inline for (.{ .lower_bound, .upper_bound }) |mode| {
         var i: u32 = 1;
+
         while (i < 300) : (i += 1) {
             try test_binary_search.exhaustive_search(i, mode);
         }
@@ -652,6 +691,7 @@ test "binary search: explicit" {
 
 test "binary search: duplicates" {
     if (test_binary_search.log) std.debug.print("\n", .{});
+
     try test_binary_search.explicit_search(
         &[_]u32{ 0, 0, 3, 3, 3, 5, 5, 5, 5 },
         &[_]u32{ 0, 1, 2, 3, 4, 5, 6 },
@@ -666,6 +706,7 @@ test "binary search: duplicates" {
         },
         .lower_bound,
     );
+
     try test_binary_search.explicit_search(
         &[_]u32{ 0, 0, 3, 3, 3, 5, 5, 5, 5 },
         &[_]u32{ 0, 1, 2, 3, 4, 5, 6 },
@@ -684,8 +725,10 @@ test "binary search: duplicates" {
 
 test "binary search: random" {
     var prng = stdx.PRNG.from_seed_testing();
+
     inline for (.{ .lower_bound, .upper_bound }) |mode| {
         var i: usize = 0;
+
         while (i < 2048) : (i += 1) {
             try test_binary_search.random_search(&prng, i, mode);
         }
@@ -830,6 +873,7 @@ test "binary search: explicit range" {
 
 test "binary search: duplicated range" {
     if (test_binary_search.log) std.debug.print("\n", .{});
+
     try test_binary_search.explicit_range_search(
         &[_]u32{ 1, 3, 3, 3, 5, 5, 5, 7 },
         3,
@@ -839,6 +883,7 @@ test "binary search: duplicated range" {
             .count = 6,
         },
     );
+
     try test_binary_search.explicit_range_search(
         &[_]u32{ 1, 1, 1, 3, 5, 7 },
         1,
@@ -853,6 +898,7 @@ test "binary search: duplicated range" {
 test "binary search: random range" {
     var prng = stdx.PRNG.from_seed_testing();
     var i: usize = 0;
+
     while (i < 2048) : (i += 1) {
         try test_binary_search.random_range_search(&prng, i);
     }

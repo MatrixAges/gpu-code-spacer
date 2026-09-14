@@ -32,6 +32,7 @@ export { default as PressButton } from './PressButton'
 export { default as Crown } from './Crown'
 
 export type { IProps as IPropsDirTree } from './DirTree/types'
+
 export type {
 	IProps as IPropsFormTable,
 	Column as IPropsFormTableColumn,

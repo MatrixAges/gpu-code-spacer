@@ -5,6 +5,7 @@ import {
   toRaw,
   trigger,
 } from '@vue/reactivity'
+
 import {
   EMPTY_ARR,
   EMPTY_OBJ,
@@ -25,7 +26,9 @@ import {
   makeMap,
   toRawType,
 } from '@vue/shared'
+
 import { warn } from './warning'
+
 import {
   type ComponentInternalInstance,
   type ComponentOptions,
@@ -33,6 +36,7 @@ import {
   type Data,
   setCurrentInstance,
 } from './component'
+
 import { isEmitListener } from './componentEmits'
 import type { AppContext } from './apiCreateApp'
 import { createPropsDefaultThis } from './compat/props'
@@ -225,12 +229,14 @@ export function initProps(
       instance.props = props
     }
   }
+
   instance.attrs = attrs
 }
 
 function isInHmrContext(instance: ComponentInternalInstance | null) {
   while (instance) {
     if (instance.type.__hmrId) return true
+
     instance = instance.parent
   }
 }
@@ -246,8 +252,11 @@ export function updateProps(
     attrs,
     vnode: { patchFlag },
   } = instance
+
   const rawCurrentProps = toRaw(props)
+
   const [options] = instance.propsOptions
+
   let hasAttrsChanged = false
 
   if (
@@ -262,14 +271,18 @@ export function updateProps(
       // Compiler-generated props & no keys change, just set the updated
       // the props.
       const propsToUpdate = instance.vnode.dynamicProps!
+
       for (let i = 0; i < propsToUpdate.length; i++) {
         let key = propsToUpdate[i]
+
         // skip if the prop key is a declared emit event listener
         if (isEmitListener(instance.emitsOptions, key)) {
           continue
         }
+
         // PROPS flag guarantees rawProps to be non-null
         const value = rawProps![key]
+
         if (options) {
           // attr / props separation was done on init and will be consistent
           // in this code path, so just check if attrs have it.
@@ -280,6 +293,7 @@ export function updateProps(
             }
           } else {
             const camelizedKey = camelize(key)
+
             props[camelizedKey] = resolvePropValue(
               options,
               rawCurrentProps,
@@ -297,6 +311,7 @@ export function updateProps(
               continue
             }
           }
+
           if (value !== attrs[key]) {
             attrs[key] = value
             hasAttrsChanged = true
@@ -309,9 +324,11 @@ export function updateProps(
     if (setFullProps(instance, rawProps, props, attrs)) {
       hasAttrsChanged = true
     }
+
     // in case of dynamic props, check if we need to delete keys from
     // the props object
     let kebabKey: string
+
     for (const key in rawCurrentProps) {
       if (
         !rawProps ||
@@ -343,6 +360,7 @@ export function updateProps(
         }
       }
     }
+
     // in the case of functional component w/o props declaration, props and
     // attrs point to the same object so it should already have been updated.
     if (attrs !== rawCurrentProps) {
@@ -353,6 +371,7 @@ export function updateProps(
             (!__COMPAT__ || !hasOwn(rawProps, key + 'Native')))
         ) {
           delete attrs[key]
+
           hasAttrsChanged = true
         }
       }
@@ -376,8 +395,10 @@ function setFullProps(
   attrs: Data,
 ) {
   const [options, needCastKeys] = instance.propsOptions
+
   let hasAttrsChanged = false
   let rawCastValues: Data | undefined
+
   if (rawProps) {
     for (let key in rawProps) {
       // key, ref are reserved and never passed down
@@ -393,15 +414,18 @@ function setFullProps(
             key.slice(2).toLowerCase(),
           )
         }
+
         if (key === 'inline-template') {
           continue
         }
       }
 
       const value = rawProps[key]
+
       // prop option names are camelized during normalization, so to support
       // kebab -> camel conversion here we need to camelize the key.
       let camelKey
+
       if (options && hasOwn(options, (camelKey = camelize(key)))) {
         if (!needCastKeys || !needCastKeys.includes(camelKey)) {
           props[camelKey] = value
@@ -419,6 +443,7 @@ function setFullProps(
             continue
           }
         }
+
         if (!(key in attrs) || value !== attrs[key]) {
           attrs[key] = value
           hasAttrsChanged = true
@@ -430,8 +455,10 @@ function setFullProps(
   if (needCastKeys) {
     const rawCurrentProps = toRaw(props)
     const castValues = rawCastValues || EMPTY_OBJ
+
     for (let i = 0; i < needCastKeys.length; i++) {
       const key = needCastKeys[i]
+
       props[key] = resolvePropValue(
         options!,
         rawCurrentProps,
@@ -455,21 +482,26 @@ function resolvePropValue(
   isAbsent: boolean,
 ) {
   const opt = options[key]
+
   if (opt != null) {
     const hasDefault = hasOwn(opt, 'default')
+
     // default values
     if (hasDefault && value === undefined) {
       const defaultValue = opt.default
+
       if (
         opt.type !== Function &&
         !opt.skipFactory &&
         isFunction(defaultValue)
       ) {
         const { propsDefaults } = instance
+
         if (key in propsDefaults) {
           value = propsDefaults[key]
         } else {
           const reset = setCurrentInstance(instance)
+
           value = propsDefaults[key] = defaultValue.call(
             __COMPAT__ &&
               isCompatEnabled(DeprecationTypes.PROPS_DEFAULT_THIS, instance)
@@ -477,16 +509,19 @@ function resolvePropValue(
               : null,
             props,
           )
+
           reset()
         }
       } else {
         value = defaultValue
       }
+
       // #9006 reflect default value on custom element
       if (instance.ce) {
         instance.ce._setProp(key, value)
       }
     }
+
     // boolean casting
     if (opt[BooleanFlags.shouldCast]) {
       if (isAbsent && !hasDefault) {
@@ -499,6 +534,7 @@ function resolvePropValue(
       }
     }
   }
+
   return value
 }
 
@@ -511,33 +547,44 @@ export function normalizePropsOptions(
 ): NormalizedPropsOptions {
   const cache =
     __FEATURE_OPTIONS_API__ && asMixin ? mixinPropsCache : appContext.propsCache
+
   const cached = cache.get(comp)
+
   if (cached) {
     return cached
   }
 
   const raw = comp.props
+
   const normalized: NormalizedPropsOptions[0] = {}
   const needCastKeys: NormalizedPropsOptions[1] = []
 
   // apply mixin/extends props
   let hasExtends = false
+
   if (__FEATURE_OPTIONS_API__ && !isFunction(comp)) {
     const extendProps = (raw: ComponentOptions) => {
       if (__COMPAT__ && isFunction(raw)) {
         raw = raw.options
       }
+
       hasExtends = true
+
       const [props, keys] = normalizePropsOptions(raw, appContext, true)
+
       extend(normalized, props)
+
       if (keys) needCastKeys.push(...keys)
     }
+
     if (!asMixin && appContext.mixins.length) {
       appContext.mixins.forEach(extendProps)
     }
+
     if (comp.extends) {
       extendProps(comp.extends)
     }
+
     if (comp.mixins) {
       comp.mixins.forEach(extendProps)
     }
@@ -547,6 +594,7 @@ export function normalizePropsOptions(
     if (isObject(comp)) {
       cache.set(comp, EMPTY_ARR as any)
     }
+
     return EMPTY_ARR as any
   }
 
@@ -555,7 +603,9 @@ export function normalizePropsOptions(
       if (__DEV__ && !isString(raw[i])) {
         warn(`props must be strings when using array syntax.`, raw[i])
       }
+
       const normalizedKey = camelize(raw[i])
+
       if (validatePropName(normalizedKey)) {
         normalized[normalizedKey] = EMPTY_OBJ
       }
@@ -564,13 +614,18 @@ export function normalizePropsOptions(
     if (__DEV__ && !isObject(raw)) {
       warn(`invalid props options`, raw)
     }
+
     for (const key in raw) {
       const normalizedKey = camelize(key)
+
       if (validatePropName(normalizedKey)) {
         const opt = raw[key]
+
         const prop: NormalizedProp = (normalized[normalizedKey] =
           isArray(opt) || isFunction(opt) ? { type: opt } : extend({}, opt))
+
         const propType = prop.type
+
         let shouldCast = false
         let shouldCastTrue = true
 
@@ -581,6 +636,7 @@ export function normalizePropsOptions(
 
             if (typeName === 'Boolean') {
               shouldCast = true
+
               break
             } else if (typeName === 'String') {
               // If we find `String` before `Boolean`, e.g. `[String, Boolean]`,
@@ -597,6 +653,7 @@ export function normalizePropsOptions(
 
         prop[BooleanFlags.shouldCast] = shouldCast
         prop[BooleanFlags.shouldCastTrue] = shouldCastTrue
+
         // if the prop needs boolean casting or default value
         if (shouldCast || hasOwn(prop, 'default')) {
           needCastKeys.push(normalizedKey)
@@ -606,9 +663,11 @@ export function normalizePropsOptions(
   }
 
   const res: NormalizedPropsOptions = [normalized, needCastKeys]
+
   if (isObject(comp)) {
     cache.set(comp, res)
   }
+
   return res
 }
 
@@ -618,6 +677,7 @@ function validatePropName(key: string) {
   } else if (__DEV__) {
     warn(`Invalid prop name: "${key}" is a reserved property.`)
   }
+
   return false
 }
 
@@ -637,6 +697,7 @@ function getType(ctor: Prop<any> | null): string {
   } else if (typeof ctor === 'object') {
     // Attempting to directly access constructor name if possible
     const name = ctor.constructor && ctor.constructor.name
+
     return name || ''
   }
 
@@ -655,9 +716,12 @@ function validateProps(
   const resolvedValues = toRaw(props)
   const options = instance.propsOptions[0]
   const camelizePropsKey = Object.keys(rawProps).map(key => camelize(key))
+
   for (const key in options) {
     let opt = options[key]
+
     if (opt == null) continue
+
     validateProp(
       key,
       resolvedValues[key],
@@ -679,31 +743,42 @@ function validateProp(
   isAbsent: boolean,
 ) {
   const { type, required, validator, skipCheck } = prop
+
   // required!
   if (required && isAbsent) {
     warn('Missing required prop: "' + name + '"')
+
     return
   }
+
   // missing but optional
   if (value == null && !required) {
     return
   }
+
   // type check
   if (type != null && type !== true && !skipCheck) {
     let isValid = false
+
     const types = isArray(type) ? type : [type]
     const expectedTypes = []
+
     // value is valid as long as one of the specified types match
     for (let i = 0; i < types.length && !isValid; i++) {
       const { valid, expectedType } = assertType(value, types[i])
+
       expectedTypes.push(expectedType || '')
+
       isValid = valid
     }
+
     if (!isValid) {
       warn(getInvalidTypeMessage(name, value, expectedTypes))
+
       return
     }
   }
+
   // custom validator
   if (validator && !validator(value, props)) {
     warn('Invalid prop: custom validator check failed for prop "' + name + '".')
@@ -727,12 +802,16 @@ function assertType(
   type: PropConstructor | null,
 ): AssertionResult {
   let valid
+
   const expectedType = getType(type)
+
   if (expectedType === 'null') {
     valid = value === null
   } else if (isSimpleType(expectedType)) {
     const t = typeof value
+
     valid = t === expectedType.toLowerCase()
+
     // for primitive wrapper objects
     if (!valid && t === 'object') {
       valid = value instanceof (type as PropConstructor)
@@ -744,6 +823,7 @@ function assertType(
   } else {
     valid = value instanceof (type as PropConstructor)
   }
+
   return {
     valid,
     expectedType,
@@ -764,13 +844,16 @@ function getInvalidTypeMessage(
       ` Did you mean to use type Array instead?`
     )
   }
+
   let message =
     `Invalid prop: type check failed for prop "${name}".` +
     ` Expected ${expectedTypes.map(capitalize).join(' | ')}`
+
   const expectedType = expectedTypes[0]
   const receivedType = toRawType(value)
   const expectedValue = styleValue(value, expectedType)
   const receivedValue = styleValue(value, receivedType)
+
   // check if we need to specify expected value
   if (
     expectedTypes.length === 1 &&
@@ -779,11 +862,14 @@ function getInvalidTypeMessage(
   ) {
     message += ` with value ${expectedValue}`
   }
+
   message += `, got ${receivedType} `
+
   // check if we need to specify received value
   if (isExplicable(receivedType)) {
     message += `with value ${receivedValue}.`
   }
+
   return message
 }
 
@@ -807,6 +893,7 @@ function styleValue(value: unknown, type: string): string {
  */
 function isExplicable(type: string): boolean {
   const explicitTypes = ['string', 'number', 'boolean']
+
   return explicitTypes.some(elem => type.toLowerCase() === elem)
 }
 
@@ -816,6 +903,7 @@ function isExplicable(type: string): boolean {
 function isCoercible(...args: string[]): boolean {
   return args.every(elem => {
     const value = elem.toLowerCase()
+
     return value !== 'boolean' && value !== 'symbol'
   })
 }

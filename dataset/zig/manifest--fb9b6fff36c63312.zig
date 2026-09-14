@@ -81,8 +81,11 @@ pub fn TreeTableInfoType(comptime Table: type) type {
         pub fn invisible(table: *const TreeTableInfo, snapshots: []const u64) bool {
             // Return early and do not iterate all snapshots if the table was never deleted:
             if (table.visible(snapshot_latest)) return false;
+
             for (snapshots) |snapshot| if (table.visible(snapshot)) return false;
+
             assert(table.snapshot_max < math.maxInt(u64));
+
             return true;
         }
 
@@ -162,6 +165,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
         pub const TableInfoReference = Level.TableInfoReference;
         pub const KeyRange = Level.KeyRange;
         pub const ManifestLog = ManifestLogType(Storage);
+
         pub const Level =
             ManifestLevelType(NodePool, Key, TreeTableInfo, table_count_max_tree);
 
@@ -211,8 +215,10 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
 
             for (&manifest.levels, 0..) |*level, i| {
                 errdefer for (manifest.levels[0..i]) |*l| l.deinit(allocator, node_pool);
+
                 try level.init(allocator, node_pool);
             }
+
             errdefer for (&manifest.levels) |*level| level.deinit(allocator, node_pool);
         }
 
@@ -244,6 +250,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             table: *const TreeTableInfo,
         ) void {
             const manifest_level = &manifest.levels[level];
+
             if (constants.verify) {
                 assert(!manifest_level.contains(table));
             }
@@ -270,15 +277,20 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             table_ref: TableInfoReference,
         ) void {
             assert(manifest.manifest_log.?.opened);
+
             const manifest_level = &manifest.levels[level];
 
             var table = table_ref.table_info;
+
             if (constants.verify) {
                 assert(manifest_level.contains(table));
             }
+
             assert(table.snapshot_max >= snapshot);
             assert(table.snapshot_min <= snapshot);
+
             manifest_level.set_snapshot_max(snapshot, table_ref);
+
             assert(table.snapshot_max == snapshot);
 
             // Append update changes to the manifest log.
@@ -317,6 +329,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             // LIFO order and duplicates are ignored. This means the table will only be replayed in
             // level B instead of the old one in level A.
             manifest_level_b.insert_table(manifest.node_pool, table);
+
             manifest.manifest_log.?.append(&table.encode(.{
                 .tree_id = manifest.config.id,
                 .event = .update,
@@ -334,12 +347,14 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             assert(manifest.manifest_log.?.opened);
 
             var manifest_range: ?KeyRange = null;
+
             for (&manifest.levels) |*level| {
                 if (level.key_range_latest.key_range) |level_range| {
                     if (manifest_range) |*range| {
                         if (level_range.key_min < range.key_min) {
                             range.key_min = level_range.key_min;
                         }
+
                         if (level_range.key_max > range.key_max) {
                             range.key_max = level_range.key_max;
                         }
@@ -348,6 +363,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                     }
                 }
             }
+
             return manifest_range;
         }
 
@@ -378,6 +394,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                 // Copy the table onto the stack: `remove_table()` doesn't allow pointers into
                 // SegmentedArray memory since it invalidates them.
                 const table: TreeTableInfo = table_pointer.*;
+
                 assert(table.snapshot_max < snapshot_latest);
                 assert(table.invisible(snapshots));
                 assert(key_min <= table.key_max);
@@ -389,6 +406,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                     .event = .remove,
                     .level = @intCast(level),
                 }));
+
                 manifest_level.remove_table(manifest.node_pool, &table);
             }
 
@@ -416,6 +434,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             pub fn next(it: *LookupIterator) ?*const TreeTableInfo {
                 while (it.level < constants.lsm_levels) : (it.level += 1) {
                     const level = &it.manifest.levels[it.level];
+
                     if (!level.key_range_contains(it.snapshot, it.key)) continue;
 
                     var inner = level.iterator(
@@ -432,11 +451,13 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                         assert(inner.next() == null);
 
                         it.level += 1;
+
                         return table;
                     }
                 }
 
                 assert(it.level == constants.lsm_levels);
+
                 return null;
             }
         };
@@ -448,8 +469,10 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
 
             for (&manifest.levels, 0..) |*manifest_level, index| {
                 const level: u8 = @intCast(index);
+
                 const level_table_count_visible_max =
                     table_count_max_for_level(growth_factor, level);
+
                 assert(manifest_level.table_count_visible <= level_table_count_visible_max);
 
                 table_count_visible += manifest_level.table_count_visible;
@@ -459,6 +482,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
 
             if (constants.verify) {
                 var value_count_visible_verify: u64 = 0;
+
                 for (&manifest.levels) |*manifest_level| {
                     var it = manifest_level.iterator(
                         .visible,
@@ -466,8 +490,10 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                         .ascending,
                         null,
                     );
+
                     while (it.next()) |table| value_count_visible_verify += table.value_count;
                 }
+
                 assert(value_count_visible_verify == value_count_visible);
             }
 
@@ -475,10 +501,12 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                 .{ .table_count_visible = .{ .tree = @enumFromInt(manifest.config.id) } },
                 table_count_visible,
             );
+
             manifest.tracer.gauge(
                 .{ .table_count_visible_max = .{ .tree = @enumFromInt(manifest.config.id) } },
                 table_count_visible_max,
             );
+
             manifest.tracer.gauge(
                 .{ .value_count_visible = .{ .tree = @enumFromInt(manifest.config.id) } },
                 value_count_visible,
@@ -497,6 +525,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             snapshots: []const u64,
         ) void {
             var it = manifest.levels[level].iterator(.invisible, snapshots, .ascending, null);
+
             assert(it.next() == null);
         }
 
@@ -534,6 +563,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             assert(level_a < constants.lsm_levels - 1);
 
             const table_count_visible_max = table_count_max_for_level(growth_factor, level_a);
+
             assert(table_count_visible_max > 0);
 
             const manifest_level_a: *const Level = &manifest.levels[level_a];
@@ -541,6 +571,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
 
             // If even levels are compacted ahead of odd levels, then odd levels may burst.
             assert(manifest_level_a.table_count_visible <= table_count_visible_max + 1);
+
             if (manifest_level_a.table_count_visible < table_count_visible_max) return null;
 
             assert(manifest_level_a.table_count_visible > 0);
@@ -550,6 +581,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                 snapshot_latest,
                 growth_factor,
             );
+
             assert(least_overlap_table.range.tables.count() <= growth_factor);
 
             const compaction_table_range = CompactionTableRange{
@@ -560,6 +592,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                     .tables = least_overlap_table.range.tables,
                 },
             };
+
             return compaction_table_range;
         }
 
@@ -577,6 +610,7 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
 
             const level_b = 0;
             const manifest_level: *const Level = &manifest.levels[level_b];
+
             assert(manifest_level.table_count_visible <= growth_factor);
 
             // We are guaranteed to get a non-null range because Level 0 has
@@ -643,8 +677,10 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
             assert(range.key_min <= range.key_max);
 
             var level_c: u8 = level_b + 1;
+
             while (level_c < constants.lsm_levels) : (level_c += 1) {
                 const manifest_level: *const Level = &manifest.levels[level_c];
+
                 if (manifest_level.next_table(.{
                     .snapshot = snapshot_latest,
                     .direction = .ascending,
@@ -655,11 +691,13 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                     // If the range is being compacted into the last level then this is unreachable,
                     // as the last level has no subsequent levels and must always drop tombstones.
                     assert(level_b != constants.lsm_levels - 1);
+
                     return false;
                 }
             }
 
             assert(level_c == constants.lsm_levels);
+
             return true;
         }
 
@@ -670,9 +708,11 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
                 // Interior levels are non-empty.
                 .general => {
                     var empty: bool = false;
+
                     for (&manifest.levels) |*level| {
                         var level_iterator =
                             level.iterator(.visible, &.{snapshot}, .ascending, null);
+
                         if (level_iterator.next()) |_| {
                             assert(!empty);
                         } else {
@@ -694,17 +734,21 @@ pub fn ManifestType(comptime Table: type, comptime Storage: type) type {
 
             const snapshot_from_commit = vsr.Snapshot.readable_at_commit;
             const vsr_state = &manifest.manifest_log.?.grid.superblock.working.vsr_state;
+
             for (&manifest.levels) |*level| {
                 var key_max_previous: ?Key = null;
                 var table_info_iterator = level.iterator(.visible, &.{snapshot}, .ascending, null);
+
                 while (table_info_iterator.next()) |table_info| {
                     const table_snapshot = table_info.snapshot_min;
 
                     if (key_max_previous) |key_previous| {
                         assert(key_previous < table_info.key_min);
                     }
+
                     // We could have key_min == key_max if there is only one value.
                     assert(table_info.key_min <= table_info.key_max);
+
                     key_max_previous = table_info.key_max;
 
                     if (table_snapshot < snapshot_from_commit(vsr_state.sync_op_min) or

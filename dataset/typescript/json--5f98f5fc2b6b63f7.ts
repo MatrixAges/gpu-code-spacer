@@ -15,5 +15,6 @@ export interface JsonOptions {
 
 const jsonLangs = `\\.(?:json|json5)(?:$|\\?)`
 const jsonLangRE = new RegExp(jsonLangs)
+
 export const isJSONRequest = (request: string): boolean =>
   jsonLangRE.test(request)

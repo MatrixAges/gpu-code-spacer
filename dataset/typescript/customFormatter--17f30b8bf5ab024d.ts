@@ -8,6 +8,7 @@ import {
   resetTracking,
   toRaw,
 } from '@vue/reactivity'
+
 import { EMPTY_OBJ, extend, isArray, isFunction, isObject } from '@vue/shared'
 import type { ComponentInternalInstance, ComponentOptions } from './component'
 import type { ComponentPublicInstance } from './componentPublicInstance'
@@ -38,8 +39,11 @@ export function initCustomFormatter(): void {
       } else if (isRef(obj)) {
         // avoid tracking during debugger accessing
         pauseTracking()
+
         const value = obj.value
+
         resetTracking()
+
         return [
           'div',
           {},
@@ -67,6 +71,7 @@ export function initCustomFormatter(): void {
           '>',
         ]
       }
+
       return null
     },
     hasBody(obj: unknown) {
@@ -85,20 +90,27 @@ export function initCustomFormatter(): void {
 
   function formatInstance(instance: ComponentInternalInstance) {
     const blocks = []
+
     if (instance.type.props && instance.props) {
       blocks.push(createInstanceBlock('props', toRaw(instance.props)))
     }
+
     if (instance.setupState !== EMPTY_OBJ) {
       blocks.push(createInstanceBlock('setup', instance.setupState))
     }
+
     if (instance.data !== EMPTY_OBJ) {
       blocks.push(createInstanceBlock('data', toRaw(instance.data)))
     }
+
     const computed = extractKeys(instance, 'computed')
+
     if (computed) {
       blocks.push(createInstanceBlock('computed', computed))
     }
+
     const injected = extractKeys(instance, 'inject')
+
     if (injected) {
       blocks.push(createInstanceBlock('injected', injected))
     }
@@ -115,14 +127,17 @@ export function initCustomFormatter(): void {
       ],
       ['object', { object: instance }],
     ])
+
     return blocks
   }
 
   function createInstanceBlock(type: string, target: any) {
     target = extend({}, target)
+
     if (!Object.keys(target).length) {
       return ['span', {}]
     }
+
     return [
       'div',
       { style: 'line-height:1.25em;margin-bottom:0.6em' },
@@ -166,29 +181,36 @@ export function initCustomFormatter(): void {
 
   function extractKeys(instance: ComponentInternalInstance, type: string) {
     const Comp = instance.type
+
     if (isFunction(Comp)) {
       return
     }
+
     const extracted: Record<string, any> = {}
+
     for (const key in instance.ctx) {
       if (isKeyOfType(Comp, key, type)) {
         extracted[key] = instance.ctx[key]
       }
     }
+
     return extracted
   }
 
   function isKeyOfType(Comp: ComponentOptions, key: string, type: string) {
     const opts = Comp[type]
+
     if (
       (isArray(opts) && opts.includes(key)) ||
       (isObject(opts) && key in opts)
     ) {
       return true
     }
+
     if (Comp.extends && isKeyOfType(Comp.extends, key, type)) {
       return true
     }
+
     if (Comp.mixins && Comp.mixins.some(m => isKeyOfType(m, key, type))) {
       return true
     }
@@ -198,9 +220,11 @@ export function initCustomFormatter(): void {
     if (isShallow(v)) {
       return `ShallowRef`
     }
+
     if ((v as any).effect) {
       return `ComputedRef`
     }
+
     return `Ref`
   }
 

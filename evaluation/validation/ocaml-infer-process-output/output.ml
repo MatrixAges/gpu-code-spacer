@@ -8,6 +8,7 @@ let create_process_and_wait_with_output ~prog ~args ?(env = `Extend []) action =
   in
 
   let escaped_cmd = List.map ~f:Escape.escape_shell (prog :: args) |> String.concat ~sep:" " in
+
   let redirected_cmd = Printf.sprintf "exec %s %s'%s'" escaped_cmd redirect_spec output_file in
 
   let {IUnix.Process_info.stdin; stdout; stderr; pid} =
@@ -21,6 +22,7 @@ let create_process_and_wait_with_output ~prog ~args ?(env = `Extend []) action =
   let channel_to_log = Unix.in_channel_of_descr fd_to_log in
 
   Utils.with_channel_in channel_to_log ~f:(L.progress "%s-%s: %s@." prog redirected_fd_name) ;
+
   In_channel.close channel_to_log ;
   Unix.close redirected_fd ;
   Unix.close stdin ;

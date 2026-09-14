@@ -30,7 +30,6 @@ export default (node: LexicalNode) => {
 			const p = $createParagraphNode()
 
 			node.insertAfter(p)
-
 			p.selectStart()
 		}
 	}

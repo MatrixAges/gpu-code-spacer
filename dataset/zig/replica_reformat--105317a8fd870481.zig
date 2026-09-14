@@ -73,14 +73,18 @@ pub fn ReplicaReformatType(
             _ = reformat;
             _ = allocator;
         }
+
         pub fn done(reformat: *const ReplicaReformat) ?Result {
             assert(reformat.requests_done <= constants.pipeline_prepare_queue_max);
+
             return reformat.result;
         }
 
         pub fn start(reformat: *ReplicaReformat) void {
             assert(reformat.requests_done == 0);
+
             const user_data = @intFromPtr(reformat);
+
             reformat.client.register(client_register_callback, user_data);
         }
 
@@ -90,11 +94,15 @@ pub fn ReplicaReformatType(
 
         pub fn format(reformat: *ReplicaReformat) !void {
             assert(reformat.safe_view != null);
+
             const safe_view = reformat.safe_view.?;
+
             reformat.safe_view = null;
 
             var options = reformat.options;
+
             assert(options.view == null);
+
             options.view = safe_view;
 
             try replica_format.format(
@@ -110,13 +118,16 @@ pub fn ReplicaReformatType(
             register_result: *const vsr.RegisterResult,
         ) void {
             _ = register_result;
+
             const reformat: *ReplicaReformat = @ptrFromInt(@as(usize, @intCast(user_data)));
+
             assert(reformat.requests_done == 0);
             assert(reformat.safe_view == null);
 
             log.debug("{}: register", .{reformat.options.replica});
 
             reformat.requests_done += 1;
+
             reformat.client_request();
         }
 
@@ -130,6 +141,7 @@ pub fn ReplicaReformatType(
             });
 
             const message = reformat.client.get_message().build(.request);
+
             errdefer reformat.client.release_message(message.base());
 
             message.header.* = .{
@@ -144,6 +156,7 @@ pub fn ReplicaReformatType(
             };
 
             const user_data = @intFromPtr(reformat);
+
             reformat.client.raw_request(client_request_callback, user_data, message);
         }
 
@@ -157,6 +170,7 @@ pub fn ReplicaReformatType(
             assert(timestamp > 0);
 
             const reformat: *ReplicaReformat = @ptrFromInt(@as(usize, @intCast(user_data)));
+
             assert(reformat.requests_done > 0);
             assert(reformat.requests_done < constants.pipeline_prepare_queue_max);
             assert(reformat.safe_view == null);
@@ -168,6 +182,7 @@ pub fn ReplicaReformatType(
             });
 
             reformat.requests_done += 1;
+
             if (reformat.requests_done == constants.pipeline_prepare_queue_max) {
                 // +2 since we might have sent a JV as part of +1 before we crashed.
                 reformat.safe_view = reformat.client.view + 2;

@@ -67,11 +67,14 @@ pub const Instant = struct {
             .wasi => {
                 var ns: std.os.wasi.timestamp_t = undefined;
                 const rc = std.os.wasi.clock_time_get(.MONOTONIC, 1, &ns);
+
                 if (rc != .SUCCESS) return error.Unsupported;
+
                 return .{ .timestamp = ns };
             },
             .uefi => {
                 const value, _ = std.os.uefi.system_table.runtime_services.getTime() catch return error.Unsupported;
+
                 return .{ .timestamp = value.toEpoch() };
             },
             // On darwin, use UPTIME_RAW instead of MONOTONIC as it ticks while
@@ -89,6 +92,7 @@ pub const Instant = struct {
         };
 
         const ts = posix.clock_gettime(clock_id) catch return error.Unsupported;
+
         return .{ .timestamp = ts };
     }
 
@@ -100,9 +104,11 @@ pub const Instant = struct {
         }
 
         var ord = std.math.order(self.timestamp.sec, other.timestamp.sec);
+
         if (ord == .eq) {
             ord = std.math.order(self.timestamp.nsec, other.timestamp.nsec);
         }
+
         return ord;
     }
 
@@ -122,6 +128,7 @@ pub const Instant = struct {
                 // 10Mhz (1 qpc tick every 100ns) is a common enough QPF value that we can optimize on it.
                 // https://github.com/microsoft/STL/blob/785143a0c73f030238ef618890fd4d6ae2b3a3a0/stl/inc/chrono#L694-L701
                 const common_qpf = 10_000_000;
+
                 if (qpf == common_qpf) {
                     return qpc * (ns_per_s / common_qpf);
                 }
@@ -129,6 +136,7 @@ pub const Instant = struct {
                 // Convert to ns using fixed point.
                 const scale = @as(u64, std.time.ns_per_s << 32) / @as(u32, @intCast(qpf));
                 const result = (@as(u96, qpc) * scale) >> 32;
+
                 return @as(u64, @truncate(result));
             },
             .uefi, .wasi => {
@@ -139,6 +147,7 @@ pub const Instant = struct {
                 // Convert timespec diff to ns
                 const seconds = @as(u64, @intCast(self.timestamp.sec - earlier.timestamp.sec));
                 const elapsed = (seconds * ns_per_s) + @as(u32, @intCast(self.timestamp.nsec));
+
                 return elapsed - @as(u32, @intCast(earlier.timestamp.nsec));
             },
         }
@@ -166,25 +175,30 @@ pub const Timer = struct {
     /// This should only fail in hostile environments such as linux seccomp misuse.
     pub fn start() Error!Timer {
         const current = Instant.now() catch return error.TimerUnsupported;
+
         return Timer{ .started = current, .previous = current };
     }
 
     /// Reads the timer value since start or the last reset in nanoseconds.
     pub fn read(self: *Timer) u64 {
         const current = self.sample();
+
         return current.since(self.started);
     }
 
     /// Resets the timer value to 0/now.
     pub fn reset(self: *Timer) void {
         const current = self.sample();
+
         self.started = current;
     }
 
     /// Returns the current value of the timer in nanoseconds, then resets it.
     pub fn lap(self: *Timer) u64 {
         const current = self.sample();
+
         defer self.started = current;
+
         return current.since(self.started);
     }
 
@@ -192,9 +206,11 @@ pub const Timer = struct {
     /// guaranteed to be monotonic with respect to the timer's starting point.
     fn sample(self: *Timer) Instant {
         const current = Instant.now() catch unreachable;
+
         if (current.order(self.previous) == .gt) {
             self.previous = current;
         }
+
         return self.previous;
     }
 };
@@ -205,10 +221,13 @@ test Timer {
     var timer = try Timer.start();
 
     try std.Io.Clock.Duration.sleep(.{ .clock = .awake, .raw = .fromMilliseconds(10) }, io);
+
     const time_0 = timer.read();
+
     try testing.expect(time_0 > 0);
 
     const time_1 = timer.lap();
+
     try testing.expect(time_1 >= time_0);
 }
 

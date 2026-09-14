@@ -7,6 +7,7 @@ import type CodeTextNode from '../CodeTextNode'
 
 export default (selection: RangeSelection) => {
 	const nodes = selection.getNodes()
+
 	const lines: Array<Array<CodeTextNode | TabNode>> = [[]]
 
 	if (nodes.length === 1 && $isCodeNode(nodes[0])) return lines

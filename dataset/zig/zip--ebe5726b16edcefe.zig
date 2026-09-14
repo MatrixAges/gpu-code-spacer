@@ -22,6 +22,7 @@ pub const local_file_header_sig = [4]u8{ 'P', 'K', 3, 4 };
 pub const end_record_sig = [4]u8{ 'P', 'K', 5, 6 };
 pub const end_record64_sig = [4]u8{ 'P', 'K', 6, 6 };
 pub const end_locator64_sig = [4]u8{ 'P', 'K', 6, 7 };
+
 pub const ExtraHeader = enum(u16) {
     zip64_info = 0x1,
     _,
@@ -108,10 +109,14 @@ pub const EndRecord = extern struct {
     /// TODO audit this logic
     pub fn findBuffer(buffer: []const u8) FindBufferError!EndRecord {
         const pos = std.mem.lastIndexOf(u8, buffer, &end_record_sig) orelse return error.ZipNoEndRecord;
+
         if (pos + @sizeOf(EndRecord) > buffer.len) return error.EndOfStream;
+
         const record_ptr: *EndRecord = @ptrCast(buffer[pos..][0..@sizeOf(EndRecord)]);
         var record = record_ptr.*;
+
         if (!is_le) std.mem.byteSwapAllFields(EndRecord, &record);
+
         return record;
     }
 
@@ -128,8 +133,10 @@ pub const EndRecord = extern struct {
         const record_len_max = @min(end_pos, buf.len);
         var loaded_len: u32 = 0;
         var comment_len: u16 = 0;
+
         while (true) {
             const record_len: u32 = @as(u32, comment_len) + @sizeOf(EndRecord);
+
             if (record_len > record_len_max)
                 return error.ZipNoEndRecord;
 
@@ -138,25 +145,32 @@ pub const EndRecord = extern struct {
                 const read_len = new_loaded_len - loaded_len;
 
                 try fr.seekTo(end_pos - @as(u64, new_loaded_len));
+
                 const read_buf: []u8 = buf[buf.len - new_loaded_len ..][0..read_len];
+
                 fr.interface.readSliceAll(read_buf) catch |err| switch (err) {
                     error.ReadFailed => return fr.err.?,
                     error.EndOfStream => return error.EndOfStream,
                 };
+
                 loaded_len = new_loaded_len;
             }
 
             const record_bytes = buf[buf.len - record_len ..][0..@sizeOf(EndRecord)];
+
             if (std.mem.eql(u8, record_bytes[0..4], &end_record_sig) and
                 std.mem.readInt(u16, record_bytes[20..22], .little) == comment_len)
             {
                 const record: *align(1) EndRecord = @ptrCast(record_bytes.ptr);
+
                 if (!is_le) std.mem.byteSwapAllFields(EndRecord, record);
+
                 return record.*;
             }
 
             if (comment_len == std.math.maxInt(u16))
                 return error.ZipNoEndRecord;
+
             comment_len += 1;
         }
     }
@@ -164,6 +178,7 @@ pub const EndRecord = extern struct {
 
 pub const Decompress = struct {
     interface: Reader,
+
     state: union {
         inflate: flate.Decompress,
         store: *Reader,
@@ -197,11 +212,13 @@ pub const Decompress = struct {
 
     fn streamStore(r: *Reader, w: *Writer, limit: std.Io.Limit) Reader.StreamError!usize {
         const d: *Decompress = @fieldParentPtr("interface", r);
+
         return d.store.read(w, limit);
     }
 
     fn streamDeflate(r: *Reader, w: *Writer, limit: std.Io.Limit) Reader.StreamError!usize {
         const d: *Decompress = @fieldParentPtr("interface", r);
+
         return flate.Decompress.read(&d.inflate, w, limit);
     }
 };
@@ -211,6 +228,7 @@ fn isBadFilename(filename: []const u8) bool {
         return true;
 
     var it = std.mem.splitScalar(u8, filename, '/');
+
     while (it.next()) |part| {
         if (std.mem.eql(u8, part, ".."))
             return true;
@@ -231,16 +249,22 @@ const FileExtents = struct {
 
 fn readZip64FileExtents(comptime T: type, header: T, extents: *FileExtents, data: []u8) !void {
     var data_offset: usize = 0;
+
     if (isMaxInt(header.uncompressed_size)) {
         if (data_offset + 8 > data.len)
             return error.ZipBadCd64Size;
+
         extents.uncompressed_size = std.mem.readInt(u64, data[data_offset..][0..8], .little);
+
         data_offset += 8;
     }
+
     if (isMaxInt(header.compressed_size)) {
         if (data_offset + 8 > data.len)
             return error.ZipBadCd64Size;
+
         extents.compressed_size = std.mem.readInt(u64, data[data_offset..][0..8], .little);
+
         data_offset += 8;
     }
 
@@ -249,17 +273,24 @@ fn readZip64FileExtents(comptime T: type, header: T, extents: *FileExtents, data
             if (isMaxInt(header.local_file_header_offset)) {
                 if (data_offset + 8 > data.len)
                     return error.ZipBadCd64Size;
+
                 extents.local_file_header_offset = std.mem.readInt(u64, data[data_offset..][0..8], .little);
+
                 data_offset += 8;
             }
+
             if (isMaxInt(header.disk_number)) {
                 if (data_offset + 4 > data.len)
                     return error.ZipInvalid;
+
                 const disk_number = std.mem.readInt(u32, data[data_offset..][0..4], .little);
+
                 if (disk_number != 0)
                     return error.ZipMultiDiskUnsupported;
+
                 data_offset += 4;
             }
+
             if (data_offset > data.len)
                 return error.ZipBadCd64Size;
         },
@@ -288,6 +319,7 @@ pub const Iterator = struct {
 
         {
             const counts_valid = !isMaxInt(end_record.record_count_disk) and !isMaxInt(end_record.record_count_total);
+
             if (counts_valid and end_record.record_count_disk != end_record.record_count_total)
                 return error.ZipMultiDiskUnsupported;
         }
@@ -298,6 +330,7 @@ pub const Iterator = struct {
             .cd_zip_offset = end_record.central_directory_offset,
             .cd_size = end_record.central_directory_size,
         };
+
         if (!end_record.need_zip64()) return result;
 
         const locator_end_offset: u64 = @as(u64, end_record.comment_len) + @sizeOf(EndRecord) + @sizeOf(EndLocator64);
@@ -305,15 +338,20 @@ pub const Iterator = struct {
 
         if (locator_end_offset > stream_len)
             return error.ZipTruncated;
+
         try input.seekTo(stream_len - locator_end_offset);
+
         const locator = input.interface.takeStruct(EndLocator64, .little) catch |err| switch (err) {
             error.ReadFailed => return input.err.?,
             error.EndOfStream => return error.EndOfStream,
         };
+
         if (!std.mem.eql(u8, &locator.signature, &end_locator64_sig))
             return error.ZipBadLocatorSig;
+
         if (locator.zip64_disk_count != 0)
             return error.ZipUnsupportedZip64DiskCount;
+
         if (locator.total_disk_count != 1)
             return error.ZipMultiDiskUnsupported;
 
@@ -329,6 +367,7 @@ pub const Iterator = struct {
 
         if (record64.end_record_size < @sizeOf(EndRecord64) - 12)
             return error.ZipEndRecord64SizeTooSmall;
+
         if (record64.end_record_size > @sizeOf(EndRecord64) - 12)
             return error.ZipEndRecord64UnhandledExtraData;
 
@@ -339,6 +378,7 @@ pub const Iterator = struct {
             const is_multidisk = record64.disk_number != 0 or
                 record64.central_directory_disk_number != 0 or
                 record64.record_count_disk != record64.record_count_total;
+
             if (is_multidisk)
                 return error.ZipMultiDiskUnsupported;
         }
@@ -374,11 +414,14 @@ pub const Iterator = struct {
 
         const header_zip_offset = self.cd_zip_offset + self.cd_record_offset;
         const input = self.input;
+
         try input.seekTo(header_zip_offset);
+
         const header = input.interface.takeStruct(CentralDirectoryFileHeader, .little) catch |err| switch (err) {
             error.ReadFailed => return input.err.?,
             error.EndOfStream => return error.EndOfStream,
         };
+
         if (!std.mem.eql(u8, &header.signature, &central_file_header_sig))
             return error.ZipBadCdOffset;
 
@@ -391,6 +434,7 @@ pub const Iterator = struct {
 
         if (header.flags.encrypted)
             return error.ZipEncryptionUnsupported;
+
         // TODO: check/verify more flags
         if (header.disk_number != 0)
             return error.ZipMultiDiskUnsupported;
@@ -406,23 +450,29 @@ pub const Iterator = struct {
             const extra = extra_buf[0..header.extra_len];
 
             try input.seekTo(header_zip_offset + @sizeOf(CentralDirectoryFileHeader) + header.filename_len);
+
             input.interface.readSliceAll(extra) catch |err| switch (err) {
                 error.ReadFailed => return input.err.?,
                 error.EndOfStream => return error.EndOfStream,
             };
 
             var extra_offset: usize = 0;
+
             while (extra_offset + 4 <= extra.len) {
                 const header_id = std.mem.readInt(u16, extra[extra_offset..][0..2], .little);
                 const data_size = std.mem.readInt(u16, extra[extra_offset..][2..4], .little);
                 const end = extra_offset + 4 + data_size;
+
                 if (end > extra.len)
                     return error.ZipBadExtraFieldSize;
+
                 const data = extra[extra_offset + 4 .. end];
+
                 switch (@as(ExtraHeader, @enumFromInt(header_id))) {
                     .zip64_info => try readZip64FileExtents(CentralDirectoryFileHeader, header, &extents, data),
                     else => {}, // ignore
                 }
+
                 extra_offset = end;
             }
         }
@@ -464,11 +514,14 @@ pub const Iterator = struct {
         ) !void {
             if (filename_buf.len < self.filename_len)
                 return error.ZipInsufficientBuffer;
+
             switch (self.compression_method) {
                 .store, .deflate => {},
                 else => return error.UnsupportedCompressionMethod,
             }
+
             const filename = filename_buf[0..self.filename_len];
+
             {
                 try stream.seekTo(self.header_zip_offset + @sizeOf(CentralDirectoryFileHeader));
                 try stream.interface.readSliceAll(filename);
@@ -477,26 +530,34 @@ pub const Iterator = struct {
             const local_data_header_offset: u64 = local_data_header_offset: {
                 const local_header = blk: {
                     try stream.seekTo(self.file_offset);
+
                     break :blk try stream.interface.takeStruct(LocalFileHeader, .little);
                 };
+
                 if (!std.mem.eql(u8, &local_header.signature, &local_file_header_sig))
                     return error.ZipBadFileOffset;
+
                 if (local_header.version_needed_to_extract != self.version_needed_to_extract)
                     return error.ZipMismatchVersionNeeded;
+
                 if (local_header.last_modification_time != self.last_modification_time)
                     return error.ZipMismatchModTime;
+
                 if (local_header.last_modification_date != self.last_modification_date)
                     return error.ZipMismatchModDate;
 
                 if (@as(u16, @bitCast(local_header.flags)) != @as(u16, @bitCast(self.flags)))
                     return error.ZipMismatchFlags;
+
                 if (local_header.crc32 != 0 and local_header.crc32 != self.crc32)
                     return error.ZipMismatchCrc32;
+
                 var extents: FileExtents = .{
                     .uncompressed_size = local_header.uncompressed_size,
                     .compressed_size = local_header.compressed_size,
                     .local_file_header_offset = 0,
                 };
+
                 if (local_header.extra_len > 0) {
                     var extra_buf: [std.math.maxInt(u16)]u8 = undefined;
                     const extra = extra_buf[0..local_header.extra_len];
@@ -507,17 +568,22 @@ pub const Iterator = struct {
                     }
 
                     var extra_offset: usize = 0;
+
                     while (extra_offset + 4 <= local_header.extra_len) {
                         const header_id = std.mem.readInt(u16, extra[extra_offset..][0..2], .little);
                         const data_size = std.mem.readInt(u16, extra[extra_offset..][2..4], .little);
                         const end = extra_offset + 4 + data_size;
+
                         if (end > local_header.extra_len)
                             return error.ZipBadExtraFieldSize;
+
                         const data = extra[extra_offset + 4 .. end];
+
                         switch (@as(ExtraHeader, @enumFromInt(header_id))) {
                             .zip64_info => try readZip64FileExtents(LocalFileHeader, local_header, &extents, data),
                             else => {}, // ignore
                         }
+
                         extra_offset = end;
                     }
                 }
@@ -525,6 +591,7 @@ pub const Iterator = struct {
                 if (extents.compressed_size != 0 and
                     extents.compressed_size != self.compressed_size)
                     return error.ZipMismatchCompLen;
+
                 if (extents.uncompressed_size != 0 and
                     extents.uncompressed_size != self.uncompressed_size)
                     return error.ZipMismatchUncompLen;
@@ -550,27 +617,36 @@ pub const Iterator = struct {
             if (filename[filename.len - 1] == '/') {
                 if (self.uncompressed_size != 0)
                     return error.ZipBadDirectorySize;
+
                 try dest.makePath(filename[0 .. filename.len - 1]);
+
                 return;
             }
 
             const out_file = blk: {
                 if (std.fs.path.dirname(filename)) |dirname| {
                     var parent_dir = try dest.makeOpenPath(dirname, .{});
+
                     defer parent_dir.close();
 
                     const basename = std.fs.path.basename(filename);
+
                     break :blk try parent_dir.createFile(basename, .{ .exclusive = true });
                 }
+
                 break :blk try dest.createFile(filename, .{ .exclusive = true });
             };
+
             defer out_file.close();
+
             var out_file_buffer: [1024]u8 = undefined;
             var file_writer = out_file.writer(&out_file_buffer);
+
             const local_data_file_offset: u64 =
                 @as(u64, self.file_offset) +
                 @as(u64, @sizeOf(LocalFileHeader)) +
                 local_data_header_offset;
+
             try stream.seekTo(local_data_file_offset);
 
             // TODO limit based on self.compressed_size
@@ -586,6 +662,7 @@ pub const Iterator = struct {
                 .deflate => {
                     var flate_buffer: [flate.max_window_len]u8 = undefined;
                     var decompress: flate.Decompress = .init(&stream.interface, .raw, &flate_buffer);
+
                     decompress.reader.streamExact64(&file_writer.interface, self.uncompressed_size) catch |err| switch (err) {
                         error.ReadFailed => return stream.err.?,
                         error.WriteFailed => return file_writer.err orelse decompress.err.?,
@@ -594,6 +671,7 @@ pub const Iterator = struct {
                 },
                 else => return error.UnsupportedCompressionMethod,
             }
+
             try file_writer.end();
         }
     };
@@ -616,6 +694,7 @@ pub const Diagnostics = struct {
 
     pub fn deinit(self: *Diagnostics) void {
         self.allocator.free(self.root_dir);
+
         self.* = undefined;
     }
 
@@ -625,13 +704,18 @@ pub const Diagnostics = struct {
     pub fn nextFilename(self: *Diagnostics, name: []const u8) error{OutOfMemory}!void {
         if (!self.saw_first_file) {
             self.saw_first_file = true;
+
             std.debug.assert(self.root_dir.len == 0);
+
             const root_len = std.mem.indexOfScalar(u8, name, '/') orelse return;
+
             std.debug.assert(root_len > 0);
+
             self.root_dir = try self.allocator.dupe(u8, name[0..root_len]);
         } else if (self.root_dir.len > 0) {
             if (!filenameInRoot(name, self.root_dir)) {
                 self.allocator.free(self.root_dir);
+
                 self.root_dir = "";
             }
         }
@@ -653,8 +737,10 @@ pub fn extract(dest: std.fs.Dir, fr: *File.Reader, options: ExtractOptions) !voi
     var iter = try Iterator.init(fr);
 
     var filename_buf: [std.fs.max_path_bytes]u8 = undefined;
+
     while (try iter.next()) |entry| {
         try entry.extract(fr, options, &filename_buf, dest);
+
         if (options.diagnostics) |d| {
             try d.nextFilename(filename_buf[0..entry.filename_len]);
         }

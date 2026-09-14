@@ -30,5 +30,6 @@ pub fn buffer_limit(buffer_len: usize) usize {
         .macos, .ios, .watchos, .tvos => std.math.maxInt(i32),
         else => std.math.maxInt(isize),
     };
+
     return @min(limit, buffer_len);
 }

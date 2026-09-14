@@ -5,6 +5,7 @@ import type TableCellNode from '../TableCellNode'
 
 export default (table_cell_node: TableCellNode, table: Table) => {
 	const table_node = $findTableNode(table_cell_node)
+
 	const { x, y } = table_node.getCordsFromCellNode(table_cell_node, table)
 
 	return {

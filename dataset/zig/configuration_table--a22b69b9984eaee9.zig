@@ -13,6 +13,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0x22,
         .node = [_]u8{ 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81 },
     };
+
     pub const acpi_10_table_guid: Guid = .{
         .time_low = 0xeb9d2d30,
         .time_mid = 0x2d88,
@@ -21,6 +22,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0x16,
         .node = [_]u8{ 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d },
     };
+
     pub const sal_system_table_guid: Guid = .{
         .time_low = 0xeb9d2d32,
         .time_mid = 0x2d88,
@@ -29,6 +31,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0x16,
         .node = [_]u8{ 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d },
     };
+
     pub const smbios_table_guid: Guid = .{
         .time_low = 0xeb9d2d31,
         .time_mid = 0x2d88,
@@ -37,6 +40,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0x16,
         .node = [_]u8{ 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d },
     };
+
     pub const smbios3_table_guid: Guid = .{
         .time_low = 0xf2fd1544,
         .time_mid = 0x9794,
@@ -45,6 +49,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0x2e,
         .node = [_]u8{ 0xe5, 0xbb, 0xcf, 0x20, 0xe3, 0x94 },
     };
+
     pub const mps_table_guid: Guid = .{
         .time_low = 0xeb9d2d2f,
         .time_mid = 0x2d88,
@@ -53,6 +58,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0x16,
         .node = [_]u8{ 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d },
     };
+
     pub const json_config_data_table_guid: Guid = .{
         .time_low = 0x87367f87,
         .time_mid = 0x1119,
@@ -61,6 +67,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0xec,
         .node = [_]u8{ 0x8b, 0xe0, 0x11, 0x1f, 0x55, 0x8a },
     };
+
     pub const json_capsule_data_table_guid: Guid = .{
         .time_low = 0x35e7a725,
         .time_mid = 0x8dd2,
@@ -69,6 +76,7 @@ pub const ConfigurationTable = extern struct {
         .clock_seq_low = 0x11,
         .node = [_]u8{ 0x33, 0xcd, 0xa8, 0x10, 0x90, 0x56 },
     };
+
     pub const json_capsule_result_table_guid: Guid = .{
         .time_low = 0xdbc461c3,
         .time_mid = 0xb3de,

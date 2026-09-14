@@ -25,6 +25,7 @@ import type { Alias, AliasOptions } from '#dep-types/alias'
 import type { FSWatcher } from '#dep-types/chokidar'
 import { createIsBuiltin } from '../shared/builtin'
 import { VALID_ID_PREFIX } from '../shared/constants'
+
 import {
   cleanUrl,
   isWindows,
@@ -32,8 +33,10 @@ import {
   splitFileAndPostfix,
   withTrailingSlash,
 } from '../shared/utils'
+
 import type { BuildEnvironmentOptions } from './build'
 import type { ResolvedConfig } from './config'
+
 import {
   CLIENT_ENTRY,
   CLIENT_PUBLIC_PATH,
@@ -44,6 +47,7 @@ import {
   loopbackHosts,
   wildcardHosts,
 } from './constants'
+
 import type { DepOptimizationOptions } from './optimizer'
 import { type PackageCache, findNearestPackageData } from './packages'
 import type { PreviewServer } from './preview'
@@ -58,6 +62,7 @@ export type FilterPattern =
   | string
   | RegExp
   | null
+
 export const createFilter = _createFilter as (
   include?: FilterPattern,
   exclude?: FilterPattern,
@@ -69,6 +74,7 @@ export { withFilter } from 'rolldown/filter'
 // eslint-disable-next-line no-control-regex
 const invalidUrlPathCharRE = /[\u0000-\u001F"#$%&*+,:;<=>?[\]^`{|}\u007F]/g
 const replaceNestedIdRE = /\s*>\s*/g
+
 export const flattenId = (id: string): string => {
   const flatId = limitFlattenIdLength(
     id
@@ -82,6 +88,7 @@ export const flattenId = (id: string): string => {
         (c) => '_0' + c.charCodeAt(0).toString(16) + '_',
       ),
   )
+
   return flatId
 }
 
@@ -95,6 +102,7 @@ const limitFlattenIdLength = (
   if (id.length <= limit) {
     return id
   }
+
   return id.slice(0, limit - (FLATTEN_ID_HASH_LENGTH + 1)) + '_' + getHash(id)
 }
 
@@ -115,10 +123,13 @@ const isBuiltinCache = new WeakMap<
 
 export function isBuiltin(builtins: (string | RegExp)[], id: string): boolean {
   let isBuiltin = isBuiltinCache.get(builtins)
+
   if (!isBuiltin) {
     isBuiltin = createIsBuiltin(builtins)
+
     isBuiltinCache.set(builtins, isBuiltin)
   }
+
   return isBuiltin(id)
 }
 
@@ -134,6 +145,7 @@ export function isNodeLikeBuiltin(id: string): boolean {
 
 export function isNodeBuiltin(id: string): boolean {
   if (id.startsWith(NODE_BUILTIN_NAMESPACE)) return true
+
   return nodeBuiltins.includes(id)
 }
 
@@ -157,6 +169,7 @@ export function isOptimizable(
   optimizeDeps: DepOptimizationOptions,
 ): boolean {
   const { extensions } = optimizeDeps
+
   return (
     OPTIMIZABLE_ENTRY_RE.test(id) ||
     (extensions?.some((ext) => id.endsWith(ext)) ?? false)
@@ -172,6 +185,7 @@ export const _dirname: string = path.dirname(
 
 // https://github.com/rolldown/rolldown/blob/62fba31428af244f871f0e119ed43936ee5d01fd/packages/rolldown/src/log/logger.ts#L64
 export const rollupVersion = '4.23.0'
+
 export { VERSION as rolldownVersion } from 'rolldown'
 
 // set in bin/vite.js
@@ -191,6 +205,7 @@ export function createDebugger(
   options: DebuggerOptions = {},
 ): Debugger['log'] | undefined {
   const log = debug(namespace)
+
   const { onlyWhenFocused, depth } = options
 
   if (depth && log.inspectOpts && log.inspectOpts.depth == null) {
@@ -198,8 +213,10 @@ export function createDebugger(
   }
 
   let enabled = log.enabled
+
   if (enabled && onlyWhenFocused) {
     const ns = typeof onlyWhenFocused === 'string' ? onlyWhenFocused : namespace
+
     enabled = !!DEBUG?.includes(ns)
   }
 
@@ -218,12 +235,14 @@ function testCaseInsensitiveFS() {
       `cannot test case insensitive FS, CLIENT_ENTRY const doesn't contain client.mjs`,
     )
   }
+
   if (!fs.existsSync(CLIENT_ENTRY)) {
     throw new Error(
       'cannot test case insensitive FS, CLIENT_ENTRY does not point to an existing file: ' +
         CLIENT_ENTRY,
     )
   }
+
   return fs.existsSync(CLIENT_ENTRY.replace('client.mjs', 'cLiEnT.mjs'))
 }
 
@@ -239,6 +258,7 @@ export function fsPathFromId(id: string): string {
   const fsPath = normalizePath(
     id.startsWith(FS_PREFIX) ? id.slice(FS_PREFIX.length) : id,
   )
+
   return fsPath[0] === '/' || VOLUME_RE.test(fsPath) ? fsPath : `/${fsPath}`
 }
 
@@ -257,6 +277,7 @@ export function fsPathFromUrl(url: string): string {
  */
 export function isParentDirectory(dir: string, file: string): boolean {
   dir = withTrailingSlash(dir)
+
   return (
     file.startsWith(dir) ||
     (isCaseInsensitiveFS && file.toLowerCase().startsWith(dir.toLowerCase()))
@@ -280,9 +301,11 @@ export function isSameFilePath(file1: string, file2: string): boolean {
 }
 
 export const externalRE: RegExp = /^([a-z]+:)?\/\//
+
 export const isExternalUrl = (url: string): boolean => externalRE.test(url)
 
 export const dataUrlRE: RegExp = /^\s*data:/i
+
 export const isDataUrl = (url: string): boolean => dataUrlRE.test(url)
 
 export const virtualModuleRE: RegExp = /^virtual-module:.*/
@@ -293,14 +316,18 @@ export const virtualModulePrefix = 'virtual-module:'
 // of browsers we support in dev all support this header.
 const knownJsSrcRE =
   /\.(?:[jt]sx?|m[jt]s|vue|marko|svelte|astro|imba|mdx)(?:$|\?)/
+
 export const isJSRequest = (url: string): boolean => {
   url = cleanUrl(url)
+
   if (knownJsSrcRE.test(url)) {
     return true
   }
+
   if (!path.extname(url) && url.at(-1) !== '/') {
     return true
   }
+
   return false
 }
 
@@ -309,27 +336,33 @@ export const isCSSRequest = (request: string): boolean =>
 
 const importQueryRE = /(\?|&)import=?(?:&|$)/
 const directRequestRE = /(\?|&)direct=?(?:&|$)/
+
 const internalPrefixes = [
   FS_PREFIX,
   VALID_ID_PREFIX,
   CLIENT_PUBLIC_PATH,
   ENV_PUBLIC_PATH,
 ]
+
 const InternalPrefixRE = new RegExp(`^(?:${internalPrefixes.join('|')})`)
 export const trailingSeparatorRE: RegExp = /[?&]$/
+
 export const isImportRequest = (url: string): boolean => importQueryRE.test(url)
+
 export const isInternalRequest = (url: string): boolean =>
   InternalPrefixRE.test(url)
 
 export function removeImportQuery(url: string): string {
   return url.replace(importQueryRE, '$1').replace(trailingSeparatorRE, '')
 }
+
 export function removeDirectQuery(url: string): string {
   return url.replace(directRequestRE, '$1').replace(trailingSeparatorRE, '')
 }
 
 export const urlRE: RegExp = /(\?|&)url(?:&|$)/
 export const rawRE: RegExp = /(\?|&)raw(?:&|$)/
+
 export function removeUrlQuery(url: string): string {
   return url.replace(urlRE, '$1').replace(trailingSeparatorRE, '')
 }
@@ -337,10 +370,12 @@ export function removeUrlQuery(url: string): string {
 export function injectQuery(url: string, queryToInject: string): string {
   const { file, postfix } = splitFileAndPostfix(url)
   const normalizedFile = isWindows ? slash(file) : file
+
   return `${normalizedFile}?${queryToInject}${postfix[0] === '?' ? `&${postfix.slice(1)}` : /* hash only */ postfix}`
 }
 
 const timestampRE = /(\?|&)t=\d{13}(?:&|$)/
+
 export function removeTimestampQuery(url: string): string {
   return url.replace(timestampRE, '$1').replace(trailingSeparatorRE, '')
 }
@@ -353,18 +388,23 @@ export async function asyncReplace(
   let match: RegExpExecArray | null
   let remaining = input
   let rewritten = ''
+
   while ((match = re.exec(remaining))) {
     rewritten += remaining.slice(0, match.index)
     rewritten += await replacer(match)
+
     remaining = remaining.slice(match.index + match[0].length)
   }
+
   rewritten += remaining
+
   return rewritten
 }
 
 export function timeFrom(start: number, subtract = 0): string {
   const time: number | string = performance.now() - start - subtract
   const timeString = (time.toFixed(2) + `ms`).padEnd(5, ' ')
+
   if (time < 10) {
     return colors.green(timeString)
   } else if (time < 50) {
@@ -379,12 +419,15 @@ export function timeFrom(start: number, subtract = 0): string {
  */
 export function prettifyUrl(url: string, root: string): string {
   url = removeTimestampQuery(url)
+
   const isAbsoluteFile = url.startsWith(root)
+
   if (isAbsoluteFile || url.startsWith(FS_PREFIX)) {
     const file = path.posix.relative(
       root,
       isAbsoluteFile ? url : fsPathFromId(url),
     )
+
     return colors.dim(file)
   } else {
     return colors.dim(url)
@@ -415,9 +458,12 @@ export function lookupFile(
   while (dir) {
     for (const fileName of fileNames) {
       const fullPath = path.join(dir, fileName)
+
       if (tryStatSync(fullPath)?.isFile()) return fullPath
     }
+
     const parentDir = path.dirname(dir)
+
     if (parentDir === dir) return
 
     dir = parentDir
@@ -443,6 +489,7 @@ export function isFilePathESM(
     // check package.json for type: "module"
     try {
       const pkg = findNearestPackageData(path.dirname(filePath), packageCache)
+
       return pkg?.data.type === 'module'
     } catch {
       return false
@@ -462,17 +509,21 @@ export function isFilePathFormatExplicit(
   if (/\.[mc][jt]s$/.test(filePath)) {
     return true
   }
+
   if (filePath.startsWith('\0')) {
     // treat virtual modules as ESM
     return true
   }
+
   if (!path.isAbsolute(filePath)) {
     // should not rely on `process.cwd()` as that would depend on
     // the environment and make it unreproducible
     return false
   }
+
   try {
     const pkg = findNearestPackageData(path.dirname(filePath), packageCache)
+
     return pkg?.data.type === 'module' || pkg?.data.type === 'commonjs'
   } catch {
     return false
@@ -493,6 +544,7 @@ function lineTerminatorLengthAt(source: string, index: number): number {
 
 export function pad(source: string, n = 2): string {
   const lines = source.split(splitRE)
+
   return lines.map((l) => ` `.repeat(n) + l).join(`\n`)
 }
 
@@ -505,18 +557,23 @@ type Pos = {
 
 export function posToNumber(source: string, pos: number | Pos): number {
   if (typeof pos === 'number') return pos
+
   const lines = source.split(splitRE)
   const { line, column } = pos
+
   let start = 0
+
   for (let i = 0; i < line - 1 && i < lines.length; i++) {
     start += lines[i].length
     start += lineTerminatorLengthAt(source, start)
   }
+
   return start + column
 }
 
 export function numberToPos(source: string, offset: number | Pos): Pos {
   if (typeof offset !== 'number') return offset
+
   if (offset > source.length) {
     throw new Error(
       `offset is longer than source length! offset ${offset} > length ${source.length}`,
@@ -524,6 +581,7 @@ export function numberToPos(source: string, offset: number | Pos): Pos {
   }
 
   const lines = source.slice(0, offset).split(splitRE)
+
   return {
     line: lines.length,
     column: lines.at(-1)!.length,
@@ -539,26 +597,34 @@ export function generateCodeFrame(
   end?: number | Pos,
 ): string {
   start = Math.max(posToNumber(source, start), 0)
+
   end = Math.min(
     end !== undefined ? posToNumber(source, end) : start,
     source.length,
   )
+
   const lastPosLine =
     end !== undefined
       ? numberToPos(source, end).line
       : numberToPos(source, start).line + range
+
   const lineNumberWidth = Math.max(3, String(lastPosLine).length + 1)
   const lines = source.split(splitRE)
+
   let count = 0
   const res: string[] = []
+
   for (let i = 0; i < lines.length; i++) {
     count += lines[i].length
+
     if (count >= start) {
       for (let j = i - range; j <= i + range || end > count; j++) {
         if (j < 0 || j >= lines.length) continue
+
         const line = j + 1
         const lineLength = lines[j].length
         const pad = Math.max(start - (count - lineLength), 0)
+
         const underlineLength = Math.max(
           1,
           end > count ? lineLength - pad : end - start,
@@ -566,32 +632,41 @@ export function generateCodeFrame(
 
         let displayLine = lines[j]
         let underlinePad = pad
+
         if (lineLength > MAX_DISPLAY_LEN) {
           let startIdx = 0
+
           if (j === i) {
             if (underlineLength > MAX_DISPLAY_LEN) {
               startIdx = pad
             } else {
               const center = pad + Math.floor(underlineLength / 2)
+
               startIdx = Math.max(0, center - Math.floor(MAX_DISPLAY_LEN / 2))
             }
+
             underlinePad =
               Math.max(0, pad - startIdx) + (startIdx > 0 ? ELLIPSIS.length : 0)
           }
+
           const prefix = startIdx > 0 ? ELLIPSIS : ''
           const suffix = lineLength - startIdx > MAX_DISPLAY_LEN ? ELLIPSIS : ''
           const sliceLen = MAX_DISPLAY_LEN - prefix.length - suffix.length
+
           displayLine =
             prefix + displayLine.slice(startIdx, startIdx + sliceLen) + suffix
         }
+
         res.push(
           `${line}${' '.repeat(lineNumberWidth - String(line).length)}|  ${displayLine}`,
         )
+
         if (j === i) {
           // push underline
           const underline = '^'.repeat(
             Math.min(underlineLength, MAX_DISPLAY_LEN),
           )
+
           res.push(
             `${' '.repeat(lineNumberWidth)}|  ` +
               ' '.repeat(underlinePad) +
@@ -601,15 +676,20 @@ export function generateCodeFrame(
           if (end > count) {
             const length = Math.max(Math.min(end - count, lineLength), 1)
             const underline = '^'.repeat(Math.min(length, MAX_DISPLAY_LEN))
+
             res.push(`${' '.repeat(lineNumberWidth)}|  ` + underline)
           }
+
           count += lineTerminatorLengthAt(source, count) + lineLength
         }
       }
+
       break
     }
+
     count += lineTerminatorLengthAt(source, count)
   }
+
   return res.join('\n')
 }
 
@@ -637,18 +717,24 @@ const splitFirstDirRE = /(.+?)[\\/](.+)/
 export function emptyDir(dir: string, skip?: string[]): void {
   const skipInDir: string[] = []
   let nested: Map<string, string[]> | null = null
+
   if (skip?.length) {
     for (const file of skip) {
       if (path.dirname(file) !== '.') {
         const matched = splitFirstDirRE.exec(file)
+
         if (matched) {
           nested ??= new Map()
+
           const [, nestedDir, skipPath] = matched
           let nestedSkip = nested.get(nestedDir)
+
           if (!nestedSkip) {
             nestedSkip = []
+
             nested.set(nestedDir, nestedSkip)
           }
+
           if (!nestedSkip.includes(skipPath)) {
             nestedSkip.push(skipPath)
           }
@@ -658,10 +744,12 @@ export function emptyDir(dir: string, skip?: string[]): void {
       }
     }
   }
+
   for (const file of fs.readdirSync(dir)) {
     if (skipInDir.includes(file)) {
       continue
     }
+
     if (nested?.has(file)) {
       emptyDir(path.resolve(dir, file), nested.get(file))
     } else {
@@ -674,13 +762,17 @@ export function emptyDir(dir: string, skip?: string[]): void {
 //       also note that we should set `dereference: true` when we use `fs.cpSync`
 export function copyDir(srcDir: string, destDir: string): void {
   fs.mkdirSync(destDir, { recursive: true })
+
   for (const file of fs.readdirSync(srcDir)) {
     const srcFile = path.resolve(srcDir, file)
+
     if (srcFile === destDir) {
       continue
     }
+
     const destFile = path.resolve(destDir, file)
     const stat = fs.statSync(srcFile)
+
     if (stat.isDirectory()) {
       copyDir(srcFile, destFile)
     } else {
@@ -691,11 +783,14 @@ export function copyDir(srcDir: string, destDir: string): void {
 
 export const ERR_SYMLINK_IN_RECURSIVE_READDIR =
   'ERR_SYMLINK_IN_RECURSIVE_READDIR'
+
 export async function recursiveReaddir(dir: string): Promise<string[]> {
   if (!fs.existsSync(dir)) {
     return []
   }
+
   let dirents: fs.Dirent[]
+
   try {
     dirents = await fsp.readdir(dir, { withFileTypes: true })
   } catch (e) {
@@ -703,21 +798,28 @@ export async function recursiveReaddir(dir: string): Promise<string[]> {
       // Ignore permission errors
       return []
     }
+
     throw e
   }
+
   if (dirents.some((dirent) => dirent.isSymbolicLink())) {
     const err: any = new Error(
       'Symbolic links are not supported in recursiveReaddir',
     )
+
     err.code = ERR_SYMLINK_IN_RECURSIVE_READDIR
+
     throw err
   }
+
   const files = await Promise.all(
     dirents.map((dirent) => {
       const res = path.resolve(dir, dirent.name)
+
       return dirent.isDirectory() ? recursiveReaddir(res) : normalizePath(res)
     }),
   )
+
   return files.flat(1)
 }
 
@@ -733,23 +835,29 @@ export let safeRealpathSync:
 // Based on https://github.com/larrybahr/windows-network-drive
 // MIT License, Copyright (c) 2017 Larry Bahr
 const windowsNetworkMap = new Map()
+
 function windowsMappedRealpathSync(path: string) {
   const realPath = fs.realpathSync.native(path)
+
   if (realPath.startsWith('\\\\')) {
     for (const [network, volume] of windowsNetworkMap) {
       if (realPath.startsWith(network)) return realPath.replace(network, volume)
     }
   }
+
   return realPath
 }
+
 const parseNetUseRE = /^\w* +(\w:) +([^ ]+)\s/
 let firstSafeRealPathSyncRun = false
 
 function windowsSafeRealPathSync(path: string): string {
   if (!firstSafeRealPathSyncRun) {
     optimizeSafeRealPathSync()
+
     firstSafeRealPathSyncRun = true
   }
+
   return fs.realpathSync(path)
 }
 
@@ -762,18 +870,24 @@ function optimizeSafeRealPathSync() {
   } catch (error) {
     if (error.message.includes('EISDIR: illegal operation on a directory')) {
       safeRealpathSync = fs.realpathSync
+
       return
     }
   }
+
   exec('net use', { windowsHide: true }, (error, stdout) => {
     if (error) return
+
     const lines = stdout.split('\n')
+
     // OK           Y:        \\NETWORKA\Foo         Microsoft Windows Network
     // OK           Z:        \\NETWORKA\Bar         Microsoft Windows Network
     for (const line of lines) {
       const m = parseNetUseRE.exec(line)
+
       if (m) windowsNetworkMap.set(m[2], m[1])
     }
+
     if (windowsNetworkMap.size === 0) {
       safeRealpathSync = fs.realpathSync.native
     } else {
@@ -826,6 +940,7 @@ function joinSrcset(ret: ImageCandidate[]) {
  */
 const imageCandidateRegex =
   /(?:^|\s|(?<=,))(?<url>[\w-]+\([^)]*\)|"[^"]*"|'[^']*'|[^,]\S*[^,])\s*(?:\s(?<descriptor>[\w.][^,]+))?(?:,|$)/g
+
 const escapedSpaceCharacters = /(?: |\\t|\\n|\\f|\\r)+/g
 
 export function parseSrcset(string: string): ImageCandidate[] {
@@ -835,6 +950,7 @@ export function parseSrcset(string: string): ImageCandidate[] {
     .replace(/,\s+/, ', ')
     .replaceAll(/\s+/g, ' ')
     .matchAll(imageCandidateRegex)
+
   return Array.from(matches, ({ groups }) => ({
     url: groups?.url?.trim() ?? '',
     descriptor: groups?.descriptor?.trim() ?? '',
@@ -868,24 +984,30 @@ export function processSrcSetSync(
 const windowsDriveRE = /^[A-Z]:/
 const replaceWindowsDriveRE = /^([A-Z]):\//
 const linuxAbsolutePathRE = /^\/[^/]/
+
 function escapeToLinuxLikePath(path: string) {
   if (windowsDriveRE.test(path)) {
     return path.replace(replaceWindowsDriveRE, '/windows/$1/')
   }
+
   if (linuxAbsolutePathRE.test(path)) {
     return `/linux${path}`
   }
+
   return path
 }
 
 const revertWindowsDriveRE = /^\/windows\/([A-Z])\//
+
 function unescapeToLinuxLikePath(path: string) {
   if (path.startsWith('/linux/')) {
     return path.slice('/linux'.length)
   }
+
   if (path.startsWith('/windows/')) {
     return path.replace(revertWindowsDriveRE, '$1:/')
   }
+
   return path
 }
 
@@ -896,6 +1018,7 @@ const nullSourceMap: RawSourceMap = {
   mappings: '',
   version: 3,
 }
+
 /**
  * Combines multiple sourcemaps into a single sourcemap.
  * Note that the length of sourcemapList must be 2.
@@ -916,21 +1039,27 @@ export function combineSourcemaps(
   // also avoid mutation here to prevent breaking plugin's using cache to generate sourcemaps like vue (see #7442)
   sourcemapList = sourcemapList.map((sourcemap) => {
     const newSourcemaps = { ...sourcemap }
+
     newSourcemaps.sources = sourcemap.sources.map((source) =>
       source ? escapeToLinuxLikePath(source) : null,
     )
+
     if (sourcemap.sourceRoot) {
       newSourcemaps.sourceRoot = escapeToLinuxLikePath(sourcemap.sourceRoot)
     }
+
     return newSourcemaps
   })
+
   const escapedFilename = escapeToLinuxLikePath(filename)
 
   // We don't declare type here so we can convert/fake/map as RawSourceMap
   let map //: SourceMap
   let mapIndex = 1
+
   const useArrayInterface =
     sourcemapList.slice(0, -1).find((m) => m.sources.length !== 1) === undefined
+
   if (useArrayInterface) {
     map = remapping(sourcemapList, () => null)
   } else {
@@ -943,6 +1072,7 @@ export function combineSourcemaps(
       }
     })
   }
+
   if (!map.file) {
     delete map.file
   }
@@ -951,6 +1081,7 @@ export function combineSourcemaps(
   map.sources = map.sources.map((source) =>
     source ? unescapeToLinuxLikePath(source) : source,
   )
+
   map.file = filename
 
   return map as RawSourceMap
@@ -976,6 +1107,7 @@ export function getLocalhostAddressIfDiffersFromDNS():
   if (dns.getDefaultResultOrder && dns.getDefaultResultOrder() === 'verbatim') {
     return undefined
   }
+
   return Promise.all([
     dns.lookup('localhost'),
     dns.lookup('localhost', { verbatim: true }),
@@ -983,6 +1115,7 @@ export function getLocalhostAddressIfDiffersFromDNS():
     const isSame =
       nodeResult.family === dnsResult.family &&
       nodeResult.address === dnsResult.address
+
     return isSame ? undefined : nodeResult.address
   })
 }
@@ -1011,6 +1144,7 @@ export async function resolveHostname(
   optionsHost: string | boolean | undefined,
 ): Promise<Hostname> {
   let host: string | undefined
+
   if (optionsHost === undefined || optionsHost === false) {
     // Use a secure default
     host = 'localhost'
@@ -1027,6 +1161,7 @@ export async function resolveHostname(
   if (host === 'localhost') {
     // See #8647 for more details.
     const localhostAddr = await getLocalhostAddressIfDiffersFromDNS()
+
     if (localhostAddr) {
       name = localhostAddr
     }
@@ -1039,6 +1174,7 @@ export function extractHostnamesFromCerts(
   certs: HttpsServerOptions['cert'] | undefined,
 ): string[] {
   const certList = certs ? arraify(certs) : []
+
   if (certList.length === 0) return []
 
   const hostnames = certList
@@ -1068,6 +1204,7 @@ export function resolveServerUrls(
   const address = server.address()
 
   const isAddressInfo = (x: any): x is AddressInfo => x?.address
+
   if (!isAddressInfo(address)) {
     return { local: [], network: [], networkInterfaceNames: [] }
   }
@@ -1078,33 +1215,42 @@ export function resolveServerUrls(
   const networkInterfaceNames: (string | undefined)[] = []
   const protocol = options.https ? 'https' : 'http'
   const port = address.port
+
   const base =
     config.rawBase === './' || config.rawBase === '' ? '/' : config.rawBase
 
   if (hostname.host !== undefined && !wildcardHosts.has(hostname.host)) {
     let hostnameName = hostname.name
+
     // ipv6 host
     if (hostnameName.includes(':')) {
       hostnameName = `[${hostnameName}]`
     }
+
     const address = `${protocol}://${hostnameName}:${port}${base}`
+
     if (loopbackHosts.has(hostname.host)) {
       local.push(address)
     } else {
       network.push(address)
+
       // Look up the interface name for the explicit host IP
       let interfaceName: string | undefined
+
       if (hostname.host) {
         const interfaces = os.networkInterfaces()
+
         outer: for (const [name, nInterface] of Object.entries(interfaces)) {
           for (const detail of nInterface ?? []) {
             if (detail.address === hostname.host) {
               interfaceName = name
+
               break outer
             }
           }
         }
       }
+
       networkInterfaceNames.push(interfaceName)
     }
   } else {
@@ -1113,11 +1259,14 @@ export function resolveServerUrls(
         .filter((detail) => detail.address && detail.family === 'IPv4')
         .forEach((detail) => {
           let host = detail.address.replace('127.0.0.1', hostname.name)
+
           // ipv6 host
           if (host.includes(':')) {
             host = `[${host}]`
           }
+
           const url = `${protocol}://${host}:${port}${base}`
+
           if (detail.address.includes('127.0.0.1')) {
             local.push(url)
           } else {
@@ -1129,8 +1278,10 @@ export function resolveServerUrls(
   }
 
   const hostnamesFromCert = extractHostnamesFromCerts(httpsOptions?.cert)
+
   if (hostnamesFromCert.length > 0) {
     const existings = new Set([...local, ...network])
+
     local.push(
       ...hostnamesFromCert
         .map((hostname) => `${protocol}://${hostname}:${port}${base}`)
@@ -1146,24 +1297,32 @@ export function extractHostnamesFromSubjectAltName(
 ): string[] {
   const hostnames: string[] = []
   let remaining = subjectAltName
+
   while (remaining) {
     const nameEndIndex = remaining.indexOf(':')
     const name = remaining.slice(0, nameEndIndex)
+
     remaining = remaining.slice(nameEndIndex + 1)
+
     if (!remaining) break
 
     const isQuoted = remaining[0] === '"'
+
     let value: string
+
     if (isQuoted) {
       const endQuoteIndex = remaining.indexOf('"', 1)
+
       value = JSON.parse(remaining.slice(0, endQuoteIndex + 1))
       remaining = remaining.slice(endQuoteIndex + 1)
     } else {
       const maybeEndIndex = remaining.indexOf(',')
       const endIndex = maybeEndIndex === -1 ? remaining.length : maybeEndIndex
+
       value = remaining.slice(0, endIndex)
       remaining = remaining.slice(endIndex)
     }
+
     remaining = remaining.slice(/* for , */ 1).trimStart()
 
     if (
@@ -1176,6 +1335,7 @@ export function extractHostnamesFromSubjectAltName(
       hostnames.push(value.replace('*', 'vite'))
     }
   }
+
   return hostnames
 }
 
@@ -1193,7 +1353,9 @@ export const blankReplacer = (match: string): string => ' '.repeat(match.length)
 
 export function getHash(text: Buffer | string, length = 8): string {
   const h = crypto.hash('sha256', text, 'hex').substring(0, length)
+
   if (length <= 64) return h
+
   return h.padEnd(length, '_')
 }
 
@@ -1205,9 +1367,11 @@ function backwardCompatibleWorkerPlugins(plugins: any) {
   if (Array.isArray(plugins)) {
     return plugins
   }
+
   if (typeof plugins === 'function') {
     return plugins()
   }
+
   return []
 }
 
@@ -1224,22 +1388,29 @@ export function deepClone<T>(value: T): DeepWritable<T> {
   if (Array.isArray(value)) {
     return value.map((v) => deepClone(v)) as DeepWritable<T>
   }
+
   if (isObject(value)) {
     const cloned: Record<string, any> = {}
+
     for (const key in value) {
       cloned[key] = deepClone(value[key])
     }
+
     return cloned as DeepWritable<T>
   }
+
   if (typeof value === 'function') {
     return value as DeepWritable<T>
   }
+
   if (value instanceof RegExp) {
     return new RegExp(value) as DeepWritable<T>
   }
+
   if (typeof value === 'object' && value != null) {
     throw new Error('Cannot deep clone non-plain object')
   }
+
   return value as DeepWritable<T>
 }
 
@@ -1271,25 +1442,31 @@ function mergeWithDefaultsRecursively<
   V extends Record<string, any>,
 >(defaults: D, values: V): MergeWithDefaultsResult<D, V> {
   const merged: Record<string, any> = defaults
+
   for (const key in values) {
     const value = values[key]
+
     // let null to set the value (e.g. `server.watch: null`)
     if (value === undefined) continue
 
     const existing = merged[key]
+
     if (existing === undefined) {
       merged[key] = value
+
       continue
     }
 
     if (isObject(existing) && isObject(value)) {
       merged[key] = mergeWithDefaultsRecursively(existing, value)
+
       continue
     }
 
     // use replace even for arrays
     merged[key] = value
   }
+
   return merged as MergeWithDefaultsResult<D, V>
 }
 
@@ -1301,13 +1478,16 @@ export function mergeWithDefaults<
 >(defaults: D, values: V): MergeWithDefaultsResult<DeepWritable<D>, V> {
   // NOTE: we need to clone the value here to avoid mutating the defaults
   const clonedDefaults = deepClone(defaults)
+
   return mergeWithDefaultsRecursively(clonedDefaults, values)
 }
 
 const runtimeDeprecatedPath = new Set(['optimizeDeps', 'ssr.optimizeDeps'])
+
 const rollupOptionsDeprecationCall = (() => {
   return () => {
     const method = process.env.VITE_DEPRECATION_TRACE ? 'trace' : 'warn'
+
     // eslint-disable-next-line no-console
     console[method](
       '`optimizeDeps.rollupOptions` / `ssr.optimizeDeps.rollupOptions` is deprecated. ' +
@@ -1330,6 +1510,7 @@ export function setupRollupOptionCompat<
   // if both rollupOptions and rolldownOptions are present,
   // ignore rollupOptions and use rolldownOptions
   buildConfig.rolldownOptions ??= buildConfig.rollupOptions
+
   if (
     runtimeDeprecatedPath.has(path) &&
     buildConfig.rollupOptions &&
@@ -1347,6 +1528,7 @@ export function setupRollupOptionCompat<
       if (runtimeDeprecatedPath.has(path)) {
         rollupOptionsDeprecationCall()
       }
+
       buildConfig.rolldownOptions = newValue
     },
     configurable: true,
@@ -1368,10 +1550,13 @@ function setupRollupOptionCompatForEnvironment(environment: any): any {
   if (!isObject(environment)) {
     return environment
   }
+
   const merged: Record<string, any> = { ...environment }
+
   if (isObject(merged.build)) {
     setupRollupOptionCompat(merged.build, 'build')
   }
+
   return merged
 }
 
@@ -1394,6 +1579,7 @@ export function hasBothRollupOptionsAndRolldownOptions(
       return true
     }
   }
+
   return false
 }
 
@@ -1409,10 +1595,14 @@ const wsOptionKeys = [
 
 const hmrWsOptionsDeprecationCall = /* @__PURE__ */ (() => {
   let logged = false
+
   return () => {
     if (logged) return
+
     logged = true
+
     const method = process.env.VITE_DEPRECATION_TRACE ? 'trace' : 'warn'
+
     // eslint-disable-next-line no-console
     console[method](
       '`server.hmr.protocol/host/port/path/clientPort/timeout/server` is deprecated. ' +
@@ -1430,12 +1620,14 @@ export function setupHmrWsOptionCompat(
   if (serverConfig.hmr === false || serverConfig.ws === false) {
     return
   }
+
   if (serverConfig.hmr === true) {
     serverConfig.hmr = {}
   }
 
   const hmrConfig = serverConfig.hmr
   const wsConfig = serverConfig.ws ? { ...serverConfig.ws } : {}
+
   if (hmrConfig) {
     for (const key of wsOptionKeys) {
       if (hmrConfig[key] !== undefined) {
@@ -1444,9 +1636,11 @@ export function setupHmrWsOptionCompat(
       }
     }
   }
+
   serverConfig.ws = wsConfig
 
   const hmrProxy = hmrConfig || {}
+
   for (const key of wsOptionKeys) {
     Object.defineProperty(hmrProxy, key, {
       get() {
@@ -1454,6 +1648,7 @@ export function setupHmrWsOptionCompat(
       },
       set(newValue) {
         hmrWsOptionsDeprecationCall()
+
         if (typeof serverConfig.ws === 'object') {
           ;(serverConfig.ws as Record<string, unknown>)[key] = newValue
         }
@@ -1462,6 +1657,7 @@ export function setupHmrWsOptionCompat(
       enumerable: true,
     })
   }
+
   serverConfig.hmr = hmrProxy
 }
 
@@ -1471,12 +1667,15 @@ function mergeConfigRecursively(
   rootPath: string,
 ) {
   const merged: Record<string, any> = { ...defaults }
+
   if (rollupOptionsRootPaths.has(rootPath)) {
     setupRollupOptionCompat(merged, rootPath)
   }
+
   if (rootPath === 'server') {
     setupHmrWsOptionCompat(merged)
   }
+
   if (rootPath === 'server.hmr') {
     for (const key of wsOptionKeys) {
       Object.defineProperty(
@@ -1489,15 +1688,18 @@ function mergeConfigRecursively(
 
   for (const key in overrides) {
     const value = overrides[key]
+
     if (value == null) {
       continue
     }
 
     let existing = merged[key]
+
     if (key === 'rollupOptions' && rollupOptionsRootPaths.has(rootPath)) {
       // if both rollupOptions and rolldownOptions are present,
       // ignore rollupOptions and use rolldownOptions
       if (overrides.rolldownOptions) continue
+
       existing = merged.rolldownOptions
     }
 
@@ -1505,11 +1707,13 @@ function mergeConfigRecursively(
       if (rootPath === '' && key === 'environments' && isObject(value)) {
         // Clone to avoid mutating the original override object
         const environments = { ...value }
+
         for (const envName in environments) {
           environments[envName] = setupRollupOptionCompatForEnvironment(
             environments[envName],
           )
         }
+
         merged[key] = environments
       } else if (rootPath === 'environments') {
         // `environments` exists, but a new environment is added
@@ -1517,18 +1721,22 @@ function mergeConfigRecursively(
       } else {
         merged[key] = value
       }
+
       continue
     }
 
     // fields that require special handling
     if (key === 'input' && rootPath === '') {
       merged[key] = mergeInput(existing, value)
+
       continue
     } else if (key === 'alias' && (rootPath === 'resolve' || rootPath === '')) {
       merged[key] = mergeAlias(existing, value)
+
       continue
     } else if (key === 'assetsInclude' && rootPath === '') {
       merged[key] = [].concat(existing, value)
+
       continue
     } else if (
       (((key === 'noExternal' || key === 'external') &&
@@ -1537,25 +1745,30 @@ function mergeConfigRecursively(
       (existing === true || value === true)
     ) {
       merged[key] = true
+
       continue
     } else if (key === 'plugins' && rootPath === 'worker') {
       merged[key] = () => [
         ...backwardCompatibleWorkerPlugins(existing),
         ...backwardCompatibleWorkerPlugins(value),
       ]
+
       continue
     } else if (
       key === 'server' &&
       (rootPath === 'server.hmr' || rootPath === 'server.ws')
     ) {
       merged[key] = value
+
       continue
     }
 
     if (Array.isArray(existing) || Array.isArray(value)) {
       merged[key] = [...arraify(existing), ...arraify(value)]
+
       continue
     }
+
     if (isObject(existing) && isObject(value)) {
       merged[key] = mergeConfigRecursively(
         existing,
@@ -1565,11 +1778,13 @@ function mergeConfigRecursively(
           ? `${rootPath}.${key}`
           : key,
       )
+
       continue
     }
 
     merged[key] = value
   }
+
   return merged
 }
 
@@ -1595,18 +1810,22 @@ function mergeInput(a?: InputOption, b?: InputOption): InputOption | undefined {
   if (typeof a === 'string' && typeof b === 'string') {
     return [a, b]
   }
+
   if (Array.isArray(a) && (typeof b === 'string' || Array.isArray(b))) {
     return [...a, ...(Array.isArray(b) ? b : [b])]
   }
+
   if (Array.isArray(b) && (typeof a === 'string' || Array.isArray(a))) {
     return [...(Array.isArray(a) ? a : [a]), ...b]
   }
+
   if (typeof a !== 'string' && !Array.isArray(a)) {
     return {
       ...a,
       ...normalizeToInputObject(b),
     }
   }
+
   // b is a record
   return {
     ...normalizeToInputObject(a),
@@ -1618,11 +1837,13 @@ function normalizeToInputObject(input: InputOption): Record<string, string> {
   if (typeof input === 'string') {
     return { [path.basename(input, path.extname(input))]: input }
   }
+
   if (Array.isArray(input)) {
     return Object.fromEntries(
       input.map((i) => [path.basename(i, path.extname(i)), i]),
     )
   }
+
   return input
 }
 
@@ -1632,9 +1853,11 @@ export function mergeAlias(
 ): AliasOptions | undefined {
   if (!a) return b
   if (!b) return a
+
   if (isObject(a) && isObject(b)) {
     return { ...a, ...b }
   }
+
   // the order is flipped because the alias is resolved from top-down,
   // where the later should have higher priority
   return [...normalizeAlias(b), ...normalizeAlias(a)]
@@ -1671,9 +1894,11 @@ function normalizeSingleAlias({
     find,
     replacement,
   }
+
   if (customResolver) {
     alias.customResolver = customResolver
   }
+
   return alias
 }
 
@@ -1705,6 +1930,7 @@ export async function asyncFlatten<T extends unknown[]>(
   do {
     arr = (await Promise.all(arr)).flat(Infinity) as any
   } while (arr.some((v: any) => v?.then))
+
   return arr as unknown[] as AsyncFlatten<T>
 }
 
@@ -1748,12 +1974,15 @@ export function joinUrlSegments(a: string, b: string): string {
   if (!a || !b) {
     return a || b || ''
   }
+
   if (a.endsWith('/')) {
     a = a.substring(0, a.length - 1)
   }
+
   if (b[0] !== '/') {
     b = '/' + b
   }
+
   return a + b
 }
 
@@ -1765,16 +1994,20 @@ export function stripBase(path: string, base: string): string {
   if (path === base) {
     return '/'
   }
+
   const devBase = withTrailingSlash(base)
+
   return path.startsWith(devBase) ? path.slice(devBase.length - 1) : path
 }
 
 export function arrayEqual(a: any[], b: any[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false
   }
+
   return true
 }
 
@@ -1783,13 +2016,16 @@ export function evalValue<T = any>(rawValue: string): T {
     var console, exports, global, module, process, require
     return (\n${rawValue}\n)
   `)
+
   return fn()
 }
 
 export function getNpmPackageName(importPath: string): string | null {
   const parts = importPath.split('/')
+
   if (parts[0][0] === '@') {
     if (!parts[1]) return null
+
     return `${parts[0]}/${parts[1]}`
   } else {
     return parts[0]
@@ -1801,16 +2037,19 @@ export function getPkgName(name: string): string | undefined {
 }
 
 const escapeRegexRE = /[-/\\^$*+?.()|[\]{}]/g
+
 export function escapeRegex(str: string): string {
   return str.replace(escapeRegexRE, '\\$&')
 }
 
 type CommandType = 'install' | 'uninstall' | 'update'
+
 export function getPackageManagerCommand(
   type: CommandType = 'install',
 ): string {
   const packageManager =
     process.env.npm_config_user_agent?.split(' ')[0].split('/')[0] || 'npm'
+
   switch (type) {
     case 'install':
       return packageManager === 'npm' ? 'npm install' : `${packageManager} add`
@@ -1844,6 +2083,7 @@ export function createSerialPromiseQueue<T>(): {
       // wait for both the previous task and this task
       // so that this function resolves in the order this function is called
       const depTasks = Promise.all([previousTask, thisTask])
+
       previousTask = depTasks
 
       const [, result] = await depTasks
@@ -1860,9 +2100,11 @@ export function createSerialPromiseQueue<T>(): {
 
 export function sortObjectKeys<T extends Record<string, any>>(obj: T): T {
   const sorted: Record<string, any> = {}
+
   for (const key of Object.keys(obj).sort()) {
     sorted[key] = obj[key]
   }
+
   return sorted as T
 }
 
@@ -1897,8 +2139,10 @@ export function displayTime(time: number): string {
  */
 export function encodeURIPath(uri: string): string {
   if (uri.startsWith('data:')) return uri
+
   const filePath = cleanUrl(uri)
   const postfix = filePath !== uri ? uri.slice(filePath.length) : ''
+
   return encodeURI(filePath) + postfix
 }
 
@@ -1908,8 +2152,10 @@ export function encodeURIPath(uri: string): string {
  */
 export function partialEncodeURIPath(uri: string): string {
   if (uri.startsWith('data:')) return uri
+
   const filePath = cleanUrl(uri)
   const postfix = filePath !== uri ? uri.slice(filePath.length) : ''
+
   return filePath.replaceAll('%', '%25') + postfix
 }
 
@@ -1926,6 +2172,7 @@ type SigtermCallback = (signal?: 'SIGTERM', exitCode?: number) => Promise<void>
 
 // Use a shared callback when attaching sigterm listeners to avoid `MaxListenersExceededWarning`
 const sigtermCallbacks = new Set<SigtermCallback>()
+
 const parentSigtermCallback: SigtermCallback = async (signal, exitCode) => {
   await Promise.all([...sigtermCallbacks].map((cb) => cb(signal, exitCode)))
 }
@@ -1935,10 +2182,12 @@ export const setupSIGTERMListener = (
 ): void => {
   if (sigtermCallbacks.size === 0) {
     process.once('SIGTERM', parentSigtermCallback)
+
     if (process.env.CI !== 'true') {
       process.stdin.on('end', parentSigtermCallback)
     }
   }
+
   sigtermCallbacks.add(callback)
 }
 
@@ -1946,8 +2195,10 @@ export const teardownSIGTERMListener = (
   callback: Parameters<typeof setupSIGTERMListener>[0],
 ): void => {
   sigtermCallbacks.delete(callback)
+
   if (sigtermCallbacks.size === 0) {
     process.off('SIGTERM', parentSigtermCallback)
+
     if (process.env.CI !== 'true') {
       process.stdin.off('end', parentSigtermCallback)
     }
@@ -1963,14 +2214,17 @@ export function getServerUrlByHost(
       ...(resolvedUrls?.local ?? []),
       ...(resolvedUrls?.network ?? []),
     ].find((url) => url.includes(host))
+
     if (matchedUrl) {
       return matchedUrl
     }
   }
+
   return resolvedUrls?.local[0] ?? resolvedUrls?.network[0]
 }
 
 let lastDateNow = 0
+
 /**
  * Similar to `Date.now()`, but strictly monotonically increasing.
  *
@@ -1981,12 +2235,15 @@ let lastDateNow = 0
  */
 export function monotonicDateNow(): number {
   const now = Date.now()
+
   if (now > lastDateNow) {
     lastDateNow = now
+
     return lastDateNow
   }
 
   lastDateNow++
+
   return lastDateNow
 }
 
@@ -1997,18 +2254,23 @@ export function formatAndTruncateFileList(files: string[]): {
   const MAX_LOG_LENGTH = 500
   let log = ''
   let truncated = false
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
+
     if (log === '') {
       log = file
     } else if (log.length + 2 + file.length < MAX_LOG_LENGTH) {
       log += ', ' + file
     } else {
       log += ` and ${files.length - i} more`
+
       truncated = true
+
       break
     }
   }
+
   return { formatted: log, truncated }
 }
 

@@ -27,16 +27,22 @@ pub fn init(reader: *Reader, limit: Limit, buffer: []u8) Limited {
 
 fn stream(r: *Reader, w: *Writer, limit: Limit) Reader.StreamError!usize {
     const l: *Limited = @fieldParentPtr("interface", r);
+
     if (l.remaining == .nothing) return error.EndOfStream;
+
     const combined_limit = limit.min(l.remaining);
     const n = try l.unlimited.stream(w, combined_limit);
+
     l.remaining = l.remaining.subtract(n).?;
+
     return n;
 }
 
 test stream {
     var orig_buf: [10]u8 = undefined;
+
     @memcpy(&orig_buf, "test bytes");
+
     var fixed: std.Io.Reader = .fixed(&orig_buf);
 
     var limit_buf: [1]u8 = undefined;
@@ -52,10 +58,14 @@ test stream {
 
 fn discard(r: *Reader, limit: Limit) Reader.Error!usize {
     const l: *Limited = @fieldParentPtr("interface", r);
+
     if (l.remaining == .nothing) return error.EndOfStream;
+
     const combined_limit = limit.min(l.remaining);
     const n = try l.unlimited.discard(combined_limit);
+
     l.remaining = l.remaining.subtract(n).?;
+
     return n;
 }
 
@@ -65,6 +75,7 @@ test "end of stream, read, hit limit exactly" {
     const r = &l.interface;
 
     var buf: [2]u8 = undefined;
+
     try r.readSliceAll(&buf);
     try r.readSliceAll(&buf);
     try std.testing.expectError(error.EndOfStream, l.interface.readSliceAll(&buf));
@@ -76,6 +87,7 @@ test "end of stream, read, hit limit after partial read" {
     const r = &l.interface;
 
     var buf: [2]u8 = undefined;
+
     try r.readSliceAll(&buf);
     try r.readSliceAll(&buf);
     try std.testing.expectError(error.EndOfStream, l.interface.readSliceAll(&buf));

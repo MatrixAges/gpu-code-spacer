@@ -28,6 +28,7 @@ const Chunk = struct {
         assert(options.block_index < options.block_count);
 
         const last_block = options.block_index == options.block_count - 1;
+
         const chunk_size: u32 = if (last_block)
             @intCast(options.trailer_size - (options.block_count - 1) * chunk_size_max)
         else
@@ -110,17 +111,23 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
         ) !CheckpointTrailer {
             const block_count_max_ = block_count_for_trailer_size(buffer_size);
             const blocks = try allocator.alloc(BlockPtr, block_count_max_);
+
             errdefer allocator.free(blocks);
+
             @memset(blocks, undefined);
 
             const block_bodies = try allocator.alloc([]align(@sizeOf(u256)) u8, block_count_max_);
+
             errdefer allocator.free(block_bodies);
+
             @memset(block_bodies, undefined);
 
             const block_addresses = try allocator.alloc(u64, block_count_max_);
+
             errdefer allocator.free(block_addresses);
 
             const block_checksums = try allocator.alloc(u128, block_count_max_);
+
             errdefer allocator.free(block_checksums);
 
             return .{
@@ -159,6 +166,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
                 // Checkpointing doesn't need to read blocks, so it's not cancellable.
                 .checkpoint => unreachable,
             }
+
             trailer.* = .{
                 .trailer_type = trailer.trailer_type,
                 .blocks = trailer.blocks,
@@ -170,6 +178,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
         pub fn block_count(trailer: *const CheckpointTrailer) u32 {
             assert(trailer.grid != null);
+
             return block_count_for_trailer_size(trailer.size);
         }
 
@@ -180,6 +189,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
             // Get a fresh set of blocks, since the caller is going to write to them.
             for (trailer.blocks) |*block| {
                 trailer.grid.?.block_unref(block.*);
+
                 block.* = trailer.grid.?.get_block();
             }
 
@@ -188,6 +198,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
                 assert(block_body.*.len == chunk_size_max);
             }
+
             return trailer.block_bodies;
         }
 
@@ -197,6 +208,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
             assert(trailer.grid != null);
 
             const chunk_count: u32 = @intCast(stdx.div_ceil(trailer.size, chunk_size_max));
+
             for (
                 trailer.block_bodies[0..chunk_count],
                 trailer.blocks[0..chunk_count],
@@ -210,6 +222,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
                 block_body.* = block[@sizeOf(vsr.Header)..][0..chunk_size];
             }
+
             return trailer.block_bodies[0..chunk_count];
         }
 
@@ -231,6 +244,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
                 .last_block_checksum = trailer.block_checksums[trailer.block_count() - 1],
                 .trailer_size = trailer.size,
             };
+
             assert(reference.empty() == (trailer.size == 0));
 
             return reference;
@@ -243,9 +257,11 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
             callback: *const fn (trailer: *CheckpointTrailer) void,
         ) void {
             assert(trailer.grid == null);
+
             trailer.grid = grid;
 
             assert(trailer.callback == .none);
+
             defer assert(trailer.callback == .open);
 
             assert(reference.trailer_size % trailer.trailer_type.item_size() == 0);
@@ -265,34 +281,42 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
             if (trailer.size == 0) {
                 assert(reference.last_block_address == 0);
+
                 trailer.grid.?.on_next_tick(open_next_tick, &trailer.next_tick);
             } else {
                 assert(reference.last_block_address != 0);
+
                 trailer.open_read_next(reference.last_block_address, reference.last_block_checksum);
             }
         }
 
         fn open_next_tick(next_tick: *Grid.NextTick) void {
             const trailer: *CheckpointTrailer = @alignCast(@fieldParentPtr("next_tick", next_tick));
+
             assert(trailer.grid != null);
             assert(trailer.callback == .open);
             assert(trailer.size == 0);
+
             trailer.open_done();
         }
 
         fn open_read_next(trailer: *CheckpointTrailer, address: u64, checksum: u128) void {
             assert(trailer.callback == .open);
             assert(trailer.size > 0);
+
             assert((trailer.size_transferred == 0) ==
                 (trailer.block_index == trailer.block_count()));
+
             assert(address != 0);
 
             assert(trailer.block_index <= trailer.block_count());
             assert(trailer.block_index > 0);
+
             trailer.block_index -= 1;
 
             trailer.block_addresses[trailer.block_index] = address;
             trailer.block_checksums[trailer.block_index] = checksum;
+
             for (trailer.block_index + 1..trailer.block_count()) |index| {
                 assert(trailer.block_addresses[index] != address);
                 assert(trailer.block_checksums[index] != checksum);
@@ -309,11 +333,13 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
         fn open_read_next_callback(read: *Grid.Read, block: BlockPtrConst) void {
             const trailer: *CheckpointTrailer = @fieldParentPtr("read", read);
+
             assert(trailer.callback == .open);
             assert(trailer.size > 0);
             assert(trailer.block_index < trailer.block_count());
 
             const block_header = schema.header_from_block(block);
+
             assert(block_header.block_type == trailer.trailer_type.block_type());
 
             const chunk_size = Chunk.size(.{
@@ -321,17 +347,21 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
                 .block_count = trailer.block_count(),
                 .trailer_size = trailer.size,
             });
+
             assert(chunk_size > 0);
 
             trailer.grid.?.block_unref(trailer.blocks[trailer.block_index]);
+
             trailer.blocks[trailer.block_index] = @constCast(trailer.grid.?.block_ref(block));
             trailer.size_transferred += chunk_size;
 
             if (schema.TrailerNode.previous(block)) |previous| {
                 assert(trailer.block_index > 0);
+
                 trailer.open_read_next(previous.address, previous.checksum);
             } else {
                 assert(trailer.block_index == 0);
+
                 trailer.open_done();
             }
         }
@@ -339,17 +369,22 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
         fn open_done(trailer: *CheckpointTrailer) void {
             assert(trailer.grid != null);
             assert(trailer.callback == .open);
+
             defer assert(trailer.callback == .none);
 
             assert(trailer.block_index == 0);
             assert(trailer.size_transferred == trailer.size);
 
             var checksum_stream = vsr.ChecksumStream.init();
+
             for (trailer.decode_chunks()) |chunk| checksum_stream.add(chunk);
+
             assert(trailer.checksum == checksum_stream.checksum());
 
             const callback = trailer.callback.open;
+
             trailer.callback = .none;
+
             callback(trailer);
         }
 
@@ -358,17 +393,22 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
             callback: *const fn (trailer: *CheckpointTrailer) void,
         ) void {
             assert(trailer.callback == .none);
+
             defer assert(trailer.callback == .checkpoint);
 
             var checksum_stream = vsr.ChecksumStream.init();
+
             for (trailer.decode_chunks()) |chunk| checksum_stream.add(chunk);
 
             trailer.size_transferred = 0;
+
             trailer.checksum = checksum_stream.checksum();
 
             if (trailer.size > 0) {
                 assert(trailer.grid.?.free_set.count_reservations() == 0);
+
                 const reservation = trailer.grid.?.free_set.reserve(trailer.block_count()).?;
+
                 defer trailer.grid.?.free_set.forfeit(reservation);
 
                 for (
@@ -376,14 +416,17 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
                     trailer.block_checksums[0..trailer.block_count()],
                 ) |*address, *checksum| {
                     address.* = trailer.grid.?.free_set.acquire(reservation).?;
+
                     checksum.* = undefined;
                 }
+
                 // Reservation should be fully used up.
                 assert(trailer.grid.?.free_set.acquire(reservation) == null);
             }
 
             trailer.block_index = 0;
             trailer.callback = .{ .checkpoint = callback };
+
             if (trailer.size == 0) {
                 trailer.grid.?.on_next_tick(checkpoint_next_tick, &trailer.next_tick);
             } else {
@@ -393,9 +436,11 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
         fn checkpoint_next_tick(next_tick: *Grid.NextTick) void {
             const trailer: *CheckpointTrailer = @alignCast(@fieldParentPtr("next_tick", next_tick));
+
             assert(trailer.callback == .checkpoint);
             assert(trailer.size == 0);
             assert(trailer.block_index == 0);
+
             trailer.checkpoint_done();
         }
 
@@ -413,6 +458,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
             const block_index = trailer.block_index;
             const block = &trailer.blocks[block_index];
+
             const metadata: schema.TrailerNode.Metadata = if (block_index == 0) .{
                 .previous_trailer_block_checksum = 0,
                 .previous_trailer_block_address = 0,
@@ -422,6 +468,7 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
             };
 
             const header = mem.bytesAsValue(vsr.Header.Block, block.*[0..@sizeOf(vsr.Header)]);
+
             header.* = .{
                 .cluster = trailer.grid.?.superblock.working.cluster,
                 .metadata_bytes = @bitCast(metadata),
@@ -432,7 +479,9 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
                 .release = trailer.grid.?.superblock.working.vsr_state.checkpoint.release,
                 .block_type = trailer.trailer_type.block_type(),
             };
+
             trailer.size_transferred += chunk_size;
+
             header.set_checksum_body(block.*[@sizeOf(vsr.Header)..][0..chunk_size]);
             header.set_checksum();
             schema.TrailerNode.assert_valid_header(block.*);
@@ -440,14 +489,17 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
             trailer.block_checksums[block_index] = header.checksum;
             // create_block swaps out the `blocks` BlockPtr, so our reference to it will be invalid.
             trailer.block_bodies[block_index] = undefined;
+
             trailer.grid.?.create_block(checkpoint_write_next_callback, &trailer.write, block);
         }
 
         fn checkpoint_write_next_callback(write: *Grid.Write) void {
             const trailer: *CheckpointTrailer = @fieldParentPtr("write", write);
+
             assert(trailer.callback == .checkpoint);
 
             trailer.block_index += 1;
+
             if (trailer.block_index == trailer.block_count()) {
                 trailer.checkpoint_done();
             } else {
@@ -457,13 +509,16 @@ pub fn CheckpointTrailerType(comptime Storage: type) type {
 
         fn checkpoint_done(trailer: *CheckpointTrailer) void {
             assert(trailer.callback == .checkpoint);
+
             defer assert(trailer.callback == .none);
 
             assert(trailer.block_index == trailer.block_count());
             assert(trailer.size_transferred == trailer.size);
 
             const callback = trailer.callback.checkpoint;
+
             trailer.callback = .none;
+
             callback(trailer);
         }
     };

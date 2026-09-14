@@ -34,6 +34,7 @@ pub fn test_freshness(
     language: Language,
 ) !void {
     var arena = std.heap.ArenaAllocator.init(gpa);
+
     defer arena.deinit();
 
     const docs = switch (language) {
@@ -44,6 +45,7 @@ pub fn test_freshness(
         "./samples/walkthrough/{s}{s}.{s}",
         .{ docs.test_source_path, docs.test_file_name, docs.extension },
     );
+
     const walkthrough = try shell.cwd.readFileAlloc(
         arena.allocator(),
         walkthrough_path,
@@ -65,16 +67,17 @@ pub fn test_freshness(
         try readme_root(&ctx);
 
         const update = try shell.file_ensure_content("README.md", ctx.buffer.items, .{});
+
         updated_any = updated_any or (update == .updated);
     }
 
     for (samples) |sample| { // Per-sample README.md
-
         ctx.buffer.clearRetainingCapacity();
         try readme_sample(&ctx, sample);
 
         const sample_readme = try shell.fmt("samples/{s}/README.md", .{sample.directory});
         const update = try shell.file_ensure_content(sample_readme, ctx.buffer.items, .{});
+
         updated_any = updated_any or (update == .updated);
     }
 
@@ -97,11 +100,13 @@ fn readme_root(ctx: *Context) !void {
 
     {
         ctx.header(2, "Prerequisites");
+
         ctx.print(
             \\Linux >= 5.6 is the only production environment we
             \\support. But for ease of development we also support macOS and Windows.
             \\
         , .{});
+
         ctx.paragraph(ctx.docs.prerequisites);
     }
 
@@ -114,7 +119,9 @@ fn readme_root(ctx: *Context) !void {
                 "Then create `{s}` and copy this into it:\n\n",
                 .{ctx.docs.project_file_name},
             );
+
             _, const project_file_language = stdx.cut(ctx.docs.project_file_name, ".").?;
+
             ctx.code(project_file_language, ctx.docs.project_file);
         }
 
@@ -128,6 +135,7 @@ fn readme_root(ctx: *Context) !void {
             ctx.docs.test_file_name,
             ctx.docs.extension,
         });
+
         ctx.code_section("imports");
         ctx.paragraph("Finally, build and run:");
         ctx.commands(ctx.docs.run_commands);
@@ -141,12 +149,14 @@ fn readme_root(ctx: *Context) !void {
 
     {
         ctx.header(2, "Sample projects");
+
         ctx.paragraph(
             \\This document is primarily a reference guide to
             \\the client. Below are various sample projects demonstrating
             \\features of TigerBeetle.
             ,
         );
+
         // Absolute paths here are necessary for resolving within the docs site.
         for (samples) |sample| {
             if (try ctx.sample_exists(sample)) {
@@ -158,6 +168,7 @@ fn readme_root(ctx: *Context) !void {
                 });
             }
         }
+
         ctx.print("\n", .{});
 
         if (ctx.docs.examples.len != 0) {
@@ -167,6 +178,7 @@ fn readme_root(ctx: *Context) !void {
 
     {
         ctx.header(2, "Creating a Client");
+
         ctx.paragraph(
             \\A client is created with a cluster ID and replica
             \\addresses for all replicas in the cluster. The cluster
@@ -184,6 +196,7 @@ fn readme_root(ctx: *Context) !void {
             \\replica. The address is read from the `TB_ADDRESS`
             \\environment variable and defaults to port `3000`.
         );
+
         ctx.code_section("client");
         ctx.paragraph(ctx.docs.client_object_documentation);
 
@@ -197,10 +210,12 @@ fn readme_root(ctx: *Context) !void {
 
     {
         ctx.header(2, "Creating Accounts");
+
         ctx.paragraph(
             \\See details for account fields in the [Accounts
             \\reference](https://docs.tigerbeetle.com/reference/account).
         );
+
         ctx.code_section("create-accounts");
 
         ctx.paragraph(
@@ -211,20 +226,24 @@ fn readme_root(ctx: *Context) !void {
         ctx.paragraph(ctx.docs.create_accounts_documentation);
 
         ctx.header(3, "Account Flags");
+
         ctx.paragraph(
             \\The account flags value is a bitfield. See details for
             \\these flags in the [Accounts
             \\reference](https://docs.tigerbeetle.com/reference/account#flags).
         );
+
         ctx.paragraph(ctx.docs.account_flags_documentation);
 
         ctx.paragraph(
             \\For example, to link two accounts where the first account
             \\additionally has the `debits_must_not_exceed_credits` constraint:
         );
+
         ctx.code_section("account-flags");
 
         ctx.header(3, "Response and Errors");
+
         ctx.paragraph(
             \\The response is an array containing the _status code_ and the _timestamp_ of
             \\each account in the request batch:
@@ -246,6 +265,7 @@ fn readme_root(ctx: *Context) !void {
 
     {
         ctx.header(2, "Account Lookup");
+
         ctx.paragraph(
             \\Account lookup is batched, like account creation. Pass
             \\in all IDs to fetch. The account for each matched ID is returned.
@@ -256,17 +276,20 @@ fn readme_root(ctx: *Context) !void {
             \\request. You can refer to the ID field in the response to
             \\distinguish accounts.
         );
+
         ctx.code_section("lookup-accounts");
     }
 
     {
         ctx.header(2, "Create Transfers");
+
         ctx.paragraph(
             \\This creates a journal entry between two accounts.
             \\
             \\See details for transfer fields in the [Transfers
             \\reference](https://docs.tigerbeetle.com/reference/transfer).
         );
+
         ctx.code_section("create-transfers");
 
         ctx.paragraph(
@@ -275,6 +298,7 @@ fn readme_root(ctx: *Context) !void {
         );
 
         ctx.header(3, "Response and Errors");
+
         ctx.paragraph(
             \\The response is an array containing the _status code_ and the _timestamp_ of
             \\each transfer in the request batch:
@@ -288,6 +312,7 @@ fn readme_root(ctx: *Context) !void {
             \\  occurred. See all error conditions in the
             \\  [create_transfers reference](https://docs.tigerbeetle.com/reference/requests/create_transfers#status).
         );
+
         ctx.code_section("create-transfers-errors");
 
         ctx.paragraph(ctx.docs.create_transfers_errors_documentation);
@@ -295,6 +320,7 @@ fn readme_root(ctx: *Context) !void {
 
     {
         ctx.header(2, "Batching");
+
         ctx.paragraph(
             \\TigerBeetle performance is maximized when you batch
             \\API requests.
@@ -310,9 +336,11 @@ fn readme_root(ctx: *Context) !void {
             \\
             \\The maximum batch size is set in the TigerBeetle server. The default is 8189.
         );
+
         ctx.code_section("batch");
 
         ctx.header(3, "Queues and Workers");
+
         ctx.paragraph(
             \\If you are making requests to TigerBeetle from workers
             \\pulling jobs from a queue, you can batch requests to
@@ -324,16 +352,19 @@ fn readme_root(ctx: *Context) !void {
 
     {
         ctx.header(2, "Transfer Flags");
+
         ctx.paragraph(
             \\The transfer `flags` value is a bitfield. See details for these flags in
             \\the [Transfers
             \\reference](https://docs.tigerbeetle.com/reference/transfer#flags).
         );
+
         ctx.paragraph(ctx.docs.transfer_flags_documentation);
         ctx.paragraph("For example, to link `transfer0` and `transfer1`:");
         ctx.code_section("transfer-flags-link");
 
         ctx.header(3, "Two-Phase Transfers");
+
         ctx.paragraph(
             \\Two-phase transfers are supported natively by toggling the appropriate
             \\flag. TigerBeetle will then adjust the `credits_pending` and
@@ -341,7 +372,9 @@ fn readme_root(ctx: *Context) !void {
             \\post pending transfer then needs to be sent to post or void the
             \\transfer.
         );
+
         ctx.header(4, "Post a Pending Transfer");
+
         ctx.paragraph(
             \\With `flags` set to `post_pending_transfer`,
             \\TigerBeetle will post the transfer. TigerBeetle will atomically roll
@@ -349,9 +382,11 @@ fn readme_root(ctx: *Context) !void {
             \\appropriate accounts and apply them to the `debits_posted` and
             \\`credits_posted` balances.
         );
+
         ctx.code_section("transfer-flags-post");
 
         ctx.header(4, "Void a Pending Transfer");
+
         ctx.paragraph(
             \\In contrast, with `flags` set to `void_pending_transfer`,
             \\TigerBeetle will void the transfer. TigerBeetle will roll
@@ -359,11 +394,13 @@ fn readme_root(ctx: *Context) !void {
             \\appropriate accounts and **not** apply them to the `debits_posted` and
             \\`credits_posted` balances.
         );
+
         ctx.code_section("transfer-flags-void");
     }
 
     {
         ctx.header(2, "Transfer Lookup");
+
         ctx.paragraph(
             \\NOTE: While transfer lookup exists, it is not a flexible query API. We
             \\are developing query APIs and there will be new methods for querying
@@ -377,11 +414,13 @@ fn readme_root(ctx: *Context) !void {
             \\the same as the order of `id`s in the request. You can refer to the
             \\`id` field in the response to distinguish transfers.
         );
+
         ctx.code_section("lookup-transfers");
     }
 
     {
         ctx.header(2, "Get Account Transfers");
+
         ctx.paragraph(
             \\NOTE: This is a preview API that is subject to breaking changes once we have
             \\a stable querying API.
@@ -392,11 +431,13 @@ fn readme_root(ctx: *Context) !void {
             \\The transfers in the response are sorted by `timestamp` in chronological or
             \\reverse-chronological order.
         );
+
         ctx.code_section("get-account-transfers");
     }
 
     {
         ctx.header(2, "Get Account Balances");
+
         ctx.paragraph(
             \\NOTE: This is a preview API that is subject to breaking changes once we have
             \\a stable querying API.
@@ -411,11 +452,13 @@ fn readme_root(ctx: *Context) !void {
             \\The balances in the response are sorted by `timestamp` in chronological or
             \\reverse-chronological order.
         );
+
         ctx.code_section("get-account-balances");
     }
 
     {
         ctx.header(2, "Query Accounts");
+
         ctx.paragraph(
             \\NOTE: This is a preview API that is subject to breaking changes once we have
             \\a stable querying API.
@@ -425,11 +468,13 @@ fn readme_root(ctx: *Context) !void {
             \\The accounts in the response are sorted by `timestamp` in chronological or
             \\reverse-chronological order.
         );
+
         ctx.code_section("query-accounts");
     }
 
     {
         ctx.header(2, "Query Transfers");
+
         ctx.paragraph(
             \\NOTE: This is a preview API that is subject to breaking changes once we have
             \\a stable querying API.
@@ -439,11 +484,13 @@ fn readme_root(ctx: *Context) !void {
             \\The transfers in the response are sorted by `timestamp` in chronological or
             \\reverse-chronological order.
         );
+
         ctx.code_section("query-transfers");
     }
 
     {
         ctx.header(2, "Linked Events");
+
         ctx.paragraph(
             \\When the `linked` flag is specified for an account when creating accounts or
             \\a transfer when creating transfers, it links that event with the next event in the
@@ -461,11 +508,13 @@ fn readme_root(ctx: *Context) !void {
             \\break the chain will have a unique error result. Other events in the
             \\chain will have their error result set to `linked_event_failed`.
         );
+
         ctx.code_section("linked-events");
     }
 
     {
         ctx.header(2, "Imported Events");
+
         ctx.paragraph(
             \\When the `imported` flag is specified for an account when creating accounts or
             \\a transfer when creating transfers, it allows importing historical events with
@@ -478,11 +527,13 @@ fn readme_root(ctx: *Context) !void {
             \\This approach gives the application a chance to correct failed imported events, re-submitting
             \\the batch again with the same user-defined timestamps.
         );
+
         ctx.code_section("imported-events");
     }
 
     {
         ctx.header(2, "Timeouts And Cancellation");
+
         ctx.paragraph(
             \\The Client retries indefinitely and doesn't impose any per-request timeout. Cancellation is
             \\provided as a mechanism, and the specific cancellation policy is left to the
@@ -522,16 +573,19 @@ fn readme_sample(ctx: *Context, sample: Sample) !void {
 
     {
         ctx.header(2, "Prerequisites");
+
         ctx.print(
             \\Linux >= 5.6 is the only production environment we
             \\support. But for ease of development we also support macOS and Windows.
             \\
         , .{});
+
         ctx.paragraph(ctx.docs.prerequisites);
     }
 
     {
         ctx.header(2, "Setup");
+
         ctx.paragraph(try ctx.shell.fmt(
             \\First, clone this repo and `cd` into `tigerbeetle/src/clients/{s}/samples/{s}`.
         , .{ ctx.docs.directory, sample.directory }));
@@ -542,6 +596,7 @@ fn readme_sample(ctx: *Context, sample: Sample) !void {
 
     {
         ctx.header(2, "Start the TigerBeetle server");
+
         ctx.paragraph(
             \\Follow steps in the repo README to [run
             \\TigerBeetle](/README.md#running-tigerbeetle).
@@ -576,6 +631,7 @@ const Context = struct {
 
     fn sample_exists(ctx: *Context, sample: @TypeOf(samples[0])) !bool {
         const sample_directory = try ctx.shell.fmt("samples/{s}/", .{sample.directory});
+
         return try ctx.shell.dir_exists(sample_directory);
     }
 
@@ -586,45 +642,61 @@ const Context = struct {
     // section in the Java sample for a motivational example for concatenation behavior).
     fn read_section(ctx: *Context, section_name: []const u8) []const u8 {
         var section_content = std.ArrayList(u8).init(ctx.arena);
+
         const section_start =
             ctx.shell.fmt("section:{s}\n", .{section_name}) catch @panic("OOM");
+
         const section_end =
             ctx.shell.fmt("endsection:{s}\n", .{section_name}) catch @panic("OOM");
 
         var rest = ctx.walkthrough;
+
         for (0..10) |_| {
             _, rest = stdx.cut(rest, section_start) orelse break;
 
             var section, rest = stdx.cut(rest, section_end).?;
+
             const newline_index = std.mem.lastIndexOfScalar(u8, section, '\n') orelse {
                 log.warn("empty section fragment: {s}", .{section_name});
                 @panic("empty section fragement");
             };
+
             section = section[0..newline_index];
 
             var indent_min: usize = std.math.maxInt(usize);
             var lines = std.mem.splitScalar(u8, section, '\n');
+
             while (lines.next()) |line| {
                 if (line.len == 0) continue;
+
                 var indent_line: usize = 0;
+
                 while (line[indent_line] == ' ' or line[indent_line] == '\t') indent_line += 1;
+
                 indent_min = @min(indent_min, indent_line);
             }
+
             assert(indent_min < 18);
 
             lines = std.mem.splitScalar(u8, section, '\n');
+
             while (lines.next()) |line| {
                 if (line.len > 0) {
                     assert(line.len > indent_min);
+
                     section_content.appendSlice(line[indent_min..]) catch unreachable;
                 }
+
                 section_content.append('\n') catch unreachable;
             }
         } else @panic("too many parts in a section");
+
         assert(section_content.pop() == '\n');
 
         const result = section_content.items;
+
         assert(result.len > 0);
+
         return result;
     }
 
@@ -635,17 +707,20 @@ const Context = struct {
     fn paragraph(ctx: *Context, content: []const u8) void {
         // Don't print empty lines.
         if (content.len == 0) return;
+
         ctx.print("{s}\n\n", .{content});
     }
 
     fn code(ctx: *Context, language: []const u8, content: []const u8) void {
         // Don't print empty lines.
         if (content.len == 0) return;
+
         ctx.print("```{s}\n{s}\n```\n\n", .{ language, content });
     }
 
     fn code_section(ctx: *Context, section_name: []const u8) void {
         const section_content = ctx.read_section(section_name);
+
         ctx.code(ctx.docs.markdown_name, section_content);
     }
 

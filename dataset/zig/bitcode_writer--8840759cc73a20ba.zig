@@ -42,11 +42,13 @@ pub fn BitcodeWriter(comptime types: []const type) type {
 
         pub fn toOwnedSlice(self: *BcWriter) Error![]const u32 {
             std.debug.assert(self.bit_count == 0);
+
             return self.buffer.toOwnedSlice();
         }
 
         pub fn length(self: BcWriter) usize {
             std.debug.assert(self.bit_count == 0);
+
             return self.buffer.items.len;
         }
 
@@ -61,6 +63,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
                 const bits_remaining = 31 - self.bit_count + 1;
                 const n: u5 = @intCast(@min(bits_remaining, in_bits));
                 const v = @as(u32, @truncate(in_buffer)) << self.bit_count;
+
                 self.bit_buffer |= v;
                 in_buffer >>= n;
 
@@ -68,7 +71,9 @@ pub fn BitcodeWriter(comptime types: []const type) type {
                 in_bits -= n;
 
                 if (self.bit_count != 0) return;
+
                 try self.buffer.append(std.mem.nativeToLittle(u32, self.bit_buffer));
+
                 self.bit_buffer = 0;
             }
 
@@ -91,6 +96,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
         pub fn writeVbr(self: *BcWriter, value: anytype, comptime vbr_bits: usize) Error!void {
             comptime {
                 std.debug.assert(vbr_bits > 1);
+
                 if (@bitSizeOf(@TypeOf(value)) > 64) @compileError("Unsupported VBR block type: " ++ @typeName(@TypeOf(value)));
             }
 
@@ -103,6 +109,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
             // then store vbr_bits - 1 bits and a continue bit
             while (in_buffer > mask) {
                 try self.writeBits(in_buffer & mask | continue_bit, vbr_bits);
+
                 in_buffer >>= @intCast(vbr_bits - 1);
             }
 
@@ -113,6 +120,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
         pub fn bitsVbr(value: anytype, comptime vbr_bits: usize) u16 {
             comptime {
                 std.debug.assert(vbr_bits > 1);
+
                 if (@bitSizeOf(@TypeOf(value)) > 64) @compileError("Unsupported VBR block type: " ++ @typeName(@TypeOf(value)));
             }
 
@@ -132,6 +140,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
 
             // Store remaining bits
             bits += @intCast(vbr_bits);
+
             return bits;
         }
 
@@ -141,11 +150,13 @@ pub fn BitcodeWriter(comptime types: []const type) type {
 
         pub fn writeBlob(self: *BcWriter, blob: []const u8) Error!void {
             const blob_word_size = std.mem.alignForward(usize, blob.len, 4);
+
             try self.buffer.ensureUnusedCapacity(blob_word_size + 1);
             self.alignTo32() catch unreachable;
 
             const slice = self.buffer.addManyAsSliceAssumeCapacity(blob_word_size / 4);
             const slice_bytes = std.mem.sliceAsBytes(slice);
+
             @memcpy(slice_bytes[0..blob.len], blob);
             @memset(slice_bytes[blob.len..], 0);
         }
@@ -154,6 +165,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
             if (self.bit_count == 0) return;
 
             try self.buffer.append(std.mem.nativeToLittle(u32, self.bit_buffer));
+
             self.bit_buffer = 0;
             self.bit_count = 0;
         }
@@ -183,6 +195,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
 
                     // We store the index of the block size and store a dummy value as the number of words in the block
                     const start = bitcode.length();
+
                     try bitcode.writeBits(0, 32);
 
                     var self = Self{
@@ -216,6 +229,7 @@ pub fn BitcodeWriter(comptime types: []const type) type {
                     try self.bitcode.writeBits(3, abbrev_len);
                     try self.bitcode.writeVbr(code, 6);
                     try self.bitcode.writeVbr(values.len, 6);
+
                     for (values) |val| {
                         try self.bitcode.writeVbr(val, 6);
                     }
@@ -252,8 +266,10 @@ pub fn BitcodeWriter(comptime types: []const type) type {
                     if (fields.len == 0) return;
 
                     comptime var field_index: usize = 0;
+
                     inline for (Abbrev.ops) |ty| {
                         const param = @field(params, fields[field_index].name);
+
                         switch (ty) {
                             .literal => continue,
                             .fixed => |len| try self.bitcode.writeBits(adapter.get(param), len),
@@ -269,12 +285,14 @@ pub fn BitcodeWriter(comptime types: []const type) type {
                             },
                             .array_fixed => |len| {
                                 try self.bitcode.writeVbr(param.len, 6);
+
                                 for (param) |x| {
                                     try self.bitcode.writeBits(adapter.get(x), len);
                                 }
                             },
                             .array_fixed_runtime => |width_ty| {
                                 try self.bitcode.writeVbr(param.len, 6);
+
                                 for (param) |x| {
                                     try self.bitcode.writeBits(
                                         adapter.get(x),
@@ -284,35 +302,42 @@ pub fn BitcodeWriter(comptime types: []const type) type {
                             },
                             .array_vbr => |len| {
                                 try self.bitcode.writeVbr(param.len, 6);
+
                                 for (param) |x| {
                                     try self.bitcode.writeVbr(adapter.get(x), len);
                                 }
                             },
                             .array_char6 => {
                                 try self.bitcode.writeVbr(param.len, 6);
+
                                 for (param) |x| {
                                     try self.bitcode.write6BitChar(adapter.get(x));
                                 }
                             },
                         }
+
                         field_index += 1;
+
                         if (field_index == fields.len) break;
                     }
                 }
 
                 pub fn defineAbbrev(self: *Self, comptime ops: []const AbbrevOp) Error!void {
                     const bitcode = self.bitcode;
+
                     try bitcode.writeBits(2, abbrev_len);
 
                     // ops.len is not accurate because arrays are actually two ops
                     try bitcode.writeVbr(blk: {
                         var count: usize = 0;
+
                         inline for (ops) |op| {
                             count += switch (op) {
                                 .literal, .fixed, .fixed_runtime, .vbr, .char6, .blob => 1,
                                 .array_fixed, .array_fixed_runtime, .array_vbr, .array_char6 => 2,
                             };
                         }
+
                         break :blk count;
                     }, 5);
 

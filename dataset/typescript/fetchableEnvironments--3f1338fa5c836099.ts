@@ -42,6 +42,7 @@ class FetchableDevEnvironment extends DevEnvironment {
     context: FetchableDevEnvironmentContext,
   ) {
     super(name, config, context)
+
     this._handleRequest = context.handleRequest
   }
 
@@ -51,12 +52,15 @@ class FetchableDevEnvironment extends DevEnvironment {
         'FetchableDevEnvironment `dispatchFetch` must receive a `Request` object.',
       )
     }
+
     const response = await this._handleRequest(request)
+
     if (!(response instanceof Response)) {
       throw new TypeError(
         'FetchableDevEnvironment `context.handleRequest` must return a `Response` object.',
       )
     }
+
     return response
   }
 }

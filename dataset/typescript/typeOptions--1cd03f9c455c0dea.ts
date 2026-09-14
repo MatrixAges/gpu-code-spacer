@@ -3,9 +3,11 @@ import type { ExpectFalse, ExpectTrue } from '@type-challenges/utils'
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface TypeOptions1 {}
+
 interface TypeOptions2 {
   strictImportMetaEnv: unknown
 }
+
 interface TypeOptions3 {
   unknownKey: unknown
 }

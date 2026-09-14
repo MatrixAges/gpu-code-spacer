@@ -6,14 +6,18 @@ fn testDecompress(compressed: []const u8) ![]u8 {
     var stream: std.Io.Reader = .fixed(compressed);
 
     var decompressor = try lzma.Decompress.initOptions(&stream, gpa, &.{}, .{}, std.math.maxInt(u32));
+
     defer decompressor.deinit();
+
     return decompressor.reader.allocRemaining(gpa, .unlimited);
 }
 
 fn testDecompressEqual(expected: []const u8, compressed: []const u8) !void {
     const gpa = std.testing.allocator;
     const decomp = try testDecompress(compressed);
+
     defer gpa.free(decomp);
+
     try std.testing.expectEqualSlices(u8, expected, decomp);
 }
 
@@ -22,6 +26,7 @@ fn testDecompressError(expected: anyerror, compressed: []const u8) !void {
     var stream: std.Io.Reader = .fixed(compressed);
 
     var decompressor = try lzma.Decompress.initOptions(&stream, gpa, &.{}, .{}, std.math.maxInt(u32));
+
     defer decompressor.deinit();
 
     try std.testing.expectError(error.ReadFailed, decompressor.reader.allocRemaining(gpa, .unlimited));
@@ -100,9 +105,11 @@ test "reading one byte" {
     const compressed = @embedFile("testdata/good-known_size-with_eopm.lzma");
     var stream: std.Io.Reader = .fixed(compressed);
     var decompressor = try lzma.Decompress.initOptions(&stream, gpa, &.{}, .{}, std.math.maxInt(u32));
+
     defer decompressor.deinit();
 
     var buffer: [1]u8 = undefined;
+
     try decompressor.reader.readSliceAll(&buffer);
     try std.testing.expectEqual(72, buffer[0]);
 }

@@ -1,5 +1,4 @@
 const std = @import("std");
-
 const Website = @import("website.zig").Website;
 
 const Redirect = struct {
@@ -28,6 +27,7 @@ fn build_redirect(
 ) !void {
     const path = b.pathJoin(&.{ redirect.old, "index.html" });
     const url = b.fmt("{s}/{s}", .{ website.url_prefix, redirect.new });
+
     const html_redirect = b.fmt(
         \\<!DOCTYPE html>
         \\<html lang="en">

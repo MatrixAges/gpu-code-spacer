@@ -2,10 +2,12 @@
 //! the local cache which has a set of files that have either been generated
 //! during the build, or are copied from the source package.
 const std = @import("std");
+
 const Io = std.Io;
 const Step = std.Build.Step;
 const fs = std.fs;
 const ArrayList = std.ArrayList;
+
 const WriteFile = @This();
 
 step: Step,
@@ -47,6 +49,7 @@ pub const Directory = struct {
                 if (std.mem.endsWith(u8, path, ext))
                     return false;
             }
+
             if (opts.include_extensions) |incs| {
                 for (incs) |inc| {
                     if (std.mem.endsWith(u8, path, inc))
@@ -55,6 +58,7 @@ pub const Directory = struct {
                     return false;
                 }
             }
+
             return true;
         }
     };
@@ -67,6 +71,7 @@ pub const Contents = union(enum) {
 
 pub fn create(owner: *std.Build) *WriteFile {
     const write_file = owner.allocator.create(WriteFile) catch @panic("OOM");
+
     write_file.* = .{
         .step = Step.init(.{
             .id = base_id,
@@ -78,18 +83,22 @@ pub fn create(owner: *std.Build) *WriteFile {
         .directories = .{},
         .generated_directory = .{ .step = &write_file.step },
     };
+
     return write_file;
 }
 
 pub fn add(write_file: *WriteFile, sub_path: []const u8, bytes: []const u8) std.Build.LazyPath {
     const b = write_file.step.owner;
     const gpa = b.allocator;
+
     const file = File{
         .sub_path = b.dupePath(sub_path),
         .contents = .{ .bytes = b.dupe(bytes) },
     };
+
     write_file.files.append(gpa, file) catch @panic("OOM");
     write_file.maybeUpdateName();
+
     return .{
         .generated = .{
             .file = &write_file.generated_directory,
@@ -108,14 +117,17 @@ pub fn add(write_file: *WriteFile, sub_path: []const u8, bytes: []const u8) std.
 pub fn addCopyFile(write_file: *WriteFile, source: std.Build.LazyPath, sub_path: []const u8) std.Build.LazyPath {
     const b = write_file.step.owner;
     const gpa = b.allocator;
+
     const file = File{
         .sub_path = b.dupePath(sub_path),
         .contents = .{ .copy = source },
     };
+
     write_file.files.append(gpa, file) catch @panic("OOM");
 
     write_file.maybeUpdateName();
     source.addStepDependencies(&write_file.step);
+
     return .{
         .generated = .{
             .file = &write_file.generated_directory,
@@ -135,15 +147,18 @@ pub fn addCopyDirectory(
 ) std.Build.LazyPath {
     const b = write_file.step.owner;
     const gpa = b.allocator;
+
     const dir = Directory{
         .source = source.dupe(b),
         .sub_path = b.dupePath(sub_path),
         .options = options.dupe(b),
     };
+
     write_file.directories.append(gpa, dir) catch @panic("OOM");
 
     write_file.maybeUpdateName();
     source.addStepDependencies(&write_file.step);
+
     return .{
         .generated = .{
             .file = &write_file.generated_directory,
@@ -174,11 +189,14 @@ fn maybeUpdateName(write_file: *WriteFile) void {
 
 fn make(step: *Step, options: Step.MakeOptions) !void {
     _ = options;
+
     const b = step.owner;
     const io = b.graph.io;
     const arena = b.allocator;
     const gpa = arena;
+
     const write_file: *WriteFile = @fieldParentPtr("step", step);
+
     step.clearWatchInputs();
 
     // The cache is used here not really as a way to speed things up - because writing
@@ -189,6 +207,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     // files, then two WriteFiles executing in parallel might clobber each other.
 
     var man = b.graph.cache.obtain();
+
     defer man.deinit();
 
     for (write_file.files.items) |file| {
@@ -200,7 +219,9 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
             },
             .copy => |lazy_path| {
                 const path = lazy_path.getPath3(b, step);
+
                 _ = try man.addFilePath(path, null);
+
                 try step.addWatchInput(lazy_path);
             },
         }
@@ -208,11 +229,14 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
     const open_dir_cache = try arena.alloc(fs.Dir, write_file.directories.items.len);
     var open_dirs_count: usize = 0;
+
     defer closeDirs(open_dir_cache[0..open_dirs_count]);
 
     for (write_file.directories.items, open_dir_cache) |dir, *open_dir_cache_elem| {
         man.hash.addBytes(dir.sub_path);
+
         for (dir.options.exclude_extensions) |ext| man.hash.addBytes(ext);
+
         if (dir.options.include_extensions) |incs| for (incs) |inc| man.hash.addBytes(inc);
 
         const need_derived_inputs = try step.addDirectoryWatchInput(dir.source);
@@ -223,11 +247,15 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                 src_dir_path, @errorName(err),
             });
         };
+
         open_dir_cache_elem.* = src_dir;
+
         open_dirs_count += 1;
 
         var it = try src_dir.walk(gpa);
+
         defer it.deinit();
+
         while (try it.next()) |entry| {
             if (!dir.options.pathIncluded(entry.path)) continue;
 
@@ -235,11 +263,13 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                 .directory => {
                     if (need_derived_inputs) {
                         const entry_path = try src_dir_path.join(arena, entry.path);
+
                         try step.addDirectoryWatchInputFromPath(entry_path);
                     }
                 },
                 .file => {
                     const entry_path = try src_dir_path.join(arena, entry.path);
+
                     _ = try man.addFilePath(entry_path, null);
                 },
                 else => continue,
@@ -249,8 +279,11 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
 
     if (try step.cacheHit(&man)) {
         const digest = man.final();
+
         write_file.generated_directory.path = try b.cache_root.join(arena, &.{ "o", &digest });
+
         step.result_cached = true;
+
         return;
     }
 
@@ -264,6 +297,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
             b.cache_root, cache_path, @errorName(err),
         });
     };
+
     defer cache_dir.close();
 
     for (write_file.files.items) |file| {
@@ -274,6 +308,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                 });
             };
         }
+
         switch (file.contents) {
             .bytes => |bytes| {
                 cache_dir.writeFile(.{ .sub_path = file.sub_path, .data = bytes }) catch |err| {
@@ -284,11 +319,13 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
             },
             .copy => |file_source| {
                 const source_path = file_source.getPath2(b, step);
+
                 const prev_status = Io.Dir.updateFile(.cwd(), io, source_path, cache_dir.adaptToNewApi(), file.sub_path, .{}) catch |err| {
                     return step.fail("unable to update file from '{s}' to '{f}{s}{c}{s}': {t}", .{
                         source_path, b.cache_root, cache_path, fs.path.sep, file.sub_path, err,
                     });
                 };
+
                 // At this point we already will mark the step as a cache miss.
                 // But this is kind of a partial cache hit since individual
                 // file copies may be avoided. Oh well, this information is
@@ -311,12 +348,15 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
         }
 
         var it = try already_open_dir.walk(gpa);
+
         defer it.deinit();
+
         while (try it.next()) |entry| {
             if (!dir.options.pathIncluded(entry.path)) continue;
 
             const src_entry_path = try src_dir_path.join(arena, entry.path);
             const dest_path = b.pathJoin(&.{ dest_dirname, entry.path });
+
             switch (entry.kind) {
                 .directory => try cache_dir.makePath(dest_path),
                 .file => {
@@ -332,6 +372,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
                             src_entry_path, b.cache_root, cache_path, fs.path.sep, dest_path, @errorName(err),
                         });
                     };
+
                     _ = prev_status;
                 },
                 else => continue,

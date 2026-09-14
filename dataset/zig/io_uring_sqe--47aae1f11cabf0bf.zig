@@ -94,6 +94,7 @@ pub const io_uring_sqe = extern struct {
 
     pub fn prep_splice(sqe: *linux.io_uring_sqe, fd_in: linux.fd_t, off_in: u64, fd_out: linux.fd_t, off_out: u64, len: usize) void {
         sqe.prep_rw(.SPLICE, fd_out, undefined, len, off_out);
+
         sqe.addr = off_in;
         sqe.splice_fd_in = fd_in;
     }
@@ -118,11 +119,13 @@ pub const io_uring_sqe = extern struct {
 
     pub fn prep_read_fixed(sqe: *linux.io_uring_sqe, fd: linux.fd_t, buffer: *std.posix.iovec, offset: u64, buffer_index: u16) void {
         sqe.prep_rw(.READ_FIXED, fd, @intFromPtr(buffer.base), buffer.len, offset);
+
         sqe.buf_index = buffer_index;
     }
 
     pub fn prep_write_fixed(sqe: *linux.io_uring_sqe, fd: linux.fd_t, buffer: *std.posix.iovec, offset: u64, buffer_index: u16) void {
         sqe.prep_rw(.WRITE_FIXED, fd, @intFromPtr(buffer.base), buffer.len, offset);
+
         sqe.buf_index = buffer_index;
     }
 
@@ -136,6 +139,7 @@ pub const io_uring_sqe = extern struct {
         // `addr` holds a pointer to `sockaddr`, and `addr2` holds a pointer to socklen_t`.
         // `addr2` maps to `sqe.off` (u64) instead of `sqe.len` (which is only a u32).
         sqe.prep_rw(.ACCEPT, fd, @intFromPtr(addr), 0, @intFromPtr(addrlen));
+
         sqe.rw_flags = flags;
     }
 
@@ -168,6 +172,7 @@ pub const io_uring_sqe = extern struct {
         else
             // 0 means no fixed files, indexes should be encoded as "index + 1"
             file_index + 1;
+
         // This filed is overloaded in liburing:
         //   splice_fd_in: i32
         //   sqe_file_index: u32
@@ -196,6 +201,7 @@ pub const io_uring_sqe = extern struct {
 
     pub fn prep_recv(sqe: *linux.io_uring_sqe, fd: linux.fd_t, buffer: []u8, flags: u32) void {
         sqe.prep_rw(.RECV, fd, @intFromPtr(buffer.ptr), buffer.len, 0);
+
         sqe.rw_flags = flags;
     }
 
@@ -206,6 +212,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_recv(fd, buffer, flags);
+
         sqe.ioprio |= linux.IORING_RECV_MULTISHOT;
     }
 
@@ -216,6 +223,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.RECVMSG, fd, @intFromPtr(msg), 1, 0);
+
         sqe.rw_flags = flags;
     }
 
@@ -226,22 +234,26 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_recvmsg(fd, msg, flags);
+
         sqe.ioprio |= linux.IORING_RECV_MULTISHOT;
     }
 
     pub fn prep_send(sqe: *linux.io_uring_sqe, fd: linux.fd_t, buffer: []const u8, flags: u32) void {
         sqe.prep_rw(.SEND, fd, @intFromPtr(buffer.ptr), buffer.len, 0);
+
         sqe.rw_flags = flags;
     }
 
     pub fn prep_send_zc(sqe: *linux.io_uring_sqe, fd: linux.fd_t, buffer: []const u8, flags: u32, zc_flags: u16) void {
         sqe.prep_rw(.SEND_ZC, fd, @intFromPtr(buffer.ptr), buffer.len, 0);
+
         sqe.rw_flags = flags;
         sqe.ioprio = zc_flags;
     }
 
     pub fn prep_send_zc_fixed(sqe: *linux.io_uring_sqe, fd: linux.fd_t, buffer: []const u8, flags: u32, zc_flags: u16, buf_index: u16) void {
         prep_send_zc(sqe, fd, buffer, flags, zc_flags);
+
         sqe.ioprio |= linux.IORING_RECVSEND_FIXED_BUF;
         sqe.buf_index = buf_index;
     }
@@ -253,6 +265,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         prep_sendmsg(sqe, fd, msg, flags);
+
         sqe.opcode = .SENDMSG_ZC;
     }
 
@@ -263,6 +276,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.SENDMSG, fd, @intFromPtr(msg), 1, 0);
+
         sqe.rw_flags = flags;
     }
 
@@ -274,6 +288,7 @@ pub const io_uring_sqe = extern struct {
         mode: linux.mode_t,
     ) void {
         sqe.prep_rw(.OPENAT, fd, @intFromPtr(path), mode, 0);
+
         sqe.rw_flags = @bitCast(flags);
     }
 
@@ -320,6 +335,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.TIMEOUT, -1, @intFromPtr(ts), 1, count);
+
         sqe.rw_flags = flags;
     }
 
@@ -348,6 +364,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.LINK_TIMEOUT, -1, @intFromPtr(ts), 1, 0);
+
         sqe.rw_flags = flags;
     }
 
@@ -357,6 +374,7 @@ pub const io_uring_sqe = extern struct {
         poll_mask: u32,
     ) void {
         sqe.prep_rw(.POLL_ADD, fd, @intFromPtr(@as(?*anyopaque, null)), 0, 0);
+
         // Poll masks previously used to comprise of 16 bits in the flags union of
         // a SQE, but were then extended to comprise of 32 bits in order to make
         // room for additional option flags. To ensure that the correct bits of
@@ -381,6 +399,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.POLL_REMOVE, -1, old_user_data, flags, new_user_data);
+
         // Poll masks previously used to comprise of 16 bits in the flags union of
         // a SQE, but were then extended to comprise of 32 bits in order to make
         // room for additional option flags. To ensure that the correct bits of
@@ -424,6 +443,7 @@ pub const io_uring_sqe = extern struct {
         buf: *linux.Statx,
     ) void {
         sqe.prep_rw(.STATX, fd, @intFromPtr(path), mask, @intFromPtr(buf));
+
         sqe.rw_flags = flags;
     }
 
@@ -433,6 +453,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.ASYNC_CANCEL, -1, cancel_user_data, 0, 0);
+
         sqe.rw_flags = flags;
     }
 
@@ -442,6 +463,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.ASYNC_CANCEL, fd, 0, 0, 0);
+
         sqe.rw_flags = flags | linux.IORING_ASYNC_CANCEL_FD;
     }
 
@@ -468,6 +490,7 @@ pub const io_uring_sqe = extern struct {
             0,
             @intFromPtr(new_path),
         );
+
         sqe.len = @bitCast(new_dir_fd);
         sqe.rw_flags = flags;
     }
@@ -479,6 +502,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.UNLINKAT, dir_fd, @intFromPtr(path), 0, 0);
+
         sqe.rw_flags = flags;
     }
 
@@ -521,6 +545,7 @@ pub const io_uring_sqe = extern struct {
             0,
             @intFromPtr(new_path),
         );
+
         sqe.len = @bitCast(new_dir_fd);
         sqe.rw_flags = flags;
     }
@@ -549,7 +574,9 @@ pub const io_uring_sqe = extern struct {
         buffer_id: usize,
     ) void {
         const ptr = @intFromPtr(buffers);
+
         sqe.prep_rw(.PROVIDE_BUFFERS, @intCast(num), ptr, buffer_len, buffer_id);
+
         sqe.buf_index = @intCast(group_id);
     }
 
@@ -559,6 +586,7 @@ pub const io_uring_sqe = extern struct {
         group_id: usize,
     ) void {
         sqe.prep_rw(.REMOVE_BUFFERS, @intCast(num), 0, 0, 0);
+
         sqe.buf_index = @intCast(group_id);
     }
 
@@ -570,6 +598,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         prep_accept(sqe, fd, addr, addrlen, flags);
+
         sqe.ioprio |= linux.IORING_ACCEPT_MULTISHOT;
     }
 
@@ -581,6 +610,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.SOCKET, @intCast(domain), 0, protocol, socket_type);
+
         sqe.rw_flags = flags;
     }
 
@@ -616,6 +646,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.WAITID, id, 0, @intFromEnum(id_type), @intFromPtr(infop));
+
         sqe.rw_flags = flags;
         sqe.splice_fd_in = @bitCast(options);
     }
@@ -628,6 +659,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.BIND, fd, @intFromPtr(addr), 0, addrlen);
+
         sqe.rw_flags = flags;
     }
 
@@ -638,6 +670,7 @@ pub const io_uring_sqe = extern struct {
         flags: u32,
     ) void {
         sqe.prep_rw(.LISTEN, fd, 0, backlog, 0);
+
         sqe.rw_flags = flags;
     }
 
@@ -651,8 +684,10 @@ pub const io_uring_sqe = extern struct {
         optlen: u32,
     ) void {
         sqe.prep_rw(.URING_CMD, fd, 0, 0, 0);
+
         // off is overloaded with cmd_op, https://github.com/axboe/liburing/blob/e1003e496e66f9b0ae06674869795edf772d5500/src/include/liburing/io_uring.h#L39
         sqe.off = @intFromEnum(cmd_op);
+
         // addr is overloaded, https://github.com/axboe/liburing/blob/e1003e496e66f9b0ae06674869795edf772d5500/src/include/liburing/io_uring.h#L46
         sqe.addr = @bitCast(packed struct {
             level: u32,
@@ -661,6 +696,7 @@ pub const io_uring_sqe = extern struct {
             .level = level,
             .optname = optname,
         });
+
         // splice_fd_in if overloaded u32 -> i32
         sqe.splice_fd_in = @bitCast(optlen);
         // addr3 is overloaded, https://github.com/axboe/liburing/blob/e1003e496e66f9b0ae06674869795edf772d5500/src/include/liburing/io_uring.h#L102

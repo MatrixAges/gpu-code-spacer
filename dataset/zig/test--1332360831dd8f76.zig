@@ -10,26 +10,34 @@ pub fn ok(s: []const u8) !void {
     try testLowLevelScanner(s);
     try testHighLevelDynamicParser(s);
 }
+
 pub fn err(s: []const u8) !void {
     try testing.expect(std.meta.isError(testLowLevelScanner(s)));
     try testing.expect(std.meta.isError(testHighLevelDynamicParser(s)));
 }
+
 pub fn any(s: []const u8) !void {
     testLowLevelScanner(s) catch {};
     testHighLevelDynamicParser(s) catch {};
 }
+
 fn testLowLevelScanner(s: []const u8) !void {
     var scanner = Scanner.initCompleteInput(testing.allocator, s);
+
     defer scanner.deinit();
+
     while (true) {
         const token = try scanner.next();
+
         if (token == .end_of_document) break;
     }
 }
+
 fn testHighLevelDynamicParser(s: []const u8) !void {
     var parsed = try parseFromSlice(Value, testing.allocator, s, .{
         .duplicate_field_behavior = .use_first,
     });
+
     defer parsed.deinit();
 }
 
@@ -39,6 +47,7 @@ test "y_trailing_comma_after_empty" {
         \\{"1":[],"2":{},"3":"4"}
     );
 }
+
 test "n_object_closed_missing_value" {
     try err(
         \\{"a":}
@@ -49,9 +58,11 @@ fn roundTrip(s: []const u8) !void {
     try testing.expect(try Scanner.validate(testing.allocator, s));
 
     var parsed = try parseFromSlice(Value, testing.allocator, s, .{});
+
     defer parsed.deinit();
 
     const rendered = try json.Stringify.valueAlloc(testing.allocator, parsed.value, .{});
+
     defer testing.allocator.free(rendered);
 
     try testing.expectEqualStrings(s, rendered);

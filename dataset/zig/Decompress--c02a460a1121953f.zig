@@ -93,6 +93,7 @@ const indirect_vtable: Reader.VTable = .{
 /// Otherwise, `buffer` has those requirements.
 pub fn init(input: *Reader, buffer: []u8, options: Options) Decompress {
     if (buffer.len != 0) assert(buffer.len >= options.window_len + zstd.block_size_max);
+
     return .{
         .input = input,
         .state = .new_frame,
@@ -109,13 +110,16 @@ pub fn init(input: *Reader, buffer: []u8, options: Options) Decompress {
 
 fn streamDirect(r: *Reader, w: *Writer, limit: std.Io.Limit) Reader.StreamError!usize {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     return stream(d, w, limit);
 }
 
 fn streamIndirect(r: *Reader, w: *Writer, limit: std.Io.Limit) Reader.StreamError!usize {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     _ = limit;
     _ = w;
+
     return streamIndirectInner(d);
 }
 
@@ -125,11 +129,15 @@ fn rebaseFallible(r: *Reader, capacity: usize) Reader.RebaseError!void {
 
 fn rebase(r: *Reader, capacity: usize) void {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     assert(capacity <= r.buffer.len - d.window_len);
     assert(r.end + capacity > r.buffer.len);
+
     const discard_n = @min(r.seek, r.end - d.window_len);
     const keep = r.buffer[discard_n..r.end];
+
     @memmove(r.buffer[0..keep.len], keep);
+
     r.end = keep.len;
     r.seek -= discard_n;
 }
@@ -138,7 +146,9 @@ fn rebase(r: *Reader, capacity: usize) void {
 /// entire frame, skip decoding that frame.
 fn discardDirect(r: *Reader, limit: std.Io.Limit) Reader.Error!usize {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     rebase(r, d.window_len);
+
     var writer: Writer = .{
         .vtable = &.{
             .drain = std.Io.Writer.Discarding.drain,
@@ -147,49 +157,65 @@ fn discardDirect(r: *Reader, limit: std.Io.Limit) Reader.Error!usize {
         .buffer = r.buffer,
         .end = r.end,
     };
+
     defer {
         r.end = writer.end;
         r.seek = r.end;
     }
+
     const n = r.stream(&writer, limit) catch |err| switch (err) {
         error.WriteFailed => unreachable,
         error.ReadFailed => return error.ReadFailed,
         error.EndOfStream => return error.EndOfStream,
     };
+
     assert(n <= @intFromEnum(limit));
+
     return n;
 }
 
 fn discardIndirect(r: *Reader, limit: std.Io.Limit) Reader.Error!usize {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     rebase(r, d.window_len);
+
     var writer: Writer = .{
         .buffer = r.buffer,
         .end = r.end,
         .vtable = &.{ .drain = Writer.unreachableDrain },
     };
+
     {
         defer r.end = writer.end;
+
         _ = stream(d, &writer, .limited(writer.buffer.len - writer.end)) catch |err| switch (err) {
             error.WriteFailed => unreachable,
             else => |e| return e,
         };
     }
+
     const n = limit.minInt(r.end - r.seek);
+
     r.seek += n;
+
     return n;
 }
 
 fn readVec(r: *Reader, data: [][]u8) Reader.Error!usize {
     _ = data;
+
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     return streamIndirectInner(d);
 }
 
 fn streamIndirectInner(d: *Decompress) Reader.Error!usize {
     const r = &d.reader;
+
     if (r.buffer.len - r.end < zstd.block_size_max) rebase(r, zstd.block_size_max);
+
     assert(r.buffer.len - r.end >= zstd.block_size_max);
+
     var writer: Writer = .{
         .buffer = r.buffer,
         .end = r.end,
@@ -198,11 +224,14 @@ fn streamIndirectInner(d: *Decompress) Reader.Error!usize {
             .rebase = Writer.unreachableRebase,
         },
     };
+
     defer r.end = writer.end;
+
     _ = stream(d, &writer, .limited(writer.buffer.len - writer.end)) catch |err| switch (err) {
         error.WriteFailed => unreachable,
         else => |e| return e,
     };
+
     return 0;
 }
 
@@ -217,17 +246,23 @@ fn stream(d: *Decompress, w: *Writer, limit: Limit) Reader.StreamError!usize {
                 error.EndOfStream => {
                     if (in.bufferedLen() != 0) {
                         d.err = error.BadMagic;
+
                         return error.ReadFailed;
                     }
+
                     return err;
                 },
                 else => |e| return e,
             };
+
             const magic = try in.takeEnumNonexhaustive(Frame.Magic, .little);
+
             initFrame(d, magic) catch |err| {
                 d.err = err;
+
                 return error.ReadFailed;
             };
+
             continue :state d.state;
         },
         .in_frame => |*in_frame| {
@@ -236,6 +271,7 @@ fn stream(d: *Decompress, w: *Writer, limit: Limit) Reader.StreamError!usize {
                 error.WriteFailed => return error.WriteFailed,
                 else => |e| {
                     d.err = e;
+
                     return error.ReadFailed;
                 },
             };
@@ -243,10 +279,14 @@ fn stream(d: *Decompress, w: *Writer, limit: Limit) Reader.StreamError!usize {
         .skipping_frame => |*remaining| {
             const n = in.discard(.limited(remaining.*)) catch |err| {
                 d.err = err;
+
                 return error.ReadFailed;
             };
+
             remaining.* -= n;
+
             if (remaining.* == 0) d.state = .new_frame;
+
             return 0;
         },
     }
@@ -254,9 +294,11 @@ fn stream(d: *Decompress, w: *Writer, limit: Limit) Reader.StreamError!usize {
 
 fn initFrame(d: *Decompress, magic: Frame.Magic) !void {
     const in = d.input;
+
     switch (magic.kind() orelse return error.BadMagic) {
         .zstandard => {
             const header = try Frame.Zstandard.Header.decode(in);
+
             d.state = .{ .in_frame = .{
                 .frame = try Frame.init(header, d.window_len, d.verify_checksum),
                 .checksum = null,
@@ -266,6 +308,7 @@ fn initFrame(d: *Decompress, magic: Frame.Magic) !void {
         },
         .skippable => {
             const frame_size = try in.takeInt(u32, .little);
+
             d.state = .{ .skipping_frame = frame_size };
         },
     }
@@ -278,17 +321,23 @@ fn readInFrame(d: *Decompress, w: *Writer, limit: Limit, state: *State.InFrame) 
     const block_header = try in.takeStruct(Frame.Zstandard.Block.Header, .little);
     const block_size = block_header.size;
     const frame_block_size_max = state.frame.block_size_max;
+
     if (frame_block_size_max < block_size) return error.BlockOversize;
     if (@intFromEnum(limit) < block_size) return error.OutputBufferUndersize;
+
     var bytes_written: usize = 0;
+
     switch (block_header.type) {
         .raw => {
             try in.streamExactPreserve(w, window_len, block_size);
+
             bytes_written = block_size;
         },
         .rle => {
             const byte = try in.takeByte();
+
             try w.splatBytePreserve(window_len, byte, block_size);
+
             bytes_written = block_size;
         },
         .compressed => {
@@ -299,13 +348,17 @@ fn readInFrame(d: *Decompress, w: *Writer, limit: Limit, state: *State.InFrame) 
             const sequences_header = try SequencesSection.Header.decode(in, &remaining);
 
             const decode = &state.decode;
+
             try decode.prepare(in, &remaining, literals, sequences_header);
 
             {
                 if (sequence_buffer.len < @intFromEnum(remaining))
                     return error.SequenceBufferUndersize;
+
                 const seq_slice = remaining.slice(&sequence_buffer);
+
                 try in.readSliceAll(seq_slice);
+
                 var bit_stream = try ReverseBitReader.init(seq_slice);
 
                 if (sequences_header.sequence_count > 0) {
@@ -314,14 +367,19 @@ fn readInFrame(d: *Decompress, w: *Writer, limit: Limit, state: *State.InFrame) 
                     // Ensures the following calls to `decodeSequence` will not flush.
                     const dest = (try w.writableSliceGreedyPreserve(window_len, frame_block_size_max))[0..frame_block_size_max];
                     const write_pos = dest.ptr - w.buffer.ptr;
+
                     for (0..sequences_header.sequence_count - 1) |_| {
                         bytes_written += try decode.decodeSequence(w.buffer, write_pos + bytes_written, &bit_stream);
+
                         try decode.updateState(.literal, &bit_stream);
                         try decode.updateState(.match, &bit_stream);
                         try decode.updateState(.offset, &bit_stream);
                     }
+
                     bytes_written += try decode.decodeSequence(w.buffer, write_pos + bytes_written, &bit_stream);
+
                     if (bytes_written > dest.len) return error.MalformedSequence;
+
                     w.advance(bytes_written);
                 }
 
@@ -332,7 +390,9 @@ fn readInFrame(d: *Decompress, w: *Writer, limit: Limit, state: *State.InFrame) 
 
             if (decode.literal_written_count < literals.header.regenerated_size) {
                 const len = literals.header.regenerated_size - decode.literal_written_count;
+
                 try decode.decodeLiterals(w, len);
+
                 decode.literal_written_count += len;
                 bytes_written += len;
             }
@@ -352,6 +412,7 @@ fn readInFrame(d: *Decompress, w: *Writer, limit: Limit, state: *State.InFrame) 
     if (state.frame.hasher_opt) |*hasher| {
         if (bytes_written > 0) {
             _ = hasher;
+
             @panic("TODO all those bytes written needed to go through the hasher too");
         }
     }
@@ -361,16 +422,20 @@ fn readInFrame(d: *Decompress, w: *Writer, limit: Limit, state: *State.InFrame) 
     if (block_header.last) {
         if (state.frame.has_checksum) {
             const expected_checksum = try in.takeInt(u32, .little);
+
             if (state.frame.hasher_opt) |*hasher| {
                 const actual_checksum: u32 = @truncate(hasher.final());
+
                 if (expected_checksum != actual_checksum) return error.ChecksumFailure;
             }
         }
+
         if (state.frame.content_size) |content_size| {
             if (content_size != state.decompressed_size) {
                 return error.MalformedFrame;
             }
         }
+
         d.state = .new_frame;
     } else if (state.frame.content_size) |content_size| {
         if (state.decompressed_size > content_size) return error.MalformedFrame;
@@ -442,12 +507,14 @@ pub const Frame = struct {
                 const dictionary_id: ?u32 = if (descriptor.dictionary_id_flag > 0) d: {
                     // if flag is 3 then field_size = 4, else field_size = flag
                     const field_size = (@as(u4, 1) << descriptor.dictionary_id_flag) >> 1;
+
                     break :d try in.takeVarInt(u32, .little, field_size);
                 } else null;
 
                 const content_size: ?u64 = if (descriptor.single_segment_flag or descriptor.content_size_flag > 0) c: {
                     const field_size = @as(u4, 1) << descriptor.content_size_flag;
                     const content_size = try in.takeVarInt(u64, .little, field_size);
+
                     break :c if (field_size == 2) content_size + 256 else content_size;
                 } else null;
 
@@ -468,6 +535,7 @@ pub const Frame = struct {
                     const window_log = 10 + exponent;
                     const window_base = @as(u64, 1) << @as(u6, @intCast(window_log));
                     const window_add = (window_base / 8) * mantissa;
+
                     return window_base + window_add;
                 } else return header.content_size;
             }
@@ -586,6 +654,7 @@ pub const Frame = struct {
                     .raw, .rle => {},
                     .compressed, .treeless => {
                         self.literal_stream_index = 0;
+
                         switch (literals.streams) {
                             .one => |slice| try self.initLiteralStream(slice),
                             .four => |streams| try self.initLiteralStream(streams[0]),
@@ -597,6 +666,7 @@ pub const Frame = struct {
                     try self.updateFseTable(in, remaining, .literal, sequences_header.literal_lengths);
                     try self.updateFseTable(in, remaining, .offset, sequences_header.offsets);
                     try self.updateFseTable(in, remaining, .match, sequences_header.match_lengths);
+
                     self.fse_tables_undefined = false;
                 }
             }
@@ -621,6 +691,7 @@ pub const Frame = struct {
                     std.mem.swap(u32, &self.repeat_offsets[0], &self.repeat_offsets[2]);
                     std.mem.swap(u32, &self.repeat_offsets[1], &self.repeat_offsets[2]);
                 }
+
                 return self.repeat_offsets[0];
             }
 
@@ -638,10 +709,12 @@ pub const Frame = struct {
                         const data = table[@field(self, @tagName(choice)).state];
                         const T = @TypeOf(@field(self, @tagName(choice))).State;
                         const bits_summand = try bit_reader.readBitsNoEof(T, data.bits);
+
                         const next_state = std.math.cast(
                             @TypeOf(@field(self, @tagName(choice))).State,
                             data.baseline + bits_summand,
                         ) orelse return error.MalformedFseBits;
+
                         @field(self, @tagName(choice)).state = next_state;
                     },
                 }
@@ -663,6 +736,7 @@ pub const Frame = struct {
                 mode: SequencesSection.Header.Mode,
             ) !void {
                 const field_name = @tagName(choice);
+
                 switch (mode) {
                     .predefined => {
                         @field(self, field_name).accuracy_log =
@@ -679,20 +753,27 @@ pub const Frame = struct {
                     .fse => {
                         const max_table_size = 2048;
                         const peek_len: usize = remaining.minInt(max_table_size);
+
                         if (in.buffer.len < peek_len) return error.InputBufferUndersize;
+
                         const limited_buffer = try in.peek(peek_len);
                         var bit_reader: BitReader = .{ .bytes = limited_buffer };
+
                         const table_size = try Table.decode(
                             &bit_reader,
                             @field(zstd.table_symbol_count_max, field_name),
                             @field(zstd.table_accuracy_log_max, field_name),
                             &@field(self, field_name ++ "_fse_buffer"),
                         );
+
                         @field(self, field_name).table = .{
                             .fse = (&@field(self, field_name ++ "_fse_buffer"))[0..table_size],
                         };
+
                         @field(self, field_name).accuracy_log = std.math.log2_int_ceil(usize, table_size);
+
                         in.toss(bit_reader.index);
+
                         remaining.* = remaining.subtract(bit_reader.index).?;
                     },
                     .repeat => if (self.fse_tables_undefined) return error.RepeatModeFirst,
@@ -710,36 +791,48 @@ pub const Frame = struct {
                 bit_reader: *ReverseBitReader,
             ) error{ InvalidBitStream, EndOfStream }!Sequence {
                 const raw_code = self.getCode(.offset);
+
                 const offset_code = std.math.cast(u5, raw_code) orelse {
                     return error.InvalidBitStream;
                 };
+
                 const offset_value = (@as(u32, 1) << offset_code) + try bit_reader.readBitsNoEof(u32, offset_code);
 
                 const match_code = self.getCode(.match);
+
                 if (match_code >= zstd.match_length_code_table.len)
                     return error.InvalidBitStream;
+
                 const match = zstd.match_length_code_table[match_code];
                 const match_length = match[0] + try bit_reader.readBitsNoEof(u32, match[1]);
 
                 const literal_code = self.getCode(.literal);
+
                 if (literal_code >= zstd.literals_length_code_table.len)
                     return error.InvalidBitStream;
+
                 const literal = zstd.literals_length_code_table[literal_code];
                 const literal_length = literal[0] + try bit_reader.readBitsNoEof(u32, literal[1]);
 
                 const offset = if (offset_value > 3) offset: {
                     const offset = offset_value - 3;
+
                     self.updateRepeatOffset(offset);
+
                     break :offset offset;
                 } else offset: {
                     if (literal_length == 0) {
                         if (offset_value == 3) {
                             const offset = self.repeat_offsets[0] - 1;
+
                             self.updateRepeatOffset(offset);
+
                             break :offset offset;
                         }
+
                         break :offset self.useRepeatOffset(offset_value);
                     }
+
                     break :offset self.useRepeatOffset(offset_value - 1);
                 };
 
@@ -774,20 +867,26 @@ pub const Frame = struct {
 
                 if (decode.literal_written_count + literal_length > decode.literal_header.regenerated_size)
                     return error.MalformedLiteralsLength;
+
                 var sub_bw: Writer = .fixed(dest[write_pos..]);
+
                 try decodeLiterals(decode, &sub_bw, literal_length);
+
                 decode.literal_written_count += literal_length;
+
                 // This is not a @memmove; it intentionally repeats patterns
                 // caused by iterating one byte at a time.
                 for (
                     dest[write_pos + literal_length ..][0..match_length],
                     dest[copy_start..][0..match_length],
                 ) |*d, s| d.* = s;
+
                 return sequence_length;
             }
 
             fn nextLiteralMultiStream(self: *Decode) error{MissingStartBit}!void {
                 self.literal_stream_index += 1;
+
                 try self.initLiteralStream(self.literal_streams.four[self.literal_stream_index]);
             }
 
@@ -806,6 +905,7 @@ pub const Frame = struct {
                 MissingStartBit,
                 UnexpectedEndOfLiteralStream,
             };
+
             fn readLiteralsBits(
                 self: *Decode,
                 bit_count_to_read: u16,
@@ -813,6 +913,7 @@ pub const Frame = struct {
                 return self.literal_stream_reader.readBitsNoEof(u16, bit_count_to_read) catch bits: {
                     if (self.literal_streams == .four and self.literal_stream_index < 3) {
                         try self.nextLiteralMultiStream();
+
                         break :bits self.literal_stream_reader.readBitsNoEof(u16, bit_count_to_read) catch
                             return error.UnexpectedEndOfLiteralStream;
                     } else {
@@ -834,20 +935,26 @@ pub const Frame = struct {
                         const buf = try w.writableSlice(len);
                         const huffman_tree = d.huffman_tree.?;
                         const max_bit_count = huffman_tree.max_bit_count;
+
                         const starting_bit_count = LiteralsSection.HuffmanTree.weightToBitCount(
                             huffman_tree.nodes[huffman_tree.symbol_count_minus_one].weight,
                             max_bit_count,
                         );
+
                         var bits_read: u4 = 0;
                         var huffman_tree_index: usize = huffman_tree.symbol_count_minus_one;
                         var bit_count_to_read: u4 = starting_bit_count;
+
                         for (buf) |*out| {
                             var prefix: u16 = 0;
+
                             while (true) {
                                 const new_bits = try d.readLiteralsBits(bit_count_to_read);
+
                                 prefix <<= bit_count_to_read;
                                 prefix |= new_bits;
                                 bits_read += bit_count_to_read;
+
                                 const result = try huffman_tree.query(huffman_tree_index, prefix);
 
                                 switch (result) {
@@ -856,14 +963,17 @@ pub const Frame = struct {
                                         bit_count_to_read = starting_bit_count;
                                         bits_read = 0;
                                         huffman_tree_index = huffman_tree.symbol_count_minus_one;
+
                                         break;
                                     },
                                     .index => |index| {
                                         huffman_tree_index = index;
+
                                         const bit_count = LiteralsSection.HuffmanTree.weightToBitCount(
                                             huffman_tree.nodes[index].weight,
                                             max_bit_count,
                                         );
+
                                         bit_count_to_read = bit_count - bits_read;
                                     },
                                 }
@@ -914,6 +1024,7 @@ pub const Frame = struct {
             return error.DictionaryIdFlagUnsupported;
 
         const window_size_raw = frame_header.windowSize() orelse return error.WindowSizeUnknown;
+
         const window_size = if (window_size_raw > window_size_max)
             return error.WindowOversize
         else
@@ -982,11 +1093,13 @@ pub const LiteralsSection = struct {
         /// Decode a literals section header.
         pub fn decode(in: *Reader, remaining: *Limit) !Header {
             remaining.* = remaining.subtract(1) orelse return error.EndOfStream;
+
             const byte0 = try in.takeByte();
             const block_type: BlockType = @enumFromInt(byte0 & 0b11);
             const size_format: u2 = @intCast((byte0 & 0b1100) >> 2);
             var regenerated_size: u20 = undefined;
             var compressed_size: ?u18 = null;
+
             switch (block_type) {
                 .raw, .rle => {
                     switch (size_format) {
@@ -999,6 +1112,7 @@ pub const LiteralsSection = struct {
                         },
                         3 => {
                             remaining.* = remaining.subtract(2) orelse return error.EndOfStream;
+
                             regenerated_size = (byte0 >> 4) +
                                 (@as(u20, try in.takeByte()) << 4) +
                                 (@as(u20, try in.takeByte()) << 12);
@@ -1007,8 +1121,10 @@ pub const LiteralsSection = struct {
                 },
                 .compressed, .treeless => {
                     remaining.* = remaining.subtract(2) orelse return error.EndOfStream;
+
                     const byte1 = try in.takeByte();
                     const byte2 = try in.takeByte();
+
                     switch (size_format) {
                         0, 1 => {
                             regenerated_size = (byte0 >> 4) + ((@as(u20, byte1) & 0b00111111) << 4);
@@ -1016,20 +1132,25 @@ pub const LiteralsSection = struct {
                         },
                         2 => {
                             remaining.* = remaining.subtract(1) orelse return error.EndOfStream;
+
                             const byte3 = try in.takeByte();
+
                             regenerated_size = (byte0 >> 4) + (@as(u20, byte1) << 4) + ((@as(u20, byte2) & 0b00000011) << 12);
                             compressed_size = ((byte2 & 0b11111100) >> 2) + (@as(u18, byte3) << 6);
                         },
                         3 => {
                             remaining.* = remaining.subtract(2) orelse return error.EndOfStream;
+
                             const byte3 = try in.takeByte();
                             const byte4 = try in.takeByte();
+
                             regenerated_size = (byte0 >> 4) + (@as(u20, byte1) << 4) + ((@as(u20, byte2) & 0b00111111) << 12);
                             compressed_size = ((byte2 & 0b11000000) >> 6) + (@as(u18, byte3) << 2) + (@as(u18, byte4) << 10);
                         },
                     }
                 },
             }
+
             return .{
                 .block_type = block_type,
                 .size_format = size_format,
@@ -1066,12 +1187,15 @@ pub const LiteralsSection = struct {
             var node = self.nodes[index];
             const weight = node.weight;
             var i: usize = index;
+
             while (node.weight == weight) {
                 if (node.prefix == prefix) return .{ .symbol = node.symbol };
                 if (i == 0) return error.HuffmanTreeIncomplete;
+
                 i -= 1;
                 node = self.nodes[i];
             }
+
             return .{ .index = i };
         }
 
@@ -1089,7 +1213,9 @@ pub const LiteralsSection = struct {
 
         pub fn decode(in: *Reader, remaining: *Limit) HuffmanTree.DecodeError!HuffmanTree {
             remaining.* = remaining.subtract(1) orelse return error.EndOfStream;
+
             const header = try in.takeByte();
+
             if (header < 128) {
                 return decodeFse(in, remaining, header);
             } else {
@@ -1104,13 +1230,18 @@ pub const LiteralsSection = struct {
         ) HuffmanTree.DecodeError!HuffmanTree {
             var weights: [256]u4 = undefined;
             const weights_byte_count = (encoded_symbol_count + 1) / 2;
+
             remaining.* = remaining.subtract(weights_byte_count) orelse return error.EndOfStream;
+
             for (0..weights_byte_count) |i| {
                 const byte = try in.takeByte();
+
                 weights[2 * i] = @as(u4, @intCast(byte >> 4));
                 weights[2 * i + 1] = @as(u4, @intCast(byte & 0xF));
             }
+
             const symbol_count = encoded_symbol_count + 1;
+
             return build(&weights, symbol_count);
         }
 
@@ -1120,7 +1251,9 @@ pub const LiteralsSection = struct {
             compressed_size: usize,
         ) HuffmanTree.DecodeError!HuffmanTree {
             var weights: [256]u4 = undefined;
+
             remaining.* = remaining.subtract(compressed_size) orelse return error.EndOfStream;
+
             const compressed_buffer = try in.take(compressed_size);
             var bit_reader: BitReader = .{ .bytes = compressed_buffer };
             var entries: [1 << 6]Table.Fse = undefined;
@@ -1128,6 +1261,7 @@ pub const LiteralsSection = struct {
             const accuracy_log = std.math.log2_int_ceil(usize, table_size);
             const remaining_buffer = bit_reader.bytes[bit_reader.index..];
             const symbol_count = try assignWeights(remaining_buffer, accuracy_log, &entries, &weights);
+
             return build(&weights, symbol_count);
         }
 
@@ -1147,26 +1281,36 @@ pub const LiteralsSection = struct {
                 const even_data = entries[even_state];
                 var read_bits: u16 = 0;
                 const even_bits = huff_bits.readBits(u32, even_data.bits, &read_bits) catch unreachable;
+
                 weights[i] = std.math.cast(u4, even_data.symbol) orelse return error.MalformedHuffmanTree;
                 i += 1;
+
                 if (read_bits < even_data.bits) {
                     weights[i] = std.math.cast(u4, entries[odd_state].symbol) orelse return error.MalformedHuffmanTree;
                     i += 1;
+
                     break;
                 }
+
                 even_state = even_data.baseline + even_bits;
 
                 read_bits = 0;
+
                 const odd_data = entries[odd_state];
                 const odd_bits = huff_bits.readBits(u32, odd_data.bits, &read_bits) catch unreachable;
+
                 weights[i] = std.math.cast(u4, odd_data.symbol) orelse return error.MalformedHuffmanTree;
                 i += 1;
+
                 if (read_bits < odd_data.bits) {
                     if (i == 255) return error.MalformedHuffmanTree;
+
                     weights[i] = std.math.cast(u4, entries[even_state].symbol) orelse return error.MalformedHuffmanTree;
                     i += 1;
+
                     break;
                 }
+
                 odd_state = odd_data.baseline + odd_bits;
             } else return error.MalformedHuffmanTree;
 
@@ -1197,11 +1341,14 @@ pub const LiteralsSection = struct {
             var prefixed_symbol_count: usize = 0;
             var sorted_index: usize = 0;
             const symbol_count = weight_sorted_prefixed_symbols.len;
+
             while (sorted_index < symbol_count) {
                 var symbol = weight_sorted_prefixed_symbols[sorted_index].symbol;
                 const weight = weights[symbol];
+
                 if (weight == 0) {
                     sorted_index += 1;
+
                     continue;
                 }
 
@@ -1211,39 +1358,49 @@ pub const LiteralsSection = struct {
                     prefix += 1;
                 }) {
                     symbol = weight_sorted_prefixed_symbols[sorted_index].symbol;
+
                     if (weights[symbol] != weight) {
                         prefix = ((prefix - 1) >> (weights[symbol] - weight)) + 1;
+
                         break;
                     }
+
                     weight_sorted_prefixed_symbols[prefixed_symbol_count].symbol = symbol;
                     weight_sorted_prefixed_symbols[prefixed_symbol_count].prefix = prefix;
                     weight_sorted_prefixed_symbols[prefixed_symbol_count].weight = weight;
                 }
             }
+
             return prefixed_symbol_count;
         }
 
         fn build(weights: *[256]u4, symbol_count: usize) error{MalformedHuffmanTree}!HuffmanTree {
             var weight_power_sum_big: u32 = 0;
+
             for (weights[0 .. symbol_count - 1]) |value| {
                 weight_power_sum_big += (@as(u16, 1) << value) >> 1;
             }
+
             if (weight_power_sum_big >= 1 << 11) return error.MalformedHuffmanTree;
+
             const weight_power_sum = @as(u16, @intCast(weight_power_sum_big));
 
             // advance to next power of two (even if weight_power_sum is a power of 2)
             // TODO: is it valid to have weight_power_sum == 0?
             const max_number_of_bits = if (weight_power_sum == 0) 1 else std.math.log2_int(u16, weight_power_sum) + 1;
             const next_power_of_two = @as(u16, 1) << max_number_of_bits;
+
             weights[symbol_count - 1] = std.math.log2_int(u16, next_power_of_two - weight_power_sum) + 1;
 
             var weight_sorted_prefixed_symbols: [256]PrefixedSymbol = undefined;
             const prefixed_symbol_count = assignSymbols(weight_sorted_prefixed_symbols[0..symbol_count], weights.*);
+
             const tree: HuffmanTree = .{
                 .max_bit_count = max_number_of_bits,
                 .symbol_count_minus_one = @as(u8, @intCast(prefixed_symbol_count - 1)),
                 .nodes = weight_sorted_prefixed_symbols,
             };
+
             return tree;
         }
 
@@ -1260,6 +1417,7 @@ pub const LiteralsSection = struct {
     };
 
     pub const StreamCount = enum { one, four };
+
     pub fn streamCount(size_format: u2, block_type: BlockType) StreamCount {
         return switch (block_type) {
             .raw, .rle => .one,
@@ -1286,11 +1444,15 @@ pub const LiteralsSection = struct {
 
     pub fn decode(in: *Reader, remaining: *Limit, buffer: []u8) DecodeError!LiteralsSection {
         const header = try Header.decode(in, remaining);
+
         switch (header.block_type) {
             .raw => {
                 if (buffer.len < header.regenerated_size) return error.MalformedLiteralsSection;
+
                 remaining.* = remaining.subtract(header.regenerated_size) orelse return error.EndOfStream;
+
                 try in.readSliceAll(buffer[0..header.regenerated_size]);
+
                 return .{
                     .header = header,
                     .huffman_tree = null,
@@ -1300,6 +1462,7 @@ pub const LiteralsSection = struct {
             .rle => {
                 remaining.* = remaining.subtract(1) orelse return error.EndOfStream;
                 buffer[0] = try in.takeByte();
+
                 return .{
                     .header = header,
                     .huffman_tree = null,
@@ -1308,18 +1471,26 @@ pub const LiteralsSection = struct {
             },
             .compressed, .treeless => {
                 const before_remaining = remaining.*;
+
                 const huffman_tree = if (header.block_type == .compressed)
                     try HuffmanTree.decode(in, remaining)
                 else
                     null;
+
                 const huffman_tree_size = @intFromEnum(before_remaining) - @intFromEnum(remaining.*);
+
                 const total_streams_size = std.math.sub(usize, header.compressed_size.?, huffman_tree_size) catch
                     return error.MalformedLiteralsSection;
+
                 if (total_streams_size > buffer.len) return error.MalformedLiteralsSection;
+
                 remaining.* = remaining.subtract(total_streams_size) orelse return error.EndOfStream;
+
                 try in.readSliceAll(buffer[0..total_streams_size]);
+
                 const stream_data = buffer[0..total_streams_size];
                 const streams = try Streams.decode(header.size_format, stream_data);
+
                 return .{
                     .header = header,
                     .huffman_tree = huffman_tree,
@@ -1359,7 +1530,9 @@ pub const SequencesSection = struct {
             var sequence_count: u24 = undefined;
 
             remaining.* = remaining.subtract(1) orelse return error.EndOfStream;
+
             const byte0 = try in.takeByte();
+
             if (byte0 == 0) {
                 return .{
                     .sequence_count = 0,
@@ -1383,6 +1556,7 @@ pub const SequencesSection = struct {
             const matches_mode: Header.Mode = @enumFromInt((compression_modes & 0b00001100) >> 2);
             const offsets_mode: Header.Mode = @enumFromInt((compression_modes & 0b00110000) >> 4);
             const literal_mode: Header.Mode = @enumFromInt((compression_modes & 0b11000000) >> 6);
+
             if (compression_modes & 0b11 != 0) return error.ReservedBitSet;
 
             return .{
@@ -1412,7 +1586,9 @@ pub const Table = union(enum) {
         entries: []Table.Fse,
     ) !usize {
         const accuracy_log_biased = try bit_reader.readBitsNoEof(u4, 4);
+
         if (accuracy_log_biased > max_accuracy_log -| 5) return error.MalformedAccuracyLog;
+
         const accuracy_log = accuracy_log_biased + 5;
 
         var values: [256]u16 = undefined;
@@ -1433,6 +1609,7 @@ pub const Table = union(enum) {
                 small
             else value: {
                 const value_read = small + (try bit_reader.readBitsNoEof(u16, 1) << (max_bits - 1));
+
                 break :value if (value_read < @as(u16, 1) << (max_bits - 1))
                     value_read
                 else
@@ -1447,16 +1624,21 @@ pub const Table = union(enum) {
             if (value == 1) {
                 while (true) {
                     const repeat_flag = try bit_reader.readBitsNoEof(u2, 2);
+
                     if (repeat_flag + value_count > 256) return error.MalformedFseTable;
+
                     for (0..repeat_flag) |_| {
                         values[value_count] = 1;
                         value_count += 1;
                     }
+
                     if (repeat_flag < 3) break;
                 }
             }
+
             if (value_count == 256) break;
         }
+
         bit_reader.alignToByte();
 
         if (value_count < 2) return error.MalformedFseTable;
@@ -1466,15 +1648,18 @@ pub const Table = union(enum) {
         const table_size = total_probability;
 
         try build(values[0..value_count], entries[0..table_size]);
+
         return table_size;
     }
 
     pub fn build(values: []const u16, entries: []Table.Fse) !void {
         const total_probability = @as(u16, @intCast(entries.len));
         const accuracy_log = std.math.log2_int(u16, total_probability);
+
         assert(total_probability <= 1 << 9);
 
         var less_than_one_count: usize = 0;
+
         for (values, 0..) |value, i| {
             if (value == 0) {
                 entries[entries.len - 1 - less_than_one_count] = Table.Fse{
@@ -1482,18 +1667,22 @@ pub const Table = union(enum) {
                     .baseline = 0,
                     .bits = accuracy_log,
                 };
+
                 less_than_one_count += 1;
             }
         }
 
         var position: usize = 0;
         var temp_states: [1 << 9]u16 = undefined;
+
         for (values, 0..) |value, symbol| {
             if (value == 0 or value == 1) continue;
+
             const probability = value - 1;
 
             const state_share_dividend = std.math.ceilPowerOfTwo(u16, probability) catch
                 return error.MalformedFseTable;
+
             const share_size = @divExact(total_probability, state_share_dividend);
             const double_state_count = state_share_dividend - probability;
             const single_state_count = probability - double_state_count;
@@ -1503,12 +1692,15 @@ pub const Table = union(enum) {
                 temp_states[i] = @as(u16, @intCast(position));
                 position += (entries.len >> 1) + (entries.len >> 3) + 3;
                 position &= entries.len - 1;
+
                 while (position >= entries.len - less_than_one_count) {
                     position += (entries.len >> 1) + (entries.len >> 3) + 3;
                     position &= entries.len - 1;
                 }
             }
+
             std.mem.sort(u16, temp_states[0..probability], {}, std.sort.asc(u16));
+
             for (0..probability) |i| {
                 entries[temp_states[i]] = if (i < double_state_count) Table.Fse{
                     .symbol = @as(u8, @intCast(symbol)),
@@ -1543,13 +1735,17 @@ pub const Table = union(enum) {
         };
 
         var entries: [64]Table.Fse = undefined;
+
         try build(&literals_length_default_values, &entries);
+
         try std.testing.expectEqualSlices(Table.Fse, Table.predefined_literal.fse, &entries);
 
         try build(&match_lengths_default_values, &entries);
+
         try std.testing.expectEqualSlices(Table.Fse, Table.predefined_match.fse, &entries);
 
         try build(&offset_codes_default_values, entries[0..32]);
+
         try std.testing.expectEqualSlices(Table.Fse, Table.predefined_offset.fse, entries[0..32]);
     }
 
@@ -1759,13 +1955,17 @@ const ReverseBitReader = struct {
             .bits = 0,
             .count = 0,
         };
+
         if (bytes.len == 0) return result;
+
         for (0..8) |_| if (0 != (result.readBitsNoEof(u1, 1) catch unreachable)) return result;
+
         return error.MissingStartBit;
     }
 
     fn initBits(comptime T: type, out: anytype, num: u16) Bits(T) {
         const UT = std.meta.Int(.unsigned, @bitSizeOf(T));
+
         return .{
             @bitCast(@as(UT, @intCast(out))),
             num,
@@ -1774,13 +1974,17 @@ const ReverseBitReader = struct {
 
     fn readBitsNoEof(self: *ReverseBitReader, comptime T: type, num: u16) error{EndOfStream}!T {
         const b, const c = try self.readBitsTuple(T, num);
+
         if (c < num) return error.EndOfStream;
+
         return b;
     }
 
     fn readBits(self: *ReverseBitReader, comptime T: type, num: u16, out_bits: *u16) !T {
         const b, const c = try self.readBitsTuple(T, num);
+
         out_bits.* = c;
+
         return b;
     }
 
@@ -1799,7 +2003,9 @@ const ReverseBitReader = struct {
             const byte = takeByte(self) catch |err| switch (err) {
                 error.EndOfStream => return initBits(T, out, out_count),
             };
+
             if (U == u8) out = 0 else out <<= 8;
+
             out |= byte;
             out_count += 8;
         }
@@ -1818,12 +2024,15 @@ const ReverseBitReader = struct {
         self.bits = final_byte & low_bit_mask[keep];
 
         self.count = @intCast(keep);
+
         return initBits(T, out, num);
     }
 
     fn takeByte(rbr: *ReverseBitReader) error{EndOfStream}!u8 {
         if (rbr.remaining == 0) return error.EndOfStream;
+
         rbr.remaining -= 1;
+
         return rbr.bytes[rbr.remaining];
     }
 
@@ -1834,14 +2043,17 @@ const ReverseBitReader = struct {
     fn removeBits(self: *ReverseBitReader, num: u4) u8 {
         if (num == 8) {
             self.count = 0;
+
             return self.bits;
         }
 
         const keep = self.count - num;
         const bits = self.bits >> @intCast(keep);
+
         self.bits &= low_bit_mask[keep];
 
         self.count = keep;
+
         return bits;
     }
 };
@@ -1854,6 +2066,7 @@ const BitReader = struct {
 
     fn initBits(comptime T: type, out: anytype, num: u16) Bits(T) {
         const UT = std.meta.Int(.unsigned, @bitSizeOf(T));
+
         return .{
             @bitCast(@as(UT, @intCast(out))),
             num,
@@ -1862,13 +2075,17 @@ const BitReader = struct {
 
     fn readBitsNoEof(self: *@This(), comptime T: type, num: u16) !T {
         const b, const c = try self.readBitsTuple(T, num);
+
         if (c < num) return error.EndOfStream;
+
         return b;
     }
 
     fn readBits(self: *@This(), comptime T: type, num: u16, out_bits: *u16) !T {
         const b, const c = try self.readBitsTuple(T, num);
+
         out_bits.* = c;
+
         return b;
     }
 
@@ -1889,6 +2106,7 @@ const BitReader = struct {
             };
 
             const pos = @as(U, byte) << @intCast(out_count);
+
             out |= pos;
             out_count += 8;
         }
@@ -1903,30 +2121,38 @@ const BitReader = struct {
         };
 
         const pos = @as(U, final_byte & low_bit_mask[bits_left]) << @intCast(out_count);
+
         out |= pos;
         self.bits = final_byte >> @intCast(bits_left);
 
         self.count = @intCast(keep);
+
         return initBits(T, out, num);
     }
 
     fn takeByte(br: *BitReader) error{EndOfStream}!u8 {
         if (br.bytes.len - br.index == 0) return error.EndOfStream;
+
         const result = br.bytes[br.index];
+
         br.index += 1;
+
         return result;
     }
 
     fn removeBits(self: *@This(), num: u4) u8 {
         if (num == 8) {
             self.count = 0;
+
             return self.bits;
         }
 
         const keep = self.count - num;
         const bits = self.bits & low_bit_mask[num];
+
         self.bits >>= @intCast(num);
         self.count = keep;
+
         return bits;
     }
 

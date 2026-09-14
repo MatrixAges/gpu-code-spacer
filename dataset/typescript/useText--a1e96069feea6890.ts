@@ -13,6 +13,7 @@ interface Args {
 
 export default (args: Args) => {
 	const { text, update } = args
+
 	const ref_editor = useRef<LexicalEditor>()
 	const ref_input = useRef<HTMLDivElement | null>(null)
 

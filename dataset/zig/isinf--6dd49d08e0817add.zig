@@ -7,6 +7,7 @@ pub inline fn isInf(x: anytype) bool {
     const T = @TypeOf(x);
     const TBits = std.meta.Int(.unsigned, @typeInfo(T).float.bits);
     const remove_sign = ~@as(TBits, 0) >> 1;
+
     return @as(TBits, @bitCast(x)) & remove_sign == @as(TBits, @bitCast(math.inf(T)));
 }
 

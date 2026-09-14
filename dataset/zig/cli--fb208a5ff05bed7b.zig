@@ -143,15 +143,19 @@ const CLIArgs = union(enum) {
         account_distribution: Command.Benchmark.Distribution = .uniform,
         no_history: bool = false,
         imported: bool = false,
+
         account_batch_count: u32 = Operation.create_accounts.event_max(
             constants.message_body_size_max,
         ),
+
         transfer_count: u64 = 10_000_000,
         transfer_hot_percent: u32 = 100,
         transfer_pending: bool = false,
+
         transfer_batch_count: u32 = Operation.create_transfers.event_max(
             constants.message_body_size_max,
         ),
+
         transfer_batch_delay: Duration = .ms(0),
         validate: bool = false,
         checksum_performance: bool = false,
@@ -171,20 +175,24 @@ const CLIArgs = union(enum) {
     const Inspect = union(enum) {
         constants,
         metrics,
+
         op: struct {
             @"--": void,
             op: u64,
         },
+
         superblock: struct {
             @"--": void,
             path: []const u8,
         },
+
         wal: struct {
             slot: ?usize = null,
 
             @"--": void,
             path: []const u8,
         },
+
         replies: struct {
             slot: ?usize = null,
             superblock_copy: ?u8 = null,
@@ -192,6 +200,7 @@ const CLIArgs = union(enum) {
             @"--": void,
             path: []const u8,
         },
+
         grid: struct {
             block: ?u64 = null,
             superblock_copy: ?u8 = null,
@@ -199,12 +208,14 @@ const CLIArgs = union(enum) {
             @"--": void,
             path: []const u8,
         },
+
         manifest: struct {
             superblock_copy: ?u8 = null,
 
             @"--": void,
             path: []const u8,
         },
+
         tables: struct {
             superblock_copy: ?u8 = null,
             tree: []const u8,
@@ -213,6 +224,7 @@ const CLIArgs = union(enum) {
             @"--": void,
             path: []const u8,
         },
+
         integrity: struct {
             log_debug: bool = false,
             seed: ?[]const u8 = null,
@@ -507,6 +519,7 @@ const MemorySplit = struct {
     cache_accounts: u8,
     cache_transfers: u8,
     cache_transfers_pending: u8,
+
     const default: MemorySplit = .{
         .cache_grid = 64,
         .cache_accounts = 32,
@@ -655,22 +668,28 @@ pub const Command = union(enum) {
 
         pub const DataFile = struct {
             path: []const u8,
+
             query: union(enum) {
                 superblock,
+
                 wal: struct {
                     slot: ?usize,
                 },
+
                 replies: struct {
                     slot: ?usize,
                     superblock_copy: ?u8,
                 },
+
                 grid: struct {
                     block: ?u64,
                     superblock_copy: ?u8,
                 },
+
                 manifest: struct {
                     superblock_copy: ?u8,
                 },
+
                 tables: struct {
                     superblock_copy: ?u8,
                     tree: []const u8,
@@ -746,6 +765,7 @@ fn parse_args_format(format: CLIArgs.Format) Command.Format {
     if (format.replica_count == 0) {
         vsr.fatal(.cli, "--replica-count: value needs to be greater than zero", .{});
     }
+
     if (format.replica_count > constants.replicas_max) {
         vsr.fatal(.cli, "--replica-count: value is too large ({}), at most {} is allowed", .{
             format.replica_count,
@@ -777,6 +797,7 @@ fn parse_args_format(format: CLIArgs.Format) Command.Format {
                 format.replica_count,
             });
         }
+
         if (standby >= format.replica_count + constants.standbys_max) {
             vsr.fatal(.cli, "--standby: value is too large ({}), at most {} is allowed", .{
                 standby,
@@ -786,17 +807,22 @@ fn parse_args_format(format: CLIArgs.Format) Command.Format {
     }
 
     const replica = (format.replica orelse format.standby).?;
+
     assert(replica < constants.members_max);
     assert(replica < format.replica_count + constants.standbys_max);
 
     const cluster_random = std.crypto.random.int(u128);
+
     assert(cluster_random != 0);
+
     const cluster = format.cluster orelse cluster_random;
+
     if (format.cluster == null) {
         std.log.info("generated random cluster id: {}\n", .{cluster});
     } else if (format.cluster.? == 0) {
         std.log.warn("a cluster id of 0 is reserved for testing and benchmarking, " ++
             "do not use in production", .{});
+
         std.log.warn("omit --cluster=0 to randomly generate a suitable id\n", .{});
     }
 
@@ -814,6 +840,7 @@ fn parse_args_recover(recover: CLIArgs.Recover) Command.Recover {
     if (recover.replica_count == 0) {
         vsr.fatal(.cli, "--replica-count: value needs to be greater than zero", .{});
     }
+
     if (recover.replica_count > constants.replicas_max) {
         vsr.fatal(.cli, "--replica-count: value is too large ({}), at most {} is allowed", .{
             recover.replica_count,
@@ -827,11 +854,13 @@ fn parse_args_recover(recover: CLIArgs.Recover) Command.Recover {
             recover.replica_count - 1,
         });
     }
+
     if (recover.replica_count <= 2) {
         vsr.fatal(.cli, "--replica-count: 1- or 2- replica clusters don't support 'recover'", .{});
     }
 
     const replica = recover.replica;
+
     assert(replica < constants.members_max);
     assert(replica < recover.replica_count);
 
@@ -853,28 +882,35 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
         "addresses",   "cache_grid",
         "development", "experimental",
     };
+
     inline for (std.meta.fields(@TypeOf(start))) |field| {
         @setEvalBranchQuota(4_000);
+
         // Positional arguments can't be experimental.
         comptime if (std.mem.eql(u8, field.name, "--")) break;
 
         const stable_field = comptime for (stable_args) |stable_arg| {
             assert(std.meta.fieldIndex(@TypeOf(start), stable_arg) != null);
+
             if (std.mem.eql(u8, field.name, stable_arg)) {
                 break true;
             }
         } else false;
+
         if (stable_field) continue;
 
         const flag_name = comptime blk: {
             var result: [2 + field.name.len]u8 = ("--" ++ field.name).*;
+
             std.mem.replaceScalar(u8, &result, '_', '-');
+
             break :blk result;
         };
 
         // If you've added a flag and get a comptime error here, it's likely because
         // we require experimental flags to default to null.
         const required_default = if (field.type == bool) false else null;
+
         assert(field.defaultValue().? == required_default);
 
         if (@field(start, field.name) != required_default and !start.experimental) {
@@ -920,12 +956,14 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
 
     const start_limit_storage: ByteSize = start.limit_storage orelse
         .{ .value = constants.storage_size_limit_default };
+
     const start_memory_lsm_manifest: ByteSize = start.memory_lsm_manifest orelse
         .{ .value = constants.lsm_manifest_memory_size_default };
 
     const storage_size_limit = start_limit_storage.bytes();
     const storage_size_limit_min = data_file_size_min;
     const storage_size_limit_max = constants.storage_size_limit_max;
+
     if (storage_size_limit > storage_size_limit_max) {
         vsr.fatal(.cli, "--limit-storage: size {}{s} exceeds maximum: {}", .{
             start_limit_storage.value,
@@ -933,6 +971,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
             vsr.stdx.fmt_int_size_bin_exact(storage_size_limit_max),
         });
     }
+
     if (storage_size_limit < storage_size_limit_min) {
         vsr.fatal(.cli, "--limit-storage: size {}{s} is below minimum: {}", .{
             start_limit_storage.value,
@@ -940,6 +979,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
             vsr.stdx.fmt_int_size_bin_exact(storage_size_limit_min),
         });
     }
+
     if (storage_size_limit % constants.sector_size != 0) {
         vsr.fatal(
             .cli,
@@ -954,14 +994,17 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
 
     const pipeline_limit =
         start.limit_pipeline_requests orelse defaults.limit_pipeline_requests;
+
     const pipeline_limit_min = 0;
     const pipeline_limit_max = constants.pipeline_request_queue_max;
+
     if (pipeline_limit > pipeline_limit_max) {
         vsr.fatal(.cli, "--limit-pipeline-requests: count {} exceeds maximum: {}", .{
             pipeline_limit,
             pipeline_limit_max,
         });
     }
+
     if (pipeline_limit < pipeline_limit_min) {
         vsr.fatal(.cli, "--limit-pipeline-requests: count {} is below minimum: {}", .{
             pipeline_limit,
@@ -973,6 +1016,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
     const request_size_limit = start.limit_request orelse defaults.limit_request;
     const request_size_limit_min = 4096;
     const request_size_limit_max = constants.message_size_max;
+
     if (request_size_limit.bytes() > request_size_limit_max) {
         vsr.fatal(.cli, "--limit-request: size {}{s} exceeds maximum: {}", .{
             request_size_limit.value,
@@ -980,6 +1024,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
             vsr.stdx.fmt_int_size_bin_exact(request_size_limit_max),
         });
     }
+
     if (request_size_limit.bytes() < request_size_limit_min) {
         vsr.fatal(.cli, "--limit-request: size {}{s} is below minimum: {}", .{
             request_size_limit.value,
@@ -992,6 +1037,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
     const lsm_manifest_memory_max = constants.lsm_manifest_memory_size_max;
     const lsm_manifest_memory_min = constants.lsm_manifest_memory_size_min;
     const lsm_manifest_memory_multiplier = constants.lsm_manifest_memory_size_multiplier;
+
     if (lsm_manifest_memory > lsm_manifest_memory_max) {
         vsr.fatal(.cli, "--memory-lsm-manifest: size {}{s} exceeds maximum: {}", .{
             start_memory_lsm_manifest.value,
@@ -999,6 +1045,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
             vsr.stdx.fmt_int_size_bin_exact(lsm_manifest_memory_max),
         });
     }
+
     if (lsm_manifest_memory < lsm_manifest_memory_min) {
         vsr.fatal(.cli, "--memory-lsm-manifest: size {}{s} is below minimum: {}", .{
             start_memory_lsm_manifest.value,
@@ -1006,6 +1053,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
             vsr.stdx.fmt_int_size_bin_exact(lsm_manifest_memory_min),
         });
     }
+
     if (lsm_manifest_memory % lsm_manifest_memory_multiplier != 0) {
         vsr.fatal(
             .cli,
@@ -1020,7 +1068,9 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
 
     const lsm_compaction_block_memory =
         start.memory_lsm_compaction orelse defaults.memory_lsm_compaction;
+
     const lsm_compaction_block_memory_max = constants.compaction_block_memory_size_max;
+
     if (lsm_compaction_block_memory.bytes() > lsm_compaction_block_memory_max) {
         vsr.fatal(.cli, "--memory-lsm-compaction: size {}{s} exceeds maximum: {}", .{
             lsm_compaction_block_memory.value,
@@ -1028,6 +1078,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
             vsr.stdx.fmt_int_size_bin_exact(lsm_compaction_block_memory_max),
         });
     }
+
     if (lsm_compaction_block_memory.bytes() < lsm_compaction_block_memory_min) {
         vsr.fatal(.cli, "--memory-lsm-compaction: size {}{s} is below minimum: {}", .{
             lsm_compaction_block_memory.value,
@@ -1035,6 +1086,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
             vsr.stdx.fmt_int_size_bin_exact(lsm_compaction_block_memory_min),
         });
     }
+
     if (lsm_compaction_block_memory.bytes() % constants.block_size != 0) {
         vsr.fatal(
             .cli,
@@ -1049,6 +1101,7 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
 
     const lsm_forest_compaction_block_count: u32 =
         @intCast(@divExact(lsm_compaction_block_memory.bytes(), constants.block_size));
+
     const lsm_forest_node_count: u32 =
         @intCast(@divExact(lsm_manifest_memory, constants.lsm_manifest_node_size));
 
@@ -1058,9 +1111,11 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
         }
 
         var aof_file: Command.Path = .{};
+
         if (aof_file.capacity() < start.path.len + 4) {
             vsr.fatal(.cli, "data file path is too long for --aof. use --aof-file", .{});
         }
+
         aof_file.push_slice(start.path);
         aof_file.push_slice(".aof");
 
@@ -1076,9 +1131,11 @@ fn parse_args_start(start: CLIArgs.Start) Command.Start {
         }
 
         var aof_file: Command.Path = .{};
+
         if (aof_file.capacity() < start.path.len) {
             vsr.fatal(.cli, "--aof-file path is too long", .{});
         }
+
         aof_file.push_slice(start_aof_file);
 
         break :blk aof_file;
@@ -1252,6 +1309,7 @@ fn parse_args_inspect_integrity(args: CLIArgs.Inspect) Command.Inspect.Integrity
     const lsm_manifest_memory_max = constants.lsm_manifest_memory_size_max;
     const lsm_manifest_memory_min = constants.lsm_manifest_memory_size_min;
     const lsm_manifest_memory_multiplier = constants.lsm_manifest_memory_size_multiplier;
+
     if (lsm_manifest_memory > lsm_manifest_memory_max) {
         vsr.fatal(.cli, "--memory-lsm-manifest: size {}{s} exceeds maximum: {}", .{
             scrub_memory_lsm_manifest.value,
@@ -1259,6 +1317,7 @@ fn parse_args_inspect_integrity(args: CLIArgs.Inspect) Command.Inspect.Integrity
             vsr.stdx.fmt_int_size_bin_exact(lsm_manifest_memory_max),
         });
     }
+
     if (lsm_manifest_memory < lsm_manifest_memory_min) {
         vsr.fatal(.cli, "--memory-lsm-manifest: size {}{s} is below minimum: {}", .{
             scrub_memory_lsm_manifest.value,
@@ -1266,6 +1325,7 @@ fn parse_args_inspect_integrity(args: CLIArgs.Inspect) Command.Inspect.Integrity
             vsr.stdx.fmt_int_size_bin_exact(lsm_manifest_memory_min),
         });
     }
+
     if (lsm_manifest_memory % lsm_manifest_memory_multiplier != 0) {
         vsr.fatal(
             .cli,
@@ -1442,6 +1502,7 @@ fn parse_cache_size_to_count(
     const value_count_max_multiple = SetAssociativeCache.value_count_max_multiple;
 
     const count_limit = @divFloor(size.bytes(), @sizeOf(T));
+
     const count_rounded = @divFloor(
         count_limit,
         value_count_max_multiple,
@@ -1452,6 +1513,7 @@ fn parse_cache_size_to_count(
     }
 
     const result: u32 = @intCast(count_rounded);
+
     assert(@as(u64, result) * @sizeOf(T) <= size.bytes());
 
     return result;
@@ -1475,6 +1537,7 @@ fn memory_split_cache_sizes(memory: ByteSize, split: MemorySplit) CacheSizes {
 
 fn memory_split_bytes(memory_bytes: u64, percent: u8) u64 {
     assert(percent <= 100);
+
     return @intCast(@divFloor(@as(u128, memory_bytes) * percent, 100));
 }
 

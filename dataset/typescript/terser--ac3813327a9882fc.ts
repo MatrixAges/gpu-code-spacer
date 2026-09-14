@@ -1,9 +1,11 @@
 import { pathToFileURL } from 'node:url'
 import { WorkerWithFallback } from 'artichokie'
+
 import type {
   TerserMinifyOptions,
   TerserMinifyOutput,
 } from '#types/internal/terserOptions'
+
 import type { ResolvedConfig } from '..'
 import { nodeResolveWithVite } from '../nodeResolve'
 import type { Plugin } from '../plugin'
@@ -20,6 +22,7 @@ export interface TerserOptions extends TerserMinifyOptions {
 }
 
 let terserPath: string | undefined
+
 function loadTerserPath(root: string) {
   if (terserPath) return terserPath
 
@@ -27,6 +30,7 @@ function loadTerserPath(root: string) {
   const resolved =
     nodeResolveWithVite('terser', undefined, { root }) ??
     nodeResolveWithVite('terser', _dirname, { root })
+
   if (resolved) return (terserPath = resolved)
 
   // Error if we can't find the package
@@ -47,6 +51,7 @@ export function terserPlugin(config: ResolvedConfig): Plugin {
           options: TerserMinifyOptions,
         ) => {
           const terser: typeof import('terser') = await import(terserPath)
+
           try {
             return (await terser.minify(code, options)) as TerserMinifyOutput
           } catch (e) {
@@ -89,10 +94,12 @@ export function terserPlugin(config: ResolvedConfig): Plugin {
       const usesOxcMinifier =
         (config.build.minify === true || config.build.minify === 'oxc') &&
         outputOptions.minify !== false
+
       const minifyLegacyWithTerser =
         this.environment.config.isOutputOptionsForLegacyChunks?.(
           outputOptions,
         ) && !usesOxcMinifier
+
       if (config.build.minify !== 'terser' && !minifyLegacyWithTerser) {
         return null
       }
@@ -101,6 +108,7 @@ export function terserPlugin(config: ResolvedConfig): Plugin {
       worker ||= makeWorker()
 
       const terserPath = pathToFileURL(loadTerserPath(config.root)).href
+
       try {
         const res = await worker.run(terserPath, code, {
           safari10: true,
@@ -117,6 +125,7 @@ export function terserPlugin(config: ResolvedConfig): Plugin {
           module: outputOptions.format.startsWith('es'),
           toplevel: outputOptions.format === 'cjs',
         })
+
         return {
           code: res.code!,
           map: res.map as any,
@@ -129,9 +138,11 @@ export function terserPlugin(config: ResolvedConfig): Plugin {
             column: e.col,
           }
         }
+
         if (e.pos !== undefined) {
           e.frame = generateCodeFrame(code, e.pos)
         }
+
         throw e
       }
     },

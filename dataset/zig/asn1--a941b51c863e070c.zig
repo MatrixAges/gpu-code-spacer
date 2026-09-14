@@ -75,10 +75,14 @@ pub const Tag = struct {
 
         if (tag1.number == 15) {
             const tag2: NextTag = @bitCast(try reader.takeByte());
+
             number = tag2.number;
+
             if (tag2.continues) {
                 const tag3: NextTag = @bitCast(try reader.takeByte());
+
                 number = (number << 7) + tag3.number;
+
                 if (tag3.continues) return error.InvalidLength;
             }
         }
@@ -103,18 +107,23 @@ pub const Tag = struct {
         switch (@intFromEnum(self.number)) {
             0...std.math.maxInt(u5) => |n| {
                 tag1.number = @intCast(n);
+
                 writer2.writeByte(@bitCast(tag1)) catch unreachable;
             },
             std.math.maxInt(u5) + 1...std.math.maxInt(u7) => |n| {
                 tag1.number = 15;
+
                 const tag2 = NextTag{ .number = @intCast(n), .continues = false };
+
                 writer2.writeByte(@bitCast(tag1)) catch unreachable;
                 writer2.writeByte(@bitCast(tag2)) catch unreachable;
             },
             else => |n| {
                 tag1.number = 15;
+
                 const tag2 = NextTag{ .number = @intCast(n >> 7), .continues = true };
                 const tag3 = NextTag{ .number = @truncate(n), .continues = false };
+
                 writer2.writeByte(@bitCast(tag1)) catch unreachable;
                 writer2.writeByte(@bitCast(tag2)) catch unreachable;
                 writer2.writeByte(@bitCast(tag3)) catch unreachable;
@@ -149,6 +158,7 @@ pub const Tag = struct {
             .int => return universal(.integer, false),
             .@"enum" => |e| {
                 if (@hasDecl(T, "oids")) return Oid.asn1_tag;
+
                 return universal(if (e.is_exhaustive) .enumerated else .integer, false);
             },
             .optional => |o| return fromZig(o.child),
@@ -162,6 +172,7 @@ test Tag {
     const buf = [_]u8{0xa3};
     var reader: std.Io.Reader = .fixed(&buf);
     const t = Tag.decode(&reader);
+
     try std.testing.expectEqual(Tag.init(@enumFromInt(3), true, .context_specific), t);
 }
 
@@ -197,19 +208,24 @@ pub const Element = struct {
 
         var start = index + 2;
         var end = start + size_or_len_size;
+
         // short form between 0-127
         if (size_or_len_size < 128) {
             if (end > bytes.len) return error.InvalidLength;
         } else {
             // long form between 0 and std.math.maxInt(u1024)
             const len_size: u7 = @truncate(size_or_len_size);
+
             start += len_size;
+
             if (len_size > @sizeOf(Index)) return error.InvalidLength;
 
             const len = try reader.takeVarInt(Index, .big, len_size);
+
             if (len < 128) return error.InvalidLength; // should have used short form
 
             end = std.math.add(Index, start, len) catch return error.InvalidLength;
+
             if (end > bytes.len) return error.InvalidLength;
         }
 
@@ -219,12 +235,14 @@ pub const Element = struct {
 
 test Element {
     const short_form = [_]u8{ 0x30, 0x03, 0x02, 0x01, 0x09 };
+
     try std.testing.expectEqual(Element{
         .tag = Tag.universal(.sequence, true),
         .slice = Element.Slice{ .start = 2, .end = short_form.len },
     }, Element.decode(&short_form, 0));
 
     const long_form = [_]u8{ 0x30, 129, 129 } ++ [_]u8{0} ** 129;
+
     try std.testing.expectEqual(Element{
         .tag = Tag.universal(.sequence, true),
         .slice = Element.Slice{ .start = 3, .end = long_form.len },
@@ -249,12 +267,15 @@ pub const ExpectedTag = struct {
         if (self.number) |e| {
             if (tag.number != e) return false;
         }
+
         if (self.constructed) |e| {
             if (tag.constructed != e) return false;
         }
+
         if (self.class) |e| {
             if (tag.class != e) return false;
         }
+
         return true;
     }
 };
@@ -301,8 +322,11 @@ pub const BitString = struct {
         const bytes = decoder.view(ele);
 
         if (bytes.len < 1) return error.InvalidBitString;
+
         const padding = bytes[0];
+
         if (padding >= 8) return error.InvalidBitString;
+
         const right_padding: u3 = @intCast(padding);
 
         // DER requires that unused bits be zero.
@@ -325,7 +349,9 @@ pub fn Opaque(comptime tag: Tag) type {
 
         pub fn decodeDer(decoder: *der.Decoder) !@This() {
             const ele = try decoder.element(tag.toExpected());
+
             if (tag.constructed) decoder.index = ele.slice.end;
+
             return .{ .bytes = decoder.view(ele) };
         }
 
@@ -342,6 +368,7 @@ pub const Any = struct {
 
     pub fn decodeDer(decoder: *der.Decoder) !@This() {
         const ele = try decoder.element(ExpectedTag{});
+
         return .{ .tag = ele.tag, .bytes = decoder.view(ele) };
     }
 

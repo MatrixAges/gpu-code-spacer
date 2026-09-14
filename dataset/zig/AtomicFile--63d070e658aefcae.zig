@@ -27,10 +27,12 @@ pub fn init(
     while (true) {
         const random_integer = std.crypto.random.int(u64);
         const tmp_sub_path = std.fmt.hex(random_integer);
+
         const file = dir.createFile(&tmp_sub_path, .{ .mode = mode, .exclusive = true }) catch |err| switch (err) {
             error.PathAlreadyExists => continue,
             else => |e| return e,
         };
+
         return .{
             .file_writer = file.writer(write_buffer),
             .random_integer = random_integer,
@@ -47,16 +49,22 @@ pub fn init(
 pub fn deinit(af: *AtomicFile) void {
     if (af.file_open) {
         af.file_writer.file.close();
+
         af.file_open = false;
     }
+
     if (af.file_exists) {
         const tmp_sub_path = std.fmt.hex(af.random_integer);
+
         af.dir.deleteFile(&tmp_sub_path) catch {};
+
         af.file_exists = false;
     }
+
     if (af.close_dir_on_deinit) {
         af.dir.close();
     }
+
     af.* = undefined;
 }
 
@@ -76,12 +84,17 @@ pub const RenameIntoPlaceError = posix.RenameError;
 /// this function).
 pub fn renameIntoPlace(af: *AtomicFile) RenameIntoPlaceError!void {
     assert(af.file_exists);
+
     if (af.file_open) {
         af.file_writer.file.close();
+
         af.file_open = false;
     }
+
     const tmp_sub_path = std.fmt.hex(af.random_integer);
+
     try posix.renameat(af.dir.fd, &tmp_sub_path, af.dir.fd, af.dest_basename);
+
     af.file_exists = false;
 }
 

@@ -21,6 +21,7 @@ pub fn StorageType(comptime IO: type) type {
 
         pub const Read = struct {
             completion: IO.Completion,
+
             callback: *const fn (read: *Storage.Read) void,
 
             /// The buffer to read into, re-sliced and re-assigned
@@ -63,12 +64,14 @@ pub fn StorageType(comptime IO: type) type {
                 var max = read.target_max;
 
                 const partial_sector_read_remainder = read.buffer.len % constants.sector_size;
+
                 if (partial_sector_read_remainder != 0) {
                     // TODO log.debug() because this is interesting,
                     // and to ensure fuzz test coverage.
                     const partial_sector_read =
                         constants.sector_size -
                         partial_sector_read_remainder;
+
                     max -= partial_sector_read;
                 }
 
@@ -78,7 +81,9 @@ pub fn StorageType(comptime IO: type) type {
 
         pub const Write = struct {
             completion: IO.Completion,
+
             callback: *const fn (write: *Storage.Write) void,
+
             buffer: []const u8,
             offset: u64,
 
@@ -88,15 +93,16 @@ pub fn StorageType(comptime IO: type) type {
 
         pub const Flush = struct {
             completion: IO.Completion,
+
             callback: *const fn (write: *Storage.Flush) void,
         };
 
         pub const NextTick = IO.Completion;
-
         pub const NextTickSource = IO.NextTickSource;
 
         io: *IO,
         tracer: *Tracer,
+
         dir_fd: IO.fd_t,
         fd: IO.fd_t,
         unflushed: u64 = 0,
@@ -114,6 +120,7 @@ pub fn StorageType(comptime IO: type) type {
             const basename = std.fs.path.basename(options.path);
 
             const dir_fd = try IO.open_dir(dirname);
+
             errdefer std.posix.close(dir_fd);
 
             const fd = try io.open_data_file(
@@ -123,6 +130,7 @@ pub fn StorageType(comptime IO: type) type {
                 options.purpose,
                 options.direct_io,
             );
+
             errdefer std.posix.close(fd);
 
             return .{
@@ -140,9 +148,11 @@ pub fn StorageType(comptime IO: type) type {
             assert(storage.unflushed == 0);
 
             std.posix.close(storage.fd);
+
             storage.fd = IO.INVALID_FILE;
 
             std.posix.close(storage.dir_fd);
+
             storage.dir_fd = IO.INVALID_FILE;
         }
 
@@ -172,6 +182,7 @@ pub fn StorageType(comptime IO: type) type {
                     ) void {
                         const callback_original: *const fn (*NextTick) void =
                             @ptrCast(@alignCast(ctx));
+
                         callback_original(completion);
                     }
                 }.adapter,
@@ -193,9 +204,11 @@ pub fn StorageType(comptime IO: type) type {
             offset_in_zone: u64,
         ) void {
             zone.verify_iop(buffer, offset_in_zone);
+
             assert(zone != .grid_padding);
 
             const offset_in_storage = zone.offset(offset_in_zone);
+
             read.* = .{
                 .completion = undefined,
                 .callback = callback,
@@ -207,6 +220,7 @@ pub fn StorageType(comptime IO: type) type {
             };
 
             self.start_read(read, null);
+
             assert(read.target().len > 0);
         }
 
@@ -215,12 +229,14 @@ pub fn StorageType(comptime IO: type) type {
             maybe(bytes_read == 0); // Retrying erroneous read; same offset with smaller window.
 
             const bytes = bytes_read orelse 0;
+
             assert(bytes <= read.target().len);
 
             read.offset += bytes;
             read.buffer = read.buffer[bytes..];
 
             const target = read.target();
+
             if (target.len == 0) {
                 // Resolving the read inline means start_read() must not have been called from
                 // read_sectors(). If it was, this is a synchronous callback resolution and should
@@ -233,10 +249,12 @@ pub fn StorageType(comptime IO: type) type {
                 );
 
                 read.callback(read);
+
                 return;
             }
 
             self.assert_bounds(target, read.offset);
+
             self.io.read(
                 *Storage,
                 self,
@@ -258,6 +276,7 @@ pub fn StorageType(comptime IO: type) type {
                     // unaligned read, reading less physical sectors than the logical sector size,
                     // so we cannot expect `target.len` to be an exact logical sector multiple.
                     const target = read.target();
+
                     if (target.len > constants.sector_size) {
                         // We tried to read more than a logical sector and failed.
                         log.warn("latent sector error: offset={}, subdividing read...", .{
@@ -275,14 +294,19 @@ pub fn StorageType(comptime IO: type) type {
                         // `((3 - 1) / 2) + 1 == 2` and require that the numerator
                         // is always greater than zero:
                         assert(target.len > 0);
+
                         const target_sectors = @divFloor(target.len - 1, constants.sector_size) + 1;
+
                         assert(target_sectors > 0);
+
                         read.target_max =
                             (@divFloor(target_sectors - 1, 2) + 1) * constants.sector_size;
+
                         assert(read.target_max >= constants.sector_size);
 
                         // Pass 0 for `bytes_read` to retry the read with smaller `target_max`:
                         self.start_read(read, 0);
+
                         return;
                     } else {
                         // We tried to read at (or less than) logical sector granularity and failed.
@@ -296,6 +320,7 @@ pub fn StorageType(comptime IO: type) type {
                         // temporary or permanent EIO errors should be conflated
                         // with checksum failures.
                         assert(target.len > 0);
+
                         @memset(target, 0);
 
                         // We could set `read.target_max` to `vsr.sector_ceil(read.buffer.len)` here
@@ -306,6 +331,7 @@ pub fn StorageType(comptime IO: type) type {
                         // us abysmal performance in the (not uncommon) case of many successive
                         // failing sectors.
                         self.start_read(read, target.len);
+
                         return;
                     }
                 },
@@ -324,6 +350,7 @@ pub fn StorageType(comptime IO: type) type {
                         "impossible read: offset={} buffer.len={} error={s}",
                         .{ read.offset, read.buffer.len, @errorName(err) },
                     );
+
                     @panic("impossible read");
                 },
             };
@@ -339,7 +366,9 @@ pub fn StorageType(comptime IO: type) type {
             //   address requested is beyond the end of our data file.
             if (bytes_read == 0) {
                 @memset(read.buffer, 0);
+
                 self.start_read(read, read.buffer.len);
+
                 return;
             }
 
@@ -364,9 +393,11 @@ pub fn StorageType(comptime IO: type) type {
             offset_in_zone: u64,
         ) void {
             zone.verify_iop(buffer, offset_in_zone);
+
             assert(zone != .grid_padding); // Padding is never touched.
 
             const offset_in_storage = zone.offset(offset_in_zone);
+
             write.* = .{
                 .completion = undefined,
                 .callback = callback,
@@ -377,12 +408,14 @@ pub fn StorageType(comptime IO: type) type {
             };
 
             self.start_write(write);
+
             // Assert that the callback is called asynchronously.
             assert(write.buffer.len > 0);
         }
 
         fn start_write(self: *Storage, write: *Storage.Write) void {
             assert(write.offset % constants.sector_size == 0);
+
             self.assert_bounds(write.buffer, write.offset);
 
             const dsync = if (self.purpose == .format) false else write.zone.dsync();
@@ -391,6 +424,7 @@ pub fn StorageType(comptime IO: type) type {
                 if (self.purpose != .format) {
                     assert(write.zone == .grid);
                 }
+
                 self.unflushed += 1;
             }
 
@@ -429,6 +463,7 @@ pub fn StorageType(comptime IO: type) type {
                         "impossible write: offset={} buffer.len={} error={s}",
                         .{ write.offset, write.buffer.len, @errorName(err) },
                     );
+
                     @panic("impossible write");
                 },
             };
@@ -454,6 +489,7 @@ pub fn StorageType(comptime IO: type) type {
                 );
 
                 write.callback(write);
+
                 return;
             }
 
@@ -476,10 +512,12 @@ pub fn StorageType(comptime IO: type) type {
                 assert(builtin.os.tag == .windows or builtin.os.tag == .linux);
 
                 self.unflushed = 0;
+
                 return self.fsync_callback(&flush.completion, {});
             }
 
             assert(builtin.os.tag == .macos);
+
             self.io.fsync(
                 *Storage,
                 self,
@@ -502,6 +540,7 @@ pub fn StorageType(comptime IO: type) type {
             );
 
             self.unflushed = 0;
+
             flush.callback(flush);
         }
 

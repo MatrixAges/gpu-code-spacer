@@ -27,8 +27,10 @@ export default (runtime: CronRuntime, job: CronJob) => {
 			await runJobSession(job)
 
 			target.last_run_at = new Date().toISOString()
+
 			target.last_status = 'success'
 			target.last_error = null
+
 			target.updated_at = new Date().toISOString()
 
 			await saveStore(runtime.store)
@@ -42,8 +44,10 @@ export default (runtime: CronRuntime, job: CronJob) => {
 
 			if (target) {
 				target.last_run_at = new Date().toISOString()
+
 				target.last_status = 'error'
 				target.last_error = message
+
 				target.updated_at = new Date().toISOString()
 
 				await saveStore(runtime.store)

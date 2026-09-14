@@ -1218,6 +1218,7 @@ pub const AttachType = enum(u32) {
 };
 
 const obj_name_len = 16;
+
 /// struct used by Cmd.map_create command
 pub const MapCreateAttr = extern struct {
     /// one of MapType
@@ -1262,10 +1263,12 @@ pub const MapCreateAttr = extern struct {
 pub const MapElemAttr = extern struct {
     map_fd: fd_t,
     key: u64,
+
     result: extern union {
         value: u64,
         next_key: u64,
     },
+
     flags: u64,
 };
 
@@ -1398,6 +1401,7 @@ pub const GetIdAttr = extern struct {
         btf_id: u32,
         link_id: u32,
     },
+
     next_id: u32,
     open_flags: u32,
 };
@@ -1539,11 +1543,13 @@ pub fn map_create(map_type: MapType, key_size: u32, value_size: u32, max_entries
     };
 
     attr.map_create.map_type = @intFromEnum(map_type);
+
     attr.map_create.key_size = key_size;
     attr.map_create.value_size = value_size;
     attr.map_create.max_entries = max_entries;
 
     const rc = linux.bpf(.map_create, &attr, @sizeOf(MapCreateAttr));
+
     switch (errno(rc)) {
         .SUCCESS => return @as(fd_t, @intCast(rc)),
         .INVAL => return error.MapTypeOrAttrInvalid,
@@ -1555,6 +1561,7 @@ pub fn map_create(map_type: MapType, key_size: u32, value_size: u32, max_entries
 
 test "map_create" {
     const map = try map_create(.hash, 4, 4, 32);
+
     defer std.os.close(map);
 }
 
@@ -1564,10 +1571,12 @@ pub fn map_lookup_elem(fd: fd_t, key: []const u8, value: []u8) !void {
     };
 
     attr.map_elem.map_fd = fd;
+
     attr.map_elem.key = @intFromPtr(key.ptr);
     attr.map_elem.result.value = @intFromPtr(value.ptr);
 
     const rc = linux.bpf(.map_lookup_elem, &attr, @sizeOf(MapElemAttr));
+
     switch (errno(rc)) {
         .SUCCESS => return,
         .BADF => return error.BadFd,
@@ -1585,11 +1594,14 @@ pub fn map_update_elem(fd: fd_t, key: []const u8, value: []const u8, flags: u64)
     };
 
     attr.map_elem.map_fd = fd;
+
     attr.map_elem.key = @intFromPtr(key.ptr);
     attr.map_elem.result = .{ .value = @intFromPtr(value.ptr) };
+
     attr.map_elem.flags = flags;
 
     const rc = linux.bpf(.map_update_elem, &attr, @sizeOf(MapElemAttr));
+
     switch (errno(rc)) {
         .SUCCESS => return,
         .@"2BIG" => return error.ReachedMaxEntries,
@@ -1608,9 +1620,11 @@ pub fn map_delete_elem(fd: fd_t, key: []const u8) !void {
     };
 
     attr.map_elem.map_fd = fd;
+
     attr.map_elem.key = @intFromPtr(key.ptr);
 
     const rc = linux.bpf(.map_delete_elem, &attr, @sizeOf(MapElemAttr));
+
     switch (errno(rc)) {
         .SUCCESS => return,
         .BADF => return error.BadFd,
@@ -1628,10 +1642,12 @@ pub fn map_get_next_key(fd: fd_t, key: []const u8, next_key: []u8) !bool {
     };
 
     attr.map_elem.map_fd = fd;
+
     attr.map_elem.key = @intFromPtr(key.ptr);
     attr.map_elem.result.next_key = @intFromPtr(next_key.ptr);
 
     const rc = linux.bpf(.map_get_next_key, &attr, @sizeOf(MapElemAttr));
+
     switch (errno(rc)) {
         .SUCCESS => return true,
         .BADF => return error.BadFd,
@@ -1647,6 +1663,7 @@ test "map lookup, update, and delete" {
     const key_size = 4;
     const value_size = 4;
     const map = try map_create(.hash, key_size, value_size, 1);
+
     defer std.os.close(map);
 
     const key = std.mem.zeroes([key_size]u8);
@@ -1661,16 +1678,21 @@ test "map lookup, update, and delete" {
 
     // fails inserting more than max entries
     const second_key = [key_size]u8{ 0, 0, 0, 1 };
+
     try expectError(error.ReachedMaxEntries, map_update_elem(map, &second_key, &value, 0));
 
     // succeed at iterating all keys of map
     var lookup_key = [_]u8{ 1, 0, 0, 0 };
     var next_key = [_]u8{ 2, 3, 4, 5 }; // garbage value
     const status = try map_get_next_key(map, &lookup_key, &next_key);
+
     try expectEqual(status, true);
     try expectEqual(next_key, key);
+
     lookup_key = next_key;
+
     const status2 = try map_get_next_key(map, &lookup_key, &next_key);
+
     try expectEqual(status2, false);
 
     // succeed at deleting an existing elem
@@ -1697,16 +1719,19 @@ pub fn prog_load(
     attr.prog_load.insns = @intFromPtr(insns.ptr);
     attr.prog_load.insn_cnt = @as(u32, @intCast(insns.len));
     attr.prog_load.license = @intFromPtr(license.ptr);
+
     attr.prog_load.kern_version = kern_version;
     attr.prog_load.prog_flags = flags;
 
     if (log) |l| {
         attr.prog_load.log_buf = @intFromPtr(l.buf.ptr);
         attr.prog_load.log_size = @as(u32, @intCast(l.buf.len));
+
         attr.prog_load.log_level = l.level;
     }
 
     const rc = linux.bpf(.prog_load, &attr, @sizeOf(ProgLoadAttr));
+
     return switch (errno(rc)) {
         .SUCCESS => @as(fd_t, @intCast(rc)),
         .ACCES => error.UnsafeProgram,
@@ -1729,6 +1754,7 @@ test "prog_load" {
     };
 
     const prog = try prog_load(.socket_filter, &good_prog, null, "MIT", 0, 0);
+
     defer std.os.close(prog);
 
     try expectError(error.UnsafeProgram, prog_load(.socket_filter, &bad_prog, null, "MIT", 0, 0));

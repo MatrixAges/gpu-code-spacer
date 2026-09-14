@@ -31,6 +31,7 @@ pub const grid = @import("vsr/grid.zig");
 pub const superblock = @import("vsr/superblock.zig");
 pub const aof = @import("aof.zig");
 pub const repl = @import("repl.zig");
+
 pub const lsm = .{
     .tree = @import("lsm/tree.zig"),
     .groove = @import("lsm/groove.zig"),
@@ -39,6 +40,7 @@ pub const lsm = .{
     .composite_key = @import("lsm/composite_key.zig"),
     .TimestampRange = @import("lsm/timestamp_range.zig").TimestampRange,
 };
+
 pub const testing = .{
     .cluster = @import("testing/cluster.zig"),
     .random_int_exponential = @import("testing/fuzz.zig").random_int_exponential,
@@ -46,11 +48,10 @@ pub const testing = .{
     .parse_seed = @import("testing/fuzz.zig").parse_seed,
     .fixtures = @import("testing/fixtures.zig"),
 };
+
 pub const ewah = @import("ewah.zig").ewah;
 pub const checkpoint_trailer = @import("vsr/checkpoint_trailer.zig");
-
 pub const multi_batch = @import("vsr/multi_batch.zig");
-
 pub const ReplicaType = @import("vsr/replica.zig").ReplicaType;
 pub const ReplicaEvent = @import("vsr/replica.zig").ReplicaEvent;
 pub const ReplicaReformatType = @import("vsr/replica_reformat.zig").ReplicaReformatType;
@@ -76,7 +77,6 @@ pub const Header = @import("vsr/message_header.zig").Header;
 pub const FreeSet = @import("vsr/free_set.zig").FreeSet;
 pub const CheckpointTrailerType = @import("vsr/checkpoint_trailer.zig").CheckpointTrailerType;
 pub const GridScrubberType = @import("vsr/grid_scrubber.zig").GridScrubberType;
-
 pub const FaultDetector = @import("vsr/fault_detector.zig");
 pub const CountingAllocator = @import("counting_allocator.zig");
 
@@ -90,6 +90,7 @@ pub const Release = multiversion.Release;
 pub const ReleaseTriple = multiversion.ReleaseTriple;
 
 pub const ProcessType = enum { replica, client };
+
 pub const Peer = union(enum) {
     unknown,
     replica: u8,
@@ -143,16 +144,19 @@ pub const Zone = enum {
     const size_wal_headers = constants.journal_size_headers;
     const size_wal_prepares = constants.journal_size_prepares;
     const size_client_replies = constants.client_replies_size;
+
     const size_grid_padding = size_grid_padding: {
         const grid_start_unaligned = size_superblock +
             size_wal_headers +
             size_wal_prepares +
             size_client_replies;
+
         const grid_start_aligned = std.mem.alignForward(
             usize,
             grid_start_unaligned,
             constants.block_size,
         );
+
         break :size_grid_padding grid_start_aligned - grid_start_unaligned;
     };
 
@@ -170,6 +174,7 @@ pub const Zone = enum {
         for (std.enums.values(Zone)) |zone| {
             assert(Zone.start(zone) % constants.sector_size == 0);
         }
+
         assert(Zone.start(.grid) % constants.block_size == 0);
     }
 
@@ -183,10 +188,13 @@ pub const Zone = enum {
 
     pub fn start(zone: Zone) u64 {
         comptime var start_offset = 0;
+
         inline for (comptime std.enums.values(Zone)) |z| {
             if (z == zone) return start_offset;
+
             start_offset += comptime size(z) orelse 0;
         }
+
         unreachable;
     }
 
@@ -226,11 +234,15 @@ pub const Zone = enum {
         if (zone.size()) |zone_size| {
             assert(offset_in_zone + buffer.len <= zone_size);
         }
+
         assert(@intFromPtr(buffer.ptr) % constants.sector_size == 0);
         assert(buffer.len % constants.sector_size == 0);
         assert(buffer.len > 0);
+
         const offset_in_storage = zone.offset(offset_in_zone);
+
         assert(offset_in_storage % constants.sector_size == 0);
+
         if (zone == .grid) assert(offset_in_storage % constants.block_size == 0);
     }
 };
@@ -254,34 +266,25 @@ pub const Command = enum(u8) {
     // `release_triple_client_min`.
 
     reserved = 0,
-
     ping = 1,
     pong = 2,
-
     ping_client = 3,
     pong_client = 4,
-
     request = 5,
     prepare = 6,
     prepare_ok = 7,
     reply = 8,
     commit = 9,
-
     exit_view = 10,
     join_view = 11,
     get_view = 13,
-
     get_headers = 14,
     get_prepare = 15,
     get_reply = 16,
     get_blocks = 19,
-
     headers = 17,
-
     eviction = 18,
-
     block = 20,
-
     view = 24,
 
     // If a command is removed from the protocol, its ordinal is added here and can't be re-used.
@@ -325,18 +328,22 @@ pub const Operation = enum(u8) {
 
     pub fn from(comptime StateMachineOperation: type, operation: StateMachineOperation) Operation {
         comptime check_state_machine_operations(StateMachineOperation);
+
         return @as(Operation, @enumFromInt(@intFromEnum(operation)));
     }
 
     pub fn to(comptime StateMachineOperation: type, operation: Operation) StateMachineOperation {
         comptime check_state_machine_operations(StateMachineOperation);
+
         assert(operation.valid(StateMachineOperation));
         assert(!operation.vsr_reserved());
+
         return @as(StateMachineOperation, @enumFromInt(@intFromEnum(operation)));
     }
 
     pub fn cast(self: Operation, comptime StateMachineOperation: type) StateMachineOperation {
         comptime check_state_machine_operations(StateMachineOperation);
+
         return StateMachineOperation.from_vsr(self).?;
     }
 
@@ -345,6 +352,7 @@ pub const Operation = enum(u8) {
 
         inline for (.{ Operation, StateMachineOperation }) |Enum| {
             const ops = comptime std.enums.values(Enum);
+
             inline for (ops) |op| {
                 if (@intFromEnum(self) == @intFromEnum(op)) {
                     return true;
@@ -361,32 +369,41 @@ pub const Operation = enum(u8) {
 
     pub fn tag_name(self: Operation, comptime StateMachineOperation: type) []const u8 {
         assert(self.valid(StateMachineOperation));
+
         inline for (.{ Operation, StateMachineOperation }) |Enum| {
             inline for (@typeInfo(Enum).@"enum".fields) |field| {
                 const op = @field(Enum, field.name);
+
                 if (@intFromEnum(self) == @intFromEnum(op)) {
                     return field.name;
                 }
             }
         }
+
         unreachable;
     }
 
     fn check_state_machine_operations(comptime StateMachineOperation: type) void {
         comptime {
             @setEvalBranchQuota(20_000);
+
             assert(@typeInfo(StateMachineOperation) == .@"enum");
             assert(@typeInfo(StateMachineOperation).@"enum".is_exhaustive);
+
             assert(@typeInfo(StateMachineOperation).@"enum".tag_type ==
                 @typeInfo(Operation).@"enum".tag_type);
+
             for (@typeInfo(StateMachineOperation).@"enum".fields) |field| {
                 const operation = @field(StateMachineOperation, field.name);
+
                 if (@intFromEnum(operation) < constants.vsr_operations_reserved) {
                     @compileError("StateMachine Operation is reserved");
                 }
             }
+
             for (@typeInfo(Operation).@"enum".fields) |field| {
                 const vsr_operation = @field(Operation, field.name);
+
                 switch (vsr_operation) {
                     // The StateMachine Operation can convert
                     // a `vsr.Operation.pulse` into a valid operation.
@@ -482,36 +499,37 @@ pub const ReconfigurationRequest = extern struct {
         if (request.replica_count == 0) return .replica_count_zero;
         if (request.replica_count > constants.replicas_max) return .replica_count_max_exceeded;
         if (request.standby_count > constants.standbys_max) return .standby_count_max_exceeded;
-
         if (!valid_members(&request.members)) return .members_invalid;
+
         if (member_count(&request.members) != request.replica_count + request.standby_count) {
             return .members_count_invalid;
         }
 
         if (!std.mem.allEqual(u8, &request.reserved, 0)) return .reserved_field;
         if (request.result != .reserved) return .result_must_be_reserved;
-
         if (request.replica_count != current.replica_count) return .different_replica_count;
         if (request.standby_count != current.standby_count) return .different_standby_count;
-
         if (request.epoch < current.epoch) return .epoch_in_the_past;
+
         if (request.epoch == current.epoch) {
             return if (std.meta.eql(request.members, current.members.*))
                 .configuration_applied
             else
                 .configuration_conflict;
         }
+
         if (request.epoch - current.epoch > 1) return .epoch_in_the_future;
 
         assert(request.epoch == current.epoch + 1);
-
         assert(valid_members(current.members));
         assert(valid_members(&request.members));
         assert(member_count(current.members) == member_count(&request.members));
+
         // We have just asserted that the sets have no duplicates and have equal lengths,
         // so it's enough to check that current.members ⊂ request.members.
         for (current.members) |member_current| {
             if (member_current == 0) break;
+
             for (request.members) |member| {
                 if (member == member_current) break;
             } else return .different_member_set;
@@ -605,7 +623,9 @@ test "ReconfigurationRequest" {
 
         fn to_members(m: anytype) Members {
             var result: [constants.members_max]u128 = @splat(0);
+
             inline for (m, 0..) |member, index| result[index] = member;
+
             return result;
         }
     };
@@ -623,60 +643,76 @@ test "ReconfigurationRequest" {
     try t.check(r, .ok);
     try t.check(stdx.update(r, .{ .replica_count = 0 }), .replica_count_zero);
     try t.check(stdx.update(r, .{ .replica_count = 255 }), .replica_count_max_exceeded);
+
     try t.check(
         stdx.update(r, .{ .standby_count = constants.standbys_max + 1 }),
         .standby_count_max_exceeded,
     );
+
     try t.check(
         stdx.update(r, .{ .members = Test.to_members(.{ 4, 1, 4, 3 }) }),
         .members_invalid,
     );
+
     try t.check(
         stdx.update(r, .{ .members = Test.to_members(.{ 4, 1, 0, 2, 3 }) }),
         .members_invalid,
     );
+
     try t.check(
         stdx.update(r, .{ .epoch = 0, .members = Test.to_members(.{ 4, 1, 0, 2, 3 }) }),
         .members_invalid,
     );
+
     try t.check(
         stdx.update(r, .{ .epoch = 1, .members = Test.to_members(.{ 4, 1, 0, 2, 3 }) }),
         .members_invalid,
     );
+
     try t.check(stdx.update(r, .{ .replica_count = 4 }), .members_count_invalid);
     try t.check(stdx.update(r, .{ .reserved = [_]u8{1} ** 54 }), .reserved_field);
     try t.check(stdx.update(r, .{ .result = .ok }), .result_must_be_reserved);
     try t.check(stdx.update(r, .{ .epoch = 0 }), .epoch_in_the_past);
     try t.check(stdx.update(r, .{ .epoch = 3 }), .epoch_in_the_future);
+
     try t.check(
         stdx.update(r, .{ .members = Test.to_members(.{ 1, 2, 3 }), .replica_count = 2 }),
         .different_replica_count,
     );
+
     try t.check(
         stdx.update(r, .{ .members = Test.to_members(.{ 1, 2, 3, 4, 5 }), .standby_count = 2 }),
         .different_standby_count,
     );
+
     try t.check(
         stdx.update(r, .{ .members = Test.to_members(.{ 8, 1, 2, 3 }) }),
         .different_member_set,
     );
+
     try t.check(
         stdx.update(r, .{ .epoch = 1, .members = Test.to_members(.{ 1, 2, 3, 4 }) }),
         .configuration_applied,
     );
+
     try t.check(stdx.update(r, .{ .epoch = 1 }), .configuration_conflict);
+
     try t.check(
         stdx.update(r, .{ .members = Test.to_members(.{ 1, 2, 3, 4 }) }),
         .configuration_is_no_op,
     );
 
     assert(t.tested.count() < ResultSet.initFull().count());
+
     t.tested.insert(.reserved);
+
     assert(t.tested.count() == ResultSet.initFull().count());
 
     t.epoch = std.math.maxInt(u32);
+
     try t.check(r, .epoch_in_the_past);
     try t.check(stdx.update(r, .{ .epoch = std.math.maxInt(u32) }), .configuration_conflict);
+
     try t.check(
         stdx.update(r, .{
             .epoch = std.math.maxInt(u32),
@@ -725,8 +761,11 @@ pub const FatalReason = enum(u8) {
 /// necessary this process), use assert or panic instead.
 pub fn fatal(reason: FatalReason, comptime fmt: []const u8, args: anytype) noreturn {
     log.err(fmt, args);
+
     const status = reason.exit_status();
+
     assert(status != 0);
+
     std.process.exit(status);
 }
 
@@ -760,10 +799,13 @@ pub const Timeout = struct {
     pub fn fired(self: *const Timeout) bool {
         if (self.ticking and self.ticks >= self.after_dynamic.?) {
             log.debug("{}: {s} fired", .{ self.id, self.name });
+
             if (self.ticks > self.after_dynamic.?) {
                 log.err("{}: {s} is firing every tick", .{ self.id, self.name });
+
                 @panic("timeout was not reset correctly");
             }
+
             return true;
         } else {
             return false;
@@ -773,7 +815,9 @@ pub const Timeout = struct {
     pub fn reset(self: *Timeout) void {
         self.attempts = 0;
         self.ticks = 0;
+
         assert(self.ticking);
+
         // TODO Use self.prng to adjust for rtt and attempts.
         log.debug("{}: {s} reset", .{ self.id, self.name });
     }
@@ -781,12 +825,16 @@ pub const Timeout = struct {
     pub fn reset_with_jitter(self: *Timeout, prng: *stdx.PRNG) void {
         self.attempts +%= 1;
         self.ticks = 0;
+
         assert(self.ticking);
 
         // Uniformly between [0.5 * timeout, 1.5 * timeout].
         assert(self.after > 1);
+
         const half = @divFloor(self.after, 2);
+
         self.after_dynamic = prng.range_inclusive(u64, half, 2 * self.after - half);
+
         assert(self.after_dynamic.? > 0);
 
         log.debug("{}: {s} reset", .{ self.id, self.name });
@@ -821,6 +869,7 @@ pub const Timeout = struct {
         });
 
         self.after_dynamic = after;
+
         assert(self.after_dynamic.? > 0);
     }
 
@@ -848,6 +897,7 @@ pub const Timeout = struct {
         self.after_dynamic = self.after;
         self.ticks = 0;
         self.ticking = true;
+
         // TODO Use self.prng to adjust for rtt and attempts.
         log.debug("{}: {s} started", .{ self.id, self.name });
     }
@@ -857,6 +907,7 @@ pub const Timeout = struct {
         self.after_dynamic = null;
         self.ticks = 0;
         self.ticking = false;
+
         log.debug("{}: {s} stopped", .{ self.id, self.name });
     }
 
@@ -885,6 +936,7 @@ pub fn exponential_backoff_with_jitter(
     // Ensure that `backoff` is calculated correctly when min is 0, taking `@max(1, min)`.
     // Otherwise, the final result will always be 0. This was an actual bug we encountered.
     const min_non_zero = @max(1, min);
+
     assert(min_non_zero > 0);
     assert(power > 0);
 
@@ -893,6 +945,7 @@ pub fn exponential_backoff_with_jitter(
     const jitter = prng.int_inclusive(u64, backoff);
 
     const result: u64 = @intCast(min + jitter);
+
     assert(result >= min);
     assert(result <= max);
 
@@ -907,8 +960,10 @@ test "exponential_backoff_with_jitter" {
     const min = max - attempts;
 
     var attempt = max - attempts;
+
     while (attempt < max) : (attempt += 1) {
         const ebwj = exponential_backoff_with_jitter(&prng, min, max, attempt);
+
         try std.testing.expect(ebwj >= min);
         try std.testing.expect(ebwj <= max);
     }
@@ -937,6 +992,7 @@ pub const ClusterAddress = struct {
             .array = .{},
             .zero = std.mem.eql(u8, text, "0"),
         };
+
         const parsed = parse_addresses(text, result.array.unused_capacity_slice()) catch |err| {
             static_diagnostic.* = switch (err) {
                 error.AddressHasTrailingComma => "invalid trailing comma:",
@@ -948,14 +1004,18 @@ pub const ClusterAddress = struct {
                 error.PortInvalid => "invalid port:",
                 error.AddressInvalid => "invalid IPv4 or IPv6 address:",
             };
+
             return error.InvalidFlagValue;
         };
+
         result.array.resize(parsed.len) catch |err| switch (err) {
             error.Overflow => unreachable,
         };
+
         assert(result.array.slice().len == parsed.len);
         assert(result.array.count() > 0);
         assert(result.array.count() <= constants.members_max);
+
         return result;
     }
 };
@@ -972,18 +1032,23 @@ pub fn parse_addresses(
     out_buffer: []stdx.SocketAddress,
 ) ![]stdx.SocketAddress {
     const address_count = std.mem.count(u8, raw, ",") + 1;
+
     if (address_count > out_buffer.len) return error.AddressLimitExceeded;
 
     var index: usize = 0;
     var comma_iterator = std.mem.splitScalar(u8, raw, ',');
+
     while (comma_iterator.next()) |raw_address| : (index += 1) {
         assert(index < out_buffer.len);
+
         if (raw_address.len == 0) return error.AddressHasTrailingComma;
+
         out_buffer[index] = try parse_address_and_port(.{
             .string = raw_address,
             .port_default = constants.port,
         });
     }
+
     assert(index == address_count);
 
     return out_buffer[0..address_count];
@@ -1000,15 +1065,19 @@ pub fn parse_address_and_port(options: struct {
         if (options.string[split] == ':') {
             const port = stdx.parse_int(u16, options.string[split + 1 ..], .{}) catch
                 return error.PortInvalid;
+
             const ip = try parse_address(options.string[0..split]);
+
             return .{ .ip = ip, .port = port };
         } else {
             const ip = try parse_address(options.string);
+
             return .{ .ip = ip, .port = options.port_default };
         }
     } else {
         const ip = comptime stdx.IPAddress.parse(constants.address) catch unreachable;
         const port = stdx.parse_int(u16, options.string, .{}) catch return error.PortInvalid;
+
         return .{ .ip = ip, .port = port };
     }
 }
@@ -1019,9 +1088,11 @@ fn parse_address(string: []const u8) !stdx.IPAddress {
     if (string[string.len - 1] == ':') return error.AddressHasMoreThanOneColon;
 
     const expect_v6 = string[0] == '[' and string[string.len - 1] == ']';
+
     if (expect_v6 != (std.mem.indexOfScalar(u8, string, ':') != null)) return error.AddressInvalid;
 
     const string_inner = if (expect_v6) string[1 .. string.len - 1] else string;
+
     return stdx.IPAddress.parse(string_inner) catch error.AddressInvalid;
 }
 
@@ -1140,19 +1211,23 @@ test parse_addresses {
     };
 
     var buffer: [3]stdx.SocketAddress = undefined;
+
     for (vectors_positive) |vector| {
         const addresses_actual = try parse_addresses(vector.raw, &buffer);
 
         try std.testing.expectEqual(addresses_actual.len, vector.addresses.len);
+
         for (vector.addresses, 0..) |address_expect_std, i| {
             const address_actual = addresses_actual[i];
             const address_expect = try stdx.SocketAddress.from_std(address_expect_std);
+
             try std.testing.expectEqual(address_expect, address_actual);
         }
     }
 
     for (vectors_negative) |vector| {
         errdefer log.err("raw = '{s}', err = {any}", .{ vector.raw, vector.err });
+
         try std.testing.expectEqual(
             vector.err,
             parse_addresses(vector.raw, buffer[0..2]),
@@ -1169,12 +1244,15 @@ test "parse_addresses: fuzz" {
 
     var input_buffer: [input_size_max]u8 = @splat(0);
     var buffer: [3]stdx.SocketAddress = undefined;
+
     for (0..test_count) |_| {
         const input_size = prng.int_inclusive(usize, input_size_max);
         const input = input_buffer[0..input_size];
+
         for (input) |*c| {
             c.* = alphabet[prng.index(alphabet)];
         }
+
         if (parse_addresses(input, &buffer)) |addresses| {
             assert(addresses.len > 0);
             assert(addresses.len <= 3);
@@ -1184,11 +1262,13 @@ test "parse_addresses: fuzz" {
 
 pub fn sector_floor(offset: u64) u64 {
     const sectors = math.divFloor(u64, offset, constants.sector_size) catch unreachable;
+
     return sectors * constants.sector_size;
 }
 
 pub fn sector_ceil(offset: u64) u64 {
     const sectors = math.divCeil(u64, offset, constants.sector_size) catch unreachable;
+
     return sectors * constants.sector_size;
 }
 
@@ -1200,14 +1280,15 @@ pub fn quorums(replica_count: u8) struct {
     upgrade: u8,
 } {
     assert(replica_count > 0);
-
     assert(constants.quorum_replication_max >= 2);
+
     // For replica_count=2, set quorum_replication=2 even though =1 would intersect.
     // This improves durability of small clusters.
     const quorum_replication = if (replica_count == 2) 2 else @min(
         constants.quorum_replication_max,
         stdx.div_ceil(replica_count, 2),
     );
+
     assert(quorum_replication <= replica_count);
     assert(quorum_replication >= 2 or quorum_replication == replica_count);
 
@@ -1215,6 +1296,7 @@ pub fn quorums(replica_count: u8) struct {
     // This avoids special cases for a single-replica view-change in Replica.
     const quorum_view_change =
         if (replica_count == 2) 2 else replica_count - quorum_replication + 1;
+
     // The view change quorum may be more expensive to make the replication quorum cheaper.
     // The insight is that the replication phase is by far more common than the view change.
     // This trade-off allows us to optimize for the common case.
@@ -1227,10 +1309,12 @@ pub fn quorums(replica_count: u8) struct {
     // We need to have enough nacks to guarantee that `quorum_replication` was not reached,
     // because if the replication quorum was reached, then it may have been committed.
     const quorum_nack_prepare = replica_count - quorum_replication + 1;
+
     assert(quorum_nack_prepare + quorum_replication > replica_count);
 
     const quorum_majority =
         stdx.div_ceil(replica_count, 2) + @intFromBool(@mod(replica_count, 2) == 0);
+
     assert(quorum_majority <= replica_count);
     assert(quorum_majority > @divFloor(replica_count, 2));
 
@@ -1242,6 +1326,7 @@ pub fn quorums(replica_count: u8) struct {
     // If an upgrade is needed while the cluster is compromised, then it should be a hotfix upgrade
     // (i.e. to a build tagged with the same release).
     const quorum_upgrade = replica_count;
+
     assert(quorum_upgrade <= replica_count);
     assert(quorum_upgrade >= quorum_replication);
     assert(quorum_upgrade >= quorum_view_change);
@@ -1267,6 +1352,7 @@ test "quorums" {
     for (expect_replication[0..], 0..) |_, i| {
         const replicas = @as(u8, @intCast(i)) + 1;
         const actual = quorums(replicas);
+
         try std.testing.expectEqual(expect_replication[i], actual.replication);
         try std.testing.expectEqual(expect_view_change[i], actual.view_change);
         try std.testing.expectEqual(expect_nack_prepare[i], actual.nack_prepare);
@@ -1301,20 +1387,24 @@ pub fn root_members(cluster: u128) Members {
         cluster: u128 align(1),
         replica: u8 align(1),
     };
+
     comptime assert(@sizeOf(IdSeed) == 33);
 
     var result: [constants.members_max]u128 = @splat(0);
     var replica: u8 = 0;
+
     while (replica < constants.members_max) : (replica += 1) {
         const seed = IdSeed{
             .cluster_config_checksum = constants.config.cluster.checksum(),
             .cluster = cluster,
             .replica = replica,
         };
+
         result[replica] = checksum(std.mem.asBytes(&seed));
     }
 
     assert(valid_members(&result));
+
     return result;
 }
 
@@ -1328,6 +1418,7 @@ pub fn valid_members(members: *const Members) bool {
             if (replica_j != 0 and replica_j == replica_i) return false;
         }
     }
+
     return true;
 }
 
@@ -1335,12 +1426,14 @@ fn member_count(members: *const Members) u8 {
     for (members, 0..) |member, index| {
         if (member == 0) return @intCast(index);
     }
+
     return constants.members_max;
 }
 
 pub fn member_index(members: *const Members, replica_id: u128) ?u8 {
     assert(replica_id != 0);
     assert(valid_members(members));
+
     for (members, 0..) |member, replica_index| {
         if (member == replica_id) return @intCast(replica_index);
     } else return null;
@@ -1381,6 +1474,7 @@ pub const Headers = struct {
         assert(header.command == .prepare);
         assert(header.operation != .reserved);
         assert(header.invalid() == null);
+
         return .valid;
     }
 };
@@ -1400,7 +1494,9 @@ const ViewChangeHeadersSlice = struct {
             .command = command,
             .slice = slice,
         };
+
         headers.verify();
+
         return headers;
     }
 
@@ -1409,13 +1505,16 @@ const ViewChangeHeadersSlice = struct {
         assert(headers.slice.len <= constants.view_headers_max);
 
         const head = &headers.slice[0];
+
         // A JV's head op is never a gap or faulty.
         // A View never includes gaps or faulty headers.
         assert(Headers.jv_header_type(head) == .valid);
 
         var child = head;
+
         for (headers.slice[1..], 0..) |*header, i| {
             const index = i + 1;
+
             assert(header.command == .prepare);
             maybe(header.operation == .reserved);
             assert(header.op < child.op);
@@ -1439,16 +1538,19 @@ const ViewChangeHeadersSlice = struct {
                     // `superblock.zig`).
                     maybe(headers.command == .join_view);
                     maybe(headers.command == .view);
+
                     continue; // Don't update "child".
                 },
                 .valid => {
                     assert(header.view <= child.view);
                     assert(header.timestamp < child.timestamp);
+
                     if (header.op + 1 == child.op) {
                         assert(header.checksum == child.parent);
                     }
                 },
             }
+
             child = header;
         }
     }
@@ -1472,16 +1574,20 @@ const ViewChangeHeadersSlice = struct {
     ///   a view prior to the log_view, they would already be part of the headers.
     pub fn view_for_op(headers: ViewChangeHeadersSlice, op: u64, log_view: u32) ViewRange {
         const header_newest = &headers.slice[0];
+
         const header_oldest = blk: {
             var oldest: ?usize = null;
+
             for (headers.slice, 0..) |*header, i| {
                 switch (Headers.jv_header_type(header)) {
                     .blank => assert(i > 0),
                     .valid => oldest = i,
                 }
             }
+
             break :blk &headers.slice[oldest.?];
         };
+
         assert(header_newest.view <= log_view);
         assert(header_newest.view >= header_oldest.view);
         assert(header_newest.op >= header_oldest.op);
@@ -1496,6 +1602,7 @@ const ViewChangeHeadersSlice = struct {
         }
 
         var header_next = &headers.slice[0];
+
         assert(Headers.jv_header_type(header_next) == .valid);
 
         for (headers.slice[1..]) |*header_prev| {
@@ -1503,9 +1610,11 @@ const ViewChangeHeadersSlice = struct {
                 if (header_prev.op < op and op < header_next.op) {
                     return .{ .min = header_prev.view, .max = header_next.view };
                 }
+
                 header_next = header_prev;
             }
         }
+
         unreachable;
     }
 };
@@ -1543,6 +1652,7 @@ test "Headers.ViewChangeSlice.view_for_op" {
     headers_array[3].set_checksum();
 
     const headers = Headers.ViewChangeSlice.init(.join_view, &headers_array);
+
     try std.testing.expect(std.meta.eql(headers.view_for_op(11, 12), .{ .min = 12, .max = 12 }));
     try std.testing.expect(std.meta.eql(headers.view_for_op(10, 12), .{ .min = 12, .max = 12 }));
     try std.testing.expect(std.meta.eql(headers.view_for_op(9, 12), .{ .min = 10, .max = 10 }));
@@ -1572,7 +1682,9 @@ const ViewChangeHeadersArray = struct {
             .command = command,
             .array = Headers.Array.from_slice(slice) catch unreachable,
         };
+
         headers.verify();
+
         return headers;
     }
 
@@ -1589,8 +1701,11 @@ const ViewChangeHeadersArray = struct {
         slice: []const Header.Prepare,
     ) void {
         headers.command = command;
+
         headers.array.clear();
+
         for (slice) |*header| headers.array.push(header.*);
+
         headers.verify();
     }
 
@@ -1603,6 +1718,7 @@ const ViewChangeHeadersArray = struct {
     pub fn append_blank(headers: *ViewChangeHeadersArray, op: u64) void {
         assert(headers.command == .join_view);
         assert(headers.array.count() > 0);
+
         headers.array.push(Headers.jv_blank(op));
     }
 };
@@ -1703,9 +1819,11 @@ test "Checkpoint ops diagram" {
     const snap = Snap.snap_fn("src");
 
     var string = std.ArrayList(u8).init(std.testing.allocator);
+
     defer string.deinit();
 
     var string2 = std.ArrayList(u8).init(std.testing.allocator);
+
     defer string2.deinit();
 
     try string.writer().print(
@@ -1725,6 +1843,7 @@ test "Checkpoint ops diagram" {
     var checkpoint_prev: u64 = 0;
     var checkpoint_next: u64 = 0;
     var checkpoint_count: u32 = 0;
+
     for (0..constants.journal_slot_count * 10) |op| {
         const last_beat = (op + 1) % constants.lsm_compaction_ops == 0;
         const last_slot = (op + 1) % constants.journal_slot_count == 0;
@@ -1736,6 +1855,7 @@ test "Checkpoint ops diagram" {
             checkpoint_prepare_max,
         } = op_type: {
             if (op == checkpoint_next) break :op_type .checkpoint;
+
             if (checkpoint_prev != 0) {
                 if (op == Checkpoint.trigger_for_checkpoint(checkpoint_prev).?) {
                     break :op_type .checkpoint_trigger;
@@ -1745,6 +1865,7 @@ test "Checkpoint ops diagram" {
                     break :op_type .checkpoint_prepare_max;
                 }
             }
+
             break :op_type .normal;
         };
 
@@ -1772,8 +1893,10 @@ test "Checkpoint ops diagram" {
 
         if (op_type == .checkpoint) {
             checkpoint_prev = checkpoint_next;
+
             checkpoint_next = Checkpoint.checkpoint_after(checkpoint_prev);
         }
+
         checkpoint_count += @intFromBool(op == checkpoint_prev);
     }
 

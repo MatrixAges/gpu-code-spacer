@@ -15,6 +15,7 @@ pub const Rng = extern struct {
         DeviceError,
         BufferTooSmall,
     };
+
     pub const GetRNGError = uefi.UnexpectedError || error{
         Unsupported,
         DeviceError,
@@ -25,6 +26,7 @@ pub const Rng = extern struct {
     /// Returns information about the random number generation implementation.
     pub fn getInfo(self: *const Rng, list: []align(8) Guid) GetInfoError![]align(8) Guid {
         var len: usize = list.len;
+
         switch (self._get_info(self, &len, list.ptr)) {
             .success => return list[0..len],
             .unsupported => return Error.Unsupported,
@@ -54,6 +56,7 @@ pub const Rng = extern struct {
         .clock_seq_low = 0x2e,
         .node = [_]u8{ 0xc0, 0x1c, 0xdc, 0x29, 0x1f, 0x44 },
     };
+
     pub const algorithm_sp800_90_hash_256 align(8) = Guid{
         .time_low = 0xa7af67cb,
         .time_mid = 0x603b,
@@ -62,6 +65,7 @@ pub const Rng = extern struct {
         .clock_seq_low = 0x21,
         .node = [_]u8{ 0x70, 0xbf, 0xb6, 0x29, 0x3f, 0x96 },
     };
+
     pub const algorithm_sp800_90_hmac_256 align(8) = Guid{
         .time_low = 0xc5149b43,
         .time_mid = 0xae85,
@@ -70,6 +74,7 @@ pub const Rng = extern struct {
         .clock_seq_low = 0x82,
         .node = [_]u8{ 0xb9, 0x43, 0x35, 0xd3, 0xa9, 0xe7 },
     };
+
     pub const algorithm_sp800_90_ctr_256 align(8) = Guid{
         .time_low = 0x44f0de6e,
         .time_mid = 0x4d8c,
@@ -78,6 +83,7 @@ pub const Rng = extern struct {
         .clock_seq_low = 0xc7,
         .node = [_]u8{ 0x4d, 0xd1, 0x68, 0x85, 0x6b, 0x9e },
     };
+
     pub const algorithm_x9_31_3des align(8) = Guid{
         .time_low = 0x63c4785a,
         .time_mid = 0xca34,
@@ -86,6 +92,7 @@ pub const Rng = extern struct {
         .clock_seq_low = 0xc8,
         .node = [_]u8{ 0x0b, 0x6a, 0x32, 0x4f, 0x55, 0x46 },
     };
+
     pub const algorithm_x9_31_aes align(8) = Guid{
         .time_low = 0xacd03321,
         .time_mid = 0x777e,
@@ -94,6 +101,7 @@ pub const Rng = extern struct {
         .clock_seq_low = 0xc8,
         .node = [_]u8{ 0x20, 0xcf, 0xd8, 0x88, 0x20, 0xc9 },
     };
+
     pub const algorithm_raw align(8) = Guid{
         .time_low = 0xe43176d7,
         .time_mid = 0xb6e8,

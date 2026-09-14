@@ -25,18 +25,21 @@ pub const ManagedNetwork = extern struct {
         Unsupported,
         NotStarted,
     } || Error;
+
     pub const ConfigureError = uefi.UnexpectedError || error{
         InvalidParameter,
         OutOfResources,
         Unsupported,
         DeviceError,
     } || Error;
+
     pub const McastIpToMacError = uefi.UnexpectedError || error{
         InvalidParameter,
         NotStarted,
         Unsupported,
         DeviceError,
     } || Error;
+
     pub const GroupsError = uefi.UnexpectedError || error{
         InvalidParameter,
         NotStarted,
@@ -45,6 +48,7 @@ pub const ManagedNetwork = extern struct {
         DeviceError,
         Unsupported,
     } || Error;
+
     pub const TransmitError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
@@ -54,6 +58,7 @@ pub const ManagedNetwork = extern struct {
         NotReady,
         NoMedia,
     };
+
     pub const ReceiveError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
@@ -63,11 +68,13 @@ pub const ManagedNetwork = extern struct {
         NotReady,
         NoMedia,
     };
+
     pub const CancelError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         NotFound,
     };
+
     pub const PollError = uefi.UnexpectedError || error{
         NotStarted,
         DeviceError,
@@ -84,10 +91,12 @@ pub const ManagedNetwork = extern struct {
     /// May also support returning the underlying SNP driver mode data.
     pub fn getModeData(self: *const ManagedNetwork) GetModeDataError!GetModeDataData {
         var data: GetModeDataData = undefined;
+
         switch (self._get_mode_data(self, &data.mnp_config, &data.snp_mode)) {
             .success => return data,
             else => |status| {
                 try status.err();
+
                 return uefi.unexpectedStatus(status);
             },
         }
@@ -99,6 +108,7 @@ pub const ManagedNetwork = extern struct {
             .success => {},
             else => |status| {
                 try status.err();
+
                 return uefi.unexpectedStatus(status);
             },
         }
@@ -112,10 +122,12 @@ pub const ManagedNetwork = extern struct {
         ipaddress: *const uefi.IpAddress,
     ) McastIpToMacError!MacAddress {
         var result: MacAddress = undefined;
+
         switch (self._mcast_ip_to_mac(self, ipv6flag, ipaddress, &result)) {
             .success => return result,
             else => |status| {
                 try status.err();
+
                 return uefi.unexpectedStatus(status);
             },
         }
@@ -132,6 +144,7 @@ pub const ManagedNetwork = extern struct {
             .success => {},
             else => |status| {
                 try status.err();
+
                 return uefi.unexpectedStatus(status);
             },
         }
@@ -237,6 +250,7 @@ pub const ManagedNetwork = extern struct {
     pub const CompletionToken = extern struct {
         event: Event,
         status: Status,
+
         packet: extern union {
             rx_data: *ReceiveData,
             tx_data: *TransmitData,
@@ -254,6 +268,7 @@ pub const ManagedNetwork = extern struct {
         multicast_flag: bool,
         promiscuous_flag: bool,
         protocol_type: u16,
+
         destination_address: [*]u8,
         source_address: [*]u8,
         media_header: [*]u8,

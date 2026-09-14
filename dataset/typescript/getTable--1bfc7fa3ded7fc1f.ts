@@ -2,6 +2,7 @@ import type { Rows, CellNode } from '../types'
 
 export default (el: HTMLElement) => {
 	const rows: Rows = []
+
 	const table = { rows, row_counts: 0, col_counts: 0 }
 
 	let current_node = el.firstChild as unknown as CellNode
@@ -15,11 +16,13 @@ export default (el: HTMLElement) => {
 
 		if (node_name === 'TD' || node_name === 'TH') {
 			const el = current_node
+
 			const cell = { el, x, y }
 
 			current_node._cell = cell
 
 			let row = rows[y]
+
 			if (row === undefined) {
 				row = rows[y] = []
 			}
@@ -57,6 +60,7 @@ export default (el: HTMLElement) => {
 			y++
 
 			x = 0
+
 			current_node = parent_sibling
 		}
 	}

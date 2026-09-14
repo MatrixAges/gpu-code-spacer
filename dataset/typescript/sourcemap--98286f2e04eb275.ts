@@ -6,6 +6,7 @@ import colors from 'picocolors'
 import type { ExistingRawSourceMap, SourceMap } from 'rolldown'
 import { cleanUrl } from '../../shared/utils'
 import type { Logger } from '../logger'
+
 import {
   blankReplacer,
   createDebugger,
@@ -27,6 +28,7 @@ export function getNodeModulesPackageRoot(
 ): string | undefined {
   const normalized = normalizePath(filePath)
   const nodeModulesIndex = normalized.lastIndexOf('/node_modules/')
+
   if (nodeModulesIndex === -1) return undefined
 
   const packageStart = nodeModulesIndex + '/node_modules/'.length
@@ -34,13 +36,16 @@ export function getNodeModulesPackageRoot(
   const firstSlash = rest.indexOf('/')
 
   let packageName: string
+
   if (rest.startsWith('@')) {
     // scoped package: @scope/pkg
     const secondSlash = rest.indexOf('/', firstSlash + 1)
+
     packageName = secondSlash === -1 ? rest : rest.slice(0, secondSlash)
   } else {
     packageName = firstSlash === -1 ? rest : rest.slice(0, firstSlash)
   }
+
   return normalized.slice(0, packageStart) + packageName
 }
 
@@ -57,12 +62,14 @@ interface SourceMapLike {
 
 async function computeSourceRoute(map: SourceMapLike, file: string) {
   let sourceRoot: string | undefined
+
   try {
     // The source root is undefined for virtual modules and permission errors.
     sourceRoot = await fsp.realpath(
       path.resolve(path.dirname(file), map.sourceRoot || ''),
     )
   } catch {}
+
   return sourceRoot
 }
 
@@ -77,8 +84,10 @@ export async function injectSourcesContent(
   const missingSources: string[] = []
   const sourcesContent = map.sourcesContent || []
   const sourcesContentPromises: Promise<void>[] = []
+
   for (let index = 0; index < map.sources.length; index++) {
     const sourcePath = map.sources[index]
+
     if (
       sourcesContent[index] == null &&
       sourcePath &&
@@ -88,31 +97,39 @@ export async function injectSourcesContent(
         (async () => {
           // inject content from source file when sourcesContent is null
           sourceRootPromise ??= computeSourceRoute(map, file)
+
           const sourceRoot = await sourceRootPromise
           let resolvedSourcePath = cleanUrl(decodeURI(sourcePath))
+
           if (sourceRoot) {
             resolvedSourcePath = path.resolve(sourceRoot, resolvedSourcePath)
           }
+
           // Block path traversal outside the package boundary for node_modules
           // A malicious package may point to a sensitive file
           if (packageRoot) {
             const resolvedSourcePathNormalized = normalizePath(
               path.resolve(resolvedSourcePath),
             )
+
             if (!isParentDirectory(packageRoot, resolvedSourcePathNormalized)) {
               sourcesContent[index] = null
+
               logger.warnOnce(
                 colors.yellow(
                   `Sourcemap for ${JSON.stringify(file)} points to a source file outside its package: ${JSON.stringify(resolvedSourcePathNormalized)}`,
                 ),
               )
+
               return
             }
           }
+
           sourcesContent[index] = await fsp
             .readFile(resolvedSourcePath, 'utf-8')
             .catch(() => {
               missingSources.push(resolvedSourcePath)
+
               return null
             })
         })(),
@@ -137,6 +154,7 @@ export function genSourceMapUrl(map: SourceMap | string): string {
   if (typeof map !== 'string') {
     map = JSON.stringify(map)
   }
+
   return `data:application/json;base64,${Buffer.from(map).toString('base64')}`
 }
 
@@ -165,9 +183,11 @@ export function applySourcemapIgnoreList(
   logger?: Logger,
 ): void {
   let { x_google_ignoreList } = map
+
   if (x_google_ignoreList === undefined) {
     x_google_ignoreList = []
   }
+
   if (map.sources) {
     for (
       let sourcesIndex = 0;
@@ -175,6 +195,7 @@ export function applySourcemapIgnoreList(
       ++sourcesIndex
     ) {
       const sourcePath = map.sources[sourcesIndex]
+
       if (!sourcePath) continue
 
       const ignoreList = sourcemapIgnoreList(
@@ -183,6 +204,7 @@ export function applySourcemapIgnoreList(
           : path.resolve(path.dirname(sourcemapPath), sourcePath),
         sourcemapPath,
       )
+
       if (logger && typeof ignoreList !== 'boolean') {
         logger.warn('sourcemapIgnoreList function must return a boolean.')
       }
@@ -225,8 +247,10 @@ function createConvertSourceMapReadMap(
   logger: Logger,
 ) {
   const packageRoot = getNodeModulesPackageRoot(originalFileName)
+
   return (filename: string) => {
     const resolvedPath = path.resolve(path.dirname(originalFileName), filename)
+
     if (
       packageRoot &&
       !isParentDirectory(packageRoot, normalizePath(resolvedPath))
@@ -236,8 +260,10 @@ function createConvertSourceMapReadMap(
           `Sourcemap in "${originalFileName}" references a map file outside its package: "${filename}"`,
         ),
       )
+
       return '{}'
     }
+
     return fs.readFileSync(resolvedPath, 'utf-8')
   }
 }

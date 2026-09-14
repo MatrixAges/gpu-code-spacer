@@ -61,13 +61,18 @@ pub fn isLastAllocation(self: *FixedBufferAllocator, buf: []u8) bool {
 
 pub fn alloc(ctx: *anyopaque, n: usize, alignment: mem.Alignment, ra: usize) ?[*]u8 {
     const self: *FixedBufferAllocator = @ptrCast(@alignCast(ctx));
+
     _ = ra;
+
     const ptr_align = alignment.toByteUnits();
     const adjust_off = mem.alignPointerOffset(self.buffer.ptr + self.end_index, ptr_align) orelse return null;
     const adjusted_index = self.end_index + adjust_off;
     const new_end_index = adjusted_index + n;
+
     if (new_end_index > self.buffer.len) return null;
+
     self.end_index = new_end_index;
+
     return self.buffer.ptr + adjusted_index;
 }
 
@@ -79,25 +84,32 @@ pub fn resize(
     return_address: usize,
 ) bool {
     const self: *FixedBufferAllocator = @ptrCast(@alignCast(ctx));
+
     _ = alignment;
     _ = return_address;
+
     assert(@inComptime() or self.ownsSlice(buf));
 
     if (!self.isLastAllocation(buf)) {
         if (new_size > buf.len) return false;
+
         return true;
     }
 
     if (new_size <= buf.len) {
         const sub = buf.len - new_size;
+
         self.end_index -= sub;
+
         return true;
     }
 
     const add = new_size - buf.len;
+
     if (add + self.end_index > self.buffer.len) return false;
 
     self.end_index += add;
+
     return true;
 }
 
@@ -118,8 +130,10 @@ pub fn free(
     return_address: usize,
 ) void {
     const self: *FixedBufferAllocator = @ptrCast(@alignCast(ctx));
+
     _ = alignment;
     _ = return_address;
+
     assert(@inComptime() or self.ownsSlice(buf));
 
     if (self.isLastAllocation(buf)) {
@@ -129,14 +143,19 @@ pub fn free(
 
 fn threadSafeAlloc(ctx: *anyopaque, n: usize, alignment: mem.Alignment, ra: usize) ?[*]u8 {
     const self: *FixedBufferAllocator = @ptrCast(@alignCast(ctx));
+
     _ = ra;
+
     const ptr_align = alignment.toByteUnits();
     var end_index = @atomicLoad(usize, &self.end_index, .seq_cst);
+
     while (true) {
         const adjust_off = mem.alignPointerOffset(self.buffer.ptr + end_index, ptr_align) orelse return null;
         const adjusted_index = end_index + adjust_off;
         const new_end_index = adjusted_index + n;
+
         if (new_end_index > self.buffer.len) return null;
+
         end_index = @cmpxchgWeak(usize, &self.end_index, end_index, new_end_index, .seq_cst, .seq_cst) orelse
             return self.buffer[adjusted_index..new_end_index].ptr;
     }
@@ -177,11 +196,15 @@ test reset {
     const Y = 0xffffffffffffffff;
 
     const x = try a.create(u64);
+
     x.* = X;
+
     try std.testing.expectError(error.OutOfMemory, a.create(u64));
 
     fba.reset();
+
     const y = try a.create(u64);
+
     y.* = Y;
 
     // we expect Y to have overwritten X.
@@ -191,28 +214,36 @@ test reset {
 
 test "reuse memory on realloc" {
     var small_fixed_buffer: [10]u8 = undefined;
+
     // check if we re-use the memory
     {
         var fixed_buffer_allocator = FixedBufferAllocator.init(small_fixed_buffer[0..]);
         const a = fixed_buffer_allocator.allocator();
 
         const slice0 = try a.alloc(u8, 5);
+
         try std.testing.expect(slice0.len == 5);
+
         const slice1 = try a.realloc(slice0, 10);
+
         try std.testing.expect(slice1.ptr == slice0.ptr);
         try std.testing.expect(slice1.len == 10);
         try std.testing.expectError(error.OutOfMemory, a.realloc(slice1, 11));
     }
+
     // check that we don't re-use the memory if it's not the most recent block
     {
         var fixed_buffer_allocator = FixedBufferAllocator.init(small_fixed_buffer[0..]);
         const a = fixed_buffer_allocator.allocator();
 
         var slice0 = try a.alloc(u8, 2);
+
         slice0[0] = 1;
         slice0[1] = 2;
+
         const slice1 = try a.alloc(u8, 2);
         const slice2 = try a.realloc(slice0, 4);
+
         try std.testing.expect(slice0.ptr != slice2.ptr);
         try std.testing.expect(slice1.ptr != slice2.ptr);
         try std.testing.expect(slice2[0] == 1);

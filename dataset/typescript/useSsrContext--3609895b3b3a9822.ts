@@ -6,6 +6,7 @@ export const ssrContextKey: unique symbol = Symbol.for('v-scx')
 export const useSSRContext = <T = Record<string, any>>(): T | undefined => {
   if (!__GLOBAL__) {
     const ctx = inject<T>(ssrContextKey)
+
     if (!ctx) {
       __DEV__ &&
         warn(
@@ -13,6 +14,7 @@ export const useSSRContext = <T = Record<string, any>>(): T | undefined => {
             `useSSRContext() conditionally in the server build.`,
         )
     }
+
     return ctx
   } else if (__DEV__) {
     warn(`useSSRContext() is not supported in the global build.`)

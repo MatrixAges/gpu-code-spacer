@@ -25,6 +25,7 @@ const Number = common.Number;
 /// <https://arxiv.org/abs/2101.11408.pdf>.
 pub fn convertEiselLemire(comptime T: type, q: i64, w_: u64) ?BiasedFp(f64) {
     std.debug.assert(T == f16 or T == f32 or T == f64);
+
     var w = w_;
     const float_info = FloatInfo.from(T);
 
@@ -37,9 +38,11 @@ pub fn convertEiselLemire(comptime T: type, q: i64, w_: u64) ?BiasedFp(f64) {
 
     // Normalize our significant digits, so the most-significant bit is set.
     const lz = @clz(@as(u64, @bitCast(w)));
+
     w = math.shl(u64, w, lz);
 
     const r = computeProductApprox(q, w, float_info.mantissa_explicit_bits + 3);
+
     if (r.lo == 0xffff_ffff_ffff_ffff) {
         // If we have failed to approximate w x 5^-q with our 128-bit value.
         // Since the addition of 1 could lead to an overflow which could then
@@ -57,6 +60,7 @@ pub fn convertEiselLemire(comptime T: type, q: i64, w_: u64) ?BiasedFp(f64) {
         // explanations of rounding for positive exponents, see
         // <https://arxiv.org/pdf/2101.11408.pdf#section.8>.
         const inside_safe_exponent = q >= -27 and q <= 55;
+
         if (!inside_safe_exponent) {
             return null;
         }
@@ -65,16 +69,21 @@ pub fn convertEiselLemire(comptime T: type, q: i64, w_: u64) ?BiasedFp(f64) {
     const upper_bit = @as(i32, @intCast(r.hi >> 63));
     var mantissa = math.shr(u64, r.hi, upper_bit + 64 - @as(i32, @intCast(float_info.mantissa_explicit_bits)) - 3);
     var power2 = power(@as(i32, @intCast(q))) + upper_bit - @as(i32, @intCast(lz)) - float_info.minimum_exponent;
+
     if (power2 <= 0) {
         if (-power2 + 1 >= 64) {
             // Have more than 64 bits below the minimum exponent, must be 0.
             return BiasedFp(f64).zero();
         }
+
         // Have a subnormal value.
         mantissa = math.shr(u64, mantissa, -power2 + 1);
+
         mantissa += mantissa & 1;
         mantissa >>= 1;
+
         power2 = @intFromBool(mantissa >= (1 << float_info.mantissa_explicit_bits));
+
         return BiasedFp(f64){ .f = mantissa, .e = power2 };
     }
 
@@ -102,6 +111,7 @@ pub fn convertEiselLemire(comptime T: type, q: i64, w_: u64) ?BiasedFp(f64) {
     // Round-to-even, then shift the significant digits into place.
     mantissa += mantissa & 1;
     mantissa >>= 1;
+
     if (mantissa >= 2 << float_info.mantissa_explicit_bits) {
         // Rounding up overflowed, so the carry bit is set. Set the
         // mantissa to 1 (only the implicit, hidden bit is set) and
@@ -112,6 +122,7 @@ pub fn convertEiselLemire(comptime T: type, q: i64, w_: u64) ?BiasedFp(f64) {
 
     // Zero out the hidden bit
     mantissa &= ~(@as(u64, 1) << float_info.mantissa_explicit_bits);
+
     if (power2 >= float_info.infinite_power) {
         // Exponent is above largest normal value, must be infinite
         return BiasedFp(f64).inf(T);
@@ -138,6 +149,7 @@ const U128 = struct {
 
     pub fn mul(a: u64, b: u64) U128 {
         const x = @as(u128, a) * b;
+
         return .{
             .hi = @as(u64, @truncate(x >> 64)),
             .lo = @as(u64, @truncate(x)),
@@ -169,6 +181,7 @@ fn computeProductApprox(q: i64, w: u64, comptime precision: usize) U128 {
     // determine the rounding direction, +1 for if the computed
     // product has a leading zero.
     var first = U128.mul(w, pow5.lo);
+
     if (first.hi & mask == mask) {
         // Need to do a second multiplication to get better precision
         // for the lower product. This will always be exact
@@ -177,6 +190,7 @@ fn computeProductApprox(q: i64, w: u64, comptime precision: usize) U128 {
         const second = U128.mul(w, pow5.hi);
 
         first.lo +%= second.hi;
+
         if (second.hi > first.lo) {
             first.hi += 1;
         }
@@ -188,6 +202,7 @@ fn computeProductApprox(q: i64, w: u64, comptime precision: usize) U128 {
 // Eisel-Lemire tables ~10Kb
 const eisel_lemire_smallest_power_of_five = -342;
 const eisel_lemire_largest_power_of_five = 308;
+
 const eisel_lemire_table_powers_of_five_128 = [_]U128{
     U128.new(0xeef453d6923bd65a, 0x113faa2906a13b3f), // 5^-342
     U128.new(0x9558b4661b6565f8, 0x4ac7ca59a424c507), // 5^-341

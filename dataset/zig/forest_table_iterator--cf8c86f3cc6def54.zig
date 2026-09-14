@@ -22,7 +22,6 @@
 //! tables that are compacted with move-table.
 const std = @import("std");
 const assert = std.debug.assert;
-
 const constants = @import("../constants.zig");
 const TableInfo = @import("./schema.zig").ManifestNode.TableInfo;
 
@@ -32,6 +31,7 @@ pub fn ForestTableIteratorType(comptime Forest: type) type {
         const StructField = std.builtin.Type.StructField;
 
         var fields: [Forest.tree_infos.len]StructField = undefined;
+
         for (Forest.tree_infos, 0..) |tree_info, i| {
             fields[i] = .{
                 .name = @ptrCast(tree_info.tree_name),
@@ -49,6 +49,7 @@ pub fn ForestTableIteratorType(comptime Forest: type) type {
             .is_tuple = false,
         } });
     };
+
     assert(std.meta.fields(TreeTableIterators).len > 0);
 
     return struct {
@@ -61,7 +62,9 @@ pub fn ForestTableIteratorType(comptime Forest: type) type {
 
         trees: TreeTableIterators = default: {
             var iterators: TreeTableIterators = undefined;
+
             for (std.meta.fields(TreeTableIterators)) |field| @field(iterators, field.name) = .{};
+
             break :default iterators;
         },
 
@@ -74,9 +77,11 @@ pub fn ForestTableIteratorType(comptime Forest: type) type {
                         inline else => |tree_id| {
                             const tree_info =
                                 Forest.tree_infos[@intFromEnum(tree_id) - Forest.tree_id_range.min];
+
                             assert(tree_info.tree_id == @intFromEnum(tree_id));
 
                             const tree_iterator = &@field(iterator.trees, tree_info.tree_name);
+
                             if (tree_iterator.next(
                                 forest.tree_for_id_const(tree_id),
                                 iterator.level,
@@ -93,10 +98,12 @@ pub fn ForestTableIteratorType(comptime Forest: type) type {
                         },
                     }
                 }
+
                 assert(iterator.tree_id == Forest.tree_id_range.max);
 
                 iterator.tree_id = Forest.tree_id_range.min;
             }
+
             assert(iterator.tree_id == Forest.tree_id_range.min);
 
             return null;

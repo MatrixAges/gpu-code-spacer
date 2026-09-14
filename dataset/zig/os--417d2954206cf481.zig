@@ -35,9 +35,11 @@ pub const freebsd = @import("os/freebsd.zig");
 
 test {
     _ = linux;
+
     if (native_os == .uefi) {
         _ = uefi;
     }
+
     _ = wasi;
     _ = windows;
 }
@@ -92,18 +94,21 @@ pub fn getFdPath(fd: std.posix.fd_t, out_buffer: *[max_path_bytes]u8) std.posix.
     if (!comptime isGetFdPathSupportedOnTarget(builtin.os)) {
         @compileError("querying for canonical path of a handle is unsupported on this host");
     }
+
     switch (native_os) {
         .windows => {
             var wide_buf: [windows.PATH_MAX_WIDE]u16 = undefined;
             const wide_slice = try windows.GetFinalPathNameByHandle(fd, .{}, wide_buf[0..]);
 
             const end_index = std.unicode.wtf16LeToWtf8(out_buffer, wide_slice);
+
             return out_buffer[0..end_index];
         },
         .driverkit, .ios, .maccatalyst, .macos, .tvos, .visionos, .watchos => {
             // On macOS, we can use F.GETPATH fcntl command to query the OS for
             // the path to the file descriptor.
             @memset(out_buffer[0..max_path_bytes], 0);
+
             switch (posix.errno(posix.system.fcntl(fd, posix.F.GETPATH, out_buffer))) {
                 .SUCCESS => {},
                 .BADF => return error.FileNotFound,
@@ -113,7 +118,9 @@ pub fn getFdPath(fd: std.posix.fd_t, out_buffer: *[max_path_bytes]u8) std.posix.
                 // errno values to expect when command is F.GETPATH...
                 else => |err| return posix.unexpectedErrno(err),
             }
+
             const len = mem.indexOfScalar(u8, out_buffer[0..], 0) orelse max_path_bytes;
+
             return out_buffer[0..len];
         },
         .linux, .serenity => {
@@ -129,6 +136,7 @@ pub fn getFdPath(fd: std.posix.fd_t, out_buffer: *[max_path_bytes]u8) std.posix.
                     else => |e| return e,
                 }
             };
+
             return target;
         },
         .illumos => {
@@ -140,35 +148,47 @@ pub fn getFdPath(fd: std.posix.fd_t, out_buffer: *[max_path_bytes]u8) std.posix.
                 error.NotLink => unreachable,
                 else => |e| return e,
             };
+
             return target;
         },
         .freebsd => {
             var kfile: std.c.kinfo_file = undefined;
+
             kfile.structsize = std.c.KINFO_FILE_SIZE;
+
             switch (posix.errno(std.c.fcntl(fd, std.c.F.KINFO, @intFromPtr(&kfile)))) {
                 .SUCCESS => {},
                 .BADF => return error.FileNotFound,
                 else => |err| return posix.unexpectedErrno(err),
             }
+
             const len = mem.indexOfScalar(u8, &kfile.path, 0) orelse max_path_bytes;
+
             if (len == 0) return error.NameTooLong;
+
             const result = out_buffer[0..len];
+
             @memcpy(result, kfile.path[0..len]);
+
             return result;
         },
         .dragonfly => {
             @memset(out_buffer[0..max_path_bytes], 0);
+
             switch (posix.errno(std.c.fcntl(fd, posix.F.GETPATH, out_buffer))) {
                 .SUCCESS => {},
                 .BADF => return error.FileNotFound,
                 .RANGE => return error.NameTooLong,
                 else => |err| return posix.unexpectedErrno(err),
             }
+
             const len = mem.indexOfScalar(u8, out_buffer[0..], 0) orelse max_path_bytes;
+
             return out_buffer[0..len];
         },
         .netbsd => {
             @memset(out_buffer[0..max_path_bytes], 0);
+
             switch (posix.errno(std.c.fcntl(fd, posix.F.GETPATH, out_buffer))) {
                 .SUCCESS => {},
                 .ACCES => return error.AccessDenied,
@@ -178,7 +198,9 @@ pub fn getFdPath(fd: std.posix.fd_t, out_buffer: *[max_path_bytes]u8) std.posix.
                 .RANGE => return error.NameTooLong,
                 else => |err| return posix.unexpectedErrno(err),
             }
+
             const len = mem.indexOfScalar(u8, out_buffer[0..], 0) orelse max_path_bytes;
+
             return out_buffer[0..len];
         },
         else => unreachable, // made unreachable by isGetFdPathSupportedOnTarget above
@@ -193,6 +215,7 @@ pub const FstatError = error{
 
 pub fn fstat_wasi(fd: posix.fd_t) FstatError!wasi.filestat_t {
     var stat: wasi.filestat_t = undefined;
+
     switch (wasi.fd_filestat_get(fd, &stat)) {
         .SUCCESS => return stat,
         .INVAL => unreachable,

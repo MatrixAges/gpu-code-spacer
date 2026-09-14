@@ -9,10 +9,12 @@ const Error = Status.Error;
 /// Database manager for HII-related data structures.
 pub const HiiDatabase = extern struct {
     _new_package_list: Status, // TODO
+
     _remove_package_list: *const fn (*HiiDatabase, hii.Handle) callconv(cc) Status,
     _update_package_list: *const fn (*HiiDatabase, hii.Handle, *const hii.PackageList) callconv(cc) Status,
     _list_package_lists: *const fn (*const HiiDatabase, u8, ?*const Guid, *usize, [*]hii.Handle) callconv(cc) Status,
     _export_package_lists: *const fn (*const HiiDatabase, ?hii.Handle, *usize, [*]hii.PackageList) callconv(cc) Status,
+
     _register_package_notify: Status, // TODO
     _unregister_package_notify: Status, // TODO
     _find_keyboard_layouts: Status, // TODO
@@ -21,16 +23,19 @@ pub const HiiDatabase = extern struct {
     _get_package_list_handle: Status, // TODO
 
     pub const RemovePackageListError = uefi.UnexpectedError || error{NotFound};
+
     pub const UpdatePackageListError = uefi.UnexpectedError || error{
         OutOfResources,
         InvalidParameter,
         NotFound,
     };
+
     pub const ListPackageListsError = uefi.UnexpectedError || error{
         BufferTooSmall,
         InvalidParameter,
         NotFound,
     };
+
     pub const ExportPackageListError = uefi.UnexpectedError || error{
         BufferTooSmall,
         InvalidParameter,
@@ -69,6 +74,7 @@ pub const HiiDatabase = extern struct {
         handles: []hii.Handle,
     ) ListPackageListsError![]hii.Handle {
         var len: usize = handles.len;
+
         switch (self._list_package_lists(
             self,
             package_type,
@@ -91,6 +97,7 @@ pub const HiiDatabase = extern struct {
         buffer: []hii.PackageList,
     ) ExportPackageListError![]hii.PackageList {
         var len = buffer.len;
+
         switch (self._export_package_lists(self, handle, &len, buffer.ptr)) {
             .success => return buffer[0..len],
             .buffer_too_small => return Error.BufferTooSmall,

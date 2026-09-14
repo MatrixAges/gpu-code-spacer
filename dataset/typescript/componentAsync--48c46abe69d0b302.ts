@@ -34,6 +34,7 @@ export function convertLegacyAsyncComponent(
   // options until we call it
   let resolve: (res: LegacyAsyncReturnValue) => void
   let reject: (reason?: any) => void
+
   const fallbackPromise = new Promise<Component>((r, rj) => {
     ;((resolve = r), (reject = rj))
   })
@@ -41,6 +42,7 @@ export function convertLegacyAsyncComponent(
   const res = comp(resolve!, reject!)
 
   let converted: Component
+
   if (isPromise(res)) {
     converted = defineAsyncComponent(() => res)
   } else if (isObject(res) && !isVNode(res) && !isArray(res)) {
@@ -56,6 +58,8 @@ export function convertLegacyAsyncComponent(
   } else {
     converted = comp as any // probably a v3 functional comp
   }
+
   normalizedAsyncComponentMap.set(comp, converted)
+
   return converted
 }

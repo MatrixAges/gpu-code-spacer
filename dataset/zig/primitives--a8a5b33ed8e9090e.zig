@@ -42,17 +42,22 @@ pub const names = std.StaticStringMap(void).initComptime(.{
 pub fn isPrimitive(name: []const u8) bool {
     if (names.get(name) != null) return true;
     if (name.len < 2) return false;
+
     const first_c = name[0];
+
     if (first_c != 'i' and first_c != 'u') return false;
+
     for (name[1..]) |c| switch (c) {
         '0'...'9' => {},
         else => return false,
     };
+
     return true;
 }
 
 test isPrimitive {
     const expect = std.testing.expect;
+
     try expect(!isPrimitive(""));
     try expect(!isPrimitive("_"));
     try expect(!isPrimitive("haberdasher"));

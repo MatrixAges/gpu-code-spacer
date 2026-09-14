@@ -8,6 +8,7 @@ const Error = Status.Error;
 
 pub const SimpleNetwork = extern struct {
     revision: u64,
+
     _start: *const fn (*SimpleNetwork) callconv(cc) Status,
     _stop: *const fn (*SimpleNetwork) callconv(cc) Status,
     _initialize: *const fn (*SimpleNetwork, usize, usize) callconv(cc) Status,
@@ -21,6 +22,7 @@ pub const SimpleNetwork = extern struct {
     _get_status: *const fn (*SimpleNetwork, ?*InterruptStatus, ?*?[*]u8) callconv(cc) Status,
     _transmit: *const fn (*SimpleNetwork, usize, usize, [*]const u8, ?*const MacAddress, ?*const MacAddress, ?*const u16) callconv(cc) Status,
     _receive: *const fn (*SimpleNetwork, ?*usize, *usize, [*]u8, ?*MacAddress, ?*MacAddress, ?*u16) callconv(cc) Status,
+
     wait_for_packet: Event,
     mode: *Mode,
 
@@ -30,12 +32,14 @@ pub const SimpleNetwork = extern struct {
         DeviceError,
         Unsupported,
     };
+
     pub const StopError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
         Unsupported,
     };
+
     pub const InitializeError = uefi.UnexpectedError || error{
         NotStarted,
         OutOfResources,
@@ -43,29 +47,34 @@ pub const SimpleNetwork = extern struct {
         DeviceError,
         Unsupported,
     };
+
     pub const ResetError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
         Unsupported,
     };
+
     pub const ShutdownError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
     };
+
     pub const ReceiveFiltersError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
         Unsupported,
     };
+
     pub const StationAddressError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
         Unsupported,
     };
+
     pub const StatisticsError = uefi.UnexpectedError || error{
         NotStarted,
         BufferTooSmall,
@@ -73,23 +82,27 @@ pub const SimpleNetwork = extern struct {
         DeviceError,
         Unsupported,
     };
+
     pub const McastIpToMacError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
         Unsupported,
     };
+
     pub const NvDataError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
         Unsupported,
     };
+
     pub const GetStatusError = uefi.UnexpectedError || error{
         NotStarted,
         InvalidParameter,
         DeviceError,
     };
+
     pub const TransmitError = uefi.UnexpectedError || error{
         NotStarted,
         NotReady,
@@ -98,6 +111,7 @@ pub const SimpleNetwork = extern struct {
         DeviceError,
         Unsupported,
     };
+
     pub const ReceiveError = uefi.UnexpectedError || error{
         NotStarted,
         NotReady,
@@ -225,6 +239,7 @@ pub const SimpleNetwork = extern struct {
     pub fn statistics(self: *SimpleNetwork, reset_flag: bool) StatisticsError!Statistics {
         var stats: Statistics = undefined;
         var stats_size: usize = @sizeOf(Statistics);
+
         switch (self._statistics(self, reset_flag, &stats_size, &stats)) {
             .success => {},
             .not_started => return Error.NotStarted,
@@ -247,6 +262,7 @@ pub const SimpleNetwork = extern struct {
         ip: *const anyopaque,
     ) McastIpToMacError!MacAddress {
         var mac: MacAddress = undefined;
+
         switch (self._mcast_ip_to_mac(self, ipv6, ip, &mac)) {
             .success => return mac,
             .not_started => return Error.NotStarted,
@@ -328,6 +344,7 @@ pub const SimpleNetwork = extern struct {
     /// Receives a packet from a network interface.
     pub fn receive(self: *SimpleNetwork, buffer: []u8) ReceiveError!Packet {
         var packet: Packet = undefined;
+
         packet.buffer = buffer;
 
         switch (self._receive(
@@ -376,7 +393,9 @@ pub const SimpleNetwork = extern struct {
         receive_filter_setting: ReceiveFilter,
         max_mcast_filter_count: u32,
         mcast_filter_count: u32,
+
         mcast_filter: [16]MacAddress,
+
         current_address: MacAddress,
         broadcast_address: MacAddress,
         permanent_address: MacAddress,

@@ -29,13 +29,16 @@ pub const VerifyError = Certificate.Parsed.VerifyError || error{
 
 pub fn verify(cb: Bundle, subject: Certificate.Parsed, now_sec: i64) VerifyError!void {
     const bytes_index = cb.find(subject.issuer()) orelse return error.CertificateIssuerNotFound;
+
     const issuer_cert: Certificate = .{
         .buffer = cb.bytes.items,
         .index = bytes_index,
     };
+
     // Every certificate in the bundle is pre-parsed before adding it, ensuring
     // that parsing will succeed here.
     const issuer = issuer_cert.parse() catch unreachable;
+
     try subject.verify(issuer, now_sec);
 }
 
@@ -47,20 +50,24 @@ pub fn find(cb: Bundle, subject_name: []const u8) ?u32 {
 
         pub fn hash(ctx: @This(), k: []const u8) u64 {
             _ = ctx;
+
             return std.hash_map.hashString(k);
         }
 
         pub fn eql(ctx: @This(), a: []const u8, b_key: der.Element.Slice) bool {
             const b = ctx.cb.bytes.items[b_key.start..b_key.end];
+
             return mem.eql(u8, a, b);
         }
     };
+
     return cb.map.getAdapted(subject_name, Adapter{ .cb = cb });
 }
 
 pub fn deinit(cb: *Bundle, gpa: Allocator) void {
     cb.map.deinit(gpa);
     cb.bytes.deinit(gpa);
+
     cb.* = undefined;
 }
 
@@ -138,7 +145,9 @@ const RescanWithPathError = AddCertsFromFilePathError;
 fn rescanWithPath(cb: *Bundle, gpa: Allocator, io: Io, now: Io.Timestamp, cert_file_path: []const u8) RescanWithPathError!void {
     cb.bytes.clearRetainingCapacity();
     cb.map.clearRetainingCapacity();
+
     try addCertsFromFilePathAbsolute(cb, gpa, io, now, cert_file_path);
+
     cb.bytes.shrinkAndFree(gpa, cb.bytes.items.len);
 }
 
@@ -153,21 +162,26 @@ fn rescanWindows(cb: *Bundle, gpa: Allocator, io: Io, now: Io.Timestamp) RescanW
     const w = std.os.windows;
     const GetLastError = w.GetLastError;
     const root = [4:0]u16{ 'R', 'O', 'O', 'T' };
+
     const store = w.crypt32.CertOpenSystemStoreW(null, &root) orelse switch (GetLastError()) {
         .FILE_NOT_FOUND => return error.FileNotFound,
         else => |err| return w.unexpectedError(err),
     };
+
     defer _ = w.crypt32.CertCloseStore(store, 0);
 
     const now_sec = now.toSeconds();
 
     var ctx = w.crypt32.CertEnumCertificatesInStore(store, null);
+
     while (ctx) |context| : (ctx = w.crypt32.CertEnumCertificatesInStore(store, ctx)) {
         const decoded_start = @as(u32, @intCast(cb.bytes.items.len));
         const encoded_cert = context.pbCertEncoded[0..context.cbCertEncoded];
+
         try cb.bytes.appendSlice(gpa, encoded_cert);
         try cb.parseCert(gpa, decoded_start, now_sec);
     }
+
     cb.bytes.shrinkAndFree(gpa, cb.bytes.items.len);
 }
 
@@ -181,7 +195,9 @@ pub fn addCertsFromDirPath(
     sub_dir_path: []const u8,
 ) AddCertsFromDirPathError!void {
     var iterable_dir = try dir.openDir(sub_dir_path, .{ .iterate = true });
+
     defer iterable_dir.close();
+
     return addCertsFromDir(cb, gpa, io, iterable_dir);
 }
 
@@ -193,8 +209,11 @@ pub fn addCertsFromDirPathAbsolute(
     abs_dir_path: []const u8,
 ) AddCertsFromDirPathError!void {
     assert(fs.path.isAbsolute(abs_dir_path));
+
     var iterable_dir = try fs.openDirAbsolute(abs_dir_path, .{ .iterate = true });
+
     defer iterable_dir.close();
+
     return addCertsFromDir(cb, gpa, io, now, iterable_dir);
 }
 
@@ -202,6 +221,7 @@ pub const AddCertsFromDirError = AddCertsFromFilePathError;
 
 pub fn addCertsFromDir(cb: *Bundle, gpa: Allocator, io: Io, now: Io.Timestamp, iterable_dir: fs.Dir) AddCertsFromDirError!void {
     var it = iterable_dir.iterate();
+
     while (try it.next()) |entry| {
         switch (entry.kind) {
             .file, .sym_link => {},
@@ -222,8 +242,11 @@ pub fn addCertsFromFilePathAbsolute(
     abs_file_path: []const u8,
 ) AddCertsFromFilePathError!void {
     var file = try fs.openFileAbsolute(abs_file_path, .{});
+
     defer file.close();
+
     var file_reader = file.reader(io, &.{});
+
     return addCertsFromFile(cb, gpa, &file_reader, now.toSeconds());
 }
 
@@ -236,8 +259,11 @@ pub fn addCertsFromFilePath(
     sub_file_path: []const u8,
 ) AddCertsFromFilePathError!void {
     var file = try dir.openFile(io, sub_file_path, .{});
+
     defer file.close(io);
+
     var file_reader = file.reader(io, &.{});
+
     return addCertsFromFile(cb, gpa, &file_reader, now.toSeconds());
 }
 
@@ -255,29 +281,40 @@ pub fn addCertsFromFile(cb: *Bundle, gpa: Allocator, file_reader: *Io.File.Reade
     // This is possible by computing the decoded length and reserving the space
     // for the decoded bytes first.
     const decoded_size_upper_bound = size / 4 * 3;
+
     const needed_capacity = std.math.cast(u32, decoded_size_upper_bound + size) orelse
         return error.CertificateAuthorityBundleTooBig;
+
     try cb.bytes.ensureUnusedCapacity(gpa, needed_capacity);
+
     const end_reserved: u32 = @intCast(cb.bytes.items.len + decoded_size_upper_bound);
     const buffer = cb.bytes.allocatedSlice()[end_reserved..];
+
     const end_index = file_reader.interface.readSliceShort(buffer) catch |err| switch (err) {
         error.ReadFailed => return file_reader.err.?,
     };
+
     const encoded_bytes = buffer[0..end_index];
 
     const begin_marker = "-----BEGIN CERTIFICATE-----";
     const end_marker = "-----END CERTIFICATE-----";
 
     var start_index: usize = 0;
+
     while (mem.indexOfPos(u8, encoded_bytes, start_index, begin_marker)) |begin_marker_start| {
         const cert_start = begin_marker_start + begin_marker.len;
+
         const cert_end = mem.indexOfPos(u8, encoded_bytes, cert_start, end_marker) orelse
             return error.MissingEndCertificateMarker;
+
         start_index = cert_end + end_marker.len;
+
         const encoded_cert = mem.trim(u8, encoded_bytes[cert_start..cert_end], " \t\r\n");
         const decoded_start: u32 = @intCast(cb.bytes.items.len);
         const dest_buf = cb.bytes.allocatedSlice()[decoded_start..];
+
         cb.bytes.items.len += try base64.decode(dest_buf, encoded_cert);
+
         try cb.parseCert(gpa, decoded_start, now_sec);
     }
 }
@@ -295,16 +332,21 @@ pub fn parseCert(cb: *Bundle, gpa: Allocator, decoded_start: u32, now_sec: i64) 
     }) catch |err| switch (err) {
         error.CertificateHasUnrecognizedObjectId => {
             cb.bytes.items.len = decoded_start;
+
             return;
         },
         else => |e| return e,
     };
+
     if (now_sec > parsed_cert.validity.not_after) {
         // Ignore expired cert.
         cb.bytes.items.len = decoded_start;
+
         return;
     }
+
     const gop = try cb.map.getOrPutContext(gpa, parsed_cert.subject_slice, .{ .cb = cb });
+
     if (gop.found_existing) {
         cb.bytes.items.len = decoded_start;
     } else {
@@ -321,6 +363,7 @@ const MapContext = struct {
 
     pub fn eql(ctx: MapContext, a: der.Element.Slice, b: der.Element.Slice) bool {
         const bytes = ctx.cb.bytes.items;
+
         return mem.eql(
             u8,
             bytes[a.start..a.end],
@@ -336,6 +379,7 @@ test "scan for OS-provided certificates" {
     const gpa = std.testing.allocator;
 
     var bundle: Bundle = .{};
+
     defer bundle.deinit(gpa);
 
     const now = try Io.Clock.real.now(io);

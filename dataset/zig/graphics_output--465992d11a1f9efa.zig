@@ -15,10 +15,12 @@ pub const GraphicsOutput = extern struct {
         DeviceError,
         InvalidParameter,
     };
+
     pub const SetModeError = uefi.UnexpectedError || error{
         DeviceError,
         Unsupported,
     };
+
     pub const BltError = uefi.UnexpectedError || error{
         InvalidParameter,
         DeviceError,
@@ -28,6 +30,7 @@ pub const GraphicsOutput = extern struct {
     pub fn queryMode(self: *const GraphicsOutput, mode_id: u32) QueryModeError!*Mode.Info {
         var size_of_info: usize = undefined;
         var info: *Mode.Info = undefined;
+
         switch (self._query_mode(self, mode_id, &size_of_info, &info)) {
             .success => return info,
             .device_error => return Error.DeviceError,

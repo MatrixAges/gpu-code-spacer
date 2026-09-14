@@ -7,7 +7,9 @@ const assert = std.debug.assert;
 
 test "concurrent vs main prevents deadlock via oversubscription" {
     var threaded: Io.Threaded = .init(std.testing.allocator);
+
     defer threaded.deinit();
+
     const io = threaded.io();
 
     threaded.async_limit = .nothing;
@@ -17,9 +19,11 @@ test "concurrent vs main prevents deadlock via oversubscription" {
     var putter = io.concurrent(put, .{ io, &queue }) catch |err| switch (err) {
         error.ConcurrencyUnavailable => {
             try testing.expect(builtin.single_threaded);
+
             return;
         },
     };
+
     defer putter.cancel(io);
 
     try testing.expectEqual(42, queue.getOneUncancelable(io));
@@ -35,7 +39,9 @@ fn get(io: Io, queue: *Io.Queue(u8)) void {
 
 test "concurrent vs concurrent prevents deadlock via oversubscription" {
     var threaded: Io.Threaded = .init(std.testing.allocator);
+
     defer threaded.deinit();
+
     const io = threaded.io();
 
     threaded.async_limit = .nothing;
@@ -45,12 +51,15 @@ test "concurrent vs concurrent prevents deadlock via oversubscription" {
     var putter = io.concurrent(put, .{ io, &queue }) catch |err| switch (err) {
         error.ConcurrencyUnavailable => {
             try testing.expect(builtin.single_threaded);
+
             return;
         },
     };
+
     defer putter.cancel(io);
 
     var getter = try io.concurrent(get, .{ io, &queue });
+
     defer getter.cancel(io);
 
     getter.await(io);
@@ -66,10 +75,13 @@ fn concatByteArrays(a: ByteArray256, b: ByteArray256) ByteArray512 {
 
 test "async/concurrent context and result alignment" {
     var buffer: [2048]u8 align(@alignOf(ByteArray512)) = undefined;
+
     var fba: std.heap.FixedBufferAllocator = .init(&buffer);
 
     var threaded: std.Io.Threaded = .init(fba.allocator());
+
     defer threaded.deinit();
+
     const io = threaded.io();
 
     const a: ByteArray256 = .{ .x = @splat(2) };
@@ -79,16 +91,21 @@ test "async/concurrent context and result alignment" {
     {
         var future = io.async(concatByteArrays, .{ a, b });
         const result = future.await(io);
+
         try std.testing.expectEqualSlices(u8, &expected.x, &result.x);
     }
+
     {
         var future = io.concurrent(concatByteArrays, .{ a, b }) catch |err| switch (err) {
             error.ConcurrencyUnavailable => {
                 try testing.expect(builtin.single_threaded);
+
                 return;
             },
         };
+
         const result = future.await(io);
+
         try std.testing.expectEqualSlices(u8, &expected.x, &result.x);
     }
 }
@@ -99,10 +116,13 @@ fn concatByteArraysResultPtr(a: ByteArray256, b: ByteArray256, result: *ByteArra
 
 test "Group.async context alignment" {
     var buffer: [2048]u8 align(@alignOf(ByteArray512)) = undefined;
+
     var fba: std.heap.FixedBufferAllocator = .init(&buffer);
 
     var threaded: std.Io.Threaded = .init(fba.allocator());
+
     defer threaded.deinit();
+
     const io = threaded.io();
 
     const a: ByteArray256 = .{ .x = @splat(2) };
@@ -111,6 +131,7 @@ test "Group.async context alignment" {
 
     var group: std.Io.Group = .init;
     var result: ByteArray512 = undefined;
+
     group.async(io, concatByteArraysResultPtr, .{ a, b, &result });
     group.wait(io);
     try std.testing.expectEqualSlices(u8, &expected.x, &result.x);
@@ -122,10 +143,13 @@ fn returnArray() [32]u8 {
 
 test "async with array return type" {
     var threaded: std.Io.Threaded = .init(std.testing.allocator);
+
     defer threaded.deinit();
+
     const io = threaded.io();
 
     var future = io.async(returnArray, .{});
     const result = future.await(io);
+
     try std.testing.expectEqualSlices(u8, &@as([32]u8, @splat(5)), &result);
 }

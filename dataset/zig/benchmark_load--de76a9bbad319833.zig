@@ -56,9 +56,11 @@ pub fn main(
     if (builtin.mode != .ReleaseSafe and builtin.mode != .ReleaseFast) {
         log.warn("Benchmark must be built with '-Drelease' for reasonable results.", .{});
     }
+
     if (!vsr.constants.config.process.direct_io) {
         log.warn("Direct IO is disabled.", .{});
     }
+
     if (vsr.constants.config.process.verify) {
         log.warn("Extra assertions are enabled.", .{});
     }
@@ -98,6 +100,7 @@ pub fn main(
     const cluster_id: u128 = 0;
 
     var message_pools = stdx.BoundedArrayType(MessagePool, constants.clients_max){};
+
     defer for (message_pools.slice()) |*message_pool| message_pool.deinit(allocator);
 
     for (0..cli_args.clients) |_| {
@@ -107,6 +110,7 @@ pub fn main(
     std.log.info("Benchmark running against {any}", .{addresses});
 
     var clients = stdx.BoundedArrayType(Client, constants.clients_max){};
+
     defer for (clients.slice()) |*client| client.deinit(allocator);
 
     for (0..cli_args.clients) |i| {
@@ -131,10 +135,13 @@ pub fn main(
 
     // Each array position corresponds to a histogram bucket of 1ms. The last bucket is 10_000ms+.
     const request_latency_histogram = try allocator.alloc(u64, 10_001);
+
     @memset(request_latency_histogram, 0);
+
     defer allocator.free(request_latency_histogram);
 
     const client_timeouts = try allocator.alloc(Benchmark.Timeout, clients.count());
+
     defer allocator.free(client_timeouts);
 
     const client_requests = try allocator.alignedAlloc(
@@ -142,6 +149,7 @@ pub fn main(
         constants.cache_line_size,
         clients.count(),
     );
+
     defer allocator.free(client_requests);
 
     const client_replies = try allocator.alignedAlloc(
@@ -149,17 +157,20 @@ pub fn main(
         constants.cache_line_size,
         clients.count(),
     );
+
     defer allocator.free(client_replies);
 
     // If no seed was given, use a default seed for reproducibility.
     const seed = seed_from_arg: {
         const seed_argument = cli_args.seed orelse break :seed_from_arg 42;
+
         break :seed_from_arg vsr.testing.parse_seed(seed_argument);
     };
 
     log.info("Benchmark seed = {}", .{seed});
 
     var prng = stdx.PRNG.from_seed(seed);
+
     const account_id_permutation: IdPermutation = switch (cli_args.id_order) {
         .sequential, .tbid => .{ .identity = {} },
         .random => .{ .random = prng.int(u64) },
@@ -167,11 +178,13 @@ pub fn main(
     };
 
     assert(cli_args.account_count >= cli_args.account_count_hot);
+
     const account_generator = Generator.from_distribution(
         cli_args.account_distribution,
         cli_args.account_count - cli_args.account_count_hot,
         &prng,
     );
+
     const account_generator_hot = Generator.from_distribution(
         cli_args.account_distribution,
         cli_args.account_count_hot,
@@ -183,6 +196,7 @@ pub fn main(
     });
 
     const use_tbid = cli_args.id_order == .tbid;
+
     const account_id_start: ?u128 = if (use_tbid)
         stdx.unique_u128()
     else
@@ -222,9 +236,11 @@ pub fn main(
     try benchmark.run(.register);
 
     var prng_init = prng;
+
     {
         try benchmark.run(.create_accounts);
         try benchmark.run(.create_transfers);
+
         if (benchmark.query_count > 0) {
             try benchmark.run(.get_account_transfers);
         }
@@ -233,18 +249,22 @@ pub fn main(
     if (benchmark.validate) {
         // Reset our state so we can check our work.
         benchmark.prng = &prng_init;
+
         try benchmark.run(.validate_accounts);
         try benchmark.run(.validate_transfers);
     }
 
     if (cli_args.checksum_performance) {
         const buffer = try allocator.alloc(u8, constants.message_size_max);
+
         defer allocator.free(buffer);
 
         benchmark.prng.fill(buffer);
 
         benchmark.timer.reset();
+
         _ = vsr.checksum(buffer);
+
         const checksum_duration_ns = benchmark.timer.read();
 
         benchmark.output.print(
@@ -292,6 +312,7 @@ const TbidGenerator = struct {
 
     fn init(prng: *stdx.PRNG) TbidGenerator {
         const epoch_ms: u128 = @intCast(std.time.milliTimestamp());
+
         return .{
             .prng = prng,
             .epoch_ms = epoch_ms,
@@ -305,6 +326,7 @@ const TbidGenerator = struct {
         if (now > generator.epoch_ms) {
             // Time advanced: use new time and new random.
             generator.epoch_ms = now;
+
             generator.random = generator.prng.int(u80);
         } else {
             // Time same or behind: keep old time, increment random.
@@ -312,6 +334,7 @@ const TbidGenerator = struct {
                 // Carry the overflow to the time part and reseed random (as the rust client).
                 generator.epoch_ms = std.math.add(u128, generator.epoch_ms, 1) catch
                     @panic("tbid timestamp overflow");
+
                 break :blk generator.prng.int(u80);
             };
         }
@@ -390,10 +413,12 @@ const Benchmark = struct {
         assert(stage != .idle);
 
         b.stage = stage;
+
         b.timer.reset();
 
         for (0..b.clients.len) |client_usize| {
             const client: u32 = @intCast(client_usize);
+
             switch (b.stage) {
                 .register => b.register(client),
                 .create_accounts => b.create_accounts(client),
@@ -407,6 +432,7 @@ const Benchmark = struct {
 
         while (b.stage != .idle) {
             for (b.clients) |*client| client.tick();
+
             try b.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
         }
     }
@@ -420,6 +446,7 @@ const Benchmark = struct {
         b.account_index = 0;
         b.transfer_index = 0;
         b.query_index = 0;
+
         @memset(b.request_latency_histogram, 0);
     }
 
@@ -428,21 +455,25 @@ const Benchmark = struct {
         assert(!b.clients_busy.is_set(client_index));
 
         b.clients_busy.set(client_index);
+
         b.clients[client_index].register(register_callback, @bitCast(RequestContext{
             .benchmark = b,
             .client_index = @intCast(client_index),
             .request_index = undefined,
         }));
+
         b.request_index += 1;
     }
 
     fn register_callback(user_data: u128, _: *const vsr.RegisterResult) void {
         const context: RequestContext = @bitCast(user_data);
         const b: *Benchmark = context.benchmark;
+
         assert(b.stage == .register);
         assert(b.clients_busy.is_set(context.client_index));
 
         b.clients_busy.unset(context.client_index);
+
         if (b.clients_busy.empty()) b.run_finish();
     }
 
@@ -451,8 +482,10 @@ const Benchmark = struct {
         assert(!b.clients_busy.is_set(client_index));
         assert(b.account_batch_count > 0);
         assert(b.account_index <= b.account_count);
+
         if (b.account_index == b.account_count) {
             if (b.clients_busy.empty()) b.run_finish();
+
             return;
         }
 
@@ -460,12 +493,15 @@ const Benchmark = struct {
             b.account_count - b.account_index,
             b.account_batch_count,
         ));
+
         const accounts = stdx.bytes_as_slice(
             .exact,
             tb.Account,
             &b.client_requests[client_index],
         )[0..account_count];
+
         b.build_accounts(accounts);
+
         b.request(client_index, .create_accounts, .{
             .batch_count = account_count,
             .event_size = @sizeOf(tb.Account),
@@ -480,13 +516,17 @@ const Benchmark = struct {
             tb.CreateAccountResult,
             results,
         );
+
         for (account_results) |result| {
             assert(result.timestamp > 0);
+
             if (result.status != .created) {
                 panic("CreateAccountStatus: {any}", .{result.status});
             }
         }
+
         if (account_results.len != 0) {}
+
         b.create_accounts(client_index);
     }
 
@@ -495,8 +535,10 @@ const Benchmark = struct {
         assert(!b.clients_busy.is_set(client_index));
         assert(b.transfer_batch_count > 0);
         assert(b.transfer_index <= b.transfer_count);
+
         if (b.transfer_index == b.transfer_count) {
             if (b.clients_busy.empty()) b.create_transfers_finish();
+
             return;
         }
 
@@ -504,12 +546,15 @@ const Benchmark = struct {
             b.transfer_count - b.transfer_index,
             b.transfer_batch_count,
         ));
+
         const transfers = stdx.bytes_as_slice(
             .exact,
             tb.Transfer,
             &b.client_requests[client_index],
         )[0..transfer_count];
+
         b.build_transfers(transfers);
+
         b.request(client_index, .create_transfers, .{
             .batch_count = transfer_count,
             .event_size = @sizeOf(tb.Transfer),
@@ -518,13 +563,16 @@ const Benchmark = struct {
 
     fn create_transfers_callback(b: *Benchmark, client_index: u32, results: []const u8) void {
         assert(!b.clients_busy.is_set(client_index));
+
         const transfer_results = stdx.bytes_as_slice(
             .exact,
             tb.CreateTransferResult,
             results,
         );
+
         for (transfer_results) |result| {
             assert(result.timestamp > 0);
+
             if (result.status != .created) {
                 panic("CreateTransferStatus: {any}", .{result.status});
             }
@@ -534,6 +582,7 @@ const Benchmark = struct {
         const request_duration_ns = b.timer.read() - b.clients_request_ns[client_index];
         const request_duration_ms = @divTrunc(request_duration_ns, std.time.ns_per_ms);
         const transfers_created = @min(b.transfer_count, b.transfer_batch_count);
+
         b.transfers_created += transfers_created;
 
         if (b.print_batch_timings) {
@@ -548,7 +597,9 @@ const Benchmark = struct {
             b.create_transfers(client_index);
         } else {
             b.client_timeouts[client_index] = .{ .benchmark = b, .client_index = client_index };
+
             b.clients_busy.set(client_index);
+
             b.io.timeout(
                 *Timeout,
                 &b.client_timeouts[client_index],
@@ -565,12 +616,14 @@ const Benchmark = struct {
         result: IO.TimeoutError!void,
     ) void {
         assert(completion == &timeout.completion);
+
         _ = result catch |e| switch (e) {
             error.Canceled => unreachable,
             error.Unexpected => unreachable,
         };
 
         const b = timeout.benchmark;
+
         assert(b.clients_busy.is_set(timeout.client_index));
 
         b.clients_busy.unset(timeout.client_index);
@@ -596,6 +649,7 @@ const Benchmark = struct {
                 b.timer.read(),
             ),
         }) catch unreachable;
+
         print_percentiles_histogram(b.output, "batch", b.request_latency_histogram);
 
         b.run_finish();
@@ -607,18 +661,22 @@ const Benchmark = struct {
 
         if (b.query_index >= b.query_count) {
             if (b.clients_busy.empty()) b.get_account_transfers_finish();
+
             return;
         }
+
         b.query_index += 1;
 
         const request_body = b.client_requests[client_index][0..@sizeOf(tb.AccountFilter)];
         // Use hot accounts for queries to equalize the number of results
         // returned on each execution.
         const account_index = b.choose_account_index(.hot);
+
         const filter: *tb.AccountFilter = @alignCast(std.mem.bytesAsValue(
             tb.AccountFilter,
             request_body,
         ));
+
         filter.* = .{
             .account_id = b.account_id_from_index(account_index),
             .user_data_128 = 0,
@@ -637,6 +695,7 @@ const Benchmark = struct {
                 .reversed = false,
             },
         };
+
         b.request(client_index, .get_account_transfers, .{
             .batch_count = 1,
             .event_size = @sizeOf(tb.AccountFilter),
@@ -650,11 +709,14 @@ const Benchmark = struct {
             tb.AccountFilter,
             b.client_requests[client_index][0..@sizeOf(tb.AccountFilter)],
         );
+
         const results = stdx.bytes_as_slice(.exact, tb.Transfer, result);
+
         for (results) |*transfer| {
             assert((transfer.debit_account_id == filter.account_id) !=
                 (transfer.credit_account_id == filter.account_id));
         }
+
         b.get_account_transfers(client_index);
     }
 
@@ -665,6 +727,7 @@ const Benchmark = struct {
             .query_count = b.request_index,
             .query_duration_s = @as(f64, @floatFromInt(b.timer.read())) / std.time.ns_per_s,
         }) catch unreachable;
+
         print_percentiles_histogram(b.output, "query", b.request_latency_histogram);
 
         b.run_finish();
@@ -674,8 +737,10 @@ const Benchmark = struct {
         assert(b.stage == .validate_accounts);
         assert(!b.clients_busy.is_set(client_index));
         assert(b.account_index <= b.account_count);
+
         if (b.account_index == b.account_count) {
             if (b.clients_busy.empty()) b.validate_accounts_finish();
+
             return;
         }
 
@@ -683,18 +748,23 @@ const Benchmark = struct {
             b.account_count - b.account_index,
             b.account_batch_count,
         ));
+
         const account_ids = stdx.bytes_as_slice(
             .exact,
             u128,
             &b.client_requests[client_index],
         )[0..account_count];
+
         const accounts = stdx.bytes_as_slice(
             .exact,
             tb.Account,
             &b.client_replies[client_index],
         )[0..account_count];
+
         b.build_accounts(accounts);
+
         for (account_ids, accounts) |*account_id, account| account_id.* = account.id;
+
         b.request(client_index, .lookup_accounts, .{
             .batch_count = account_count,
             .event_size = @sizeOf(u128),
@@ -712,23 +782,29 @@ const Benchmark = struct {
             if (b.account_index == b.account_count) {
                 // The last batch might not be full.
                 const remaining = @rem(b.account_count, b.account_batch_count);
+
                 if (remaining > 0) break :accounts_count remaining;
             }
 
             break :accounts_count b.account_batch_count;
         };
+
         const accounts_expected_body = &b.client_replies[client_index];
+
         const accounts_expected = stdx.bytes_as_slice(
             .exact,
             tb.Account,
             accounts_expected_body,
         )[0..accounts_count];
+
         const accounts_actual = stdx.bytes_as_slice(
             .exact,
             tb.Account,
             result,
         );
+
         assert(accounts_actual.len == accounts_count);
+
         for (accounts_expected, accounts_actual) |expected, actual| {
             assert(expected.id == actual.id);
             assert(expected.user_data_128 == actual.user_data_128);
@@ -737,6 +813,7 @@ const Benchmark = struct {
             assert(expected.code == actual.code);
             assert(@as(u16, @bitCast(expected.flags)) == @as(u16, @bitCast(actual.flags)));
         }
+
         b.validate_accounts(client_index);
     }
 
@@ -747,6 +824,7 @@ const Benchmark = struct {
             "validated {d} accounts\n",
             .{b.account_count},
         ) catch unreachable;
+
         b.run_finish();
     }
 
@@ -754,8 +832,10 @@ const Benchmark = struct {
         assert(b.stage == .validate_transfers);
         assert(!b.clients_busy.is_set(client_index));
         assert(b.transfer_index <= b.transfer_count);
+
         if (b.transfer_index == b.transfer_count) {
             if (b.clients_busy.empty()) b.validate_transfers_finish();
+
             return;
         }
 
@@ -763,18 +843,23 @@ const Benchmark = struct {
             b.transfer_count - b.transfer_index,
             b.transfer_batch_count,
         ));
+
         const transfer_ids = stdx.bytes_as_slice(
             .exact,
             u128,
             &b.client_requests[client_index],
         )[0..transfer_count];
+
         const transfers = stdx.bytes_as_slice(
             .exact,
             tb.Transfer,
             &b.client_replies[client_index],
         )[0..transfer_count];
+
         b.build_transfers(transfers);
+
         for (transfer_ids, transfers) |*transfer_id, transfer| transfer_id.* = transfer.id;
+
         b.request(client_index, .lookup_transfers, .{
             .batch_count = transfer_count,
             .event_size = @sizeOf(u128),
@@ -792,22 +877,27 @@ const Benchmark = struct {
             if (b.transfer_index == b.transfer_count) {
                 // The last batch might not be full.
                 const remaining = @rem(b.transfer_count, b.transfer_batch_count);
+
                 if (remaining > 0) break :transfers_count remaining;
             }
 
             break :transfers_count b.transfer_batch_count;
         };
+
         const transfers_expected = stdx.bytes_as_slice(
             .exact,
             tb.Transfer,
             &b.client_replies[client_index],
         )[0..transfers_count];
+
         const transfers_actual = stdx.bytes_as_slice(
             .exact,
             tb.Transfer,
             result,
         );
+
         assert(transfers_actual.len == transfers_count);
+
         for (transfers_expected, transfers_actual) |expected, actual| {
             assert(expected.id == actual.id);
             assert(expected.debit_account_id == actual.debit_account_id);
@@ -822,6 +912,7 @@ const Benchmark = struct {
             assert(expected.code == actual.code);
             assert(@as(u16, @bitCast(expected.flags)) == @as(u16, @bitCast(actual.flags)));
         }
+
         b.validate_transfers(client_index);
     }
 
@@ -860,6 +951,7 @@ const Benchmark = struct {
         assert(!b.clients_busy.is_set(client_index));
 
         b.clients_busy.set(client_index);
+
         b.clients_request_ns[client_index] = b.timer.read();
         b.request_index += 1;
 
@@ -867,7 +959,9 @@ const Benchmark = struct {
             &b.client_requests[client_index],
             .{ .element_size = options.event_size },
         );
+
         encoder.add(options.batch_count * options.event_size);
+
         const bytes_written = encoder.finish();
 
         b.clients[client_index].request(
@@ -892,6 +986,7 @@ const Benchmark = struct {
         const context: RequestContext = @bitCast(user_data);
         const client = context.client_index;
         const b: *Benchmark = context.benchmark;
+
         assert(b.clients_busy.is_set(client));
         assert(b.stage != .idle);
         assert(timestamp > 0);
@@ -900,15 +995,19 @@ const Benchmark = struct {
 
         const duration_ns = b.timer.read() - b.clients_request_ns[client];
         const duration_ms = @divTrunc(duration_ns, std.time.ns_per_ms);
+
         b.request_latency_histogram[@min(duration_ms, b.request_latency_histogram.len - 1)] += 1;
 
         const input: []const u8 = input: {
             assert(operation.is_multi_batch());
+
             var reply_decoder = vsr.multi_batch.MultiBatchDecoder.init(
                 result,
                 .{ .element_size = operation.result_size() },
             ) catch unreachable;
+
             assert(reply_decoder.batch_count() == 1);
+
             break :input reply_decoder.peek();
         };
 
@@ -958,6 +1057,7 @@ const Benchmark = struct {
                 .credits_posted = 0,
                 .timestamp = if (b.imported) b.account_index + 1 else 0,
             };
+
             b.account_index += 1;
         }
     }
@@ -975,17 +1075,21 @@ const Benchmark = struct {
 
             const credit_account_index = index: {
                 var index = b.choose_account_index(.cold);
+
                 if (index == debit_account_index) {
                     index = (index + 1) % b.account_count;
                 }
+
                 break :index index;
             };
+
             assert(debit_account_index < b.account_count);
             assert(credit_account_index < b.account_count);
             assert(debit_account_index != credit_account_index);
 
             const debit_account_id = b.account_id_from_index(debit_account_index);
             const credit_account_id = b.account_id_from_index(credit_account_index);
+
             assert(debit_account_id != credit_account_id);
 
             // 30% of pending transfers.
@@ -1015,13 +1119,16 @@ const Benchmark = struct {
                 .amount = random_int_exponential(b.prng, u64, 10_000) +| 1,
                 .timestamp = if (b.imported) b.account_index + b.transfer_index + 1 else 0,
             };
+
             b.transfer_index += 1;
         }
     }
 
     fn choose_account_index(b: *Benchmark, hint: enum { hot, cold }) u64 {
         assert(b.account_count > 0);
+
         stdx.maybe(b.account_count_hot == 0);
+
         assert(b.account_count >= b.account_count_hot);
 
         // The hint may be ignored if:
@@ -1037,25 +1144,34 @@ const Benchmark = struct {
             .hot => .{ &b.account_generator_hot, b.account_count_hot },
             .cold => .{ &b.account_generator, b.account_count - b.account_count_hot },
         };
+
         assert(account_count > 0);
 
         const index = switch (generator.*) {
             .zipfian => |gen| index: {
                 // zipfian set size must be same as account set size
                 assert(account_count == gen.gen.n);
+
                 const index = gen.next(b.prng);
+
                 assert(index < account_count);
+
                 break :index index;
             },
             .latest => |gen| index: {
                 assert(account_count == gen.n);
+
                 const index_rev = gen.next(b.prng);
+
                 assert(index_rev < account_count);
+
                 break :index account_count - index_rev - 1;
             },
             .uniform => |count| index: {
                 const index = b.prng.int_inclusive(u64, count - 1);
+
                 assert(index < account_count);
+
                 break :index index;
             },
         };
@@ -1073,16 +1189,20 @@ fn print_percentiles_histogram(
     histogram_buckets: []const u64,
 ) void {
     var histogram_total: u64 = 0;
+
     for (histogram_buckets) |bucket| histogram_total += bucket;
 
     const percentiles = [_]u64{ 1, 50, 99, 100 };
+
     for (percentiles) |percentile| {
         const histogram_percentile: u64 = @divTrunc(histogram_total * percentile, 100);
 
         // Since each bucket in our histogram represents 1ms, the bucket we're in is the ms value.
         var sum: u64 = 0;
+
         const latency = for (histogram_buckets, 0..) |bucket, bucket_index| {
             sum += bucket;
+
             if (sum >= histogram_percentile) break bucket_index;
         } else histogram_buckets.len;
 

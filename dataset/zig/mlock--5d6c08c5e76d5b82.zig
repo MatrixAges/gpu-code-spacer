@@ -33,6 +33,7 @@ fn memory_lock_allocated_linux() MemoryLockError!void {
     const MCL_CURRENT = 1; // Lock all currently mapped pages.
     const MCL_ONFAULT = 4; // Lock all pages faulted in (i.e. stack space).
     const result = os.linux.syscall1(.mlockall, MCL_CURRENT | MCL_ONFAULT);
+
     switch (os.linux.E.init(result)) {
         .SUCCESS => return,
         .AGAIN => log.warn(mlockall_error, .{"some addresses could not be locked"}),
@@ -43,6 +44,7 @@ fn memory_lock_allocated_linux() MemoryLockError!void {
         .INVAL => unreachable, // MCL_ONFAULT specified without MCL_CURRENT.
         else => |err| return stdx.unexpected_errno("mlockall", err),
     }
+
     return error.memory_not_locked;
 }
 
@@ -52,6 +54,7 @@ fn memory_lock_allocated_windows(allocated_size: usize) MemoryLockError!void {
     // faulted in, such as the stack, globals, etc. SetProcessWorkingSetSize can be
     // used instead to lock all existing pages into memory to avoid swapping.
     const process_handle = os.windows.kernel32.GetCurrentProcess();
+
     var working_set_min: os.windows.SIZE_T = 0;
     var working_set_max: os.windows.SIZE_T = 0;
 
@@ -76,6 +79,7 @@ fn memory_lock_allocated_windows(allocated_size: usize) MemoryLockError!void {
 
         // 614 is the length of the longest windows error description.
         var buffer: [614:0]os.windows.WCHAR = undefined;
+
         const buffer_size = os.windows.kernel32.FormatMessageW(
             format_flags,
             null,
@@ -87,6 +91,7 @@ fn memory_lock_allocated_windows(allocated_size: usize) MemoryLockError!void {
         );
 
         log.warn(mlockall_error, .{std.unicode.fmtUtf16Le(buffer[0..buffer_size])});
+
         return error.memory_not_locked;
     }
 }

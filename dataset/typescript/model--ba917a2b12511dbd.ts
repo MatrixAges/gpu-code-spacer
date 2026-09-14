@@ -6,6 +6,7 @@ import {
 	$setSelection,
 	COMMAND_PRIORITY_HIGH
 } from 'lexical'
+
 import { throttle } from 'lodash-es'
 import { makeAutoObservable } from 'mobx'
 import { injectable } from 'tsyringe'
@@ -24,12 +25,14 @@ import type TableCellNode from '../TableCellNode'
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
 	ref = null as unknown as HTMLDivElement
 	tables = [] as Array<{ type: string; key: string }>
 	info = {} as { table_node: TableNode; col_index: number; start: number }
 
 	style = { left: 0, top: 0, height: 0 }
+
 	visible = false
 	hoving = false
 	dragging = false
@@ -67,6 +70,7 @@ export default class Index {
 		this.tables = []
 		this.info = {} as Index['info']
 		this.style = { left: 0, top: 0, height: 0 }
+
 		this.visible = false
 		this.hoving = false
 		this.dragging = false
@@ -105,6 +109,7 @@ export default class Index {
 			if (deepEqual(style, $copy(this.style)) && this.visible) return
 
 			this.info = { table_node, col_index, start: rect_cell.left }
+
 			this.style = style
 			this.visible = true
 		})
@@ -188,7 +193,6 @@ export default class Index {
 
 				if (node.existColspan()) {
 					el.removeEventListener('mousemove', this.check)
-
 					this.reset()
 				} else {
 					el.addEventListener('mousemove', this.check)
@@ -215,7 +219,6 @@ export default class Index {
 
 	off() {
 		this.utils.off()
-
 		this.removeListners()
 	}
 }

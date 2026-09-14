@@ -23,6 +23,7 @@ export const feather_icons = Object.keys(feather_icons_data).reduce(
 		}
 
 		total.icon_array.push(target)
+
 		total.icon_object[key] = target
 
 		return total
@@ -45,6 +46,7 @@ export const ionicons = ionicons_data.reduce(
 		}
 
 		total.icon_array.push(target)
+
 		total.icon_object[item.name] = target
 
 		return total
@@ -61,6 +63,7 @@ export const phosphor_icons = phosphor_icons_data.reduce(
 
 		const targets = styles.map(style => {
 			const key = `${item.name}${style ? '-' + style : ''}`
+
 			const target = {
 				id: key,
 				name: key,

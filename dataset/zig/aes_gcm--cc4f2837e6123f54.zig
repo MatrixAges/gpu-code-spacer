@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const assert = std.debug.assert;
 const crypto = std.crypto;
 const debug = std.debug;
@@ -32,17 +33,22 @@ fn AesGcm(comptime Aes: anytype) type {
             debug.assert(m.len <= 16 * ((1 << 32) - 2));
 
             const aes = Aes.initEnc(key);
+
             var h: [16]u8 = undefined;
+
             aes.encrypt(&h, &zeros);
 
             var t: [16]u8 = undefined;
             var j: [16]u8 = undefined;
+
             j[0..nonce_length].* = npub;
+
             mem.writeInt(u32, j[nonce_length..][0..4], 1, .big);
             aes.encrypt(&t, &j);
 
             const block_count = (math.divCeil(usize, ad.len, Ghash.block_length) catch unreachable) + (math.divCeil(usize, c.len, Ghash.block_length) catch unreachable) + 1;
             var mac = Ghash.initForBlockCount(&h, block_count);
+
             mac.update(ad);
             mac.pad();
 
@@ -52,10 +58,12 @@ fn AesGcm(comptime Aes: anytype) type {
             mac.pad();
 
             var final_block = h;
+
             mem.writeInt(u64, final_block[0..8], @as(u64, ad.len) * 8, .big);
             mem.writeInt(u64, final_block[8..16], @as(u64, m.len) * 8, .big);
             mac.update(&final_block);
             mac.final(tag);
+
             for (t, 0..) |x, i| {
                 tag[i] ^= x;
             }
@@ -74,17 +82,22 @@ fn AesGcm(comptime Aes: anytype) type {
             assert(c.len == m.len);
 
             const aes = Aes.initEnc(key);
+
             var h: [16]u8 = undefined;
+
             aes.encrypt(&h, &zeros);
 
             var t: [16]u8 = undefined;
             var j: [16]u8 = undefined;
+
             j[0..nonce_length].* = npub;
+
             mem.writeInt(u32, j[nonce_length..][0..4], 1, .big);
             aes.encrypt(&t, &j);
 
             const block_count = (math.divCeil(usize, ad.len, Ghash.block_length) catch unreachable) + (math.divCeil(usize, c.len, Ghash.block_length) catch unreachable) + 1;
             var mac = Ghash.initForBlockCount(&h, block_count);
+
             mac.update(ad);
             mac.pad();
 
@@ -92,19 +105,26 @@ fn AesGcm(comptime Aes: anytype) type {
             mac.pad();
 
             var final_block = h;
+
             mem.writeInt(u64, final_block[0..8], @as(u64, ad.len) * 8, .big);
             mem.writeInt(u64, final_block[8..16], @as(u64, m.len) * 8, .big);
             mac.update(&final_block);
+
             var computed_tag: [Ghash.mac_length]u8 = undefined;
+
             mac.final(&computed_tag);
+
             for (t, 0..) |x, i| {
                 computed_tag[i] ^= x;
             }
 
             const verify = crypto.timing_safe.eql([tag_length]u8, computed_tag, tag);
+
             if (!verify) {
                 crypto.secureZero(u8, &computed_tag);
+
                 @memset(m, undefined);
+
                 return error.AuthenticationFailed;
             }
 
@@ -115,13 +135,16 @@ fn AesGcm(comptime Aes: anytype) type {
 }
 
 const htest = @import("test.zig");
+
 const testing = std.testing;
 
 test "Aes256Gcm - Empty message and no associated data" {
     const key: [Aes256Gcm.key_length]u8 = [_]u8{0x69} ** Aes256Gcm.key_length;
     const nonce: [Aes256Gcm.nonce_length]u8 = [_]u8{0x42} ** Aes256Gcm.nonce_length;
+
     const ad = "";
     const m = "";
+
     var c: [m.len]u8 = undefined;
     var tag: [Aes256Gcm.tag_length]u8 = undefined;
 
@@ -132,8 +155,10 @@ test "Aes256Gcm - Empty message and no associated data" {
 test "Aes256Gcm - Associated data only" {
     const key: [Aes256Gcm.key_length]u8 = [_]u8{0x69} ** Aes256Gcm.key_length;
     const nonce: [Aes256Gcm.nonce_length]u8 = [_]u8{0x42} ** Aes256Gcm.nonce_length;
+
     const m = "";
     const ad = "Test with associated data";
+
     var c: [m.len]u8 = undefined;
     var tag: [Aes256Gcm.tag_length]u8 = undefined;
 
@@ -144,8 +169,10 @@ test "Aes256Gcm - Associated data only" {
 test "Aes256Gcm - Message only" {
     const key: [Aes256Gcm.key_length]u8 = [_]u8{0x69} ** Aes256Gcm.key_length;
     const nonce: [Aes256Gcm.nonce_length]u8 = [_]u8{0x42} ** Aes256Gcm.nonce_length;
+
     const m = "Test with message only";
     const ad = "";
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aes256Gcm.tag_length]u8 = undefined;
@@ -161,8 +188,10 @@ test "Aes256Gcm - Message only" {
 test "Aes256Gcm - Message and associated data" {
     const key: [Aes256Gcm.key_length]u8 = [_]u8{0x69} ** Aes256Gcm.key_length;
     const nonce: [Aes256Gcm.nonce_length]u8 = [_]u8{0x42} ** Aes256Gcm.nonce_length;
+
     const m = "Test with message";
     const ad = "Test with associated data";
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aes256Gcm.tag_length]u8 = undefined;

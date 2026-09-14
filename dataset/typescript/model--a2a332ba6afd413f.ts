@@ -25,7 +25,6 @@ export default class Index {
 		this.id = id
 
 		this.file.init(id)
-
 		this.on()
 	}
 
@@ -71,7 +70,6 @@ export default class Index {
 
 	off() {
 		this.file.off()
-
 		window.$app.Event.off(`note/${this.id}/redirect`, this.redirect)
 	}
 }

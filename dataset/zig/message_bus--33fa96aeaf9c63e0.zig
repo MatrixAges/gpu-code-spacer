@@ -55,9 +55,11 @@ pub fn MessageBusType(comptime IO: type) type {
         connections: []Connection,
         /// Number of connections currently in use (i.e. connection.state != .free).
         connections_used: u32 = 0,
+
         connections_suspended: QueueType(Connection) = QueueType(Connection).init(.{
             .name = null,
         }),
+
         resume_receive_next_tick: IO.Completion = undefined,
         resume_receive_submitted: bool = false,
 
@@ -93,6 +95,7 @@ pub fn MessageBusType(comptime IO: type) type {
             clients_limit: ?u32 = null,
             time: Time,
         };
+
         const Address = stdx.SocketAddress;
         const MessageBus = @This();
 
@@ -127,11 +130,15 @@ pub fn MessageBusType(comptime IO: type) type {
                 *Message,
                 connections_max * send_queue_max,
             );
+
             @memset(send_queue_buffer, undefined);
+
             errdefer allocator.free(send_queue_buffer);
 
             const connections = try allocator.alloc(Connection, connections_max);
+
             errdefer allocator.free(connections);
+
             for (connections, 0..) |*connection, index| {
                 connection.* = .{
                     .send_queue = .{
@@ -141,15 +148,21 @@ pub fn MessageBusType(comptime IO: type) type {
             }
 
             const replicas = try allocator.alloc(?*Connection, options.configuration.len);
+
             errdefer allocator.free(replicas);
+
             @memset(replicas, null);
 
             const replicas_addresses = try allocator.alloc(Address, options.configuration.len);
+
             errdefer allocator.free(replicas_addresses);
+
             stdx.copy_disjoint(.exact, Address, replicas_addresses, options.configuration);
 
             const replicas_connect_attempts = try allocator.alloc(u64, options.configuration.len);
+
             errdefer allocator.free(replicas_connect_attempts);
+
             @memset(replicas_connect_attempts, 0);
 
             const prng_seed = switch (process_id) {
@@ -181,6 +194,7 @@ pub fn MessageBusType(comptime IO: type) type {
                     // Pre-allocate enough memory to hold all possible connections
                     // in the client map.
                     try bus.clients.ensureTotalCapacity(allocator, connections_max);
+
                     errdefer bus.clients.deinit(allocator);
 
                     return bus;
@@ -222,6 +236,7 @@ pub fn MessageBusType(comptime IO: type) type {
             if (bus.accept_fd) |fd| {
                 assert(bus.process == .replica);
                 assert(bus.accept_address != null);
+
                 bus.io.close_socket(fd);
             }
 
@@ -229,24 +244,31 @@ pub fn MessageBusType(comptime IO: type) type {
                 .replica => constants.connection_send_queue_max_replica,
                 .client => constants.connection_send_queue_max_client,
             };
+
             var send_queue_buffer_previous: ?[]*Message = null;
+
             for (bus.connections) |*connection| {
                 if (connection.fd) |fd| {
                     bus.io.close_socket(fd);
                 }
 
                 if (connection.recv_buffer) |*buffer| buffer.deinit(bus.pool);
+
                 connection.recv_buffer = null;
+
                 while (connection.send_queue.pop()) |message| bus.unref(message);
 
                 assert(connection.send_queue.buffer.len == send_queue_max);
+
                 if (send_queue_buffer_previous) |previous| {
                     assert(connection.send_queue.buffer.ptr == previous.ptr + previous.len);
                 } else {
                     assert(connection.send_queue.buffer.ptr == bus.send_queue_buffer.ptr);
                 }
+
                 send_queue_buffer_previous = connection.send_queue.buffer;
             }
+
             assert(bus.send_queue_buffer.ptr + bus.send_queue_buffer.len ==
                 send_queue_buffer_previous.?.ptr + send_queue_buffer_previous.?.len);
 
@@ -255,6 +277,7 @@ pub fn MessageBusType(comptime IO: type) type {
             allocator.free(bus.replicas);
             allocator.free(bus.connections);
             allocator.free(bus.send_queue_buffer);
+
             bus.* = undefined;
         }
 
@@ -282,6 +305,7 @@ pub fn MessageBusType(comptime IO: type) type {
 
             const address = bus.replicas_addresses[bus.process.replica];
             const fd = try init_tcp(bus.io, .replica, address.ip.family());
+
             errdefer bus.io.close_socket(fd);
 
             const accept_address = try bus.io.listen(fd, address, .{
@@ -295,6 +319,7 @@ pub fn MessageBusType(comptime IO: type) type {
         pub fn trace_gauge(bus: *MessageBus) void {
             if (bus.trace) |trace| {
                 var counts = std.enums.EnumArray(std.meta.Tag(vsr.Peer), u32).initFill(0);
+
                 for (bus.connections) |*connection| {
                     if (connection.state == .connected) {
                         counts.getPtr(connection.peer).* += 1;
@@ -302,6 +327,7 @@ pub fn MessageBusType(comptime IO: type) type {
                 }
 
                 var counts_iterator = counts.iterator();
+
                 while (counts_iterator.next()) |entry| {
                     trace.gauge(
                         .{ .message_bus_connections = .{ .peer = entry.key } },
@@ -315,6 +341,7 @@ pub fn MessageBusType(comptime IO: type) type {
 
         pub fn tick(bus: *MessageBus) void {
             assert(bus.process == .replica);
+
             bus.tick_connect();
             bus.tick_accept(); // Only replicas accept connections from other replicas and clients.
         }
@@ -323,6 +350,7 @@ pub fn MessageBusType(comptime IO: type) type {
         // to not add dead accept code to client libraries.
         pub fn tick_client(bus: *MessageBus) void {
             assert(bus.process == .client);
+
             bus.tick_connect();
         }
 
@@ -335,9 +363,11 @@ pub fn MessageBusType(comptime IO: type) type {
                 // The client connects to all replicas.
                 .client => 0,
             };
+
             for (bus.replicas[replica_next..], replica_next..) |connection, replica| {
                 if (connection == null) bus.connect(@intCast(replica));
             }
+
             assert(bus.connections_used >= bus.replicas.len - replica_next);
         }
 
@@ -352,6 +382,7 @@ pub fn MessageBusType(comptime IO: type) type {
                 if (connection.state == .free) {
                     connection.state = .accepting;
                     bus.accept_connection = connection;
+
                     bus.io.accept(
                         *MessageBus,
                         bus,
@@ -359,12 +390,14 @@ pub fn MessageBusType(comptime IO: type) type {
                         &bus.accept_completion,
                         bus.accept_fd.?,
                     );
+
                     break;
                 }
             } else {
                 for (bus.replicas[0..bus.process.replica]) |connection| {
                     if (connection == null) {
                         bus.reclaim_connection();
+
                         return;
                     }
                 }
@@ -377,14 +410,16 @@ pub fn MessageBusType(comptime IO: type) type {
             result: IO.AcceptError!IO.socket_t,
         ) void {
             assert(bus.process == .replica);
-
             assert(bus.accept_connection != null);
+
             const connection: *Connection = bus.accept_connection.?;
+
             bus.accept_connection = null;
 
             assert(connection.peer == .unknown);
             assert(connection.fd == null);
             assert(connection.state == .accepting);
+
             defer assert(connection.state == .connected or
                 connection.state == .free or
                 connection.state == .terminating);
@@ -392,13 +427,16 @@ pub fn MessageBusType(comptime IO: type) type {
             if (result) |fd| {
                 connection.state = .{ .connected = bus.time.monotonic() };
                 connection.fd = fd;
+
                 bus.connections_used += 1;
 
                 bus.assert_connection_initial_state(connection);
+
                 assert(connection.recv_buffer == null);
 
                 if (bus.connections_used == bus.connections.len) {
                     var connection_count_replicas: u32 = 0;
+
                     for (bus.replicas) |connection_replica| {
                         if (connection_replica != null and
                             connection_replica.?.state == .connected)
@@ -406,6 +444,7 @@ pub fn MessageBusType(comptime IO: type) type {
                             connection_count_replicas += 1;
                         }
                     }
+
                     // If we have intact connections to all replicas, this
                     // connection is either a client connection past the limit,
                     // or a duplicate connection from a replica. Promptly drop
@@ -413,17 +452,21 @@ pub fn MessageBusType(comptime IO: type) type {
                     // connections.
                     if (connection_count_replicas == bus.replicas.len - 1) {
                         bus.terminate(connection, .no_shutdown);
+
                         return;
                     }
                 }
 
                 connection.recv_buffer = MessageBuffer.init(bus.pool);
+
                 bus.recv(connection);
+
                 // Don't start send loop yet --- on accept, we don't know which peer this is.
                 assert(connection.send_queue.empty());
                 assert(connection.state == .connected);
             } else |err| {
                 connection.state = .free;
+
                 // TODO: some errors should probably be fatal
                 log.warn("{}: on_accept: {}", .{ bus.id, err });
             }
@@ -437,11 +480,13 @@ pub fn MessageBusType(comptime IO: type) type {
                     // This will immediately add the connection to bus.replicas,
                     // or else will return early if a socket file descriptor cannot be obtained:
                     bus.connect_connection(connection, replica);
+
                     switch (connection.state) {
                         .connecting => assert(bus.replicas[replica] != null),
                         .free => assert(bus.replicas[replica] == null),
                         else => unreachable,
                     }
+
                     break;
                 }
             } else {
@@ -459,6 +504,7 @@ pub fn MessageBusType(comptime IO: type) type {
 
             var connection_unknown_oldest: ?*Connection = null;
             var connection_client_any: ?*Connection = null;
+
             for (bus.connections) |*connection| {
                 switch (connection.state) {
                     .free => unreachable,
@@ -468,6 +514,7 @@ pub fn MessageBusType(comptime IO: type) type {
                             if (connection_unknown_oldest) |oldest| {
                                 if (connected_at.ns >= oldest.state.connected.ns) continue;
                             }
+
                             connection_unknown_oldest = connection;
                         },
                         .client => {
@@ -483,10 +530,12 @@ pub fn MessageBusType(comptime IO: type) type {
                 if (connection_unknown_oldest) |connection| {
                     const unknown_since =
                         connection.state.connected.elapsed(bus.time.monotonic());
+
                     if (unknown_since.ns >= constants.message_bus_unknown_time_to_live.ns) {
                         break :blk connection;
                     }
                 }
+
                 if (connection_client_any) |connection| break :blk connection;
                 if (connection_unknown_oldest) |connection| break :blk connection;
 
@@ -496,7 +545,9 @@ pub fn MessageBusType(comptime IO: type) type {
             if (connection_to_reclaim) |connection| {
                 log.info("{}: reclaim_connections: no free connection, disconnecting" ++
                     "peer={any}", .{ bus.id, connection.peer });
+
                 bus.terminate(connection, .shutdown);
+
                 return;
             }
         }
@@ -511,29 +562,36 @@ pub fn MessageBusType(comptime IO: type) type {
             assert(connection.fd == null);
 
             const family = bus.replicas_addresses[replica].ip.family();
+
             connection.fd = init_tcp(bus.io, bus.process, family) catch |err| {
                 log.err("{}: connect_to_replica: init_tcp error={s}", .{
                     bus.id,
                     @errorName(err),
                 });
+
                 return;
             };
+
             connection.peer = .{ .replica = replica };
             connection.state = .connecting;
+
             bus.connections_used += 1;
 
             assert(bus.replicas[replica] == null);
+
             bus.replicas[replica] = connection;
 
             comptime assert(constants.connection_delay_min.to_ms() > 0);
 
             const attempts = &bus.replicas_connect_attempts[replica];
+
             const ms = vsr.exponential_backoff_with_jitter(
                 &bus.prng,
                 constants.connection_delay_min.to_ms(),
                 constants.connection_delay_max.to_ms(),
                 attempts.*,
             );
+
             attempts.* += 1;
 
             log.debug("{}: connect_to_replica: connecting to={} after={}ms", .{
@@ -543,9 +601,11 @@ pub fn MessageBusType(comptime IO: type) type {
             });
 
             assert(!connection.recv_submitted);
+
             connection.recv_submitted = true;
 
             assert(ms > 0);
+
             bus.io.timeout(
                 *MessageBus,
                 bus,
@@ -564,13 +624,19 @@ pub fn MessageBusType(comptime IO: type) type {
             const connection: *Connection = @alignCast(
                 @fieldParentPtr("recv_completion", completion),
             );
+
             assert(connection.recv_submitted);
+
             connection.recv_submitted = false;
+
             if (connection.state == .terminating) {
                 bus.terminate_join(connection);
+
                 return;
             }
+
             assert(connection.state == .connecting);
+
             result catch unreachable;
 
             log.debug("{}: on_connect_with_exponential_backoff: to={}", .{
@@ -579,6 +645,7 @@ pub fn MessageBusType(comptime IO: type) type {
             });
 
             assert(!connection.recv_submitted);
+
             connection.recv_submitted = true;
 
             bus.io.connect(
@@ -600,14 +667,19 @@ pub fn MessageBusType(comptime IO: type) type {
             const connection: *Connection = @alignCast(
                 @fieldParentPtr("recv_completion", completion),
             );
+
             assert(connection.recv_submitted);
+
             connection.recv_submitted = false;
 
             if (connection.state == .terminating) {
                 bus.terminate_join(connection);
+
                 return;
             }
+
             assert(connection.state == .connecting);
+
             connection.state = .{ .connected = bus.time.monotonic() };
 
             result catch |err| {
@@ -616,30 +688,33 @@ pub fn MessageBusType(comptime IO: type) type {
                     connection.peer.replica,
                     err,
                 });
+
                 bus.terminate(connection, .no_shutdown);
+
                 return;
             };
 
             log.info("{}: on_connect: connected to={}", .{ bus.id, connection.peer.replica });
 
             bus.assert_connection_initial_state(connection);
+
             assert(connection.recv_buffer == null);
+
             connection.recv_buffer = MessageBuffer.init(bus.pool);
+
             bus.recv(connection);
             bus.send(connection);
+
             assert(connection.state == .connected);
         }
 
         fn assert_connection_initial_state(bus: *MessageBus, connection: *Connection) void {
             assert(bus.connections_used > 0);
-
             assert(connection.peer == .unknown or connection.peer == .replica);
             assert(connection.state == .connected);
             assert(connection.fd != null);
-
             assert(connection.recv_submitted == false);
             assert(connection.recv_buffer == null);
-
             assert(connection.send_submitted == false);
             assert(connection.send_progress == 0);
         }
@@ -651,8 +726,8 @@ pub fn MessageBusType(comptime IO: type) type {
             assert(connection.state == .connected);
             assert(connection.fd != null);
             assert(connection.recv_buffer != null);
-
             assert(!connection.recv_submitted);
+
             connection.recv_submitted = true;
 
             bus.io.recv(
@@ -673,23 +748,32 @@ pub fn MessageBusType(comptime IO: type) type {
             const connection: *Connection = @alignCast(
                 @fieldParentPtr("recv_completion", completion),
             );
+
             assert(connection.recv_submitted);
+
             connection.recv_submitted = false;
+
             if (connection.state == .terminating) {
                 bus.terminate_join(connection);
+
                 return;
             }
+
             assert(connection.state == .connected);
+
             const bytes_received = result catch |err| {
                 // TODO: maybe don't need to close on *every* error
                 log.warn("{}: on_recv: from={} {}", .{ bus.id, connection.peer, err });
                 bus.terminate(connection, .shutdown);
+
                 return;
             };
+
             // No bytes received means that the peer closed its side of the connection.
             if (bytes_received == 0) {
                 log.info("{}: on_recv: from={} orderly shutdown", .{ bus.id, connection.peer });
                 bus.terminate(connection, .no_shutdown);
+
                 return;
             }
 
@@ -701,6 +785,7 @@ pub fn MessageBusType(comptime IO: type) type {
             switch (connection.peer) {
                 .replica => |replica_index| {
                     assert(replica_index < bus.replicas.len);
+
                     if (bus.replicas_connect_attempts[replica_index] != 0) {
                         bus.replicas_connect_attempts[replica_index] = 0;
                     }
@@ -715,9 +800,7 @@ pub fn MessageBusType(comptime IO: type) type {
         fn recv_update_peer(bus: *MessageBus, connection: *Connection, peer: vsr.Peer) bool {
             assert(bus.process == .replica);
             assert(bus.clients.capacity() > 0);
-
             assert(bus.connections_used > 0);
-
             assert(connection.state == .connected);
             assert(connection.fd != null);
             assert(connection.recv_buffer != null);
@@ -743,6 +826,7 @@ pub fn MessageBusType(comptime IO: type) type {
                         assert(old.peer == .replica);
                         assert(old.peer.replica == replica_index);
                         assert(old.state != .free);
+
                         if (old.state != .terminating) bus.terminate(old, .shutdown);
                     }
 
@@ -763,6 +847,7 @@ pub fn MessageBusType(comptime IO: type) type {
                     }
 
                     bus.replicas[replica_index] = connection;
+
                     log.info("{}: recv_update_peer: connection from replica={}", .{
                         bus.id,
                         replica_index,
@@ -782,9 +867,12 @@ pub fn MessageBusType(comptime IO: type) type {
 
                     // If there is a connection to this client, terminate and replace it.
                     const result = bus.clients.getOrPutAssumeCapacity(client_id);
+
                     if (result.found_existing) {
                         const old = result.value_ptr.*;
+
                         assert(old.state == .connected or old.state == .terminating);
+
                         if (connection.peer == .unknown) assert(old != connection);
 
                         switch (old.peer) {
@@ -800,6 +888,7 @@ pub fn MessageBusType(comptime IO: type) type {
                     }
 
                     result.value_ptr.* = connection;
+
                     log.info("{}: recv_update_peer: connection from client={}", .{
                         bus.id,
                         client_id,
@@ -818,8 +907,10 @@ pub fn MessageBusType(comptime IO: type) type {
                             // either a replica or a client.
                             const result =
                                 bus.clients.getOrPutAssumeCapacity(client_id);
+
                             if (!result.found_existing) {
                                 result.value_ptr.* = connection;
+
                                 log.info("{}: recv_update_peer: connection from " ++
                                     "client_likely={}", .{ bus.id, client_id });
                             }
@@ -841,6 +932,7 @@ pub fn MessageBusType(comptime IO: type) type {
             assert(bytes <= constants.message_size_max);
 
             connection.recv_buffer.?.recv_advance(bytes);
+
             switch (bus.process) {
                 // Replicas may forward messages from clients or from other replicas so we
                 // may receive messages from a peer before we know who they are:
@@ -857,6 +949,7 @@ pub fn MessageBusType(comptime IO: type) type {
                                 connection.peer,
                                 header.peer_type(),
                             });
+
                             connection.recv_buffer.?.invalidate(.misdirected);
                         }
                     }
@@ -882,12 +975,15 @@ pub fn MessageBusType(comptime IO: type) type {
                     connection.peer,
                     @tagName(reason),
                 });
+
                 bus.terminate(connection, .no_shutdown);
+
                 return;
             }
 
             if (connection.recv_buffer.?.has_message()) {
                 maybe(connection.state == .terminating);
+
                 bus.connections_suspended.push(connection);
             } else {
                 if (connection.state == .terminating) {
@@ -939,21 +1035,27 @@ pub fn MessageBusType(comptime IO: type) type {
                 .terminating => return,
                 .free, .accepting => unreachable,
             }
+
             if (connection.send_queue.full()) {
                 log.info("{}: send_message: to={} queue full, dropping command={s}", .{
                     bus.id,
                     connection.peer,
                     @tagName(message.header.command),
                 });
+
                 return;
             }
+
             connection.send_queue.push_assume_capacity(message.ref());
+
             // If the connection has not yet been established we can't send yet.
             // Instead on_connect() will call send().
             if (connection.state == .connecting) {
                 assert(connection.peer == .replica);
+
                 return;
             }
+
             // If there is no send operation currently in progress, start one.
             if (!connection.send_submitted) bus.send(connection);
         }
@@ -972,7 +1074,9 @@ pub fn MessageBusType(comptime IO: type) type {
 
             const message = connection.send_queue.head() orelse
                 return; // Nothing more to send, break out of the send loop.
+
             connection.send_submitted = true;
+
             bus.io.send(
                 *MessageBus,
                 bus,
@@ -992,20 +1096,29 @@ pub fn MessageBusType(comptime IO: type) type {
 
             for (0..connection.send_queue.count) |_| {
                 const message = connection.send_queue.head().?;
+
                 assert(connection.send_progress < message.header.size);
+
                 const write_size = bus.io.send_now(
                     connection.fd.?,
                     message.buffer[connection.send_progress..message.header.size],
                 ) orelse return;
+
                 assert(write_size <= constants.message_size_max);
+
                 connection.send_progress += @intCast(write_size);
+
                 assert(connection.send_progress <= message.header.size);
+
                 if (connection.send_progress == message.header.size) {
                     _ = connection.send_queue.pop();
+
                     bus.unref(message);
+
                     connection.send_progress = 0;
                 } else {
                     assert(connection.send_progress < message.header.size);
+
                     return;
                 }
             }
@@ -1019,14 +1132,21 @@ pub fn MessageBusType(comptime IO: type) type {
             const connection: *Connection = @alignCast(
                 @fieldParentPtr("send_completion", completion),
             );
+
             assert(connection.send_submitted);
+
             connection.send_submitted = false;
+
             assert(connection.peer != .unknown);
+
             if (connection.state == .terminating) {
                 bus.terminate_join(connection);
+
                 return;
             }
+
             assert(connection.state == .connected);
+
             const write_size = result catch |err| {
                 // TODO: maybe don't need to close on *every* error
                 log.warn("{}: on_send: to={} {}", .{
@@ -1034,18 +1154,27 @@ pub fn MessageBusType(comptime IO: type) type {
                     connection.peer,
                     err,
                 });
+
                 bus.terminate(connection, .shutdown);
+
                 return;
             };
+
             assert(write_size <= constants.message_size_max);
+
             connection.send_progress += @intCast(write_size);
+
             assert(connection.send_progress <= connection.send_queue.head().?.header.size);
+
             // If the message has been fully sent, move on to the next one.
             if (connection.send_progress == connection.send_queue.head().?.header.size) {
                 connection.send_progress = 0;
+
                 const message = connection.send_queue.pop().?;
+
                 bus.unref(message);
             }
+
             bus.send(connection);
         }
 
@@ -1062,6 +1191,7 @@ pub fn MessageBusType(comptime IO: type) type {
         ) void {
             assert(connection.state != .free);
             assert(connection.fd != null);
+
             switch (how) {
                 .shutdown => {
                     // The shutdown syscall will cause currently in progress send/recv
@@ -1097,17 +1227,22 @@ pub fn MessageBusType(comptime IO: type) type {
                 },
                 .no_shutdown => {},
             }
+
             assert(connection.state != .terminating);
+
             connection.state = .terminating;
+
             bus.terminate_join(connection);
         }
 
         fn terminate_join(bus: *MessageBus, connection: *Connection) void {
             assert(connection.state == .terminating);
+
             // If a recv or send operation is currently submitted to the kernel,
             // submitting a close would cause a race. Therefore we must wait for
             // any currently submitted operation to complete.
             if (connection.recv_submitted or connection.send_submitted) return;
+
             // Even if there's no active physical IO in progress, we want to wait until all
             // messages already received are consumed, to prevent graceful termination of
             // connection from dropping messages.
@@ -1122,19 +1257,27 @@ pub fn MessageBusType(comptime IO: type) type {
             assert(connection.state == .terminating);
             assert(!connection.recv_submitted);
             assert(!connection.send_submitted);
+
             if (connection.recv_buffer) |receive_buffer| assert(!receive_buffer.has_message());
+
             assert(connection.fd != null);
 
             connection.send_submitted = true;
             connection.recv_submitted = true;
+
             // We can free resources now that there is no longer any I/O in progress.
             while (connection.send_queue.pop()) |message| {
                 bus.unref(message);
             }
+
             if (connection.recv_buffer) |*buffer| buffer.deinit(bus.pool);
+
             connection.recv_buffer = null;
+
             const fd = connection.fd.?;
+
             connection.fd = null;
+
             // It's OK to use the send completion here as we know that no send
             // operation is currently in progress.
             bus.io.close(
@@ -1154,6 +1297,7 @@ pub fn MessageBusType(comptime IO: type) type {
             const connection: *Connection = @alignCast(
                 @fieldParentPtr("send_completion", completion),
             );
+
             assert(connection.state == .terminating);
             assert(connection.recv_submitted);
             assert(connection.send_submitted);
@@ -1171,6 +1315,7 @@ pub fn MessageBusType(comptime IO: type) type {
                 .unknown => {},
                 .client, .client_likely => |client_id| {
                     assert(bus.process == .replica);
+
                     // A newer client connection may have replaced this one:
                     if (bus.clients.get(client_id)) |existing_connection| {
                         if (existing_connection == connection) {
@@ -1193,7 +1338,9 @@ pub fn MessageBusType(comptime IO: type) type {
                     }
                 },
             }
+
             bus.connections_used -= 1;
+
             connection.* = .{
                 .send_queue = .{
                     .buffer = connection.send_queue.buffer,
@@ -1218,6 +1365,7 @@ pub fn MessageBusType(comptime IO: type) type {
         pub fn resume_needed(bus: *MessageBus) bool {
             if (bus.connections_suspended.empty()) return false;
             if (bus.resume_receive_submitted) return false;
+
             return true;
         }
 
@@ -1225,6 +1373,7 @@ pub fn MessageBusType(comptime IO: type) type {
             if (!bus.resume_needed()) return;
 
             bus.resume_receive_submitted = true;
+
             bus.io.next_tick(
                 *MessageBus,
                 bus,
@@ -1240,17 +1389,21 @@ pub fn MessageBusType(comptime IO: type) type {
             _: IO.NextTickResult,
         ) void {
             assert(bus.resume_receive_submitted);
+
             bus.resume_receive_submitted = false;
+
             maybe(bus.connections_suspended.empty());
 
             // Steal the queue to avoid an infinite loop.
             var connections_suspended = bus.connections_suspended;
+
             bus.connections_suspended.reset();
 
             while (connections_suspended.pop()) |connection| {
                 assert(connection.recv_buffer != null);
                 assert(connection.recv_buffer.?.advance_size >= @sizeOf(vsr.Header));
                 assert(connection.recv_buffer.?.has_message());
+
                 bus.recv_buffer_consume(connection);
             }
         }
@@ -1276,6 +1429,7 @@ pub fn MessageBusType(comptime IO: type) type {
                 /// The connection is being terminated but cleanup has not yet finished.
                 terminating,
             } = .free,
+
             /// This is guaranteed to be valid only while state is connected.
             /// It will be reset to null during the shutdown process and is always null if the
             /// connection is unused (i.e. peer == .unknown).

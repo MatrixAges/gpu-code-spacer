@@ -17,9 +17,11 @@ export function getRegistry(
   instance: ComponentInternalInstance,
 ): EventRegistry {
   let events = eventRegistryMap.get(instance)
+
   if (!events) {
     eventRegistryMap.set(instance, (events = Object.create(null)))
   }
+
   return events!
 }
 
@@ -40,9 +42,12 @@ export function on(
     } else {
       assertCompatEnabled(DeprecationTypes.INSTANCE_EVENT_EMITTER, instance)
     }
+
     const events = getRegistry(instance)
+
     ;(events[event] || (events[event] = [])).push(fn)
   }
+
   return instance.proxy
 }
 
@@ -53,10 +58,14 @@ export function once(
 ): ComponentPublicInstance | null {
   const wrapped = (...args: any[]) => {
     off(instance, event, wrapped)
+
     fn.apply(instance.proxy, args)
   }
+
   wrapped.fn = fn
+
   on(instance, event, wrapped)
+
   return instance.proxy
 }
 
@@ -66,28 +75,39 @@ export function off(
   fn?: Function,
 ): ComponentPublicInstance | null {
   assertCompatEnabled(DeprecationTypes.INSTANCE_EVENT_EMITTER, instance)
+
   const vm = instance.proxy
+
   // all
   if (!event) {
     eventRegistryMap.set(instance, Object.create(null))
+
     return vm
   }
+
   // array of events
   if (isArray(event)) {
     event.forEach(e => off(instance, e, fn))
+
     return vm
   }
+
   // specific event
   const events = getRegistry(instance)
   const cbs = events[event!]
+
   if (!cbs) {
     return vm
   }
+
   if (!fn) {
     events[event!] = undefined
+
     return vm
   }
+
   events[event!] = cbs.filter(cb => !(cb === fn || (cb as any).fn === fn))
+
   return vm
 }
 
@@ -97,6 +117,7 @@ export function emit(
   args: any[],
 ): ComponentPublicInstance | null {
   const cbs = getRegistry(instance)[event]
+
   if (cbs) {
     callWithAsyncErrorHandling(
       cbs.map(cb => cb.bind(instance.proxy)),
@@ -105,5 +126,6 @@ export function emit(
       args,
     )
   }
+
   return instance.proxy
 }

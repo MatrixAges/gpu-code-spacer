@@ -58,8 +58,11 @@ pub const Fe = struct {
     /// Return true if the field element is zero
     pub fn isZero(fe: Fe) bool {
         var reduced = fe;
+
         reduced.reduce();
+
         const limbs = reduced.limbs;
+
         return (limbs[0] | limbs[1] | limbs[2] | limbs[3] | limbs[4]) == 0;
     }
 
@@ -71,6 +74,7 @@ pub const Fe = struct {
     /// Unpack a field element
     pub fn fromBytes(s: [32]u8) Fe {
         var fe: Fe = undefined;
+
         fe.limbs[0] = std.mem.readInt(u64, s[0..8], .little) & MASK51;
         fe.limbs[1] = (std.mem.readInt(u64, s[6..14], .little) >> 3) & MASK51;
         fe.limbs[2] = (std.mem.readInt(u64, s[12..20], .little) >> 6) & MASK51;
@@ -83,8 +87,11 @@ pub const Fe = struct {
     /// Pack a field element
     pub fn toBytes(fe: Fe) [32]u8 {
         var reduced = fe;
+
         reduced.reduce();
+
         var s: [32]u8 = undefined;
+
         std.mem.writeInt(u64, s[0..8], reduced.limbs[0] | (reduced.limbs[1] << 51), .little);
         std.mem.writeInt(u64, s[8..16], (reduced.limbs[1] >> 13) | (reduced.limbs[2] << 38), .little);
         std.mem.writeInt(u64, s[16..24], (reduced.limbs[2] >> 26) | (reduced.limbs[3] << 25), .little);
@@ -98,20 +105,28 @@ pub const Fe = struct {
         var fl: [32]u8 = undefined;
         var gl: [32]u8 = undefined;
         var i: usize = 0;
+
         while (i < 32) : (i += 1) {
             fl[i] = s[63 - i];
             gl[i] = s[31 - i];
         }
+
         fl[31] &= 0x7f;
         gl[31] &= 0x7f;
+
         var fe_f = fromBytes(fl);
         const fe_g = fromBytes(gl);
+
         fe_f.limbs[0] += (s[32] >> 7) * 19 + @as(u10, s[0] >> 7) * 722;
+
         i = 0;
+
         while (i < 5) : (i += 1) {
             fe_f.limbs[i] += 38 * fe_g.limbs[i];
         }
+
         fe_f.reduce();
+
         return fe_f;
     }
 
@@ -119,12 +134,16 @@ pub const Fe = struct {
     pub fn rejectNonCanonical(s: [32]u8, comptime ignore_extra_bit: bool) NonCanonicalError!void {
         var c: u16 = (s[31] & 0x7f) ^ 0x7f;
         comptime var i = 30;
+
         inline while (i > 0) : (i -= 1) {
             c |= s[i] ^ 0xff;
         }
+
         c = (c -% 1) >> 8;
+
         const d = (@as(u16, 0xed - 1) -% @as(u16, s[0])) >> 8;
         const x = if (ignore_extra_bit) 0 else s[31] >> 7;
+
         if ((((c & d) | x) & 1) != 0) {
             return error.NonCanonical;
         }
@@ -135,24 +154,30 @@ pub const Fe = struct {
         comptime var i = 0;
         comptime var j = 0;
         const limbs = &fe.limbs;
+
         inline while (j < 2) : (j += 1) {
             i = 0;
+
             inline while (i < 4) : (i += 1) {
                 limbs[i + 1] += limbs[i] >> 51;
                 limbs[i] &= MASK51;
             }
+
             limbs[0] += 19 * (limbs[4] >> 51);
             limbs[4] &= MASK51;
         }
+
         limbs[0] += 19;
+
         i = 0;
+
         inline while (i < 4) : (i += 1) {
             limbs[i + 1] += limbs[i] >> 51;
             limbs[i] &= MASK51;
         }
+
         limbs[0] += 19 * (limbs[4] >> 51);
         limbs[4] &= MASK51;
-
         limbs[0] += 0x8000000000000 - 19;
         limbs[1] += 0x8000000000000 - 1;
         limbs[2] += 0x8000000000000 - 1;
@@ -160,10 +185,12 @@ pub const Fe = struct {
         limbs[4] += 0x8000000000000 - 1;
 
         i = 0;
+
         inline while (i < 4) : (i += 1) {
             limbs[i + 1] += limbs[i] >> 51;
             limbs[i] &= MASK51;
         }
+
         limbs[4] &= MASK51;
     }
 
@@ -171,9 +198,11 @@ pub const Fe = struct {
     pub fn add(a: Fe, b: Fe) Fe {
         var fe: Fe = undefined;
         comptime var i = 0;
+
         inline while (i < 5) : (i += 1) {
             fe.limbs[i] = a.limbs[i] + b.limbs[i];
         }
+
         return fe;
     }
 
@@ -181,12 +210,15 @@ pub const Fe = struct {
     pub fn sub(a: Fe, b: Fe) Fe {
         var fe = b;
         comptime var i = 0;
+
         inline while (i < 4) : (i += 1) {
             fe.limbs[i + 1] += fe.limbs[i] >> 51;
             fe.limbs[i] &= MASK51;
         }
+
         fe.limbs[0] += 19 * (fe.limbs[4] >> 51);
         fe.limbs[4] &= MASK51;
+
         fe.limbs[0] = (a.limbs[0] + 0xfffffffffffda) - fe.limbs[0];
         fe.limbs[1] = (a.limbs[1] + 0xffffffffffffe) - fe.limbs[1];
         fe.limbs[2] = (a.limbs[2] + 0xffffffffffffe) - fe.limbs[2];
@@ -211,14 +243,19 @@ pub const Fe = struct {
         const mask: u64 = 0 -% c;
         var x = fe.*;
         comptime var i = 0;
+
         inline while (i < 5) : (i += 1) {
             x.limbs[i] ^= a.limbs[i];
         }
+
         i = 0;
+
         inline while (i < 5) : (i += 1) {
             x.limbs[i] &= mask;
         }
+
         i = 0;
+
         inline while (i < 5) : (i += 1) {
             fe.limbs[i] ^= x.limbs[i];
         }
@@ -230,16 +267,21 @@ pub const Fe = struct {
         var x0 = a0.*;
         var x1 = a1.*;
         comptime var i = 0;
+
         inline while (i < 5) : (i += 1) {
             x0.limbs[i] ^= b0.limbs[i];
             x1.limbs[i] ^= b1.limbs[i];
         }
+
         i = 0;
+
         inline while (i < 5) : (i += 1) {
             x0.limbs[i] &= mask;
             x1.limbs[i] &= mask;
         }
+
         i = 0;
+
         inline while (i < 5) : (i += 1) {
             a0.limbs[i] ^= x0.limbs[i];
             b0.limbs[i] ^= x0.limbs[i];
@@ -251,12 +293,16 @@ pub const Fe = struct {
     fn _carry128(r: *[5]u128) Fe {
         var rs: [5]u64 = undefined;
         comptime var i = 0;
+
         inline while (i < 4) : (i += 1) {
             rs[i] = @as(u64, @truncate(r[i])) & MASK51;
             r[i + 1] += @as(u64, @intCast(r[i] >> 51));
         }
+
         rs[4] = @as(u64, @truncate(r[4])) & MASK51;
+
         var carry = @as(u64, @intCast(r[4] >> 51));
+
         rs[0] += 19 * carry;
         carry = rs[0] >> 51;
         rs[0] &= MASK51;
@@ -275,14 +321,18 @@ pub const Fe = struct {
         var a19: [5]u128 = undefined;
         var r: [5]u128 = undefined;
         comptime var i = 0;
+
         inline while (i < 5) : (i += 1) {
             ax[i] = @as(u128, @intCast(a.limbs[i]));
             bx[i] = @as(u128, @intCast(b.limbs[i]));
         }
+
         i = 1;
+
         inline while (i < 5) : (i += 1) {
             a19[i] = 19 * ax[i];
         }
+
         r[0] = ax[0] * bx[0] + a19[1] * bx[4] + a19[2] * bx[3] + a19[3] * bx[2] + a19[4] * bx[1];
         r[1] = ax[0] * bx[1] + ax[1] * bx[0] + a19[2] * bx[4] + a19[3] * bx[3] + a19[4] * bx[2];
         r[2] = ax[0] * bx[2] + ax[1] * bx[1] + ax[2] * bx[0] + a19[3] * bx[4] + a19[4] * bx[3];
@@ -296,9 +346,11 @@ pub const Fe = struct {
         var ax: [5]u128 = undefined;
         var r: [5]u128 = undefined;
         comptime var i = 0;
+
         inline while (i < 5) : (i += 1) {
             ax[i] = @as(u128, @intCast(a.limbs[i]));
         }
+
         const a0_2 = 2 * ax[0];
         const a1_2 = 2 * ax[1];
         const a1_38 = 38 * ax[1];
@@ -306,17 +358,21 @@ pub const Fe = struct {
         const a3_38 = 38 * ax[3];
         const a3_19 = 19 * ax[3];
         const a4_19 = 19 * ax[4];
+
         r[0] = ax[0] * ax[0] + a1_38 * ax[4] + a2_38 * ax[3];
         r[1] = a0_2 * ax[1] + a2_38 * ax[4] + a3_19 * ax[3];
         r[2] = a0_2 * ax[2] + ax[1] * ax[1] + a3_38 * ax[4];
         r[3] = a0_2 * ax[3] + a1_2 * ax[2] + a4_19 * ax[4];
         r[4] = a0_2 * ax[4] + a1_2 * ax[3] + ax[2] * ax[2];
+
         if (double) {
             i = 0;
+
             inline while (i < 5) : (i += 1) {
                 r[i] *= 2;
             }
         }
+
         return _carry128(&r);
     }
 
@@ -336,10 +392,12 @@ pub const Fe = struct {
         var fe: Fe = undefined;
         var x: u128 = 0;
         comptime var i = 0;
+
         inline while (i < 5) : (i += 1) {
             x = a.limbs[i] * sn + (x >> 51);
             fe.limbs[i] = @as(u64, @truncate(x)) & MASK51;
         }
+
         fe.limbs[0] += @as(u64, @intCast(x >> 51)) * 19;
 
         return fe;
@@ -349,9 +407,11 @@ pub const Fe = struct {
     fn sqn(a: Fe, n: usize) Fe {
         var i: usize = 0;
         var fe = a;
+
         while (i < n) : (i += 1) {
             fe = fe.sq();
         }
+
         return fe;
     }
 
@@ -359,13 +419,17 @@ pub const Fe = struct {
     pub fn invert(a: Fe) Fe {
         var t0 = a.sq();
         var t1 = t0.sqn(2).mul(a);
+
         t0 = t0.mul(t1);
         t1 = t1.mul(t0.sq());
         t1 = t1.mul(t1.sqn(5));
+
         var t2 = t1.sqn(10).mul(t1);
+
         t2 = t2.mul(t2.sqn(20)).sqn(10);
         t1 = t1.mul(t2);
         t2 = t1.sqn(50).mul(t1);
+
         return t1.mul(t2.mul(t2.sqn(100)).sqn(50)).sqn(5).mul(t0);
     }
 
@@ -374,18 +438,24 @@ pub const Fe = struct {
     pub fn pow2523(a: Fe) Fe {
         var t0 = a.mul(a.sq());
         var t1 = t0.mul(t0.sqn(2)).sq().mul(a);
+
         t0 = t1.sqn(5).mul(t1);
+
         var t2 = t0.sqn(5).mul(t1);
+
         t1 = t2.sqn(15).mul(t2);
         t2 = t1.sqn(30).mul(t1);
         t1 = t2.sqn(60).mul(t2);
+
         return t1.sqn(120).mul(t1).sqn(10).mul(t0).sqn(2).mul(a);
     }
 
     /// Return the absolute value of a field element
     pub fn abs(a: Fe) Fe {
         var r = a;
+
         r.cMov(a.neg(), @intFromBool(a.isNegative()));
+
         return r;
     }
 
@@ -400,6 +470,7 @@ pub const Fe = struct {
         const t2 = t.sqn(30).mul(t);
         const t3 = t2.sqn(60).mul(t2);
         const t4 = t3.sqn(120).mul(t3).sqn(10).mul(u).sqn(3).mul(_11).sq();
+
         return @as(bool, @bitCast(@as(u1, @truncate(~(t4.toBytes()[1] & 1)))));
     }
 
@@ -408,9 +479,13 @@ pub const Fe = struct {
         const p_root = e.mul(x2); // positive root
         const m_root = p_root.mul(Fe.sqrtm1); // negative root
         const m_root2 = m_root.sq();
+
         e = x2.sub(m_root2);
+
         var x = p_root;
+
         x.cMov(m_root, @intFromBool(e.isZero()));
+
         return x;
     }
 
@@ -419,9 +494,11 @@ pub const Fe = struct {
         const x2_copy = x2;
         const x = x2.uncheckedSqrt();
         const check = x.sq().sub(x2_copy);
+
         if (check.isZero()) {
             return x;
         }
+
         return error.NotSquare;
     }
 };

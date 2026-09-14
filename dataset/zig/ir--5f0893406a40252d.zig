@@ -8,16 +8,12 @@ pub const MAGIC: u32 = 0xdec04342;
 
 const ValueAbbrev = AbbrevOp{ .vbr = 6 };
 const ValueArrayAbbrev = AbbrevOp{ .array_vbr = 6 };
-
 const ConstantAbbrev = AbbrevOp{ .vbr = 6 };
 const ConstantArrayAbbrev = AbbrevOp{ .array_vbr = 6 };
-
 const MetadataAbbrev = AbbrevOp{ .vbr = 16 };
 const MetadataArrayAbbrev = AbbrevOp{ .array_vbr = 16 };
-
 const LineAbbrev = AbbrevOp{ .vbr = 8 };
 const ColumnAbbrev = AbbrevOp{ .vbr = 8 };
-
 const BlockAbbrev = AbbrevOp{ .vbr = 6 };
 const BlockArrayAbbrev = AbbrevOp{ .array_vbr = 6 };
 
@@ -199,6 +195,7 @@ pub const ModuleBlock = struct {
             .{ .vbr = 4 },
             .{ .array_fixed = 8 },
         };
+
         code: u16,
         string: []const u8,
     };
@@ -229,13 +226,16 @@ pub const ModuleBlock = struct {
             .{ .literal = 0 }, // attributes
             .{ .fixed = @bitSizeOf(Builder.Preemption) },
         };
+
         strtab_offset: usize,
         strtab_size: usize,
         type_index: Builder.Type,
         is_const: AddrSpaceAndIsConst,
         initid: u32,
         linkage: Builder.Linkage,
+
         alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
+
         section: usize,
         visibility: Builder.Visibility,
         thread_local: Builder.ThreadLocal,
@@ -268,6 +268,7 @@ pub const ModuleBlock = struct {
             .{ .fixed = @bitSizeOf(Builder.Preemption) },
             .{ .fixed = @bitSizeOf(Builder.AddrSpace) },
         };
+
         strtab_offset: usize,
         strtab_size: usize,
         type_index: Builder.Type,
@@ -275,7 +276,9 @@ pub const ModuleBlock = struct {
         is_proto: bool,
         linkage: Builder.Linkage,
         paramattr: usize,
+
         alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
+
         section: usize,
         visibility: Builder.Visibility,
         unnamed_addr: Builder.UnnamedAddr,
@@ -299,6 +302,7 @@ pub const ModuleBlock = struct {
             .{ .fixed = @bitSizeOf(Builder.UnnamedAddr) },
             .{ .fixed = @bitSizeOf(Builder.Preemption) },
         };
+
         strtab_offset: usize,
         strtab_size: usize,
         type_index: Builder.Type,
@@ -333,6 +337,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ParamattrBlock.Code.ENTRY) },
                 .{ .array_vbr = 8 },
             };
+
             group_indices: []const u64,
         };
     };
@@ -454,6 +459,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.SETTYPE) },
                 .{ .fixed_runtime = Builder.Type },
             };
+
             type_id: Builder.Type,
         };
 
@@ -480,6 +486,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.INTEGER) },
                 .{ .vbr = 16 },
             };
+
             value: u64,
         };
 
@@ -488,6 +495,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.FLOAT) },
                 .{ .fixed = 16 },
             };
+
             value: u16,
         };
 
@@ -496,6 +504,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.FLOAT) },
                 .{ .fixed = 32 },
             };
+
             value: u32,
         };
 
@@ -504,6 +513,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.FLOAT) },
                 .{ .vbr = 6 },
             };
+
             value: u64,
         };
 
@@ -513,6 +523,7 @@ pub const ModuleBlock = struct {
                 .{ .vbr = 6 },
                 .{ .vbr = 6 },
             };
+
             hi: u64,
             lo: u16,
         };
@@ -523,6 +534,7 @@ pub const ModuleBlock = struct {
                 .{ .vbr = 6 },
                 .{ .vbr = 6 },
             };
+
             lo: u64,
             hi: u64,
         };
@@ -532,6 +544,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.AGGREGATE) },
                 .{ .array_fixed = 32 },
             };
+
             values: []const Builder.Constant,
         };
 
@@ -540,6 +553,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.STRING) },
                 .{ .array_fixed = 8 },
             };
+
             string: []const u8,
         };
 
@@ -548,11 +562,13 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.CSTRING) },
                 .{ .array_fixed = 8 },
             };
+
             string: []const u8,
         };
 
         pub const Cast = struct {
             const CastOpcode = Builder.CastOpcode;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.CE_CAST) },
                 .{ .fixed = @bitSizeOf(CastOpcode) },
@@ -567,6 +583,7 @@ pub const ModuleBlock = struct {
 
         pub const Binary = struct {
             const BinaryOpcode = Builder.BinaryOpcode;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.ConstantsBlock.Code.CE_BINOP) },
                 .{ .fixed = @bitSizeOf(BinaryOpcode) },
@@ -659,6 +676,7 @@ pub const ModuleBlock = struct {
                 ConstantAbbrev,
                 BlockAbbrev,
             };
+
             type_id: Builder.Type,
             function: u32,
             block: u32,
@@ -670,6 +688,7 @@ pub const ModuleBlock = struct {
                 .{ .fixed_runtime = Builder.Type },
                 ConstantAbbrev,
             };
+
             code: ModuleBlock.ConstantsBlock.Code,
             type_id: Builder.Type,
             function: u32,
@@ -869,6 +888,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.DECLAREBLOCKS) },
                 .{ .vbr = 8 },
             };
+
             num_blocks: usize,
         };
 
@@ -882,6 +902,7 @@ pub const ModuleBlock = struct {
                 explicit_type: bool = true,
                 no_tail: bool = false,
             };
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_CALL) },
                 .{ .fixed_runtime = Builder.FunctionAttributes },
@@ -952,6 +973,7 @@ pub const ModuleBlock = struct {
 
         pub const Binary = struct {
             const BinaryOpcode = Builder.BinaryOpcode;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_BINOP) },
                 ValueAbbrev,
@@ -966,6 +988,7 @@ pub const ModuleBlock = struct {
 
         pub const BinaryNoWrap = struct {
             const BinaryOpcode = Builder.BinaryOpcode;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_BINOP) },
                 ValueAbbrev,
@@ -977,6 +1000,7 @@ pub const ModuleBlock = struct {
             lhs: u32,
             rhs: u32,
             opcode: BinaryOpcode,
+
             flags: packed struct(u2) {
                 no_unsigned_wrap: bool,
                 no_signed_wrap: bool,
@@ -985,6 +1009,7 @@ pub const ModuleBlock = struct {
 
         pub const BinaryExact = struct {
             const BinaryOpcode = Builder.BinaryOpcode;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_BINOP) },
                 ValueAbbrev,
@@ -1000,6 +1025,7 @@ pub const ModuleBlock = struct {
 
         pub const BinaryFast = struct {
             const BinaryOpcode = Builder.BinaryOpcode;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_BINOP) },
                 ValueAbbrev,
@@ -1016,6 +1042,7 @@ pub const ModuleBlock = struct {
 
         pub const Cmp = struct {
             const CmpPredicate = Builder.CmpPredicate;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_CMP2) },
                 ValueAbbrev,
@@ -1030,6 +1057,7 @@ pub const ModuleBlock = struct {
 
         pub const CmpFast = struct {
             const CmpPredicate = Builder.CmpPredicate;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_CMP2) },
                 ValueAbbrev,
@@ -1074,6 +1102,7 @@ pub const ModuleBlock = struct {
 
         pub const Cast = struct {
             const CastOpcode = Builder.CastOpcode;
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_CAST) },
                 ValueAbbrev,
@@ -1094,6 +1123,7 @@ pub const ModuleBlock = struct {
                 swift_error: bool,
                 align_upper: u3,
             };
+
             pub const ops = [_]AbbrevOp{
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_ALLOCA) },
                 .{ .fixed_runtime = Builder.Type },
@@ -1119,6 +1149,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_RET) },
                 ValueAbbrev,
             };
+
             val: u32,
         };
 
@@ -1212,9 +1243,12 @@ pub const ModuleBlock = struct {
                 .{ .fixed = @bitSizeOf(Builder.Alignment) },
                 .{ .fixed = 1 },
             };
+
             ptr: u32,
             ty: Builder.Type,
+
             alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
+
             is_volatile: bool,
         };
 
@@ -1228,9 +1262,12 @@ pub const ModuleBlock = struct {
                 .{ .fixed = @bitSizeOf(Builder.AtomicOrdering) },
                 .{ .fixed = @bitSizeOf(Builder.SyncScope) },
             };
+
             ptr: u32,
             ty: Builder.Type,
+
             alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
+
             is_volatile: bool,
             success_ordering: Builder.AtomicOrdering,
             sync_scope: Builder.SyncScope,
@@ -1244,9 +1281,12 @@ pub const ModuleBlock = struct {
                 .{ .fixed = @bitSizeOf(Builder.Alignment) },
                 .{ .fixed = 1 },
             };
+
             ptr: u32,
             val: u32,
+
             alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
+
             is_volatile: bool,
         };
 
@@ -1260,9 +1300,12 @@ pub const ModuleBlock = struct {
                 .{ .fixed = @bitSizeOf(Builder.AtomicOrdering) },
                 .{ .fixed = @bitSizeOf(Builder.SyncScope) },
             };
+
             ptr: u32,
             val: u32,
+
             alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
+
             is_volatile: bool,
             success_ordering: Builder.AtomicOrdering,
             sync_scope: Builder.SyncScope,
@@ -1273,6 +1316,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.FunctionBlock.Code.INST_BR) },
                 BlockAbbrev,
             };
+
             block: u32,
         };
 
@@ -1283,6 +1327,7 @@ pub const ModuleBlock = struct {
                 BlockAbbrev,
                 BlockAbbrev,
             };
+
             then_block: u32,
             else_block: u32,
             condition: u32,
@@ -1295,6 +1340,7 @@ pub const ModuleBlock = struct {
                 ValueAbbrev,
                 .{ .fixed_runtime = Builder.Type },
             };
+
             list_type: Builder.Type,
             list: u32,
             type: Builder.Type,
@@ -1311,12 +1357,14 @@ pub const ModuleBlock = struct {
                 .{ .fixed = @bitSizeOf(Builder.SyncScope) },
                 .{ .fixed = @bitSizeOf(Builder.Alignment) },
             };
+
             ptr: u32,
             val: u32,
             operation: Builder.Function.Instruction.AtomicRmw.Operation,
             is_volatile: bool,
             success_ordering: Builder.AtomicOrdering,
             sync_scope: Builder.SyncScope,
+
             alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
         };
 
@@ -1333,6 +1381,7 @@ pub const ModuleBlock = struct {
                 .{ .fixed = 1 },
                 .{ .fixed = @bitSizeOf(Builder.Alignment) },
             };
+
             ptr: u32,
             cmp: u32,
             new: u32,
@@ -1341,6 +1390,7 @@ pub const ModuleBlock = struct {
             sync_scope: Builder.SyncScope,
             failure_ordering: Builder.AtomicOrdering,
             is_weak: bool,
+
             alignment: std.meta.Int(.unsigned, @bitSizeOf(Builder.Alignment)),
         };
 
@@ -1350,6 +1400,7 @@ pub const ModuleBlock = struct {
                 .{ .fixed = @bitSizeOf(Builder.AtomicOrdering) },
                 .{ .fixed = @bitSizeOf(Builder.SyncScope) },
             };
+
             ordering: Builder.AtomicOrdering,
             sync_scope: Builder.SyncScope,
         };
@@ -1363,6 +1414,7 @@ pub const ModuleBlock = struct {
                 MetadataAbbrev,
                 .{ .literal = 0 },
             };
+
             line: u32,
             column: u32,
             scope: Builder.Metadata.Optional,
@@ -1389,6 +1441,7 @@ pub const ModuleBlock = struct {
                 ValueAbbrev,
                 BlockArrayAbbrev,
             };
+
             ty: Builder.Type,
             addr: Builder.Value,
             targets: []const Builder.Function.Block.Index,
@@ -1419,6 +1472,7 @@ pub const ModuleBlock = struct {
                     ValueAbbrev,
                     .{ .array_fixed = 8 },
                 };
+
                 value_id: u32,
                 string: []const u8,
             };
@@ -1457,6 +1511,7 @@ pub const ModuleBlock = struct {
                     .{ .fixed = 1 },
                     MetadataAbbrev,
                 };
+
                 kind: FixedMetadataKind,
                 metadata: Builder.Metadata,
             };
@@ -1468,6 +1523,7 @@ pub const ModuleBlock = struct {
                     .{ .fixed = 5 },
                     MetadataAbbrev,
                 };
+
                 inst: u32,
                 kind: FixedMetadataKind,
                 metadata: Builder.Metadata,
@@ -1603,6 +1659,7 @@ pub const ModuleBlock = struct {
                 .{ .vbr = 6 },
                 .blob,
             };
+
             num_strings: u32,
             strings_offset: u32,
             blob: []const u8,
@@ -2099,6 +2156,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.TypeBlock.Code.NUMENTRY) },
                 .{ .fixed = 32 },
             };
+
             num: u32,
         };
 
@@ -2106,6 +2164,7 @@ pub const ModuleBlock = struct {
             pub const ops = [_]AbbrevOp{
                 .{ .vbr = 4 },
             };
+
             code: ModuleBlock.TypeBlock.Code,
         };
 
@@ -2121,6 +2180,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.TypeBlock.Code.INTEGER) },
                 .{ .fixed = 28 },
             };
+
             width: u28,
         };
 
@@ -2130,6 +2190,7 @@ pub const ModuleBlock = struct {
                 .{ .fixed = 1 },
                 .{ .array_fixed_runtime = Builder.Type },
             };
+
             is_packed: bool,
             types: []const Builder.Type,
         };
@@ -2140,6 +2201,7 @@ pub const ModuleBlock = struct {
                 .{ .fixed = 1 },
                 .{ .array_fixed_runtime = Builder.Type },
             };
+
             is_packed: bool,
             types: []const Builder.Type,
         };
@@ -2149,6 +2211,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.TypeBlock.Code.STRUCT_NAME) },
                 .{ .array_fixed = 8 },
             };
+
             string: []const u8,
         };
 
@@ -2158,6 +2221,7 @@ pub const ModuleBlock = struct {
                 .{ .vbr = 16 },
                 .{ .fixed_runtime = Builder.Type },
             };
+
             len: u64,
             child: Builder.Type,
         };
@@ -2168,6 +2232,7 @@ pub const ModuleBlock = struct {
                 .{ .vbr = 16 },
                 .{ .fixed_runtime = Builder.Type },
             };
+
             len: u64,
             child: Builder.Type,
         };
@@ -2177,6 +2242,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.TypeBlock.Code.OPAQUE_POINTER) },
                 .{ .vbr = 4 },
             };
+
             addr_space: Builder.AddrSpace,
         };
 
@@ -2187,6 +2253,7 @@ pub const ModuleBlock = struct {
                 .{ .array_fixed_runtime = Builder.Type },
                 .{ .array_fixed = 32 },
             };
+
             num_types: u32,
             types: []const Builder.Type,
             ints: []const u32,
@@ -2199,6 +2266,7 @@ pub const ModuleBlock = struct {
                 .{ .fixed_runtime = Builder.Type },
                 .{ .array_fixed_runtime = Builder.Type },
             };
+
             is_vararg: bool,
             return_type: Builder.Type,
             param_types: []const Builder.Type,
@@ -2222,6 +2290,7 @@ pub const ModuleBlock = struct {
                 .{ .literal = @intFromEnum(ModuleBlock.OperandBundleTagsBlock.Code.OPERAND_BUNDLE_TAG) },
                 .array_char6,
             };
+
             tag: []const u8,
         };
     };
@@ -2239,6 +2308,7 @@ pub const ModuleBlock = struct {
                 .{ .vbr = 4 },
                 .{ .array_fixed = 8 },
             };
+
             id: u32,
             name: []const u8,
         };
@@ -2267,6 +2337,7 @@ pub const IdentificationBlock = struct {
             .{ .literal = @intFromEnum(IdentificationBlock.Code.STRING) },
             .{ .array_fixed = 8 },
         };
+
         string: []const u8,
     };
 
@@ -2275,6 +2346,7 @@ pub const IdentificationBlock = struct {
             .{ .literal = @intFromEnum(IdentificationBlock.Code.EPOCH) },
             .{ .vbr = 6 },
         };
+
         epoch: u32,
     };
 };
@@ -2293,6 +2365,7 @@ pub const StrtabBlock = struct {
             .{ .literal = @intFromEnum(StrtabBlock.Code.BLOB) },
             .blob,
         };
+
         blob: []const u8,
     };
 };

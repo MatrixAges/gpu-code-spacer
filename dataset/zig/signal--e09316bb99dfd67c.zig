@@ -13,6 +13,7 @@ pub const Signal = struct {
     io: *IO,
     completion: IO.Completion,
     event: IO.Event,
+
     event_state: Atomic(enum(u8) {
         running,
         waiting,
@@ -21,10 +22,12 @@ pub const Signal = struct {
     }),
 
     listening: Atomic(bool),
+
     on_signal_fn: *const fn (*Signal) void,
 
     pub fn init(self: *Signal, io: *IO, on_signal_fn: *const fn (*Signal) void) !void {
         const event = try io.open_event();
+
         errdefer io.close_event(event);
 
         self.* = .{
@@ -44,6 +47,7 @@ pub const Signal = struct {
         assert(self.status() == .shutdown_completed);
 
         self.io.close_event(self.event);
+
         self.* = undefined;
     }
 
@@ -52,6 +56,7 @@ pub const Signal = struct {
     /// Safe to call from multiple threads.
     pub fn stop(self: *Signal) void {
         const listening = self.listening.swap(false, .release);
+
         if (listening) {
             self.notify();
         }
@@ -88,6 +93,7 @@ pub const Signal = struct {
         // Try to transition from `waiting` to `notified`.
         // If it fails, analyze the current state to determine if a notification is needed.
         var state: @TypeOf(self.event_state.raw) = .waiting;
+
         while (self.event_state.cmpxchgStrong(
             state,
             .notified,
@@ -112,7 +118,9 @@ pub const Signal = struct {
         assert(self.status() != .shutdown_completed);
 
         const state = self.event_state.swap(.waiting, .acquire);
+
         self.io.event_listen(self.event, &self.completion, on_event);
+
         switch (state) {
             // We should be the only ones who could've started waiting.
             .waiting => unreachable,
@@ -129,6 +137,7 @@ pub const Signal = struct {
     fn on_event(completion: *IO.Completion) void {
         const self: *Signal = @fieldParentPtr("completion", completion);
         const listening: bool = self.listening.load(.acquire);
+
         const state = self.event_state.cmpxchgStrong(
             .notified,
             if (listening) .running else .shutdown,
@@ -137,8 +146,10 @@ pub const Signal = struct {
         ) orelse {
             if (listening) {
                 (self.on_signal_fn)(self);
+
                 self.wait();
             }
+
             return;
         };
 
@@ -169,9 +180,11 @@ test "signal" {
                 .main_thread_id = std.Thread.getCurrentId(),
                 .signal = undefined,
             };
+
             defer self.io.deinit();
 
             try Signal.init(&self.signal, &self.io, on_signal);
+
             defer self.signal.deinit();
 
             var time: TimeOS = .{};
@@ -184,7 +197,9 @@ test "signal" {
 
             // Begin shutdown and keep ticking until it's completed.
             self.signal.stop();
+
             while (self.signal.status() != .shutdown_completed) try self.io.run();
+
             thread.join();
 
             // Notify after shutdown should be ignored.
@@ -195,11 +210,13 @@ test "signal" {
 
             // Make sure at least some time has passed.
             const elapsed = timer.elapsed(time.monotonic());
+
             assert(elapsed.ns >= delay);
         }
 
         fn notify(self: *Context) void {
             assert(std.Thread.getCurrentId() != self.main_thread_id);
+
             while (self.signal.status() != .shutdown_completed) {
                 std.time.sleep(delay + 1);
 
@@ -214,10 +231,13 @@ test "signal" {
 
         fn on_signal(signal: *Signal) void {
             const self: *Context = @fieldParentPtr("signal", signal);
+
             assert(std.Thread.getCurrentId() == self.main_thread_id);
+
             switch (self.signal.status()) {
                 .running => {
                     assert(self.count < events_count);
+
                     self.count += 1;
                 },
                 .shutdown_requested => assert(self.count == events_count),

@@ -16,8 +16,10 @@ export function rejectInvalidRequestMiddleware(): Connect.NextHandleFunction {
       // (https://datatracker.ietf.org/doc/html/rfc9112#section-3.2-4)
       res.writeHead(400)
       res.end()
+
       return
     }
+
     return next()
   }
 }

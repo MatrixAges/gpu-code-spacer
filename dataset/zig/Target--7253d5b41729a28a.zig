@@ -291,6 +291,7 @@ pub const Os = struct {
             pub inline fn isAtLeast(range: Range, min_ver: WindowsVersion) ?bool {
                 if (@intFromEnum(range.min) >= @intFromEnum(min_ver)) return true;
                 if (@intFromEnum(range.max) < @intFromEnum(min_ver)) return false;
+
                 return null;
             }
         };
@@ -306,6 +307,7 @@ pub const Os = struct {
         pub fn format(wv: WindowsVersion, w: *std.Io.Writer) std.Io.Writer.Error!void {
             if (std.enums.tagName(WindowsVersion, wv)) |name| {
                 var vecs: [2][]const u8 = .{ ".", name };
+
                 return w.writeVecAll(&vecs);
             } else {
                 return w.print("@enumFromInt(0x{X:0>8})", .{wv});
@@ -1198,13 +1200,16 @@ pub const Cpu = struct {
 
             pub fn count(set: Set) std.math.IntFittingRange(0, needed_bit_count) {
                 var sum: usize = 0;
+
                 for (set.ints) |x| sum += @popCount(x);
+
                 return @intCast(sum);
             }
 
             pub fn isEnabled(set: Set, arch_feature_index: Index) bool {
                 const usize_index = arch_feature_index / @bitSizeOf(usize);
                 const bit_index: ShiftInt = @intCast(arch_feature_index % @bitSizeOf(usize));
+
                 return (set.ints[usize_index] & (@as(usize, 1) << bit_index)) != 0;
             }
 
@@ -1212,6 +1217,7 @@ pub const Cpu = struct {
             pub fn addFeature(set: *Set, arch_feature_index: Index) void {
                 const usize_index = arch_feature_index / @bitSizeOf(usize);
                 const bit_index: ShiftInt = @intCast(arch_feature_index % @bitSizeOf(usize));
+
                 set.ints[usize_index] |= @as(usize, 1) << bit_index;
             }
 
@@ -1224,6 +1230,7 @@ pub const Cpu = struct {
             pub fn removeFeature(set: *Set, arch_feature_index: Index) void {
                 const usize_index = arch_feature_index / @bitSizeOf(usize);
                 const bit_index: ShiftInt = @intCast(arch_feature_index % @bitSizeOf(usize));
+
                 set.ints[usize_index] &= ~(@as(usize, 1) << bit_index);
             }
 
@@ -1236,15 +1243,20 @@ pub const Cpu = struct {
                 @setEvalBranchQuota(1000000);
 
                 var old = set.ints;
+
                 while (true) {
                     for (all_features_list, 0..) |feature, index_usize| {
                         const index: Index = @intCast(index_usize);
+
                         if (set.isEnabled(index)) {
                             set.addFeatureSet(feature.dependencies);
                         }
                     }
+
                     const nothing_changed = std.mem.eql(usize, &old, &set.ints);
+
                     if (nothing_changed) return;
+
                     old = set.ints;
                 }
             }
@@ -1261,6 +1273,7 @@ pub const Cpu = struct {
                 const V = @Vector(usize_count, usize);
                 const set_v: V = set.ints;
                 const other_v: V = other_set.ints;
+
                 return @reduce(.And, (set_v & other_v) == other_v);
             }
         };
@@ -1270,9 +1283,11 @@ pub const Cpu = struct {
                 /// Populates only the feature bits specified.
                 pub fn featureSet(features: []const F) Set {
                     var x = Set.empty;
+
                     for (features) |feature| {
                         x.addFeature(@intFromEnum(feature));
                     }
+
                     return x;
                 }
 
@@ -1286,6 +1301,7 @@ pub const Cpu = struct {
                     inline for (features) |feature| {
                         if (set.isEnabled(@intFromEnum(@as(F, feature)))) return true;
                     }
+
                     return false;
                 }
 
@@ -1294,6 +1310,7 @@ pub const Cpu = struct {
                     inline for (features) |feature| {
                         if (!set.isEnabled(@intFromEnum(@as(F, feature)))) return false;
                     }
+
                     return true;
                 }
             };
@@ -1619,6 +1636,7 @@ pub const Cpu = struct {
                     return cpu;
                 }
             }
+
             return error.UnknownCpuModel;
         }
 
@@ -1707,12 +1725,16 @@ pub const Cpu = struct {
 
         fn allCpusFromDecls(comptime cpus: type) []const *const Cpu.Model {
             @setEvalBranchQuota(2000);
+
             const decls = @typeInfo(cpus).@"struct".decls;
             var array: [decls.len]*const Cpu.Model = undefined;
+
             for (decls, 0..) |decl, i| {
                 array[i] = &@field(cpus, decl.name);
             }
+
             const finalized = array;
+
             return &finalized;
         }
 
@@ -1936,7 +1958,9 @@ pub const Cpu = struct {
 
         pub fn toCpu(model: *const Model, arch: Arch) Cpu {
             var features = model.features;
+
             features.populateDependencies(arch.allFeaturesList());
+
             return .{
                 .arch = arch,
                 .model = model,
@@ -2047,24 +2071,29 @@ pub const Cpu = struct {
     /// Returns true if `feature` is enabled.
     pub fn has(cpu: Cpu, comptime family: Arch.Family, feature: @field(Target, @tagName(family)).Feature) bool {
         if (family != cpu.arch.family()) return false;
+
         return cpu.features.isEnabled(@intFromEnum(feature));
     }
 
     /// Returns true if any feature in `features` is enabled.
     pub fn hasAny(cpu: Cpu, comptime family: Arch.Family, features: []const @field(Target, @tagName(family)).Feature) bool {
         if (family != cpu.arch.family()) return false;
+
         for (features) |feature| {
             if (cpu.features.isEnabled(@intFromEnum(feature))) return true;
         }
+
         return false;
     }
 
     /// Returns true if all features in `features` are enabled.
     pub fn hasAll(cpu: Cpu, comptime family: Arch.Family, features: []const @field(Target, @tagName(family)).Feature) bool {
         if (family != cpu.arch.family()) return false;
+
         for (features) |feature| {
             if (!cpu.features.isEnabled(@intFromEnum(feature))) return false;
         }
+
         return true;
     }
 };
@@ -2263,13 +2292,17 @@ pub const DynamicLinker = struct {
     /// Asserts that the length is less than or equal to 255 bytes.
     pub fn init(maybe_path: ?[]const u8) DynamicLinker {
         var dl: DynamicLinker = undefined;
+
         dl.set(maybe_path);
+
         return dl;
     }
 
     pub fn initFmt(comptime fmt_str: []const u8, args: anytype) !DynamicLinker {
         var dl: DynamicLinker = undefined;
+
         try dl.setFmt(fmt_str, args);
+
         return dl;
     }
 
@@ -2281,7 +2314,9 @@ pub const DynamicLinker = struct {
     /// Asserts that the length is less than or equal to 255 bytes.
     pub fn set(dl: *DynamicLinker, maybe_path: ?[]const u8) void {
         const path = maybe_path orelse "";
+
         @memcpy(dl.buffer[0..path.len], path);
+
         dl.len = @intCast(path.len);
     }
 
@@ -2803,6 +2838,7 @@ pub fn ptrBitWidth_arch_abi(cpu_arch: Cpu.Arch, abi: Abi) u16 {
         .gnuabi64, .muslabi64 => return 64,
         else => {},
     }
+
     return switch (cpu_arch) {
         .avr,
         .msp430,

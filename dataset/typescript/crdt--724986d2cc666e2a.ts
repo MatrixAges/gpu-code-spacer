@@ -1,4 +1,5 @@
 import { omit } from 'lodash-es'
+
 import {
 	clone,
 	deepEqual,
@@ -68,6 +69,7 @@ const cleanOperations = async <RxDocType>(args: {
 	] as Array<CRDTOperation<RxDocType>>)
 
 	crdtDocField.operations = target_operations
+
 	crdtDocField.hash = await hashCRDTOperations(hashFunction, crdtDocField)
 }
 
@@ -132,14 +134,17 @@ export async function insertCRDT<RxDocType>(
 	entry = overwritable.deepFreezeWhenDevMode(entry) as any
 
 	const schema = this.schema.jsonSchema
+
 	if (!schema.crdt) {
 		throw newRxError('CRDT1', {
 			schema: schema,
 			queryObj: entry
 		})
 	}
+
 	const crdtOptions = ensureNotFalsy(schema.crdt)
 	const storageToken = await this.database.storageToken
+
 	const operation: CRDTOperation<RxDocType> = {
 		body: Array.isArray(entry) ? entry : [entry],
 		creator: storageToken,
@@ -147,27 +152,33 @@ export async function insertCRDT<RxDocType>(
 	}
 
 	let insertData: RxDocumentWriteData<RxDocType> = {} as any
+
 	insertData = runOperationOnDocument(this.schema.jsonSchema, insertData as any, operation) as any
+
 	const crdtDocField: CRDTDocumentField<RxDocType> = {
 		operations: [],
 		hash: ''
 	}
+
 	setProperty(insertData as any, crdtOptions.field, crdtDocField)
 
 	const lastAr: CRDTOperation<RxDocType>[] = [operation]
 
 	crdtDocField.operations.push(lastAr)
+
 	crdtDocField.hash = await hashCRDTOperations(this.database.hashFunction, crdtDocField)
 
 	const result = await this.insert(insertData).catch(async (err: RxError) => {
 		if (err.code === 'CONFLICT') {
 			// was a conflict, update document instead of inserting
 			const doc = await this.findOne(err.parameters.id).exec(true)
+
 			return doc.updateCRDT(entry)
 		} else {
 			throw err
 		}
 	})
+
 	return result
 }
 
@@ -217,7 +228,9 @@ export async function hashCRDTOperations(hashFunction: HashFunction, crdts: CRDT
 	const hashObj = crdts.operations.map(operations => {
 		return operations.map(op => op.creator)
 	})
+
 	const hash = await hashFunction(JSON.stringify(hashObj))
+
 	return hash
 }
 
@@ -257,6 +270,7 @@ export function getCRDTSchemaPart<RxDocType>(): JsonSchema<CRDTDocumentField<RxD
 		additionalProperties: false,
 		required: ['body', 'creator', 'time']
 	}
+
 	return {
 		type: 'object',
 		properties: {
@@ -293,14 +307,17 @@ export async function mergeCRDTFields<RxDocType>(
 		operations: [],
 		hash: ''
 	}
+
 	crdtsA.operations.forEach((row, index) => {
 		let mergedOps: CRDTOperation<RxDocType>[] = []
+
 		const ids = new Set<string>() // used to deduplicate
 
 		row.forEach(op => {
 			ids.add(op.creator)
 			mergedOps.push(op)
 		})
+
 		if (crdtsB.operations[index]) {
 			crdtsB.operations[index].forEach(op => {
 				if (!ids.has(op.creator)) {
@@ -308,11 +325,14 @@ export async function mergeCRDTFields<RxDocType>(
 				}
 			})
 		}
+
 		mergedOps = mergedOps.sort(sortOperationComparator)
+
 		ret.operations[index] = mergedOps
 	})
 
 	ret.hash = await hashCRDTOperations(hashFunction, ret)
+
 	return ret
 }
 
@@ -324,6 +344,7 @@ export function rebuildFromCRDT<RxDocType>(
 	let base: WithDeleted<RxDocType> = {
 		_deleted: false
 	} as any
+
 	setProperty(base, ensureNotFalsy(schema.crdt).field, crdts)
 
 	crdts.operations.forEach(operations => {
@@ -358,6 +379,7 @@ export function getCRDTConflictHandler<RxDocType>(
 
 		const mergedCrdt = await mergeCRDTFields(hashFunction, newDocCrdt, masterDocCrdt)
 		const mergedDoc = rebuildFromCRDT(schema, i.newDocumentState, mergedCrdt)
+
 		return Promise.resolve({
 			isEqual: false,
 			documentData: mergedDoc
@@ -377,10 +399,12 @@ export const RxDBcrdtPlugin: RxPlugin = {
 			proto.updateCRDT = updateCRDT
 
 			const oldRemove = proto.remove
+
 			proto.remove = function (this: RxDocument) {
 				if (!this.collection.schema.jsonSchema.crdt) {
 					return oldRemove.bind(this)()
 				}
+
 				return this.updateCRDT({
 					ifMatch: {
 						$set: {
@@ -391,21 +415,26 @@ export const RxDBcrdtPlugin: RxPlugin = {
 			}
 
 			const oldincrementalPatch = proto.incrementalPatch
+
 			proto.incrementalPatch = function (this: RxDocument, patch: any) {
 				if (!this.collection.schema.jsonSchema.crdt) {
 					return oldincrementalPatch.bind(this)(patch)
 				}
+
 				return this.updateCRDT({
 					ifMatch: {
 						$set: patch
 					}
 				})
 			}
+
 			const oldincrementalModify = proto.incrementalModify
+
 			proto.incrementalModify = function (fn: any, context: string) {
 				if (!this.collection.schema.jsonSchema.crdt) {
 					return oldincrementalModify.bind(this)(fn)
 				}
+
 				if (context === RX_CRDT_CONTEXT) {
 					return oldincrementalModify.bind(this)(fn)
 				} else {
@@ -427,12 +456,14 @@ export const RxDBcrdtPlugin: RxPlugin = {
 				if (!data.schema.crdt) {
 					return
 				}
+
 				if (data.conflictHandler) {
 					throw newRxError('CRDT3', {
 						collection: data.name,
 						schema: data.schema
 					})
 				}
+
 				data.conflictHandler = getCRDTConflictHandler(data.database.hashFunction, data.schema)
 			}
 		},
@@ -455,6 +486,7 @@ export const RxDBcrdtPlugin: RxPlugin = {
 					const bulkWriteBefore = collection.storageInstance.bulkWrite.bind(
 						collection.storageInstance
 					)
+
 					collection.storageInstance.bulkWrite = async function (writes, context) {
 						await Promise.all(
 							writes.map(async write => {
@@ -469,11 +501,13 @@ export const RxDBcrdtPlugin: RxPlugin = {
 
 								function docWithoutMeta(doc: any) {
 									const ret: any = {}
+
 									Object.entries(doc).forEach(([k, v]) => {
 										if (!k.startsWith('_') && typeof v !== 'undefined') {
 											ret[k] = v
 										}
 									})
+
 									return ret
 								}
 
@@ -490,6 +524,7 @@ export const RxDBcrdtPlugin: RxPlugin = {
 									collection.database.hashFunction,
 									crdts
 								)
+
 								if (crdts.hash !== recalculatedHash) {
 									throw newRxError('SNH', {
 										document: newDocState,
@@ -504,11 +539,14 @@ export const RxDBcrdtPlugin: RxPlugin = {
 				}
 
 				const bulkInsertBefore = collection.bulkInsert.bind(collection)
+
 				collection.bulkInsert = async function (docsData: any[]) {
 					const storageToken = await collection.database.storageToken
+
 					const useDocsData = await Promise.all(
 						docsData.map(async doc => {
 							const setMe: Partial<RxDocumentData<any>> = {}
+
 							Object.entries(doc).forEach(([key, value]) => {
 								if (!key.startsWith('_') && key !== crdtField) {
 									setMe[key] = value
@@ -533,14 +571,18 @@ export const RxDBcrdtPlugin: RxPlugin = {
 								],
 								hash: ''
 							}
+
 							crdtOperations.hash = await hashCRDTOperations(
 								collection.database.hashFunction,
 								crdtOperations
 							)
+
 							setProperty(doc, crdtOptions.field, crdtOperations)
+
 							return doc
 						})
 					)
+
 					return bulkInsertBefore(useDocsData)
 				}
 			}

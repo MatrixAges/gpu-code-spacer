@@ -14,9 +14,11 @@ export function esbuildBannerFooterCompatPlugin(
   config: ResolvedConfig,
 ): Plugin | undefined {
   const options = config.esbuild
+
   if (!options) return
 
   const { include, exclude, banner, footer } = options
+
   if (!banner && !footer) return
 
   const filter = createFilter(include || /\.(m?ts|[jt]sx)$/, exclude || /\.js$/)
@@ -29,22 +31,27 @@ export function esbuildBannerFooterCompatPlugin(
           this.environment.mode === 'dev' ||
           (this.environment.mode === 'build' &&
             this.environment.config.build.sourcemap)
+
         if (!needsSourcemap) {
           if (banner) {
             code = `${banner}\n${code}`
           }
+
           if (footer) {
             code = `${code}\n${footer}`
           }
+
           return code
         }
 
         let s: MagicString | undefined
+
         const str = () => s || (s = new MagicString(code))
 
         if (banner) {
           str().prepend(`${banner}\n`)
         }
+
         if (footer) {
           str().append(`${footer}\n`)
         }

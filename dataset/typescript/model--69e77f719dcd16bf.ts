@@ -22,16 +22,21 @@ import type { Dayjs } from 'dayjs'
 export default class Index {
 	id = ''
 	use_by_tray = false
+
 	tray_settings = null as KVSettingsModel<Tray.Setting> | null
 	list_duration = 'day' as 'day' | 'week' | 'month' | 'year' | 'custom'
+
 	list_current_text = dayjs().format('YYYY-MM-DD')
 	list_current_date = dayjs()
+
 	list_custom_duration = null as [string, string] | null
 	list_items = [] as Array<Schedule.Item>
 
 	visible_calendar = true
+
 	calendar_month = dayjs()
 	calendar_month_text = dayjs().format('YYYY-MM')
+
 	days = [] as Array<DayDetail>
 
 	get tags() {
@@ -87,7 +92,6 @@ export default class Index {
 		}
 
 		this.settings.init(id)
-
 		this.setListDuration()
 	}
 
@@ -153,6 +157,7 @@ export default class Index {
 
 	changeCurrentDate(v: Dayjs) {
 		this.list_current_date = v
+
 		this.list_current_text = v.format('YYYY-MM-DD')
 
 		this.setListDuration(this.list_duration, true)
@@ -193,10 +198,12 @@ export default class Index {
 
 			if (item.type === 'timeline') {
 				const days = end.diff(start, 'hours') / 24
+
 				duration = `${start.format('MM.DD')} - ${end.format('MM.DD')}`
 				cross_time = `${days}${$t('common.time.d')}`
 			} else {
 				duration = `${start.format('YYYY-MM-DD HH:mm')} - ${end.format('HH:mm')}`
+
 				cross_time = getCrossTime(start, end)
 			}
 
@@ -238,6 +245,7 @@ export default class Index {
 
 	async getListItems(v: [number, number]) {
 		const [start, end] = v
+
 		const selector: MangoQuerySelector<Schedule.Item> = {}
 
 		selector['$or'] = [

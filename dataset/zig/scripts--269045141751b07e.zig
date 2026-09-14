@@ -28,6 +28,7 @@ pub fn log_fn(
     args: anytype,
 ) void {
     if (comptime !std.log.logEnabled(message_level, scope)) return;
+
     stdx.log_with_timestamp(message_level, scope, format, args);
 }
 
@@ -77,6 +78,7 @@ const CLIArgs = union(enum) {
 
 pub fn main() !void {
     var gpa_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+
     defer switch (gpa_allocator.deinit()) {
         .ok => {},
         .leak => @panic("memory leak"),
@@ -85,9 +87,11 @@ pub fn main() !void {
     const gpa = gpa_allocator.allocator();
 
     const shell = try Shell.create(gpa);
+
     defer shell.destroy();
 
     var flags = stdx.Flags.init(gpa);
+
     defer flags.deinit(gpa);
 
     const cli_args = flags.parse(CLIArgs);

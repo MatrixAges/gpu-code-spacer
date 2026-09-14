@@ -126,6 +126,7 @@ pub fn countLeaks() CountResult {
         .reachable = 0,
         .suppressed = 0,
     };
+
     doClientRequestStmt(
         .CountLeaks,
         @intFromPtr(&res.leaked),
@@ -134,6 +135,7 @@ pub fn countLeaks() CountResult {
         @intFromPtr(&res.suppressed),
         0,
     );
+
     return res;
 }
 
@@ -156,6 +158,7 @@ pub fn countLeakBlocks() CountResult {
         .reachable = 0,
         .suppressed = 0,
     };
+
     doClientRequestStmt(
         .CountLeakBlocks,
         @intFromPtr(&res.leaked),
@@ -164,6 +167,7 @@ pub fn countLeakBlocks() CountResult {
         @intFromPtr(&res.suppressed),
         0,
     );
+
     return res;
 }
 
@@ -189,6 +193,7 @@ test countLeakBlocks {
 /// impossible to segfault your system by using this call.
 pub fn getVbits(zza: []u8, zzvbits: []u8) u2 {
     std.debug.assert(zzvbits.len >= zza.len / 8);
+
     return @as(u2, @intCast(doClientRequestExpr(0, .GetVbits, @intFromPtr(zza.ptr), @intFromPtr(zzvbits.ptr), zza.len, 0, 0)));
 }
 
@@ -202,6 +207,7 @@ pub fn getVbits(zza: []u8, zzvbits: []u8) u2 {
 /// impossible to segfault your system by using this call.
 pub fn setVbits(zzvbits: []u8, zza: []u8) u2 {
     std.debug.assert(zzvbits.len >= zza.len / 8);
+
     return @as(u2, @intCast(doClientRequestExpr(0, .SetVbits, @intFromPtr(zza.ptr), @intFromPtr(zzvbits.ptr), zza.len, 0, 0)));
 }
 

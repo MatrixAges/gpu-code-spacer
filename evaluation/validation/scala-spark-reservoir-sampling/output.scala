@@ -5,6 +5,7 @@ class ValidationSample[K, V, T] {
       seed: Long = Random.nextLong())
     : (Array[T], Long) = {
     val reservoir = new Array[T](k)
+
     // Put the first k elements in the reservoir.
     var i = 0
 
@@ -12,6 +13,7 @@ class ValidationSample[K, V, T] {
       val item = input.next()
 
       reservoir(i) = item
+
       i += 1
     }
 
@@ -26,6 +28,7 @@ class ValidationSample[K, V, T] {
     } else {
       // If input size > k, continue the sampling process.
       var l = i.toLong
+
       val rand = new XORShiftRandom(seed)
 
       while (input.hasNext) {

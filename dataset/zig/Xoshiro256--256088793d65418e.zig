@@ -3,7 +3,9 @@
 //! PRNG
 
 const std = @import("std");
+
 const math = std.math;
+
 const Xoshiro256 = @This();
 
 s: [4]u64,
@@ -14,6 +16,7 @@ pub fn init(init_s: u64) Xoshiro256 {
     };
 
     x.seed(init_s);
+
     return x;
 }
 
@@ -48,6 +51,7 @@ pub fn jump(self: *Xoshiro256) void {
         if (@as(u1, @truncate(table)) != 0) {
             s ^= @as(u256, @bitCast(self.s));
         }
+
         _ = self.next();
     }
 
@@ -71,9 +75,12 @@ pub fn fill(self: *Xoshiro256, buf: []u8) void {
     // Complete 8 byte segments.
     while (i < aligned_len) : (i += 8) {
         var n = self.next();
+
         comptime var j: usize = 0;
+
         inline while (j < 8) : (j += 1) {
             buf[i + j] = @as(u8, @truncate(n));
+
             n >>= 8;
         }
     }
@@ -81,8 +88,10 @@ pub fn fill(self: *Xoshiro256, buf: []u8) void {
     // Remaining. (cuts the stream)
     if (i != buf.len) {
         var n = self.next();
+
         while (i < buf.len) : (i += 1) {
             buf[i] = @as(u8, @truncate(n));
+
             n >>= 8;
         }
     }
@@ -137,6 +146,7 @@ test fill {
     for (seq) |s| {
         var buf0: [8]u8 = undefined;
         var buf1: [7]u8 = undefined;
+
         std.mem.writeInt(u64, &buf0, s, .little);
         r.fill(&buf1);
         try std.testing.expect(std.mem.eql(u8, buf0[0..7], buf1[0..]));

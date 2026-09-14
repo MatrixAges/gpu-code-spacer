@@ -14,6 +14,7 @@ interface IScrollRestorationProps<T extends HTMLDivElement> {
 
 export default <T extends HTMLDivElement>(id: string): IScrollRestorationProps<T> => {
 	const { pathname, search, key } = useLocation()
+
 	const ref = useRef<T>(null)
 	const scroll_key = `_element_scroll_position_${pathname}${search}${id}`
 

@@ -38,6 +38,7 @@ pub fn detect(
     // using the system libc installation.
     if (is_native_abi and !target.isMinGW()) {
         const libc = try arena.create(LibCInstallation);
+
         libc.* = LibCInstallation.findNative(.{ .allocator = arena, .target = target }) catch |err| switch (err) {
             error.CCompilerExitCode,
             error.CCompilerCrashed,
@@ -51,10 +52,12 @@ pub fn detect(
                 if (std.zig.target.canBuildLibC(target)) {
                     return detectFromBuilding(arena, zig_lib_dir, target);
                 }
+
                 return e;
             },
             else => |e| return e,
         };
+
         return detectFromInstallation(arena, target, libc);
     }
 
@@ -75,7 +78,9 @@ pub fn detect(
 
     if (use_system_abi) {
         const libc = try arena.create(LibCInstallation);
+
         libc.* = try LibCInstallation.findNative(.{ .allocator = arena, .verbose = true, .target = target });
+
         return detectFromInstallation(arena, target, libc);
     }
 
@@ -95,6 +100,7 @@ fn detectFromInstallation(arena: Allocator, target: *const std.Target, lci: *con
     list.appendAssumeCapacity(lci.include_dir.?);
 
     const is_redundant = std.mem.eql(u8, lci.sys_include_dir.?, lci.include_dir.?);
+
     if (!is_redundant) list.appendAssumeCapacity(lci.sys_include_dir.?);
 
     if (target.os.tag == .windows) {
@@ -103,25 +109,34 @@ fn detectFromInstallation(arena: Allocator, target: *const std.Target, lci: *con
             // is installed. It contains headers, .rc files, and resources. It is especially
             // necessary when working with Windows resources.
             const atlmfc_dir = try std.fs.path.join(arena, &[_][]const u8{ sys_include_dir_parent, "atlmfc", "include" });
+
             list.appendAssumeCapacity(atlmfc_dir);
         }
+
         if (std.fs.path.dirname(lci.include_dir.?)) |include_dir_parent| {
             const um_dir = try std.fs.path.join(arena, &[_][]const u8{ include_dir_parent, "um" });
+
             list.appendAssumeCapacity(um_dir);
 
             const shared_dir = try std.fs.path.join(arena, &[_][]const u8{ include_dir_parent, "shared" });
+
             list.appendAssumeCapacity(shared_dir);
         }
     }
+
     if (target.os.tag == .haiku) {
         const include_dir_path = lci.include_dir.?;
         const os_dir = try std.fs.path.join(arena, &[_][]const u8{ include_dir_path, "os" });
+
         list.appendAssumeCapacity(os_dir);
+
         // Errors.h
         const os_support_dir = try std.fs.path.join(arena, &[_][]const u8{ include_dir_path, "os/support" });
+
         list.appendAssumeCapacity(os_support_dir);
 
         const config_dir = try std.fs.path.join(arena, &[_][]const u8{ include_dir_path, "config" });
+
         list.appendAssumeCapacity(config_dir);
     }
 
@@ -130,7 +145,9 @@ fn detectFromInstallation(arena: Allocator, target: *const std.Target, lci: *con
     if (target.os.tag.isDarwin()) d: {
         const down1 = std.fs.path.dirname(lci.sys_include_dir.?) orelse break :d;
         const down2 = std.fs.path.dirname(down1) orelse break :d;
+
         try framework_list.append(try std.fs.path.join(arena, &.{ down2, "System", "Library", "Frameworks" }));
+
         sysroot = down2;
     }
 
@@ -152,11 +169,13 @@ pub fn detectFromBuilding(
 
     if (target.os.tag.isDarwin()) {
         const list = try arena.alloc([]const u8, 1);
+
         list[0] = try std.fmt.allocPrint(
             arena,
             "{s}" ++ s ++ "libc" ++ s ++ "include" ++ s ++ "any-darwin-any",
             .{zig_lib_dir},
         );
+
         return .{
             .libc_include_dir_list = list,
             .libc_installation = null,
@@ -167,6 +186,7 @@ pub fn detectFromBuilding(
     }
 
     const generic_name = libCGenericName(target);
+
     // Some architecture families are handled by the same set of headers.
     const arch_name = if (target.isMuslLibC() or target.isWasiLibC())
         std.zig.target.muslArchNameHeaders(target.cpu.arch)
@@ -178,7 +198,9 @@ pub fn detectFromBuilding(
         std.zig.target.netbsdArchNameHeaders(target.cpu.arch)
     else
         @tagName(target.cpu.arch);
+
     const os_name = @tagName(target.os.tag);
+
     const abi_name = if (target.isMuslLibC())
         std.zig.target.muslAbiNameHeaders(target.abi)
     else if (target.isGnuLibC())
@@ -187,22 +209,27 @@ pub fn detectFromBuilding(
         std.zig.target.netbsdAbiNameHeaders(target.abi)
     else
         @tagName(target.abi);
+
     const arch_include_dir = try std.fmt.allocPrint(
         arena,
         "{s}" ++ s ++ "libc" ++ s ++ "include" ++ s ++ "{s}-{s}-{s}",
         .{ zig_lib_dir, arch_name, os_name, abi_name },
     );
+
     const generic_include_dir = try std.fmt.allocPrint(
         arena,
         "{s}" ++ s ++ "libc" ++ s ++ "include" ++ s ++ "generic-{s}",
         .{ zig_lib_dir, generic_name },
     );
+
     const generic_arch_name = std.zig.target.osArchName(target);
+
     const arch_os_include_dir = try std.fmt.allocPrint(
         arena,
         "{s}" ++ s ++ "libc" ++ s ++ "include" ++ s ++ "{s}-{s}-any",
         .{ zig_lib_dir, generic_arch_name, os_name },
     );
+
     const generic_os_include_dir = try std.fmt.allocPrint(
         arena,
         "{s}" ++ s ++ "libc" ++ s ++ "include" ++ s ++ "any-{s}-any",
@@ -210,6 +237,7 @@ pub fn detectFromBuilding(
     );
 
     const list = try arena.alloc([]const u8, 4);
+
     list[0] = arch_include_dir;
     list[1] = generic_include_dir;
     list[2] = arch_os_include_dir;
@@ -232,6 +260,7 @@ fn libCGenericName(target: *const std.Target) [:0]const u8 {
         .netbsd => return "netbsd",
         else => {},
     }
+
     switch (target.abi) {
         .gnu,
         .gnuabin32,

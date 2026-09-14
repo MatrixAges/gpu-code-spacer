@@ -24,6 +24,7 @@ const mantissaType = common.mantissaType;
 // or a u128 mantissa (f128).
 pub fn Decimal(comptime T: type) type {
     const MantissaT = mantissaType(T);
+
     std.debug.assert(MantissaT == u64 or MantissaT == u128);
 
     return struct {
@@ -89,6 +90,7 @@ pub fn Decimal(comptime T: type) type {
             if (self.num_digits < max_digits) {
                 self.digits[self.num_digits] = digit;
             }
+
             self.num_digits += 1;
         }
 
@@ -102,6 +104,7 @@ pub fn Decimal(comptime T: type) type {
             //
             // Trim is only called in `right_shift` and `left_shift`.
             std.debug.assert(self.num_digits <= max_digits);
+
             while (self.num_digits != 0 and self.digits[self.num_digits - 1] == 0) {
                 self.num_digits -= 1;
             }
@@ -116,25 +119,30 @@ pub fn Decimal(comptime T: type) type {
 
             const dp = @as(usize, @intCast(self.decimal_point));
             var n: MantissaT = 0;
-
             var i: usize = 0;
+
             while (i < dp) : (i += 1) {
                 n *= 10;
+
                 if (i < self.num_digits) {
                     n += @as(MantissaT, self.digits[i]);
                 }
             }
 
             var round_up = false;
+
             if (dp < self.num_digits) {
                 round_up = self.digits[dp] >= 5;
+
                 if (self.digits[dp] == 5 and dp + 1 == self.num_digits) {
                     round_up = self.truncated or ((dp != 0) and (1 & self.digits[dp - 1] != 0));
                 }
             }
+
             if (round_up) {
                 n += 1;
             }
+
             return n;
         }
 
@@ -143,10 +151,12 @@ pub fn Decimal(comptime T: type) type {
             if (self.num_digits == 0) {
                 return;
             }
+
             const num_new_digits = self.numberOfDigitsLeftShift(shift);
             var read_index = self.num_digits;
             var write_index = self.num_digits + num_new_digits;
             var n: MantissaT = 0;
+
             while (read_index != 0) {
                 read_index -= 1;
                 write_index -= 1;
@@ -154,31 +164,39 @@ pub fn Decimal(comptime T: type) type {
 
                 const quotient = n / 10;
                 const remainder = n - (10 * quotient);
+
                 if (write_index < max_digits) {
                     self.digits[write_index] = @as(u8, @intCast(remainder));
                 } else if (remainder > 0) {
                     self.truncated = true;
                 }
+
                 n = quotient;
             }
+
             while (n > 0) {
                 write_index -= 1;
 
                 const quotient = n / 10;
                 const remainder = n - (10 * quotient);
+
                 if (write_index < max_digits) {
                     self.digits[write_index] = @as(u8, @intCast(remainder));
                 } else if (remainder > 0) {
                     self.truncated = true;
                 }
+
                 n = quotient;
             }
 
             self.num_digits += num_new_digits;
+
             if (self.num_digits > max_digits) {
                 self.num_digits = max_digits;
             }
+
             self.decimal_point += @as(i32, @intCast(num_new_digits));
+
             self.trim();
         }
 
@@ -187,6 +205,7 @@ pub fn Decimal(comptime T: type) type {
             var read_index: usize = 0;
             var write_index: usize = 0;
             var n: MantissaT = 0;
+
             while (math.shr(MantissaT, n, shift) == 0) {
                 if (read_index < self.num_digits) {
                     n = (10 * n) + self.digits[read_index];
@@ -198,29 +217,37 @@ pub fn Decimal(comptime T: type) type {
                         n *= 10;
                         read_index += 1;
                     }
+
                     break;
                 }
             }
 
             self.decimal_point -= @as(i32, @intCast(read_index)) - 1;
+
             if (self.decimal_point < -decimal_point_range) {
                 self.num_digits = 0;
                 self.decimal_point = 0;
                 self.truncated = false;
+
                 return;
             }
 
             const mask = math.shl(MantissaT, 1, shift) - 1;
+
             while (read_index < self.num_digits) {
                 const new_digit = @as(u8, @intCast(math.shr(MantissaT, n, shift)));
+
                 n = (10 * (n & mask)) + self.digits[read_index];
                 read_index += 1;
                 self.digits[write_index] = new_digit;
                 write_index += 1;
             }
+
             while (n > 0) {
                 const new_digit = @as(u8, @intCast(math.shr(MantissaT, n, shift)));
+
                 n = 10 * (n & mask);
+
                 if (write_index < max_digits) {
                     self.digits[write_index] = new_digit;
                     write_index += 1;
@@ -228,7 +255,9 @@ pub fn Decimal(comptime T: type) type {
                     self.truncated = true;
                 }
             }
+
             self.num_digits = write_index;
+
             self.trim();
         }
 
@@ -242,12 +271,14 @@ pub fn Decimal(comptime T: type) type {
             var stream = FloatStream.init(s);
 
             stream.skipChars("0_");
+
             while (stream.scanDigit(10)) |digit| {
                 d.tryAddDigit(digit);
             }
 
             if (stream.firstIs(".")) {
                 stream.advance(1);
+
                 const marker = stream.offsetTrue();
 
                 // Skip leading zeroes
@@ -257,23 +288,30 @@ pub fn Decimal(comptime T: type) type {
 
                 while (stream.hasLen(8) and d.num_digits + 8 < max_digits) {
                     const v = stream.readU64Unchecked();
+
                     if (!isEightDigits(v)) {
                         break;
                     }
+
                     std.mem.writeInt(u64, d.digits[d.num_digits..][0..8], v - 0x3030_3030_3030_3030, .little);
+
                     d.num_digits += 8;
+
                     stream.advance(8);
                 }
 
                 while (stream.scanDigit(10)) |digit| {
                     d.tryAddDigit(digit);
                 }
+
                 d.decimal_point = @as(i32, @intCast(marker)) - @as(i32, @intCast(stream.offsetTrue()));
             }
+
             if (d.num_digits != 0) {
                 // Ignore trailing zeros if any
                 var n_trailing_zeros: usize = 0;
                 var i = stream.offsetTrue() - 1;
+
                 while (true) {
                     if (s[i] == '0') {
                         n_trailing_zeros += 1;
@@ -282,35 +320,46 @@ pub fn Decimal(comptime T: type) type {
                     }
 
                     i -= 1;
+
                     if (i == 0) break;
                 }
+
                 d.decimal_point += @as(i32, @intCast(n_trailing_zeros));
                 d.num_digits -= n_trailing_zeros;
                 d.decimal_point += @as(i32, @intCast(d.num_digits));
+
                 if (d.num_digits > max_digits) {
                     d.truncated = true;
                     d.num_digits = max_digits;
                 }
             }
+
             if (stream.firstIsLower("e")) {
                 stream.advance(1);
+
                 var neg_exp = false;
+
                 if (stream.firstIs("-")) {
                     neg_exp = true;
+
                     stream.advance(1);
                 } else if (stream.firstIs("+")) {
                     stream.advance(1);
                 }
+
                 var exp_num: i32 = 0;
+
                 while (stream.scanDigit(10)) |digit| {
                     if (exp_num < 0x10000) {
                         exp_num = 10 * exp_num + digit;
                     }
                 }
+
                 d.decimal_point += if (neg_exp) -exp_num else exp_num;
             }
 
             var i = d.num_digits;
+
             while (i < max_digits_without_overflow) : (i += 1) {
                 d.digits[i] = 0;
             }
@@ -472,6 +521,7 @@ pub fn Decimal(comptime T: type) type {
             };
 
             std.debug.assert(shift < pow2_to_pow5_table.len);
+
             const x = pow2_to_pow5_table[shift];
 
             // Compare leading digits of current to check if lexicographically less than cutoff.
@@ -485,8 +535,10 @@ pub fn Decimal(comptime T: type) type {
                 } else {
                     return x.delta;
                 }
+
                 return x.delta;
             }
+
             return x.delta;
         }
     };

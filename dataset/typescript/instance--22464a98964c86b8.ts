@@ -6,17 +6,21 @@ import {
   looseToNumber,
   toDisplayString,
 } from '@vue/shared'
+
 import type {
   ComponentPublicInstance,
   PublicPropertiesMap,
 } from '../componentPublicInstance'
+
 import { getCompatChildren } from './instanceChildren'
+
 import {
   DeprecationTypes,
   assertCompatEnabled,
   isCompatEnabled,
   warnDeprecation,
 } from './compatConfig'
+
 import { off, on, once } from './instanceEventEmitter'
 import { getCompatListeners } from './instanceListeners'
 import { shallowReadonly } from '@vue/reactivity'
@@ -24,6 +28,7 @@ import { legacySlotProxyHandlers } from './componentFunctional'
 import { compatH } from './renderFn'
 import { createCommentVNode, createTextVNode } from '../vnode'
 import { renderList } from '../helpers/renderList'
+
 import {
   legacyBindDynamicKeys,
   legacyBindObjectListeners,
@@ -35,6 +40,7 @@ import {
   legacyRenderStatic,
   legacyResolveScopedSlots,
 } from './renderHelpers'
+
 import { resolveFilter } from '../helpers/resolveAssets'
 import type { Slots } from '../componentSlots'
 import { resolveMergedOptions } from '../componentOptions'
@@ -48,10 +54,12 @@ export interface LegacyPublicProperties {
     key: K,
     value: T[K],
   ): void
+
   $delete<T extends Record<keyof any, any>, K extends keyof T>(
     target: T,
     key: K,
   ): void
+
   $mount(el?: string | Element): this
   $destroy(): void
   $scopedSlots: Slots
@@ -67,6 +75,7 @@ export function installCompatInstanceProperties(
 ): void {
   const set = (target: any, key: any, val: any) => {
     target[key] = val
+
     return target[key]
   }
 
@@ -77,11 +86,13 @@ export function installCompatInstanceProperties(
   extend(map, {
     $set: i => {
       assertCompatEnabled(DeprecationTypes.INSTANCE_SET, i)
+
       return set
     },
 
     $delete: i => {
       assertCompatEnabled(DeprecationTypes.INSTANCE_DELETE, i)
+
       return del
     },
 
@@ -90,12 +101,14 @@ export function installCompatInstanceProperties(
         DeprecationTypes.GLOBAL_MOUNT,
         null /* this warning is global */,
       )
+
       // root mount override from ./global.ts in installCompatMount
       return i.ctx._compat_mount || NOOP
     },
 
     $destroy: i => {
       assertCompatEnabled(DeprecationTypes.INSTANCE_DESTROY, i)
+
       // root destroy override from ./global.ts in installCompatMount
       return i.ctx._compat_destroy || NOOP
     },
@@ -109,11 +122,13 @@ export function installCompatInstanceProperties(
       ) {
         return new Proxy(i.slots, legacySlotProxyHandlers)
       }
+
       return __DEV__ ? shallowReadonly(i.slots) : i.slots
     },
 
     $scopedSlots: i => {
       assertCompatEnabled(DeprecationTypes.INSTANCE_SCOPED_SLOTS, i)
+
       return __DEV__ ? shallowReadonly(i.slots) : i.slots
     },
 
@@ -130,14 +145,18 @@ export function installCompatInstanceProperties(
       if (!isCompatEnabled(DeprecationTypes.PRIVATE_APIS, i)) {
         return resolveMergedOptions(i)
       }
+
       if (i.resolvedOptions) {
         return i.resolvedOptions
       }
+
       const res = (i.resolvedOptions = extend({}, resolveMergedOptions(i)))
+
       Object.defineProperties(res, {
         parent: {
           get() {
             warnDeprecation(DeprecationTypes.PRIVATE_APIS, i, '$options.parent')
+
             return i.proxy!.$parent
           },
         },
@@ -148,10 +167,12 @@ export function installCompatInstanceProperties(
               i,
               '$options.propsData',
             )
+
             return i.vnode.props
           },
         },
       })
+
       return res
     },
   } as PublicPropertiesMap)

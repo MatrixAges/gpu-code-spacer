@@ -88,19 +88,23 @@ export function callWithAsyncErrorHandling(
 ): any {
   if (isFunction(fn)) {
     const res = callWithErrorHandling(fn, instance, type, args)
+
     if (res && isPromise(res)) {
       res.catch(err => {
         handleError(err, instance, type)
       })
     }
+
     return res
   }
 
   if (isArray(fn)) {
     const values = []
+
     for (let i = 0; i < fn.length; i++) {
       values.push(callWithAsyncErrorHandling(fn[i], instance, type, args))
     }
+
     return values
   } else if (__DEV__) {
     warn(
@@ -116,18 +120,23 @@ export function handleError(
   throwInDev = true,
 ): void {
   const contextVNode = instance ? instance.vnode : null
+
   const { errorHandler, throwUnhandledErrorInProduction } =
     (instance && instance.appContext.config) || EMPTY_OBJ
+
   if (instance) {
     let cur = instance.parent
     // the exposed instance is the render proxy to keep it consistent with 2.x
     const exposedInstance = instance.proxy
+
     // in production the hook receives only the error code
     const errorInfo = __DEV__
       ? ErrorTypeStrings[type]
       : `https://vuejs.org/error-reference/#runtime-${type}`
+
     while (cur) {
       const errorCapturedHooks = cur.ec
+
       if (errorCapturedHooks) {
         for (let i = 0; i < errorCapturedHooks.length; i++) {
           if (
@@ -137,20 +146,26 @@ export function handleError(
           }
         }
       }
+
       cur = cur.parent
     }
+
     // app-level handling
     if (errorHandler) {
       pauseTracking()
+
       callWithErrorHandling(errorHandler, null, ErrorCodes.APP_ERROR_HANDLER, [
         err,
         exposedInstance,
         errorInfo,
       ])
+
       resetTracking()
+
       return
     }
   }
+
   logError(err, type, contextVNode, throwInDev, throwUnhandledErrorInProduction)
 }
 
@@ -163,13 +178,17 @@ function logError(
 ) {
   if (__DEV__) {
     const info = ErrorTypeStrings[type]
+
     if (contextVNode) {
       pushWarningContext(contextVNode)
     }
+
     warn(`Unhandled error${info ? ` during execution of ${info}` : ``}`)
+
     if (contextVNode) {
       popWarningContext()
     }
+
     // crash in dev by default so it's more noticeable
     if (throwInDev) {
       throw err

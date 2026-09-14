@@ -11,6 +11,7 @@ export default (type: LexicalCommand<KeyboardEvent>, event: KeyboardEvent): bool
 	if (!$isRangeSelection(selection)) return false
 
 	const { anchor, focus } = selection
+
 	const anchor_node = anchor.getNode()
 	const focus_node = focus.getNode()
 	const is_move_to_start = type === MOVE_TO_START
@@ -28,6 +29,7 @@ export default (type: LexicalCommand<KeyboardEvent>, event: KeyboardEvent): bool
 
 		if (start !== null) {
 			const { node, offset } = start
+
 			if ($isLineBreakNode(node)) {
 				node.selectNext(0, 0)
 			} else {

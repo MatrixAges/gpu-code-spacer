@@ -1,6 +1,7 @@
 import { extend, isArray, isIntegerKey, isMap, isSymbol } from '@vue/shared'
 import type { ComputedRefImpl } from './computed'
 import { type TrackOpTypes, TriggerOpTypes } from './constants'
+
 import {
   type DebuggerEventExtraInfo,
   EffectFlags,
@@ -52,6 +53,7 @@ export class Link {
     public dep: Dep,
   ) {
     this.version = dep.version
+
     this.nextDep =
       this.prevDep =
       this.nextSub =
@@ -111,6 +113,7 @@ export class Dep {
     }
 
     let link = this.activeLink
+
     if (link === undefined || link.sub !== activeSub) {
       link = this.activeLink = new Link(activeSub, this)
 
@@ -133,7 +136,9 @@ export class Dep {
       // accessed during evaluation.
       if (link.nextDep) {
         const next = link.nextDep
+
         next.prevDep = link.prevDep
+
         if (link.prevDep) {
           link.prevDep.nextDep = next
         }
@@ -167,11 +172,13 @@ export class Dep {
   trigger(debugInfo?: DebuggerEventExtraInfo): void {
     this.version++
     globalVersion++
+
     this.notify(debugInfo)
   }
 
   notify(debugInfo?: DebuggerEventExtraInfo): void {
     startBatch()
+
     try {
       if (__DEV__) {
         // subs are notified and batched in reverse-order and then invoked in
@@ -190,6 +197,7 @@ export class Dep {
           }
         }
       }
+
       for (let link = this.subs; link; link = link.prevSub) {
         if (link.sub.notify()) {
           // if notify() returns `true`, this is a computed. Also call notify
@@ -206,20 +214,25 @@ export class Dep {
 
 function addSub(link: Link) {
   link.dep.sc++
+
   if (link.sub.flags & EffectFlags.TRACKING) {
     const computed = link.dep.computed
+
     // computed getting its first subscriber
     // enable tracking + lazily subscribe to all its deps
     if (computed && !link.dep.subs) {
       computed.flags |= EffectFlags.TRACKING | EffectFlags.DIRTY
+
       for (let l = computed.deps; l; l = l.nextDep) {
         addSub(l)
       }
     }
 
     const currentTail = link.dep.subs
+
     if (currentTail !== link) {
       link.prevSub = currentTail
+
       if (currentTail) currentTail.nextSub = link
     }
 
@@ -242,9 +255,11 @@ export const targetMap: WeakMap<object, KeyToDepMap> = new WeakMap()
 export const ITERATE_KEY: unique symbol = Symbol(
   __DEV__ ? 'Object iterate' : '',
 )
+
 export const MAP_KEY_ITERATE_KEY: unique symbol = Symbol(
   __DEV__ ? 'Map keys iterate' : '',
 )
+
 export const ARRAY_ITERATE_KEY: unique symbol = Symbol(
   __DEV__ ? 'Array iterate' : '',
 )
@@ -262,15 +277,20 @@ export const ARRAY_ITERATE_KEY: unique symbol = Symbol(
 export function track(target: object, type: TrackOpTypes, key: unknown): void {
   if (shouldTrack && activeSub) {
     let depsMap = targetMap.get(target)
+
     if (!depsMap) {
       targetMap.set(target, (depsMap = new Map()))
     }
+
     let dep = depsMap.get(key)
+
     if (!dep) {
       depsMap.set(key, (dep = new Dep()))
+
       dep.map = depsMap
       dep.key = key
     }
+
     if (__DEV__) {
       dep.track({
         target,
@@ -300,9 +320,11 @@ export function trigger(
   oldTarget?: Map<unknown, unknown> | Set<unknown>,
 ): void {
   const depsMap = targetMap.get(target)
+
   if (!depsMap) {
     // never been tracked
     globalVersion++
+
     return
   }
 
@@ -335,6 +357,7 @@ export function trigger(
 
     if (targetIsArray && key === 'length') {
       const newLength = Number(newValue)
+
       depsMap.forEach((dep, key) => {
         if (
           key === 'length' ||
@@ -360,6 +383,7 @@ export function trigger(
         case TriggerOpTypes.ADD:
           if (!targetIsArray) {
             run(depsMap.get(ITERATE_KEY))
+
             if (isMap(target)) {
               run(depsMap.get(MAP_KEY_ITERATE_KEY))
             }
@@ -367,19 +391,23 @@ export function trigger(
             // new index added to array -> length changes
             run(depsMap.get('length'))
           }
+
           break
         case TriggerOpTypes.DELETE:
           if (!targetIsArray) {
             run(depsMap.get(ITERATE_KEY))
+
             if (isMap(target)) {
               run(depsMap.get(MAP_KEY_ITERATE_KEY))
             }
           }
+
           break
         case TriggerOpTypes.SET:
           if (isMap(target)) {
             run(depsMap.get(ITERATE_KEY))
           }
+
           break
       }
     }
@@ -393,5 +421,6 @@ export function getDepFromReactive(
   key: string | number | symbol,
 ): Dep | undefined {
   const depMap = targetMap.get(object)
+
   return depMap && depMap.get(key)
 }

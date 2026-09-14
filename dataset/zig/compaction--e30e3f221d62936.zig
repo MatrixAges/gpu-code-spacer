@@ -100,6 +100,7 @@ pub fn ResourcePoolType(comptime Grid: type) type {
             counters: ?*CompactionCounters = null,
             block: *Block,
             pool: *ResourcePool,
+
             verify: struct {
                 key_min: u256,
                 key_max: u256,
@@ -127,6 +128,7 @@ pub fn ResourcePoolType(comptime Grid: type) type {
 
         const Block = struct {
             ptr: BlockPtr,
+
             stage: enum {
                 // block is in the resource pool.
                 free,
@@ -155,10 +157,12 @@ pub fn ResourcePoolType(comptime Grid: type) type {
 
         pub fn init(allocator: mem.Allocator, grid: *Grid, block_count: u32) !ResourcePool {
             const blocks_backing_storage = try allocator.alloc(Block, block_count);
+
             errdefer {
                 for (blocks_backing_storage) |block| {
                     grid.block_unref(block.ptr);
                 }
+
                 allocator.free(blocks_backing_storage);
             }
 
@@ -174,6 +178,7 @@ pub fn ResourcePoolType(comptime Grid: type) type {
                 .capacity = block_count,
                 .verify_push = false,
             });
+
             for (blocks_backing_storage) |*block| blocks.push(block);
 
             return .{
@@ -187,11 +192,13 @@ pub fn ResourcePoolType(comptime Grid: type) type {
             for (pool.blocks_backing_storage) |block| {
                 grid.block_unref(block.ptr);
             }
+
             allocator.free(pool.blocks_backing_storage);
         }
 
         pub fn reset(pool: *ResourcePool) void {
             maybe(pool.iop_release_resume != null);
+
             pool.* = .{
                 .blocks = StackType(Block).init(.{
                     .capacity = pool.blocks.capacity(),
@@ -200,15 +207,18 @@ pub fn ResourcePoolType(comptime Grid: type) type {
                 .blocks_backing_storage = pool.blocks_backing_storage,
                 .grid = pool.grid,
             };
+
             assert(pool.iop_release_resume == null);
 
             for (pool.blocks_backing_storage) |*block| {
                 pool.grid.block_unref(block.ptr);
+
                 block.* = .{
                     .ptr = pool.grid.get_block(),
                     .stage = .free,
                     .link = .{},
                 };
+
                 pool.blocks.push(block);
             }
         }
@@ -223,6 +233,7 @@ pub fn ResourcePoolType(comptime Grid: type) type {
 
         pub fn blocks_acquired(pool: *ResourcePool) u32 {
             assert(pool.blocks.count() <= pool.blocks_backing_storage.len);
+
             return @as(u32, @intCast(pool.blocks_backing_storage.len - pool.blocks.count()));
         }
 
@@ -246,9 +257,11 @@ pub fn ResourcePoolType(comptime Grid: type) type {
 
         fn block_acquire(pool: *@This()) ?*Block {
             const block = pool.blocks.pop() orelse return null;
+
             assert(block.stage == .free);
             assert(block.link.next == null);
             assert(pool.grid.block_references(block.ptr) == 1);
+
             return block;
         }
 
@@ -258,6 +271,7 @@ pub fn ResourcePoolType(comptime Grid: type) type {
             assert(pool.grid.block_references(block.ptr) > 0);
 
             pool.grid.block_unref(block.ptr);
+
             block.ptr = pool.grid.get_block();
 
             pool.blocks.push(block);
@@ -392,11 +406,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             fn beat_exhausted(quotas: @This()) bool {
                 assert(quotas.beat_done <= quotas.half_bar_done);
                 assert(quotas.half_bar_done <= quotas.half_bar);
+
                 return quotas.beat_done >= quotas.beat;
             }
 
             fn half_bar_exhausted(quotas: @This()) bool {
                 assert(quotas.half_bar_done <= quotas.half_bar);
+
                 return quotas.half_bar_done == quotas.half_bar;
             }
         } = .{},
@@ -415,6 +431,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 insert_to_level_b,
                 move_to_level_b,
             },
+
             table: TableInfo,
         }, compaction_tables_output_max) = .{},
 
@@ -485,6 +502,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
         pub fn reset(compaction: *Compaction) void {
             compaction.grid.trace.cancel(.compact_beat);
             compaction.grid.trace.cancel(.compact_beat_merge);
+
             compaction.* = .{
                 .grid = compaction.grid,
                 .tree = compaction.tree,
@@ -517,20 +535,24 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             if (compaction.table_info_a.? == .immutable) {
                 assert(compaction.level_a_value_block.empty());
+
                 if (compaction.level_a_immutable_stage != .exhausted) {
                     values_in_flight += compaction.table_info_a.?.immutable.count_max();
                 }
             }
 
             var level_a_value_block_iterator = compaction.level_a_value_block.iterator();
+
             while (level_a_value_block_iterator.next()) |block| {
                 if (block.stage == .read_value_block_done) {
                     values_in_flight += Table.value_block_values_used(block.ptr).len;
                 }
             }
+
             values_in_flight -= compaction.level_a_position.value;
 
             var level_b_value_block_iterator = compaction.level_b_value_block.iterator();
+
             while (level_b_value_block_iterator.next()) |block| {
                 if (block.stage == .read_value_block_done) {
                     values_in_flight += Table.value_block_values_used(block.ptr).len;
@@ -587,14 +609,17 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 if (compaction.tree.table_immutable.mutability.immutable.flushed) {
                     assert(compaction.quotas.half_bar == 0);
                     assert(compaction.quotas.half_bar_exhausted());
+
                     log.debug("{s}:{}: bar_commence: immutable table flushed", .{
                         compaction.tree.config.name,
                         compaction.level_b,
                     });
+
                     return 0;
                 }
 
                 const table_value_count_limit = Table.value_count_max;
+
                 assert(compaction.tree.table_immutable.count() > 0);
                 assert(compaction.tree.table_immutable.count() <= table_value_count_limit);
 
@@ -610,19 +635,25 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 const mutable_count_half_bar_last = @divExact(table_value_count_limit, 2);
                 const mutable_count = mutable_count_half_bar_first + mutable_count_half_bar_last;
                 const immutable_count = compaction.tree.table_immutable.count();
+
                 if (immutable_count + mutable_count <= table_value_count_limit) {
                     const op_checkpoint =
                         compaction.grid.superblock.working.vsr_state.checkpoint.header.op;
+
                     const op_checkpoint_next = vsr.Checkpoint.checkpoint_after(op_checkpoint);
+
                     const op_checkpoint_trigger_next =
                         vsr.Checkpoint.trigger_for_checkpoint(op_checkpoint_next).?;
+
                     const compaction_op_max = op + (half_bar_beat_count - 1);
+
                     const last_half_bar_of_checkpoint =
                         compaction_op_max == op_checkpoint_trigger_next;
 
                     if (!last_half_bar_of_checkpoint) {
                         assert(compaction.quotas.half_bar == 0);
                         assert(compaction.quotas.half_bar_exhausted());
+
                         log.debug("{s}:{}: bar_commence: immutable table flush skipped " ++
                             "({}+{}+{} ≤ {})", .{
                             compaction.tree.config.name,
@@ -632,11 +663,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                             mutable_count_half_bar_last,
                             table_value_count_limit,
                         });
+
                         return 0;
                     }
                 }
 
                 compaction.table_info_a = .{ .immutable = undefined };
+
                 compaction.table_info_a.?.immutable.init(
                     compaction.tree.table_immutable.iterator_context(),
                     null,
@@ -660,6 +693,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 const table_range = compaction.tree.manifest.compaction_table(level_a) orelse {
                     assert(compaction.quotas.half_bar == 0);
                     assert(compaction.quotas.half_bar_exhausted());
+
                     return 0;
                 };
 
@@ -667,10 +701,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 compaction.range_b = table_range.range_b;
 
                 assert(compaction.range_b.?.tables.count() + 1 <= compaction_tables_input_max);
+
                 assert(compaction.table_info_a.?.disk.table_info.key_min <=
                     compaction.table_info_a.?.disk.table_info.key_max);
+
                 assert(compaction.range_b.?.key_min <=
                     compaction.table_info_a.?.disk.table_info.key_min);
+
                 assert(compaction.table_info_a.?.disk.table_info.key_max <=
                     compaction.range_b.?.key_max);
             }
@@ -682,6 +719,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     assert(!compaction.grid.free_set.is_free(table.table_info.address));
                 },
             }
+
             for (compaction.range_b.?.tables.slice()) |table| {
                 assert(!compaction.grid.free_set.is_released(table.table_info.address));
                 assert(!compaction.grid.free_set.is_free(table.table_info.address));
@@ -691,9 +729,11 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 .immutable => compaction.tree.table_immutable.count(),
                 .disk => |table| table.table_info.value_count,
             };
+
             for (compaction.range_b.?.tables.const_slice()) |*table| {
                 quota_half_bar += table.table_info.value_count;
             }
+
             compaction.quotas = .{
                 .beat = 0,
                 .beat_done = 0,
@@ -703,6 +743,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             compaction.move_table = compaction.table_info_a.? == .disk and
                 compaction.range_b.?.tables.empty();
+
             compaction.drop_tombstones = compaction.tree.manifest
                 .compaction_must_drop_tombstones(compaction.level_b, &compaction.range_b.?);
 
@@ -719,6 +760,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             if (compaction.level_b == constants.lsm_levels - 1) assert(compaction.drop_tombstones);
 
             assert(std.meta.eql(compaction.counters, .{}));
+
             inline for (.{ compaction.level_a_position, compaction.level_b_position }) |position| {
                 assert(std.meta.eql(position, .{}));
             }
@@ -727,6 +769,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             // move table. They'll be applied later by half_bar_complete().
             if (compaction.move_table) {
                 const snapshot_max = snapshot_max_for_table_input(compaction.op_min);
+
                 assert(compaction.table_info_a.?.disk.table_info.snapshot_max >= snapshot_max);
 
                 compaction.manifest_entries.push(.{
@@ -748,6 +791,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 if (compaction.table_info_a.? == .immutable) {
                     compaction.counters.in += compaction.table_info_a.?.immutable.count_max();
                 }
+
                 return compaction.quotas.half_bar;
             }
         }
@@ -772,6 +816,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     .tree = compaction.tree,
                     .level_b = compaction.level_b,
                 };
+
                 assert(compaction.stage == .inactive);
             }
 
@@ -779,14 +824,17 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 assert(compaction.range_b == null);
                 assert(compaction.manifest_entries.count() == 0);
                 assert(compaction.quotas.half_bar == 0);
+
                 if (compaction.level_b == 0) {
                     // Either:
                     // - the immutable table is empty (already flushed), or
                     // - the mutable table will be absorbed into the immutable table.
                     maybe(compaction.tree.table_immutable.mutability.immutable.flushed);
                 }
+
                 return;
             }
+
             assert(compaction.table_info_a != null);
             assert(compaction.range_b != null);
             assert(compaction.quotas.half_bar > 0);
@@ -802,6 +850,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     }
                 },
             }
+
             for (compaction.range_b.?.tables.slice()) |table| {
                 assert(compaction.grid.free_set.is_released(table.table_info.address));
             }
@@ -821,6 +870,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 } },
                 compaction.counters.out,
             );
+
             if (compaction.level_b == 0) {
                 if (compaction.table_info_a.? == .immutable) {
                     compaction.grid.trace.count(
@@ -835,6 +885,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             // Mark the immutable table as flushed, if we were compacting into level 0.
             if (compaction.level_b == 0) {
                 assert(!compaction.tree.table_immutable.mutability.immutable.flushed);
+
                 compaction.tree.table_immutable.mutability.immutable.flushed = true;
             }
 
@@ -860,11 +911,14 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     },
                     .disk => |table_info| {
                         manifest_removed_value_count += table_info.table_info.value_count;
+
                         manifest.update_table(level_b - 1, snapshot_max, table_info);
                     },
                 }
+
                 for (compaction.range_b.?.tables.const_slice()) |table| {
                     manifest_removed_value_count += table.table_info.value_count;
+
                     manifest.update_table(level_b, snapshot_max, table);
                 }
             }
@@ -873,15 +927,18 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 switch (entry.operation) {
                     .insert_to_level_b => {
                         manifest.insert_table(level_b, &entry.table);
+
                         manifest_added_value_count += entry.table.value_count;
                     },
                     .move_to_level_b => {
                         manifest.move_table(level_b - 1, level_b, &entry.table);
+
                         manifest_removed_value_count += entry.table.value_count;
                         manifest_added_value_count += entry.table.value_count;
                     },
                 }
             }
+
             if (compaction.move_table) {
                 assert(std.meta.eql(compaction.counters, .{}));
                 assert(manifest_added_value_count == manifest_removed_value_count);
@@ -889,6 +946,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             } else {
                 assert(manifest_added_value_count == compaction.counters.out);
                 assert(manifest_removed_value_count == compaction.counters.in);
+
                 assert(manifest_removed_value_count - manifest_added_value_count ==
                     compaction.counters.dropped);
             }
@@ -900,6 +958,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 compaction.range_b.?.key_min,
                 compaction.range_b.?.key_max,
             );
+
             if (level_b > 0) {
                 manifest.remove_invisible_tables(
                     level_b - 1,
@@ -926,11 +985,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             compaction.quotas.beat = @min(values_count, values_remaining);
             compaction.quotas.beat_done = 0;
+
             assert(compaction.quotas.beat <= compaction.quotas.half_bar);
         }
 
         pub fn compaction_iop_release_callback(ctx: *anyopaque) void {
             const compaction: *Compaction = @alignCast(@ptrCast(ctx));
+
             compaction.compaction_dispatch();
         }
 
@@ -972,6 +1033,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         compaction.quotas.beat_done,
                     });
                 }
+
                 return .ready;
             }
 
@@ -990,12 +1052,14 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             assert(options.pool.iop_release_resume == null);
 
             compaction.pool = options.pool;
+
             compaction.pool.?.iop_release_resume = .{
                 .ctx = compaction,
                 .callback = compaction_iop_release_callback,
             };
 
             compaction.compaction_dispatch();
+
             return .pending;
         }
 
@@ -1004,6 +1068,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
         // asynchronously
         fn beat_complete(compaction: *Compaction) void {
             assert(compaction.stage == .beat);
+
             switch (compaction.table_builder.state) {
                 .no_blocks => {},
                 .index_and_value_block => {
@@ -1043,12 +1108,14 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             compaction.callback = null;
 
             assert(compaction.pool.?.iop_release_resume.?.ctx == @as(*anyopaque, compaction));
+
             compaction.pool.?.iop_release_resume = null;
             compaction.pool = null;
 
             assert(compaction.idle());
             maybe(!pool.idle());
             maybe(pool.blocks_acquired() > 0);
+
             log.debug("{s}:{}: beat_complete: quota_beat_done={} quota_beat={} " ++
                 "quota_half_bar_done={} quota_half_bar={}", .{
                 compaction.tree.config.name,
@@ -1095,12 +1162,15 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             // The loop below runs while (progressed) and, every time progressed is set to true,
             // one of the safety_counter resources is acquired.
             var progressed = true;
+
             const safety_counter =
                 compaction.pool.?.reads.available() +
                 compaction.pool.?.writes.available() +
                 compaction.pool.?.cpus.available() + 1;
+
             for (0..safety_counter) |_| {
                 if (!progressed) break;
+
                 progressed = false;
 
                 if (compaction.quotas.beat_exhausted()) {
@@ -1126,10 +1196,14 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 // To avoid deadlocks, allocate blocks for the table builder first.
                 if (compaction.table_builder.state == .no_blocks) {
                     assert(compaction.table_builder_index_block == null);
+
                     if (compaction.pool.?.block_acquire()) |block| {
                         assert(block.stage == .free);
+
                         block.stage = .build_index_block;
+
                         compaction.table_builder.set_index_block(block.ptr);
+
                         compaction.table_builder_index_block = block;
                     } else {
                         assert(compaction.pool.?.writes.executing() > 0);
@@ -1138,10 +1212,14 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
                 if (compaction.table_builder.state == .index_block) {
                     assert(compaction.table_builder_value_block == null);
+
                     if (compaction.pool.?.block_acquire()) |block| {
                         assert(block.stage == .free);
+
                         block.stage = .build_value_block;
+
                         compaction.table_builder.set_value_block(block.ptr);
+
                         compaction.table_builder_value_block = block;
                     } else {
                         assert(compaction.pool.?.writes.executing() > 0);
@@ -1151,12 +1229,15 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 const level_a_index_block_next =
                     compaction.level_a_position.index_block +
                     @as(u32, @intCast(compaction.level_a_index_block.count));
+
                 const level_b_index_block_next =
                     compaction.level_b_position.index_block +
                     @as(u32, @intCast(compaction.level_b_index_block.count));
+
                 const level_a_value_block_next =
                     compaction.level_a_position.value_block +
                     @as(u32, @intCast(compaction.level_a_value_block.count));
+
                 const level_b_value_block_next =
                     compaction.level_b_position.value_block +
                     @as(u32, @intCast(compaction.level_b_value_block.count));
@@ -1164,6 +1245,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 // Read level A index block (for level_b > 0).
                 if (compaction.table_info_a.? == .disk) {
                     assert(compaction.level_b > 0);
+
                     if (!compaction.level_a_index_block.full() and
                         level_a_index_block_next < 1)
                     {
@@ -1171,10 +1253,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                             const read = compaction.pool.?.reads.acquire().?;
 
                             assert(block.stage == .free);
+
                             block.stage = .read_index_block;
+
                             compaction.level_a_index_block.push_assume_capacity(block);
 
                             compaction.read_index_block(.level_a, read, block);
+
                             progressed = true;
                         } else {
                             assert(compaction.level_a_index_block.count > 0 or
@@ -1191,10 +1276,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         const read = compaction.pool.?.reads.acquire().?;
 
                         assert(block.stage == .free);
+
                         block.stage = .read_index_block;
+
                         compaction.level_b_index_block.push_assume_capacity(block);
 
                         compaction.read_index_block(.level_b, read, block);
+
                         progressed = true;
                     } else {
                         assert(compaction.level_b_index_block.count > 0 or
@@ -1213,8 +1301,10 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                                 index_block.ptr,
                                 compaction.tree.config.id,
                             );
+
                             const value_blocks_count =
                                 index_schema.value_blocks_used(index_block.ptr);
+
                             if (!compaction.level_a_value_block.full() and
                                 level_a_value_block_next < value_blocks_count)
                             {
@@ -1222,10 +1312,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                                     const read = compaction.pool.?.reads.acquire().?;
 
                                     assert(block.stage == .free);
+
                                     block.stage = .read_value_block;
+
                                     compaction.level_a_value_block.push_assume_capacity(block);
 
                                     compaction.read_value_block(.level_a, read, block);
+
                                     progressed = true;
                                 } else {
                                     assert(compaction.level_a_value_block.count > 0 or
@@ -1245,6 +1338,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                             index_block.ptr,
                             compaction.tree.config.id,
                         );
+
                         const value_blocks_count =
                             index_schema.value_blocks_used(index_block.ptr);
 
@@ -1255,10 +1349,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                                 const read = compaction.pool.?.reads.acquire().?;
 
                                 assert(block.stage == .free);
+
                                 block.stage = .read_value_block;
+
                                 compaction.level_b_value_block.push_assume_capacity(block);
 
                                 compaction.read_value_block(.level_b, read, block);
+
                                 progressed = true;
                             } else {
                                 assert(compaction.level_b_value_block.count > 0 or
@@ -1272,16 +1369,20 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
                 const level_a_ready_immutable = compaction.table_info_a.? == .immutable and
                     compaction.level_a_immutable_stage == .ready;
+
                 const level_a_ready_disk = compaction.table_info_a.? == .disk and
                     compaction.level_a_value_block.head() != null and
                     compaction.level_a_value_block.head().?.stage == .read_value_block_done;
+
                 const level_a_ready = level_a_ready_immutable or level_a_ready_disk;
 
                 const level_a_exhausted_immutable = compaction.table_info_a.? == .immutable and
                     compaction.level_a_immutable_stage == .exhausted;
+
                 const level_a_exhausted_disk = compaction.table_info_a.? == .disk and
                     compaction.level_a_index_block.count == 0 and
                     compaction.level_a_value_block.count == 0;
+
                 const level_a_exhausted = level_a_exhausted_immutable or level_a_exhausted_disk;
 
                 const level_b_ready = compaction.level_b_value_block.head() != null and
@@ -1301,7 +1402,9 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         !compaction.table_builder.value_block_full())
                     {
                         const cpu = compaction.pool.?.cpus.acquire().?;
+
                         compaction.merge(cpu);
+
                         progressed = true;
                     }
 
@@ -1313,6 +1416,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     }
                 }
             } else unreachable;
+
             assert(!progressed);
             assert(!compaction.pool.?.idle());
         }
@@ -1326,11 +1430,16 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             {
                 if (compaction.table_builder.value_block_empty()) {
                     assert(compaction.quotas.half_bar_exhausted());
+
                     const value_block = compaction.table_builder_value_block.?;
+
                     compaction.table_builder_value_block = null;
                     compaction.table_builder.state = .index_block;
+
                     assert(value_block.stage == .build_value_block);
+
                     value_block.stage = .free;
+
                     compaction.pool.?.block_release(value_block);
                 } else {
                     if (compaction.pool.?.writes.acquire()) |write| {
@@ -1339,6 +1448,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                                 compaction.pool.?.grid_reservation.?,
                             ),
                         });
+
                         progressed = true;
 
                         assert(compaction.table_builder.state == .index_block);
@@ -1353,11 +1463,16 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             {
                 if (compaction.table_builder.index_block_empty()) {
                     assert(compaction.quotas.half_bar_exhausted());
+
                     const index_block = compaction.table_builder_index_block.?;
+
                     compaction.table_builder_index_block = null;
                     compaction.table_builder.state = .no_blocks;
+
                     assert(index_block.stage == .build_index_block);
+
                     index_block.stage = .free;
+
                     compaction.pool.?.block_release(index_block);
                 } else {
                     if (compaction.pool.?.writes.acquire()) |write| {
@@ -1366,6 +1481,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                                 compaction.pool.?.grid_reservation.?,
                             ),
                         });
+
                         progressed = true;
 
                         assert(compaction.table_builder.state == .no_blocks);
@@ -1390,6 +1506,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             assert(compaction.stage == .beat);
             assert(index_block.stage == .read_index_block);
+
             switch (level) {
                 .level_a => assert(compaction.level_a_position.index_block == 0),
                 .level_b => {
@@ -1437,8 +1554,11 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             );
 
             grid.block_unref(read.block.ptr);
+
             read.block.ptr = @constCast(grid.block_ref(index_block));
+
             read.block.stage = .read_index_block_done;
+
             return read.pool.iop_release(.{ .read = read });
         }
 
@@ -1450,6 +1570,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
         ) void {
             assert(compaction.stage == .beat);
             assert(value_block.stage == .read_value_block);
+
             if (level == .level_a) assert(compaction.table_info_a.? == .disk);
 
             const index_block = switch (level) {
@@ -1460,6 +1581,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             const level_a_value_block_next =
                 compaction.level_a_position.value_block +
                 @as(u32, @intCast(compaction.level_a_value_block.count));
+
             const level_b_value_block_next =
                 compaction.level_b_position.value_block +
                 @as(u32, @intCast(compaction.level_b_value_block.count));
@@ -1468,10 +1590,12 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 switch (level) {
                     .level_a => {
                         assert(level_a_value_block_next > 0);
+
                         break :blk level_a_value_block_next - 1;
                     },
                     .level_b => {
                         assert(level_b_value_block_next > 0);
+
                         break :blk level_b_value_block_next - 1;
                     },
                 }
@@ -1495,8 +1619,10 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 index_block,
                 compaction.tree.config.id,
             );
+
             const value_block_addresses = index_schema.value_addresses_used(index_block);
             const value_block_address = value_block_addresses[value_block_index];
+
             const value_block_checksum =
                 index_schema.value_checksums_used(index_block)[value_block_index];
 
@@ -1519,6 +1645,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 index_block,
                 compaction.tree.config.id,
             );
+
             const index_block_address = Table.block_address(index_block);
             const value_block_addresses = index_schema.value_addresses_used(index_block);
 
@@ -1541,6 +1668,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             read.counters.?.in += Table.value_block_values_used(value_block).len;
 
             assert(read.block.stage == .read_value_block);
+
             Table.verify_value_block(
                 value_block,
                 read.verify.tree_id,
@@ -1549,8 +1677,11 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             );
 
             grid.block_unref(read.block.ptr);
+
             read.block.ptr = @constCast(grid.block_ref(value_block));
+
             read.block.stage = .read_value_block_done;
+
             return read.pool.iop_release(.{ .read = read });
         }
 
@@ -1564,18 +1695,21 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             } else {
                 if (compaction.level_a_value_block.head()) |block| {
                     assert(block.stage == .read_value_block_done);
+
                     block.stage = .merge;
                 } else assert(compaction.level_b_value_block.head() != null);
             }
 
             if (compaction.level_b_value_block.head()) |block| {
                 assert(block.stage == .read_value_block_done);
+
                 block.stage = .merge;
             }
 
             assert(compaction.table_builder.state == .index_and_value_block);
 
             cpu.compaction = compaction;
+
             compaction.grid.on_next_tick(merge_callback, &cpu.next_tick);
         }
 
@@ -1583,6 +1717,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             assert(compaction.table_info_a.? == .immutable);
 
             const values_source_a, const values_source_b = compaction.merge_inputs_immutable();
+
             assert(values_source_a != null or values_source_b != null);
 
             // Bound how much of the multi-run immutable iterator one beat may consume.
@@ -1597,6 +1732,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             // Do the actual merge from inputs to the output (table builder).
             const merge_result: MergeResult = if (values_source_a == null) blk: {
                 const consumed = values_copy(values_target, values_source_b.?);
+
                 break :blk .{
                     .consumed_a = 0,
                     .consumed_b = consumed,
@@ -1610,6 +1746,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         values_source_a.?,
                         budget_immutable,
                     );
+
                     break :blk .{
                         .consumed_a = copy_result.consumed,
                         .consumed_b = 0,
@@ -1619,17 +1756,21 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 } else {
                     const dropped_before = values_source_a.?.count_dropped();
                     const remaining_before = values_source_a.?.count_remaining();
+
                     const consumed = values_copy_immutable(
                         values_target,
                         values_source_a.?,
                         budget_immutable,
                     );
+
                     const dropped_after = values_source_a.?.count_dropped();
                     const remaining_after = values_source_a.?.count_remaining();
+
                     assert(
                         consumed + (dropped_after - dropped_before) ==
                             (remaining_before - remaining_after),
                     );
+
                     break :blk .{
                         .consumed_a = remaining_before - remaining_after,
                         .consumed_b = 0,
@@ -1644,6 +1785,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 compaction.drop_tombstones,
                 budget_immutable,
             );
+
             return merge_result;
         }
 
@@ -1651,6 +1793,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             assert(compaction.table_info_a.? == .disk);
 
             const values_source_a, const values_source_b = compaction.merge_inputs_disk();
+
             assert(values_source_a != null or values_source_b != null);
 
             const values_target = compaction.table_builder
@@ -1671,6 +1814,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             const merge_result: MergeResult = if (values_source_a == null) blk: {
                 // This is a simple copy of the other table.
                 const consumed = values_copy(values_target, values_source_b.?);
+
                 break :blk .{
                     .consumed_a = 0,
                     .consumed_b = consumed,
@@ -1683,6 +1827,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         values_target,
                         values_source_a.?,
                     );
+
                     break :blk .{
                         .consumed_a = copy_result.consumed,
                         .consumed_b = 0,
@@ -1691,6 +1836,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     };
                 } else {
                     const consumed = values_copy(values_target, values_source_a.?);
+
                     break :blk .{
                         .consumed_a = consumed,
                         .consumed_b = 0,
@@ -1704,12 +1850,14 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 values_source_b.?,
                 compaction.drop_tombstones,
             );
+
             return merge_result;
         }
 
         fn merge_callback(next_tick: *Grid.NextTick) void {
             const cpu: *ResourcePool.CPU = @fieldParentPtr("next_tick", next_tick);
             const compaction: *Compaction = cpu.parent(Compaction);
+
             assert(compaction.table_builder.state == .index_and_value_block);
 
             compaction.grid.trace.start(.{ .compact_beat_merge = .{
@@ -1730,6 +1878,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 .immutable => assert(compaction.level_a_position.value <= Table.value_count_max),
                 .disk => assert(compaction.level_a_position.value <= Table.data.value_count_max),
             }
+
             assert(compaction.level_b_position.value <= Table.data.value_count_max);
             assert(compaction.table_builder.value_count <= Table.data.value_count_max);
 
@@ -1750,6 +1899,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 .tree = @enumFromInt(compaction.tree.config.id),
                 .level_b = compaction.level_b,
             } });
+
             return compaction.pool.?.iop_release(.{ .cpu = cpu });
         }
 
@@ -1764,6 +1914,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                             break :values &compaction.table_info_a.?.immutable;
                         } else {
                             assert(compaction.level_a_immutable_stage == .exhausted);
+
                             break :values null;
                         }
                     },
@@ -1777,11 +1928,13 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 if (compaction.level_b_value_block.head()) |value_block| {
                     assert(value_block.stage == .merge);
                     assert(compaction.level_b_index_block.head().?.stage == .read_index_block_done);
+
                     break :values Table.value_block_values_used(value_block.ptr);
                 } else {
                     break :values null;
                 }
             };
+
             assert(!(level_a_values_used == null and level_b_values_used == null));
 
             const level_b_values = if (level_b_values_used) |values_used|
@@ -1804,8 +1957,10 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     .disk => {
                         if (compaction.level_a_value_block.head()) |value_block| {
                             assert(value_block.stage == .merge);
+
                             assert(compaction.level_a_index_block.head().?.stage ==
                                 .read_index_block_done);
+
                             break :values Table.value_block_values_used(value_block.ptr);
                         } else {
                             break :values null;
@@ -1818,21 +1973,25 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 if (compaction.level_b_value_block.head()) |value_block| {
                     assert(value_block.stage == .merge);
                     assert(compaction.level_b_index_block.head().?.stage == .read_index_block_done);
+
                     break :values Table.value_block_values_used(value_block.ptr);
                 } else {
                     break :values null;
                 }
             };
+
             assert(!(level_a_values_used == null and level_b_values_used == null));
 
             const level_a_values = if (level_a_values_used) |values_used| values: {
                 const values_remaining = values_used[compaction.level_a_position.value..];
+
                 // Only consume one block at a time so that a beat never outputs past its quota
                 // by more than one value block.
                 const limit = @min(
                     Table.data.value_count_max,
                     values_remaining.len,
                 );
+
                 break :values values_remaining[0..limit];
             } else null;
 
@@ -1854,7 +2013,9 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         compaction.table_info_a.?.immutable.count_max())
                     {
                         compaction.level_a_position.value_block += 1;
+
                         assert(compaction.level_a_position.value_block == 1);
+
                         compaction.level_a_position.value = 0;
                         compaction.level_a_immutable_stage = .exhausted;
                     } else {
@@ -1866,21 +2027,26 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             } else {
                 if (compaction.level_a_value_block.head()) |value_block| {
                     assert(value_block.stage == .merge);
+
                     if (compaction.level_a_position.value ==
                         Table.value_block_values_used(value_block.ptr).len)
                     {
                         const value_block_popped = compaction.level_a_value_block.pop();
+
                         assert(value_block == value_block_popped);
 
                         compaction.level_a_position.value_block += 1;
                         compaction.level_a_position.value = 0;
 
                         const index_block = compaction.level_a_index_block.head().?;
+
                         assert(index_block.stage == .read_index_block_done);
+
                         const index_schema = Table.index.from_block_with_schema(
                             index_block.ptr,
                             compaction.tree.config.id,
                         );
+
                         const value_blocks_count =
                             index_schema.value_blocks_used(index_block.ptr);
 
@@ -1891,17 +2057,24 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         // in `compaction_dispatch`.
                         if (compaction.level_a_position.value_block == value_blocks_count) {
                             compaction.level_a_position.index_block += 1;
+
                             assert(compaction.level_a_position.index_block == 1);
+
                             compaction.level_a_position.value_block = 0;
 
                             const index_block_popped = compaction.level_a_index_block.pop().?;
+
                             assert(index_block_popped == index_block);
+
                             compaction.read_value_block_release_table(index_block.ptr);
+
                             index_block.stage = .free;
+
                             compaction.pool.?.block_release(index_block);
                         }
 
                         value_block.stage = .free;
+
                         compaction.pool.?.block_release(value_block);
                     } else {
                         value_block.stage = .read_value_block_done;
@@ -1913,21 +2086,26 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             if (compaction.level_b_value_block.head()) |value_block| {
                 assert(value_block.stage == .merge);
+
                 if (compaction.level_b_position.value ==
                     Table.value_block_values_used(value_block.ptr).len)
                 {
                     const value_block_popped = compaction.level_b_value_block.pop().?;
+
                     assert(value_block == value_block_popped);
 
                     compaction.level_b_position.value_block += 1;
                     compaction.level_b_position.value = 0;
 
                     const index_block = compaction.level_b_index_block.head().?;
+
                     assert(index_block.stage == .read_index_block_done);
+
                     const index_schema = Table.index.from_block_with_schema(
                         index_block.ptr,
                         compaction.tree.config.id,
                     );
+
                     const value_blocks_count =
                         index_schema.value_blocks_used(index_block.ptr);
 
@@ -1941,14 +2119,18 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                         compaction.level_b_position.value_block = 0;
 
                         const index_block_popped = compaction.level_b_index_block.pop().?;
+
                         assert(index_block_popped == index_block);
+
                         compaction.read_value_block_release_table(index_block.ptr);
+
                         index_block.stage = .free;
 
                         compaction.pool.?.block_release(index_block);
                     }
 
                     value_block.stage = .free;
+
                     compaction.pool.?.block_release(value_block);
                 } else {
                     value_block.stage = .read_value_block_done;
@@ -1964,10 +2146,12 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             options: struct { address: u64 },
         ) void {
             const block = compaction.table_builder_value_block.?;
+
             assert(block.stage == .build_value_block);
             assert(compaction.table_builder.value_block == block.ptr);
 
             compaction.counters.out += compaction.table_builder.value_count;
+
             compaction.table_builder.value_block_finish(.{
                 .cluster = compaction.grid.superblock.working.cluster,
                 .release = compaction.grid.superblock.working.vsr_state.checkpoint.release,
@@ -1975,7 +2159,9 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 .snapshot_min = snapshot_min_for_table_output(compaction.op_min),
                 .tree_id = compaction.tree.config.id,
             });
+
             assert(compaction.table_builder.state == .index_block);
+
             compaction.table_builder_value_block = null;
 
             block.stage = .write_value_block;
@@ -1994,6 +2180,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             options: struct { address: u64 },
         ) void {
             const block = compaction.table_builder_index_block.?;
+
             assert(block.stage == .build_index_block);
             assert(compaction.table_builder.index_block == block.ptr);
 
@@ -2004,7 +2191,9 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 .snapshot_min = snapshot_min_for_table_output(compaction.op_min),
                 .tree_id = compaction.tree.config.id,
             });
+
             assert(compaction.table_builder.state == .no_blocks);
+
             compaction.table_builder_index_block = null;
 
             compaction.manifest_entries.push(.{
@@ -2027,8 +2216,11 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             assert(write.block.stage == .write_value_block or
                 write.block.stage == .write_index_block);
+
             write.block.stage = .free;
+
             write.pool.block_release(write.block);
+
             return write.pool.iop_release(.{ .write = write });
         }
 
@@ -2041,15 +2233,18 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             assert(values_target.len <= Table.data.value_count_max);
 
             var index_target: u32 = 0;
+
             while (index_target < budget_iterator and
                 index_target < values_target.len) : (index_target += 1)
             {
                 const value_in = values_iterator.pop() orelse break;
+
                 values_target[index_target] = value_in;
             }
 
             return index_target;
         }
+
         // The three functions below are hot CPU loops doing the actual merging, TigerBeetle's data
         // plane. To reduce the probability of the optimizer getting confused over pointers, don't
         // use 'self' and instead specify all inputs and outputs explicitly. Its the caller's job to
@@ -2064,6 +2259,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             assert(values_target.len <= Table.data.value_count_max);
 
             const len: u32 = @intCast(@min(values_source.len, values_target.len));
+
             stdx.copy_disjoint(
                 .exact,
                 Value,
@@ -2093,13 +2289,18 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             var index_source: usize = 0;
             var index_target: usize = 0;
+
             while (index_source < budget_iterator and index_target < values_target.len) {
                 const value_in = values_iterator.pop() orelse break;
+
                 index_source += 1;
+
                 if (tombstone(&value_in)) {
                     assert(Table.usage != .secondary_index);
+
                     continue;
                 }
+
                 values_target[index_target] = value_in;
                 index_target += 1;
             }
@@ -2112,9 +2313,11 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 .dropped = @as(u32, @intCast(index_source - index_target)) + dropped_iterator,
                 .produced = @intCast(index_target),
             };
+
             assert(copy_result.dropped <= copy_result.consumed);
             assert(copy_result.produced <= values_target.len);
             assert(copy_result.produced == copy_result.consumed - copy_result.dropped);
+
             return copy_result;
         }
 
@@ -2130,29 +2333,37 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
 
             var index_source: usize = 0;
             var index_target: usize = 0;
+
             // Merge as many values as possible.
             while (index_source < values_source.len and
                 index_target < values_target.len)
             {
                 const value_in = &values_source[index_source];
+
                 index_source += 1;
+
                 if (tombstone(value_in)) {
                     assert(Table.usage != .secondary_index);
+
                     continue;
                 }
+
                 values_target[index_target] = value_in.*;
                 index_target += 1;
             }
+
             const copy_result: CopyDropTombstonesResult = .{
                 .consumed = @intCast(index_source),
                 .dropped = @intCast(index_source - index_target),
                 .produced = @intCast(index_target),
             };
+
             assert(copy_result.consumed > 0);
             assert(copy_result.consumed <= values_source.len);
             assert(copy_result.dropped <= copy_result.consumed);
             assert(copy_result.produced <= values_target.len);
             assert(copy_result.produced == copy_result.consumed - copy_result.dropped);
+
             return copy_result;
         }
 
@@ -2184,14 +2395,19 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             {
                 const key_a = iterator_source_a.peek() orelse break;
                 const value_b = &values_source_b[index_source_b];
+
                 switch (std.math.order(key_a, key_from_value(value_b))) {
                     .lt => { // Pick value from level a.
                         index_source_a += 1;
+
                         const value_a = iterator_source_a.pop() orelse break;
+
                         if (drop_tombstones and tombstone(&value_a)) {
                             assert(Table.usage != .secondary_index);
+
                             continue;
                         }
+
                         values_target[index_target] = value_a;
                         index_target += 1;
                     },
@@ -2203,20 +2419,25 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                     .eq => { // Values have equal keys -- collapse them!
                         index_source_a += 1;
                         index_source_b += 1;
+
                         const value_a = iterator_source_a.pop() orelse break;
+
                         if (comptime Table.usage == .secondary_index) {
                             // Secondary index optimization: cancel matching put/remove pairs.
                             assert(tombstone(&value_a) != tombstone(value_b));
                         } else {
                             if (drop_tombstones and tombstone(&value_a)) continue;
+
                             values_target[index_target] = value_a;
                             index_target += 1;
                         }
                     },
                 }
             }
+
             const remaining_after_iterator = iterator_source_a.count_remaining();
             const dropped_after_iterator = iterator_source_a.count_dropped();
+
             const merge_result: MergeResult = .{
                 .consumed_a = remaining_before_iterator - remaining_after_iterator,
                 .consumed_b = @intCast(index_source_b),
@@ -2225,11 +2446,14 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 )),
                 .produced = @intCast(index_target),
             };
+
             assert(merge_result.consumed_a > 0 or merge_result.consumed_b > 0);
             assert(merge_result.dropped <= merge_result.consumed_a + merge_result.consumed_b);
             assert(merge_result.produced <= values_target.len);
+
             assert(merge_result.produced ==
                 merge_result.consumed_a + merge_result.consumed_b - merge_result.dropped);
+
             return merge_result;
         }
 
@@ -2258,13 +2482,17 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
             {
                 const value_a = &values_source_a[index_source_a];
                 const value_b = &values_source_b[index_source_b];
+
                 switch (std.math.order(key_from_value(value_a), key_from_value(value_b))) {
                     .lt => { // Pick value from level a.
                         index_source_a += 1;
+
                         if (drop_tombstones and tombstone(value_a)) {
                             assert(Table.usage != .secondary_index);
+
                             continue;
                         }
+
                         values_target[index_target] = value_a.*;
                         index_target += 1;
                     },
@@ -2282,6 +2510,7 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                             assert(tombstone(value_a) != tombstone(value_b));
                         } else {
                             if (drop_tombstones and tombstone(value_a)) continue;
+
                             values_target[index_target] = value_a.*;
                             index_target += 1;
                         }
@@ -2295,13 +2524,16 @@ pub fn CompactionType(comptime Tree: type, comptime Storage: type) type {
                 .dropped = @intCast(index_source_a + index_source_b - index_target),
                 .produced = @intCast(index_target),
             };
+
             assert(merge_result.consumed_a > 0 or merge_result.consumed_b > 0);
             assert(merge_result.consumed_a <= values_source_a.len);
             assert(merge_result.consumed_b <= values_source_b.len);
             assert(merge_result.dropped <= merge_result.consumed_a + merge_result.consumed_b);
             assert(merge_result.produced <= values_target.len);
+
             assert(merge_result.produced ==
                 merge_result.consumed_a + merge_result.consumed_b - merge_result.dropped);
+
             return merge_result;
         }
     };
@@ -2314,6 +2546,7 @@ pub fn snapshot_max_for_table_input(op_min: u64) u64 {
 pub fn snapshot_min_for_table_output(op_min: u64) u64 {
     assert(op_min > 0);
     assert(op_min % @divExact(constants.lsm_compaction_ops, 2) == 0);
+
     return op_min + @divExact(constants.lsm_compaction_ops, 2);
 }
 
@@ -2384,5 +2617,6 @@ pub fn snapshot_min_for_table_output(op_min: u64) u64 {
 /// storage. The last bar of `commit()`s is always only in memory, so it is safe to repeat.
 pub fn compaction_op_min(op: u64) u64 {
     assert(op >= half_bar_beat_count);
+
     return op - op % half_bar_beat_count;
 }

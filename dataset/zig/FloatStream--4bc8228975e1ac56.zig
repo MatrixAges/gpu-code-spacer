@@ -26,6 +26,7 @@ pub fn len(self: FloatStream) usize {
     if (self.offset > self.slice.len) {
         return 0;
     }
+
     return self.slice.len - self.offset;
 }
 
@@ -52,6 +53,7 @@ pub fn firstIs(self: FloatStream, comptime cs: []const u8) bool {
     if (self.first()) |ok| {
         inline for (cs) |c| if (ok == c) return true;
     }
+
     return false;
 }
 
@@ -59,6 +61,7 @@ pub fn firstIsLower(self: FloatStream, comptime cs: []const u8) bool {
     if (self.first()) |ok| {
         inline for (cs) |c| if (ok | 0x20 == c) return true;
     }
+
     return false;
 }
 
@@ -68,6 +71,7 @@ pub fn firstIsDigit(self: FloatStream, comptime base: u8) bool {
     if (self.first()) |ok| {
         return common.isDigit(ok, base);
     }
+
     return false;
 }
 
@@ -87,6 +91,7 @@ pub fn readU64(self: FloatStream) ?u64 {
     if (self.hasLen(8)) {
         return self.readU64Unchecked();
     }
+
     return null;
 }
 
@@ -101,19 +106,25 @@ pub fn scanDigit(self: *FloatStream, comptime base: u8) ?u8 {
         if (self.first()) |ok| {
             if ('0' <= ok and ok <= '9') {
                 self.advance(1);
+
                 return ok - '0';
             } else if (base == 16 and 'a' <= ok and ok <= 'f') {
                 self.advance(1);
+
                 return ok - 'a' + 10;
             } else if (base == 16 and 'A' <= ok and ok <= 'F') {
                 self.advance(1);
+
                 return ok - 'A' + 10;
             } else if (ok == '_') {
                 self.advance(1);
+
                 self.underscore_count += 1;
+
                 continue :retry;
             }
         }
+
         return null;
     }
 }

@@ -51,6 +51,7 @@ export function importGlobPlugin(config: ResolvedConfig): Plugin {
             environment.config.experimental.importGlobRestoreExtension,
         })
       }
+
       return true
     },
     buildStart() {
@@ -68,6 +69,7 @@ export function importGlobPlugin(config: ResolvedConfig): Plugin {
           config.experimental.importGlobRestoreExtension,
           config.logger,
         )
+
         if (result) {
           if (!importGlobMaps.has(this.environment)) {
             importGlobMaps.set(this.environment, new Map())
@@ -76,6 +78,7 @@ export function importGlobPlugin(config: ResolvedConfig): Plugin {
           const globMatchers = result.matches.map((i) => {
             const affirmed: string[] = []
             const negated: string[] = []
+
             for (const glob of i.globsResolved) {
               if (glob[0] === '!') {
                 negated.push(glob.slice(1))
@@ -83,12 +86,14 @@ export function importGlobPlugin(config: ResolvedConfig): Plugin {
                 affirmed.push(glob)
               }
             }
+
             const affirmedMatcher = picomatch(affirmed, {
               noextglob: true,
               dot: !!i.options.exhaustive,
               nocase: !(i.options.caseSensitive ?? true),
               ignore: i.options.exhaustive ? [] : ['**/node_modules/**'],
             })
+
             const negatedMatcher = picomatch(negated, {
               noextglob: true,
               dot: !!i.options.exhaustive,
@@ -104,6 +109,7 @@ export function importGlobPlugin(config: ResolvedConfig): Plugin {
               )
             }
           })
+
           importGlobMaps.get(this.environment)!.set(id, globMatchers)
 
           return transformStableResult(result.s, id, config)
@@ -114,15 +120,19 @@ export function importGlobPlugin(config: ResolvedConfig): Plugin {
       if (type === 'update') return
 
       const importGlobMap = importGlobMaps.get(this.environment)
+
       if (!importGlobMap) return
 
       const modules: EnvironmentModuleNode[] = []
+
       for (const [id, globMatchers] of importGlobMap) {
         if (globMatchers.some((matcher) => matcher(file))) {
           const mod = this.environment.moduleGraph.getModuleById(id)
+
           if (mod) modules.push(mod)
         }
       }
+
       return modules.length > 0 ? [...oldModules, ...modules] : undefined
     },
   }
@@ -146,7 +156,9 @@ const forceDefaultAs = ['raw', 'url']
 
 function err(e: string, pos: number) {
   const error = new Error(e) as RollupError
+
   error.pos = pos
+
   return error
 }
 
@@ -156,6 +168,7 @@ function parseGlobOptions(
   logger?: Logger,
 ): ParsedGeneralImportGlobOptions {
   let opts: GeneralImportGlobOptions = {}
+
   try {
     opts = evalValue(rawOpts)
   } catch {
@@ -173,8 +186,10 @@ function parseGlobOptions(
     if (!(key in knownOptions)) {
       throw err(`Unknown glob option "${key}"`, optsStartIndex)
     }
+
     const allowedTypes = knownOptions[key as keyof typeof knownOptions]
     const valueType = typeof opts[key as keyof GeneralImportGlobOptions]
+
     if (!allowedTypes.includes(valueType)) {
       throw err(
         `Expected glob option "${key}" to be of type ${allowedTypes.join(
@@ -203,6 +218,7 @@ function parseGlobOptions(
   if (typeof opts.query === 'object') {
     for (const key in opts.query) {
       const value = opts.query[key]
+
       if (!['string', 'number', 'boolean'].includes(typeof value)) {
         throw err(
           `Expected glob option "query.${key}" to be of type string, number, or boolean, but got ${typeof value}`,
@@ -210,6 +226,7 @@ function parseGlobOptions(
         )
       }
     }
+
     // normalize query as string so it's easier to handle later
     opts.query = stringifyQuery(opts.query)
   }
@@ -218,6 +235,7 @@ function parseGlobOptions(
     const importSuggestion = forceDefaultAs.includes(opts.as)
       ? `, import: 'default'`
       : ''
+
     logger.warn(
       colors.yellow(
         `The glob option "as" has been deprecated in favour of "query". Please update \`as: '${opts.as}'\` to \`query: '?${opts.as}'${importSuggestion}\`.`,
@@ -232,6 +250,7 @@ function parseGlobOptions(
         `Option "import" can only be "default" or "*" when "as" is "${opts.as}", but got "${opts.import}"`,
         optsStartIndex,
       )
+
     opts.import = opts.import || 'default'
   }
 
@@ -256,12 +275,14 @@ export async function parseImportGlob(
   logger?: Logger,
 ): Promise<ParsedImportGlob[]> {
   let cleanCode: string
+
   try {
     cleanCode = stripLiteral(code)
   } catch {
     // skip invalid js code
     return []
   }
+
   const matches = [...cleanCode.matchAll(importGlobRE)]
 
   const tasks = matches.map(async (match, index) => {
@@ -269,7 +290,9 @@ export async function parseImportGlob(
 
     const err = (msg: string) => {
       const e = new Error(`Invalid glob import syntax: ${msg}`)
+
       ;(e as any).pos = start
+
       return e
     }
 
@@ -278,6 +301,7 @@ export async function parseImportGlob(
         cleanCode,
         start + match[0].length,
       ) + 1
+
     if (end <= 0) {
       throw err('Close parenthesis not found')
     }
@@ -285,13 +309,17 @@ export async function parseImportGlob(
     const statementCode = code.slice(start, end)
 
     const rootAst = (await parseAstAsync(statementCode)).body[0]
+
     if (rootAst.type !== 'ExpressionStatement') {
       throw err(`Expect CallExpression, got ${rootAst.type}`)
     }
+
     const ast = rootAst.expression
+
     if (ast.type !== 'CallExpression') {
       throw err(`Expect CallExpression, got ${ast.type}`)
     }
+
     if (ast.arguments.length < 1 || ast.arguments.length > 2)
       throw err(`Expected 1-2 arguments, but got ${ast.arguments.length}`)
 
@@ -304,11 +332,13 @@ export async function parseImportGlob(
       element: ESTree.Expression | ESTree.SpreadElement | null,
     ) => {
       if (!element) return
+
       if (element.type === 'Literal') {
         if (typeof element.value !== 'string')
           throw err(
             `Expected glob to be a string, but got "${typeof element.value}"`,
           )
+
         globs.push(element.value)
       } else if (element.type === 'TemplateLiteral') {
         if (element.expressions.length !== 0) {
@@ -316,6 +346,7 @@ export async function parseImportGlob(
             `Expected glob to be a string, but got dynamic template literal`,
           )
         }
+
         globs.push(element.quasis[0].value.raw)
       } else {
         throw err('Could only use literals')
@@ -332,6 +363,7 @@ export async function parseImportGlob(
 
     // arg2
     let options: ParsedGeneralImportGlobOptions = {}
+
     if (arg2) {
       if (arg2.type !== 'ObjectExpression')
         throw err(
@@ -350,10 +382,12 @@ export async function parseImportGlob(
         toAbsoluteGlob(glob, root, importer, resolveId, options.base),
       ),
     )
+
     const isRelative = globs.every((i) => '.!'.includes(i[0]))
     const sliceCode = cleanCode.slice(0, start)
     const onlyKeys = objectKeysRE.test(sliceCode)
     let onlyValues = false
+
     if (!onlyKeys) {
       onlyValues = objectValuesRE.test(sliceCode)
     }
@@ -379,26 +413,31 @@ function findCorrespondingCloseParenthesisPosition(
   openPos: number,
 ) {
   const closePos = cleanCode.indexOf(')', openPos)
+
   if (closePos < 0) return -1
 
   if (!cleanCode.slice(openPos, closePos).includes('(')) return closePos
 
   let remainingParenthesisCount = 0
   const cleanCodeLen = cleanCode.length
+
   for (let pos = openPos; pos < cleanCodeLen; pos++) {
     switch (cleanCode[pos]) {
       case '(': {
         remainingParenthesisCount++
+
         break
       }
       case ')': {
         remainingParenthesisCount--
+
         if (remainingParenthesisCount <= 0) {
           return pos
         }
       }
     }
   }
+
   return -1
 }
 
@@ -425,8 +464,10 @@ export async function transformGlobImport(
 ): Promise<TransformGlobImportResult | null> {
   id = slash(id)
   root = slash(root)
+
   const isVirtual = isVirtualModule(id)
   const dir = isVirtual ? undefined : dirname(id)
+
   const matches = await parseImportGlob(
     code,
     isVirtual ? undefined : id,
@@ -434,6 +475,7 @@ export async function transformGlobImport(
     resolveId,
     logger,
   )
+
   const matchedFiles = new Set<string>()
 
   if (!matches.length) return null
@@ -458,6 +500,7 @@ export async function transformGlobImport(
           }
 
           const cwd = getCommonBase(globsResolved) ?? root
+
           const files = (
             await glob(globsResolved, {
               absolute: true,
@@ -478,9 +521,11 @@ export async function transformGlobImport(
           const resolvePaths = (file: string) => {
             if (!dir) {
               const importPath = `/${relative(root, file)}`
+
               let filePath = options.base
                 ? `${relative(posix.join(root, options.base), file)}`
                 : importPath
+
               if (
                 options.base &&
                 !filePath.startsWith('./') &&
@@ -488,21 +533,26 @@ export async function transformGlobImport(
               ) {
                 filePath = `./${filePath}`
               }
+
               return { filePath, importPath }
             }
 
             let importPath = relative(dir, file)
+
             if (!importPath.startsWith('./') && !importPath.startsWith('../')) {
               importPath = `./${importPath}`
             }
 
             let filePath: string
+
             if (options.base) {
               const resolvedBasePath = options.base[0] === '/' ? root : dir
+
               filePath = relative(
                 posix.join(resolvedBasePath, options.base),
                 file,
               )
+
               if (!filePath.startsWith('./') && !filePath.startsWith('../')) {
                 filePath = `./${filePath}`
               }
@@ -510,6 +560,7 @@ export async function transformGlobImport(
               filePath = importPath
             } else {
               filePath = relative(root, file)
+
               if (!filePath.startsWith('./') && !filePath.startsWith('../')) {
                 filePath = `/${filePath}`
               }
@@ -526,11 +577,13 @@ export async function transformGlobImport(
 
             if (onlyKeys) {
               objectProps.push(`${JSON.stringify(filePath)}: 0`)
+
               return
             }
 
             if (importQuery && importQuery !== '?raw') {
               const fileExtension = basename(file).split('.').slice(-1)[0]
+
               if (fileExtension && restoreQueryExtension)
                 importQuery = `${importQuery}&lang.${fileExtension}`
             }
@@ -544,12 +597,15 @@ export async function transformGlobImport(
 
             if (options.eager) {
               const variableName = `${importPrefix}${index}_${i}`
+
               const expression = importKey
                 ? `{ ${importKey} as ${variableName} }`
                 : `* as ${variableName}`
+
               staticImports.push(
                 `import ${expression} from ${JSON.stringify(importPath)}`,
               )
+
               objectProps.push(
                 onlyValues
                   ? `${variableName}`
@@ -557,8 +613,10 @@ export async function transformGlobImport(
               )
             } else {
               let importStatement = `import(${JSON.stringify(importPath)})`
+
               if (importKey)
                 importStatement += `.then(m => m[${JSON.stringify(importKey)}])`
+
               objectProps.push(
                 onlyValues
                   ? `() => ${importStatement}`
@@ -571,11 +629,14 @@ export async function transformGlobImport(
 
           const originalLineBreakCount =
             code.slice(start, end).match(/\n/g)?.length ?? 0
+
           const lineBreaks =
             originalLineBreakCount > 0
               ? '\n'.repeat(originalLineBreakCount)
               : ''
+
           let replacement = ''
+
           if (onlyKeys) {
             replacement = `{${objectProps.join(',')}${lineBreaks}}`
           } else if (onlyValues) {
@@ -629,15 +690,18 @@ function globSafeResolvedPath(resolved: string, glob: string) {
   // then slice up the resolved path at that pos and escape the first part
   let numEqual = 0
   const maxEqual = Math.min(resolved.length, glob.length)
+
   while (
     numEqual < maxEqual &&
     lastNthChar(resolved, numEqual) === lastNthChar(glob, numEqual)
   ) {
     numEqual += 1
   }
+
   const staticPartEnd = resolved.length - numEqual
   const staticPart = resolved.slice(0, staticPartEnd)
   const dynamicPart = resolved.slice(staticPartEnd)
+
   return globSafePath(staticPart) + dynamicPart
 }
 
@@ -649,12 +713,17 @@ export async function toAbsoluteGlob(
   base?: string,
 ): Promise<string> {
   let pre = ''
+
   if (glob[0] === '!') {
     pre = '!'
+
     glob = glob.slice(1)
   }
+
   root = globSafePath(root)
+
   let dir
+
   if (base) {
     if (base[0] === '/') {
       dir = posix.join(root, base)
@@ -680,6 +749,7 @@ export async function toAbsoluteGlob(
       custom: { 'vite:import-glob': { isSubImportsPattern } },
     })) || glob,
   )
+
   if (isAbsolute(resolved)) {
     return pre + globSafeResolvedPath(resolved, glob)
   }
@@ -694,6 +764,7 @@ export function getCommonBase(globsResolved: string[]): null | string {
     .filter((g) => g[0] !== '!')
     .map((glob) => {
       let { base } = picomatch.scan(glob)
+
       // `scan('a/foo.js')` returns `base: 'a/foo.js'`
       if (posix.basename(base).includes('.')) base = posix.dirname(base)
 
@@ -704,8 +775,10 @@ export function getCommonBase(globsResolved: string[]): null | string {
 
   let commonAncestor = ''
   const dirS = bases[0].split('/')
+
   for (let i = 0; i < dirS.length; i++) {
     const candidate = dirS.slice(0, i + 1).join('/')
+
     if (
       bases.every(
         (base) => base === candidate || base.startsWith(`${candidate}/`),
@@ -714,6 +787,7 @@ export function getCommonBase(globsResolved: string[]): null | string {
       commonAncestor = candidate
     else break
   }
+
   if (!commonAncestor) commonAncestor = '/'
 
   return commonAncestor

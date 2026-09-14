@@ -33,11 +33,13 @@ pub inline fn ceil(val: f64) f64 {
 /// In C if `val` is 0, the result is undefined; in zig it's the number of bits in a c_uint
 pub inline fn clz(val: c_uint) c_int {
     @setRuntimeSafety(false);
+
     return @as(c_int, @bitCast(@as(c_uint, @clz(val))));
 }
 
 pub inline fn constant_p(expr: anytype) c_int {
     _ = expr;
+
     return @intFromBool(false);
 }
 
@@ -53,6 +55,7 @@ pub inline fn cos(val: f64) f64 {
 /// In C if `val` is 0, the result is undefined; in zig it's the number of bits in a c_uint
 pub inline fn ctz(val: c_uint) c_int {
     @setRuntimeSafety(false);
+
     return @as(c_int, @bitCast(@as(c_uint, @ctz(val))));
 }
 
@@ -76,6 +79,7 @@ pub inline fn exp(val: f64) f64 {
 /// of `expr` and is used as a hint to the compiler in C. Here it is unused.
 pub inline fn expect(expr: c_long, c: c_long) c_long {
     _ = c;
+
     return expr;
 }
 
@@ -97,6 +101,7 @@ pub inline fn floor(val: f64) f64 {
 
 pub inline fn has_builtin(func: anytype) c_int {
     _ = func;
+
     return @intFromBool(true);
 }
 
@@ -111,6 +116,7 @@ pub inline fn inff() f32 {
 /// Similar to isinf, except the return value is -1 for an argument of -Inf and 1 for an argument of +Inf.
 pub inline fn isinf_sign(x: anytype) c_int {
     if (!std.math.isInf(x)) return 0;
+
     return if (std.math.isPositiveInf(x)) 1 else -1;
 }
 
@@ -163,10 +169,12 @@ pub inline fn memcpy_chk(
     remaining: usize,
 ) ?*anyopaque {
     if (len > remaining) @panic("__builtin___memcpy_chk called with len > remaining");
+
     if (len > 0) @memcpy(
         @as([*]u8, @ptrCast(dst.?))[0..len],
         @as([*]const u8, @ptrCast(src.?)),
     );
+
     return dst;
 }
 
@@ -179,6 +187,7 @@ pub inline fn memcpy(
         @as([*]u8, @ptrCast(dst.?))[0..len],
         @as([*]const u8, @ptrCast(src.?)),
     );
+
     return dst;
 }
 
@@ -189,20 +198,27 @@ pub inline fn memset_chk(
     remaining: usize,
 ) ?*anyopaque {
     if (len > remaining) @panic("__builtin___memset_chk called with len > remaining");
+
     const dst_cast = @as([*c]u8, @ptrCast(dst));
+
     @memset(dst_cast[0..len], @as(u8, @bitCast(@as(i8, @truncate(val)))));
+
     return dst;
 }
 
 pub inline fn memset(dst: ?*anyopaque, val: c_int, len: usize) ?*anyopaque {
     const dst_cast = @as([*c]u8, @ptrCast(dst));
+
     @memset(dst_cast[0..len], @as(u8, @bitCast(@as(i8, @truncate(val)))));
+
     return dst;
 }
 
 pub fn mul_overflow(a: anytype, b: anytype, result: *@TypeOf(a, b)) c_int {
     const res = @mulWithOverflow(a, b);
+
     result.* = res[0];
+
     return res[1];
 }
 
@@ -224,23 +240,27 @@ pub fn mul_overflow(a: anytype, b: anytype, result: *@TypeOf(a, b)) c_int {
 pub inline fn nanf(tagp: []const u8) f32 {
     const parsed = std.fmt.parseUnsigned(c_ulong, tagp, 0) catch 0;
     const bits: u23 = @truncate(parsed); // single-precision float trailing significand is 23 bits
+
     return @bitCast(@as(u32, bits) | @as(u32, @bitCast(std.math.nan(f32))));
 }
 
 pub inline fn object_size(ptr: ?*const anyopaque, ty: c_int) usize {
     _ = ptr;
+
     // clang semantics match gcc's: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html
     // If it is not possible to determine which objects ptr points to at compile time,
     // object_size should return (size_t) -1 for type 0 or 1 and (size_t) 0
     // for type 2 or 3.
     if (ty == 0 or ty == 1) return @as(usize, @bitCast(-@as(isize, 1)));
     if (ty == 2 or ty == 3) return 0;
+
     unreachable;
 }
 
 /// popcount of a c_uint will never exceed the capacity of a c_int
 pub inline fn popcount(val: c_uint) c_int {
     @setRuntimeSafety(false);
+
     return @as(c_int, @bitCast(@as(c_uint, @popCount(val))));
 }
 

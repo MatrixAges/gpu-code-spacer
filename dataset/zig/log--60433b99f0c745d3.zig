@@ -77,6 +77,7 @@ pub fn logEnabled(comptime level: Level, comptime scope: @EnumLiteral()) bool {
     inline for (std.options.log_scope_levels) |scope_level| {
         if (scope_level.scope == scope) return @intFromEnum(level) <= @intFromEnum(scope_level.level);
     }
+
     return @intFromEnum(level) <= @intFromEnum(std.options.log_level);
 }
 
@@ -93,21 +94,26 @@ pub fn defaultLog(
 ) void {
     var buffer: [64]u8 = undefined;
     const stderr, const ttyconf = std.debug.lockStderrWriter(&buffer);
+
     defer std.debug.unlockStderrWriter();
+
     ttyconf.setColor(stderr, switch (level) {
         .err => .red,
         .warn => .yellow,
         .info => .green,
         .debug => .magenta,
     }) catch {};
+
     ttyconf.setColor(stderr, .bold) catch {};
     stderr.writeAll(level.asText()) catch return;
     ttyconf.setColor(stderr, .reset) catch {};
     ttyconf.setColor(stderr, .dim) catch {};
     ttyconf.setColor(stderr, .bold) catch {};
+
     if (scope != .default) {
         stderr.print("({s})", .{@tagName(scope)}) catch return;
     }
+
     stderr.writeAll(": ") catch return;
     ttyconf.setColor(stderr, .reset) catch {};
     stderr.print(format ++ "\n", args) catch return;
@@ -125,6 +131,7 @@ pub fn scoped(comptime scope: @EnumLiteral()) type {
             args: anytype,
         ) void {
             @branchHint(.cold);
+
             log(.err, scope, format, args);
         }
 

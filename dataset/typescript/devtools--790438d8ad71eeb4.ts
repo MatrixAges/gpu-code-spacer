@@ -51,9 +51,12 @@ function emit(event: string, ...args: any[]) {
 
 export function setDevtoolsHook(hook: DevtoolsHook, target: any): void {
   devtools = hook
+
   if (devtools) {
     devtools.enabled = true
+
     buffer.forEach(({ event, args }) => devtools.emit(event, ...args))
+
     buffer = []
   } else if (
     // handle late devtools injection - only do this if we are in an actual
@@ -68,9 +71,11 @@ export function setDevtoolsHook(hook: DevtoolsHook, target: any): void {
   ) {
     const replay = (target.__VUE_DEVTOOLS_HOOK_REPLAY__ =
       target.__VUE_DEVTOOLS_HOOK_REPLAY__ || [])
+
     replay.push((newHook: DevtoolsHook) => {
       setDevtoolsHook(newHook, target)
     })
+
     // clear buffer after 3s - the user probably doesn't have devtools installed
     // at all, and keeping the buffer will cause memory leaks (#4738)
     setTimeout(() => {
@@ -151,6 +156,7 @@ type DevtoolsPerformanceHook = (
   type: string,
   time: number,
 ) => void
+
 function createDevtoolsPerformanceHook(
   hook: DevtoolsHooks,
 ): DevtoolsPerformanceHook {

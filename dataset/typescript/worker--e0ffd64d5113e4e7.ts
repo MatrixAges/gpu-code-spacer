@@ -2,6 +2,7 @@ import path from 'node:path'
 import { type ImportSpecifier, init, parse } from 'es-module-lexer'
 import MagicString from 'magic-string'
 import colors from 'picocolors'
+
 import type {
   OutputAsset,
   OutputChunk,
@@ -9,19 +10,23 @@ import type {
   RolldownOutput,
   RollupError,
 } from 'rolldown'
+
 import { viteWebWorkerPostPlugin as nativeWebWorkerPostPlugin } from 'rolldown/experimental'
 import { cleanUrl, splitFileAndPostfix } from '../../shared/utils'
+
 import {
   BuildEnvironment,
   ChunkMetadataMap,
   injectEnvironmentToHooks,
   onRollupLog,
 } from '../build'
+
 import type { ResolvedConfig } from '../config'
 import { ENV_ENTRY, ENV_PUBLIC_PATH } from '../constants'
 import type { Environment } from '../environment'
 import type { Logger } from '../logger'
 import type { Plugin } from '../plugin'
+
 import {
   injectQuery,
   normalizePath,
@@ -29,6 +34,7 @@ import {
   trailingSeparatorRE,
   urlRE,
 } from '../utils'
+
 import { fileToUrl, toOutputFilePathInJSForBundledDev } from './asset'
 
 type WorkerBundle = {
@@ -69,6 +75,7 @@ class WorkerOutputCache {
   /** list of assets emitted for the worker bundles */
   private assets = new Map<string, WorkerBundleAsset>()
   private invalidatedBundles = new Set</* inputId */ string>()
+
   /**
    * Worker references grouped by their containing bundle and module.
    * `referencingModuleId` is the module whose inclusion keeps the reference
@@ -97,6 +104,7 @@ class WorkerOutputCache {
     for (const asset of outputAssets) {
       this.saveAsset(asset, logger)
     }
+
     const bundle: WorkerBundle = {
       entryFilename: outputEntryFilename,
       entryCode: outputEntryCode,
@@ -105,12 +113,15 @@ class WorkerOutputCache {
       watchedFiles,
       entryReferenceIds: new WeakMap(),
     }
+
     this.bundles.set(file, bundle)
+
     return bundle
   }
 
   saveAsset(asset: WorkerBundleAsset, logger: Logger) {
     const duplicateAsset = this.assets.get(asset.fileName)
+
     if (duplicateAsset) {
       if (!isSameContent(duplicateAsset.source, asset.source)) {
         logger.warn(
@@ -121,6 +132,7 @@ class WorkerOutputCache {
         )
       }
     }
+
     this.assets.set(asset.fileName, asset)
   }
 
@@ -141,13 +153,14 @@ class WorkerOutputCache {
 
   private removeBundle(file: string) {
     const bundle = this.bundles.get(file)
+
     if (!bundle) return
 
     this.bundles.delete(file)
-
     this.assets.delete(bundle.entryFilename)
 
     const keptBundles = [...this.bundles.values()]
+
     // remove assets that are only referenced by this bundle
     for (const asset of bundle.referencedAssets) {
       if (keptBundles.every((b) => !b.referencedAssets.has(asset))) {
@@ -164,32 +177,46 @@ class WorkerOutputCache {
     referencingModuleId: string,
   ) {
     let referencesByModule = this.bundleReferences.get(parentInputId)
+
     if (!referencesByModule) {
       referencesByModule = new Map()
+
       this.bundleReferences.set(parentInputId, referencesByModule)
     }
+
     let childBundleIds = referencesByModule.get(referencingModuleId)
+
     if (!childBundleIds) {
       childBundleIds = new Set()
+
       referencesByModule.set(referencingModuleId, childBundleIds)
     }
+
     childBundleIds.add(childBundleId)
   }
 
   getLiveAssetFileNames(mainLiveModuleIds: Set<string>): Set<string> {
     const liveBundles = new Set<string>()
     const queue: [BundleId, Set<string>][] = [[undefined, mainLiveModuleIds]]
+
     while (queue.length > 0) {
       const [bundleId, moduleIds] = queue.shift()!
       const referencesByModule = this.bundleReferences.get(bundleId)
+
       if (!referencesByModule) continue
+
       for (const moduleId of moduleIds) {
         const childBundleIds = referencesByModule.get(moduleId)
+
         if (!childBundleIds) continue
+
         for (const childBundleId of childBundleIds) {
           if (liveBundles.has(childBundleId)) continue
+
           liveBundles.add(childBundleId)
+
           const childBundle = this.bundles.get(childBundleId)
+
           if (childBundle) {
             queue.push([childBundleId, childBundle.moduleIds])
           }
@@ -198,14 +225,19 @@ class WorkerOutputCache {
     }
 
     const liveFileNames = new Set<string>()
+
     for (const inputId of liveBundles) {
       const wb = this.bundles.get(inputId)
+
       if (!wb) continue
+
       liveFileNames.add(wb.entryFilename)
+
       for (const fileName of wb.referencedAssets) {
         liveFileNames.add(fileName)
       }
     }
+
     return liveFileNames
   }
 
@@ -214,23 +246,31 @@ class WorkerOutputCache {
     liveModuleIds: Set<string>,
   ): WorkerBundle[] {
     const referencesByModule = this.bundleReferences.get(bundleId)
+
     if (!referencesByModule) return []
+
     const deadBundleIds = new Set<WorkerBundleId>()
+
     for (const references of referencesByModule.values()) {
       for (const childBundleId of references) {
         deadBundleIds.add(childBundleId)
       }
     }
+
     for (const moduleId of liveModuleIds) {
       for (const childBundleId of referencesByModule.get(moduleId) || []) {
         deadBundleIds.delete(childBundleId)
       }
     }
+
     const deadBundles: WorkerBundle[] = []
+
     for (const childBundleId of deadBundleIds) {
       const bundle = this.bundles.get(childBundleId)
+
       if (bundle) deadBundles.push(bundle)
     }
+
     return deadBundles
   }
 
@@ -255,14 +295,17 @@ class WorkerOutputCache {
   ): string {
     const { environment } = pluginContext
     let referenceId = bundle.entryReferenceIds.get(environment)
+
     if (!referenceId) {
       referenceId = pluginContext.emitFile({
         type: 'asset',
         fileName: bundle.entryFilename,
         source: bundle.entryCode,
       })
+
       bundle.entryReferenceIds.set(environment, referenceId)
     }
+
     return `import.meta.ROLLDOWN_FILE_URL_${referenceId}`
   }
 
@@ -277,8 +320,10 @@ export type WorkerType = 'classic' | 'module' | 'ignore'
 
 export const workerOrSharedWorkerRE: RegExp =
   /(?:\?|&)(worker|sharedworker)(?:&|$)/
+
 const workerFileRE = /(?:\?|&)worker_file&type=(\w+)(?:&|$)/
 const inlineRE = /[?&]inline\b/
+
 const workerQueriesRE =
   /(\?|&)(?:(?:worker|sharedworker|inline|url)=?(?:&|$))+/g
 
@@ -287,9 +332,11 @@ export function splitWorkerRequest(id: string): {
   postfix: string
 } {
   const { file, postfix } = splitFileAndPostfix(id)
+
   if (!postfix || postfix[0] !== '?') {
     return { file, postfix: '' }
   }
+
   return {
     file,
     postfix: postfix
@@ -334,14 +381,17 @@ async function bundleWorkerEntry(
   const input = cleanUrl(id)
 
   const workerOutput = workerOutputCaches.get(config.mainConfig || config)!
+
   workerOutput.removeBundleIfInvalidated(input)
 
   const bundleInfo = workerOutput.getWorkerBundle(input)
+
   if (bundleInfo) {
     return bundleInfo
   }
 
   const newBundleChain = [...config.bundleChain, input]
+
   if (config.bundleChain.includes(input)) {
     throw new Error(
       'Circular worker imports detected. Vite does not support it. ' +
@@ -354,10 +404,12 @@ async function bundleWorkerEntry(
   const { plugins, rolldownOptions, format } = config.worker
   const workerConfig = await plugins(newBundleChain)
   const workerEnvironment = new BuildEnvironment('client', workerConfig) // TODO: should this be 'worker'?
+
   await workerEnvironment.init()
 
   const chunkMetadataMap = new ChunkMetadataMap()
   const workerBuildTarget = workerEnvironment.config.build.target
+
   const bundle = await rolldown({
     ...rolldownOptions,
     input,
@@ -387,15 +439,19 @@ async function bundleWorkerEntry(
       viteMode: true,
     },
   })
+
   let result: RolldownOutput
   let watchedFiles: string[] | undefined
+
   try {
     const workerOutputConfig = config.worker.rolldownOptions.output
+
     const workerConfig = workerOutputConfig
       ? Array.isArray(workerOutputConfig)
         ? workerOutputConfig[0] || {}
         : workerOutputConfig
       : {}
+
     result = await bundle.generate({
       entryFileNames: path.posix.join(
         config.build.assetsDir,
@@ -419,6 +475,7 @@ async function bundleWorkerEntry(
       format,
       sourcemap: workerEnvironment.config.build.sourcemap,
     })
+
     watchedFiles = (await bundle.watchFiles).map((f) => normalizePath(f))
   } catch (e) {
     // adjust rollup format error
@@ -430,6 +487,7 @@ async function bundleWorkerEntry(
     ) {
       e.message = e.message.replace('output.format', 'worker.format')
     }
+
     throw e
   } finally {
     await bundle.close()
@@ -440,6 +498,7 @@ async function bundleWorkerEntry(
   const {
     output: [outputChunk, ...outputChunks],
   } = result
+
   const assets = outputChunks.map((outputChunk) =>
     outputChunk.type === 'asset'
       ? outputChunk
@@ -450,6 +509,7 @@ async function bundleWorkerEntry(
           source: outputChunk.code,
         },
   )
+
   if (
     (config.build.sourcemap === 'hidden' || config.build.sourcemap === true) &&
     outputChunk.map
@@ -473,6 +533,7 @@ async function bundleWorkerEntry(
       moduleIds,
       config.logger,
     )
+
   return newBundleInfo
 }
 
@@ -482,6 +543,7 @@ export async function workerFileToUrl(
 ): Promise<WorkerBundle> {
   const workerOutput = workerOutputCaches.get(config.mainConfig || config)!
   const bundle = await bundleWorkerEntry(config, id)
+
   workerOutput.saveAsset(
     {
       fileName: bundle.entryFilename,
@@ -491,6 +553,7 @@ export async function workerFileToUrl(
     },
     config.logger,
   )
+
   return bundle
 }
 
@@ -508,6 +571,7 @@ export function emitWorkerAssetsForBundledDev(
   if (config.isWorker) return
 
   const workerOutput = workerOutputCaches.get(config.mainConfig || config)!
+
   for (const asset of workerOutput.getAssets()) {
     pluginContext.emitFile({
       type: 'asset',
@@ -525,8 +589,10 @@ export function webWorkerPostPlugin(_config: ResolvedConfig): Plugin {
         if (environment.config.worker.format === 'iife') {
           return nativeWebWorkerPostPlugin()
         }
+
         return false
       }
+
       return true
     },
     transform: {
@@ -540,6 +606,7 @@ export function webWorkerPostPlugin(_config: ResolvedConfig): Plugin {
           await init
 
           let imports: readonly ImportSpecifier[]
+
           try {
             imports = parse(code)[0]
           } catch {
@@ -549,21 +616,27 @@ export function webWorkerPostPlugin(_config: ResolvedConfig): Plugin {
 
           let injectedImportMeta = false
           let s: MagicString | undefined
+
           for (const { s: start, e: end, d: dynamicIndex } of imports) {
             // is import.meta
             if (dynamicIndex === -2) {
               const prop = code.slice(end, end + 4)
+
               if (prop === '.url') {
                 s ||= new MagicString(code)
+
                 s.overwrite(start, end + 4, 'self.location.href')
               } else {
                 s ||= new MagicString(code)
+
                 if (!injectedImportMeta) {
                   s.prepend(
                     'const _vite_importMeta = { url: self.location.href };\n',
                   )
+
                   injectedImportMeta = true
                 }
+
                 s.overwrite(start, end, '_vite_importMeta')
               }
             }
@@ -585,6 +658,7 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
   const isWorker = config.isWorker
 
   workerOutputCaches.set(config, new WorkerOutputCache())
+
   const emittedAssets = new Set<string>()
 
   return {
@@ -592,6 +666,7 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
 
     buildStart() {
       if (isWorker) return
+
       emittedAssets.clear()
       workerOutputCaches.get(config)!.clearEntryReferenceIds(this.environment)
     },
@@ -600,23 +675,29 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
       filter: { id: workerOrSharedWorkerRE },
       async handler(id) {
         const workerMatch = workerOrSharedWorkerRE.exec(id)
+
         if (!workerMatch) return
 
         const { format } = config.worker
+
         const workerConstructor =
           workerMatch[1] === 'sharedworker' ? 'SharedWorker' : 'Worker'
+
         const isBundled = this.environment.config.isBundled
+
         const workerType = isBundled
           ? format === 'es'
             ? 'module'
             : 'classic'
           : 'module'
+
         const workerTypeOption = `{
           ${workerType === 'module' ? `type: "module",` : ''}
           name: options?.name
         }`
 
         let urlCode: string
+
         if (isBundled) {
           if (isWorker && config.bundleChain.at(-1) === cleanUrl(id)) {
             urlCode = 'self.location.href'
@@ -627,7 +708,9 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
               cleanUrl(id),
               id,
             )
+
             const result = await bundleWorkerEntry(config, id)
+
             for (const file of result.watchedFiles) {
               this.addWatchFile(file)
             }
@@ -683,12 +766,15 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
               cleanUrl(id),
               id,
             )
+
             const result = await workerFileToUrl(config, id)
+
             if (
               this.environment.config.command === 'serve' &&
               this.environment.config.isBundled
             ) {
               emitWorkerAssetsForBundledDev(this, config)
+
               urlCode = JSON.stringify(
                 toOutputFilePathInJSForBundledDev(
                   this.environment,
@@ -698,6 +784,7 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
             } else {
               urlCode = generateWorkerEntryUrlExpr(this, config, result)
             }
+
             for (const file of result.watchedFiles) {
               this.addWatchFile(file)
             }
@@ -705,10 +792,12 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
         } else {
           const { file, postfix } = splitWorkerRequest(id)
           let url = await fileToUrl(this, file, 'string')
+
           url = injectQuery(
             `${url}${postfix}`,
             `${WORKER_FILE_ID}&type=${workerType}`,
           )
+
           urlCode = JSON.stringify(url)
         }
 
@@ -735,6 +824,7 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
       filter: { id: workerFileRE },
       handler(raw, id) {
         const workerFileMatch = workerFileRE.exec(id)
+
         if (workerFileMatch) {
           // if import worker by worker constructor will have query.type
           // other type will be import worker by esm
@@ -746,9 +836,11 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
             const scriptPath = JSON.stringify(
               path.posix.join(config.base, ENV_PUBLIC_PATH),
             )
+
             injectEnv = `importScripts(${scriptPath})\n`
           } else if (workerType === 'module') {
             const scriptPath = JSON.stringify(ENV_PUBLIC_PATH)
+
             injectEnv = `import ${scriptPath}\n`
           } else if (workerType === 'ignore') {
             if (this.environment.config.isBundled) {
@@ -757,15 +849,21 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
               // dynamic worker type we can't know how import the env
               // so we copy /@vite/env code of server transform result into file header
               const environment = this.environment
+
               const moduleGraph =
                 environment.mode === 'dev' ? environment.moduleGraph : undefined
+
               const module = moduleGraph?.getModuleById(ENV_ENTRY)
+
               injectEnv = module?.transformResult?.code || ''
             }
           }
+
           if (injectEnv) {
             const s = new MagicString(raw)
+
             s.prepend(injectEnv + ';\n')
+
             return {
               code: s.toString(),
               map: s.generateMap({ hires: 'boundary' }),
@@ -780,8 +878,10 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
       if (this.environment.config.isOutputOptionsForLegacyChunks?.(opts)) {
         return
       }
+
       const cache = workerOutputCaches.get(config.mainConfig || config)!
       const liveModuleIds = collectIncludedModuleIds(Object.values(bundle))
+
       // Reference tracking relies on hooks running for every module, which is
       // not guaranteed when an incremental build reuses cached modules.
       const shouldFilter =
@@ -794,11 +894,13 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
       // referenced assets of their parent worker bundle.
       if (shouldFilter) {
         const rootBundleId = isWorker ? config.bundleChain.at(-1) : undefined
+
         for (const workerBundle of cache.getDeadDirectlyReferencedBundles(
           rootBundleId,
           liveModuleIds,
         )) {
           const emittedAsset = bundle[workerBundle.entryFilename]
+
           if (emittedAsset?.type === 'asset') {
             delete bundle[workerBundle.entryFilename]
           }
@@ -810,17 +912,21 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
       const liveFileNames = shouldFilter
         ? cache.getLiveAssetFileNames(liveModuleIds)
         : undefined
+
       for (const asset of cache.getAssets()) {
         if (liveFileNames && !liveFileNames.has(asset.fileName)) continue
         if (emittedAssets.has(asset.fileName)) continue
+
         emittedAssets.add(asset.fileName)
 
         const duplicateAsset = bundle[asset.fileName]
+
         if (duplicateAsset) {
           const content =
             duplicateAsset.type === 'asset'
               ? duplicateAsset.source
               : duplicateAsset.code
+
           // don't emit if the file name and the content is same
           if (isSameContent(content, asset.source)) {
             continue
@@ -839,6 +945,7 @@ export function webWorkerPlugin(config: ResolvedConfig): Plugin {
 
     watchChange(file) {
       if (isWorker) return
+
       workerOutputCaches
         .get(config)!
         .invalidateAffectedBundles(normalizePath(file))
@@ -850,6 +957,7 @@ function collectIncludedModuleIds(
   outputs: (OutputChunk | OutputAsset)[],
 ): Set<string> {
   const moduleIds = new Set<string>()
+
   for (const output of outputs) {
     if (output.type === 'chunk') {
       for (const moduleId of output.moduleIds) {
@@ -857,6 +965,7 @@ function collectIncludedModuleIds(
       }
     }
   }
+
   return moduleIds
 }
 
@@ -865,7 +974,9 @@ function isSameContent(a: string | Uint8Array, b: string | Uint8Array) {
     if (typeof b === 'string') {
       return a === b
     }
+
     return Buffer.from(a).equals(b)
   }
+
   return Buffer.from(b).equals(a)
 }

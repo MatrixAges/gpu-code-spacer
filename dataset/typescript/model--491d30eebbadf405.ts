@@ -62,9 +62,7 @@ export default class Index {
 
 		this.on()
 		this.watchItems()
-
 		this.query()
-
 		this.utils.acts.push(disposer)
 	}
 
@@ -222,8 +220,8 @@ export default class Index {
 		if (this.open_dirtree) this.open_dirtree = false
 
 		this.utils.off()
-
 		this.items_watcher?.unsubscribe?.()
+
 		this.items_watcher = null
 
 		$app.Event.off(`${this.module}/dirtree/insert`, this.insert)

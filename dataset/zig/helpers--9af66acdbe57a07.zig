@@ -9,6 +9,7 @@ pub fn ArithmeticConversion(comptime A: type, comptime B: type) type {
 
     const A_Promoted = PromotedIntType(A);
     const B_Promoted = PromotedIntType(B);
+
     comptime {
         std.debug.assert(integerRank(A_Promoted) >= integerRank(c_int));
         std.debug.assert(integerRank(B_Promoted) >= integerRank(c_int));
@@ -27,7 +28,6 @@ pub fn ArithmeticConversion(comptime A: type, comptime B: type) type {
     const UnsignedType = if (!a_signed) A_Promoted else B_Promoted;
 
     if (integerRank(UnsignedType) >= integerRank(SignedType)) return UnsignedType;
-
     if (std.math.maxInt(SignedType) >= std.math.maxInt(UnsignedType)) return SignedType;
 
     return ToUnsigned(SignedType);
@@ -116,6 +116,7 @@ fn PromoteIntLiteralReturnType(comptime SuffixType: type, comptime number: compt
         &signed_oct_hex;
 
     var pos = std.mem.indexOfScalar(type, list, SuffixType).?;
+
     while (pos < list.len) : (pos += 1) {
         if (number >= std.math.minInt(list[pos]) and number <= std.math.maxInt(list[pos])) {
             return list[pos];
@@ -133,8 +134,11 @@ fn PromoteIntLiteralReturnType(comptime SuffixType: type, comptime number: compt
 /// See https://clang.llvm.org/docs/LanguageExtensions.html#langext-builtin-shufflevector
 pub fn shuffleVectorIndex(comptime this_index: c_int, comptime source_vector_len: usize) i32 {
     const positive_index = std.math.cast(usize, this_index) orelse return undefined;
+
     if (positive_index < source_vector_len) return @as(i32, @intCast(this_index));
+
     const b_index = positive_index - source_vector_len;
+
     return ~@as(i32, @intCast(b_index));
 }
 
@@ -145,7 +149,9 @@ pub fn shuffleVectorIndex(comptime this_index: c_int, comptime source_vector_len
 /// checked undefined behavior
 pub fn signedRemainder(numerator: anytype, denominator: anytype) @TypeOf(numerator, denominator) {
     std.debug.assert(@typeInfo(@TypeOf(numerator, denominator)).int.signedness == .signed);
+
     if (denominator > 0) return @rem(numerator, denominator);
+
     return numerator - @divTrunc(numerator, denominator) * denominator;
 }
 
@@ -153,6 +159,7 @@ pub fn signedRemainder(numerator: anytype, denominator: anytype) @TypeOf(numerat
 pub fn cast(comptime DestType: type, target: anytype) DestType {
     // this function should behave like transCCast in translate-c, except it's for macros
     const SourceType = @TypeOf(target);
+
     switch (@typeInfo(DestType)) {
         .@"fn" => return castToPtr(*const DestType, SourceType, target),
         .pointer => return castToPtr(DestType, SourceType, target),
@@ -254,6 +261,7 @@ fn castToPtr(comptime DestType: type, comptime SourceType: type, target: anytype
 /// Given a value returns its size as C's sizeof operator would.
 pub fn sizeof(target: anytype) usize {
     const T: type = if (@TypeOf(target) == type) target else @TypeOf(target);
+
     switch (@typeInfo(T)) {
         .float, .int, .@"struct", .@"union", .array, .bool, .vector => return @sizeOf(T),
         .@"fn" => {
@@ -292,6 +300,7 @@ pub fn sizeof(target: anytype) usize {
             // specially handled here.
             if (ptr.size == .one and ptr.is_const and @typeInfo(ptr.child) == .array) {
                 const array_info = @typeInfo(ptr.child).array;
+
                 if ((array_info.child == u8 or array_info.child == u16) and array_info.sentinel() == 0) {
                     // length of the string plus one for the null terminator.
                     return (array_info.len + 1) * @sizeOf(array_info.child);
@@ -323,6 +332,7 @@ pub fn div(a: anytype, b: anytype) ArithmeticConversion(@TypeOf(a), @TypeOf(b)) 
     const ResType = ArithmeticConversion(@TypeOf(a), @TypeOf(b));
     const a_casted = cast(ResType, a);
     const b_casted = cast(ResType, b);
+
     switch (@typeInfo(ResType)) {
         .float => return a_casted / b_casted,
         .int => return @divTrunc(a_casted, b_casted),
@@ -334,6 +344,7 @@ pub fn rem(a: anytype, b: anytype) ArithmeticConversion(@TypeOf(a), @TypeOf(b)) 
     const ResType = ArithmeticConversion(@TypeOf(a), @TypeOf(b));
     const a_casted = cast(ResType, a);
     const b_casted = cast(ResType, b);
+
     switch (@typeInfo(ResType)) {
         .int => {
             if (@typeInfo(ResType).int.signedness == .signed) {

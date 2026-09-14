@@ -78,12 +78,14 @@ pub const AOFEntry = extern struct {
             last_checksum.* orelse 0,
             message.header.checksum,
         });
+
         if (last_checksum.* == null or last_checksum.*.? != message.header.parent) {
             log.info("from_message: parent {x:0>32}, expected {x:0>32} instead", .{
                 message.header.parent,
                 last_checksum.* orelse 0,
             });
         }
+
         last_checksum.* = message.header.checksum;
 
         // The cluster identifier is in the VSR header so we don't need to store it explicitly.
@@ -93,6 +95,7 @@ pub const AOFEntry = extern struct {
         // relevant op.
         comptime {
             const fields = std.meta.fieldNames(AOFEntry);
+
             assert(fields.len == 2);
             assert(std.mem.eql(u8, fields[0], "magic_number"));
             assert(std.mem.eql(u8, fields[1], "message"));
@@ -103,12 +106,14 @@ pub const AOFEntry = extern struct {
         // binary.
         self.* = undefined;
         self.magic_number = magic_number;
+
         stdx.copy_disjoint(
             .exact,
             u8,
             self.message[0..message.header.size],
             message.buffer[0..message.header.size],
         );
+
         @memset(self.message[message.header.size..self.message.len], 0);
     }
 };
@@ -139,6 +144,7 @@ pub fn AOFType(comptime IO: type) type {
                 fsync_completion: IO.Completion,
             },
         } = .{ .writing = .{ .unflushed = 0 } },
+
         size: usize = 0,
 
         /// Create an AOF in the dir_fd when given a file name. dir_fd must be opened read write
@@ -150,6 +156,7 @@ pub fn AOFType(comptime IO: type) type {
             path: []const u8,
         ) !AOF {
             stdx.maybe(std.fs.path.isAbsolute(path));
+
             assert(std.mem.endsWith(u8, path, ".aof"));
 
             return AOF{
@@ -163,6 +170,7 @@ pub fn AOFType(comptime IO: type) type {
             assert(self.fd != null);
 
             self.io.aof_blocking_close(self.fd.?);
+
             self.fd = null;
         }
 
@@ -174,6 +182,7 @@ pub fn AOFType(comptime IO: type) type {
             assert(self.state.writing.unflushed < constants.journal_slot_count);
 
             var entry: AOFEntry align(constants.sector_size) = undefined;
+
             entry.from_message(
                 message,
                 &self.last_checksum,
@@ -191,6 +200,7 @@ pub fn AOFType(comptime IO: type) type {
         pub fn sync(self: *AOF) void {
             assert(self.state == .writing);
             assert(self.state.writing.unflushed <= constants.journal_slot_count);
+
             self.state.writing.unflushed = 0;
         }
 
@@ -224,32 +234,39 @@ pub fn AOFType(comptime IO: type) type {
             _ = result catch @panic("aof fsync failure");
 
             assert(self.state == .checkpoint);
+
             const replica = self.state.checkpoint.replica;
             const replica_callback = self.state.checkpoint.replica_callback;
+
             self.state = .{ .writing = .{ .unflushed = 0 } };
 
             const stat_file = self.io.aof_blocking_stat(self.path) catch |err| switch (err) {
                 error.FileNotFound => blk: {
                     log.info("{s} not found; creating", .{self.path});
                     self.close();
+
                     assert(self.fd == null);
+
                     self.fd = self.io.aof_blocking_open(self.path) catch |e| {
                         std.debug.panic("failed to reopen {s} after rotate: {}", .{ self.path, e });
                     };
 
                     break :blk self.io.aof_blocking_stat(self.path) catch |e| {
                         log.warn("failed to stat aof ({s}): {}", .{ self.path, e });
+
                         break :blk null;
                     };
                 },
                 else => blk: {
                     log.warn("failed to stat aof ({s}): {}", .{ self.path, err });
+
                     break :blk null;
                 },
             };
 
             const stat_fd = self.io.aof_blocking_fstat(self.fd.?) catch |err| blk: {
                 log.warn("failed to fstat aof ({s}): {}", .{ self.path, err });
+
                 break :blk null;
             };
 
@@ -261,6 +278,7 @@ pub fn AOFType(comptime IO: type) type {
             if (stat_fd != null and stat_file != null and stat_fd.?.inode != stat_file.?.inode) {
                 log.err("AOF inode mismatch detected - the AOF file path is not the same as " ++
                     "the open file descriptor being written to.", .{});
+
                 log.err(
                     "Move {s} out the way, and let tigerbeetle recreate the AOF.",
                     .{self.path},
@@ -274,6 +292,7 @@ pub fn AOFType(comptime IO: type) type {
             var validation_target: AOFEntry = undefined;
 
             var validation_checksums = std.AutoHashMap(u128, void).init(allocator);
+
             defer validation_checksums.deinit();
 
             var it = Iterator{
@@ -314,6 +333,7 @@ pub fn AOFType(comptime IO: type) type {
                 if (last_entry.?.header().checksum != checksum) {
                     return error.ChecksumMismatch;
                 }
+
                 log.info("validated all aof entries. last entry checksum {x:0>32} matches " ++
                     " supplied {x:0>32}", .{ last_entry.?.header().checksum, checksum });
             } else {
@@ -344,12 +364,15 @@ pub fn AOFType(comptime IO: type) type {
                 assert(addresses.len <= constants.replicas_max);
 
                 var message_pool = try allocator.create(MessagePool);
+
                 errdefer allocator.destroy(message_pool);
 
                 var client = try allocator.create(Client);
+
                 errdefer allocator.destroy(client);
 
                 message_pool.* = try MessagePool.init(allocator, .client);
+
                 errdefer message_pool.deinit(allocator);
 
                 client.* = try Client.init(
@@ -373,9 +396,11 @@ pub fn AOFType(comptime IO: type) type {
                         },
                     },
                 );
+
                 errdefer client.deinit(allocator);
 
                 client.register(register_callback, undefined);
+
                 while (client.request_inflight != null) {
                     client.tick();
                     try io.run_for_ns(constants.tick_ms * std.time.ns_per_ms);
@@ -402,13 +427,17 @@ pub fn AOFType(comptime IO: type) type {
                 while (try iterator.next(&target)) |entry| {
                     // Skip replaying reserved messages and messages not marked for playback.
                     const header = entry.header();
+
                     assert(header.cluster == self.client.cluster);
+
                     if (!ReplayClient.replay_message(header)) continue;
 
                     const message = self.client.get_message().build(.request);
+
                     errdefer self.client.release_message(message.base());
 
                     assert(self.inflight_message == null);
+
                     self.inflight_message = message;
 
                     entry.to_message(message.base().build(.prepare));
@@ -447,7 +476,9 @@ pub fn AOFType(comptime IO: type) type {
             /// a lot of time when replaying.
             pub fn replay_message(header: *Header.Prepare) bool {
                 if (header.operation.vsr_reserved()) return false;
+
                 const state_machine_operation = header.operation.cast(tb.Operation);
+
                 switch (state_machine_operation) {
                     .create_accounts,
                     .create_transfers,
@@ -483,7 +514,9 @@ pub fn AOFType(comptime IO: type) type {
                 _ = result;
 
                 const self: *ReplayClient = @ptrFromInt(@as(usize, @intCast(user_data)));
+
                 assert(self.inflight_message != null);
+
                 self.inflight_message = null;
             }
         };
@@ -502,6 +535,7 @@ pub fn AOFType(comptime IO: type) type {
 
             pub fn init(io: *IO, path: []const u8) !Iterator {
                 const file = try std.fs.cwd().openFile(path, .{ .mode = .read_only });
+
                 errdefer file.close();
 
                 const size = (try file.stat()).size;
@@ -513,6 +547,7 @@ pub fn AOFType(comptime IO: type) type {
                 if (it.offset >= it.size) return null;
 
                 const buf = std.mem.asBytes(target);
+
                 const bytes_read = try it.io.aof_blocking_pread_all(
                     it.file_descriptor,
                     buf,
@@ -532,6 +567,7 @@ pub fn AOFType(comptime IO: type) type {
                 }
 
                 const header = target.header();
+
                 if (!header.valid_checksum()) {
                     return error.AOFChecksumMismatch;
                 }
@@ -567,6 +603,7 @@ pub fn AOFType(comptime IO: type) type {
             /// to it, and setting our internal position correctly.
             pub fn skip(it: *Iterator, allocator: std.mem.Allocator, count: usize) !void {
                 var skip_buffer = try allocator.alloc(u8, 1 * MiB);
+
                 defer allocator.free(skip_buffer);
 
                 while (it.offset < it.size) {
@@ -575,6 +612,7 @@ pub fn AOFType(comptime IO: type) type {
                         skip_buffer,
                         it.offset,
                     );
+
                     const offset = std.mem.indexOfPos(
                         u8,
                         skip_buffer[0..bytes_read],
@@ -584,6 +622,7 @@ pub fn AOFType(comptime IO: type) type {
 
                     if (offset) |offset_bytes| {
                         it.offset += offset_bytes;
+
                         break;
                     } else {
                         it.offset += skip_buffer.len;
@@ -602,6 +641,7 @@ pub fn AOFType(comptime IO: type) type {
 
             var aofs: [constants.members_max]Iterator = undefined;
             var aof_count: usize = 0;
+
             defer for (aofs[0..aof_count]) |*it| it.close();
 
             assert(input_paths.len <= aofs.len);
@@ -615,21 +655,27 @@ pub fn AOFType(comptime IO: type) type {
             };
 
             var message_pool = try MessagePool.init_capacity(allocator, 1);
+
             defer message_pool.deinit(allocator);
 
             var entries_by_parent = std.AutoHashMap(u128, EntryInfo).init(allocator);
+
             defer entries_by_parent.deinit();
 
             var target = try allocator.create(AOFEntry);
+
             defer allocator.destroy(target);
 
             const dir_fd = try IO.open_dir(std.fs.path.dirname(output_path) orelse ".");
+
             defer std.posix.close(dir_fd);
 
             for (input_paths) |input_path| {
                 aofs[aof_count] = try Iterator.init(io, input_path);
+
                 aof_count += 1;
             }
+
             assert(aof_count > 0);
             assert(aof_count <= constants.members_max);
 
@@ -638,7 +684,9 @@ pub fn AOFType(comptime IO: type) type {
             // First, iterate all AOFs and build a mapping between parent checksums and where the
             // entry is located.
             try stdout.print("Building checksum map...\n", .{});
+
             var current_parent: ?u128 = null;
+
             for (aofs[0..aof_count], 0..) |*aof, i| {
                 // While building our checksum map, don't validate our hash chain. We might have a
                 // file that has a broken chain, but still contains valid data that can be used for
@@ -654,7 +702,9 @@ pub fn AOFType(comptime IO: type) type {
                                     "{s}: Skipping entry with corrupted magic number.\n",
                                     .{input_paths[i]},
                                 );
+
                                 try aof.skip(allocator, 0);
+
                                 continue;
                             },
 
@@ -666,7 +716,9 @@ pub fn AOFType(comptime IO: type) type {
                                     "{s}: Skipping entry with corrupted checksum.\n",
                                     .{input_paths[i]},
                                 );
+
                                 try aof.skip(allocator, 1);
+
                                 continue;
                             },
 
@@ -675,11 +727,13 @@ pub fn AOFType(comptime IO: type) type {
                                     "{s}: Skipping truncated entry at EOF.\n",
                                     .{input_paths[i]},
                                 );
+
                                 break;
                             },
 
                             else => @panic("Unexpected Error"),
                         }
+
                         break;
                     };
 
@@ -696,10 +750,12 @@ pub fn AOFType(comptime IO: type) type {
                             "The root checksum will be {x:0>32} from {s}.\n",
                             .{ parent, input_paths[i] },
                         );
+
                         current_parent = parent;
                     }
 
                     const v = try entries_by_parent.getOrPut(parent);
+
                     if (v.found_existing) {
                         // If the entry already exists in our mapping, and it's identical, that's
                         // OK. If it's not however, it indicates the log has been forked somehow.
@@ -714,6 +770,7 @@ pub fn AOFType(comptime IO: type) type {
                         };
                     }
                 }
+
                 try stdout.print(
                     "Finished processing {s} - extracted {} usable entries.\n",
                     .{ input_paths[i], entries_by_parent.count() },
@@ -724,12 +781,15 @@ pub fn AOFType(comptime IO: type) type {
             // left. We currently take the root checksum as the first entry in the first AOF.
             while (entries_by_parent.count() > 0) {
                 const message = message_pool.get_message(.prepare);
+
                 defer message_pool.unref(message);
 
                 assert(current_parent != null);
+
                 const entry = entries_by_parent.getPtr(current_parent.?) orelse unreachable;
 
                 const buf = std.mem.asBytes(target)[0..entry.size];
+
                 const bytes_read = try io.aof_blocking_pread_all(
                     entry.aof.file_descriptor,
                     buf,
@@ -742,6 +802,7 @@ pub fn AOFType(comptime IO: type) type {
                 }
 
                 const header = target.header();
+
                 if (!header.valid_checksum()) {
                     @panic("unexpected checksum error while merging");
                 }
@@ -751,11 +812,13 @@ pub fn AOFType(comptime IO: type) type {
                 }
 
                 target.to_message(message);
+
                 try output_aof.write(
                     message,
                 );
 
                 current_parent = entry.checksum;
+
                 _ = entries_by_parent.remove(entry.parent);
             }
 
@@ -765,6 +828,7 @@ pub fn AOFType(comptime IO: type) type {
             try stdout.print("Validating Output {s}\n", .{output_path});
 
             var it = try Iterator.init(io, output_path);
+
             defer it.close();
 
             var first_checksum: ?u128 = null;
@@ -772,6 +836,7 @@ pub fn AOFType(comptime IO: type) type {
 
             while (try it.next(target)) |entry| {
                 const header = entry.header();
+
                 if (first_checksum == null) {
                     first_checksum = header.checksum;
                 }
@@ -795,26 +860,33 @@ test "aof write / read" {
     const AOFIterator = AOF.Iterator;
 
     const aof_file = "test.aof";
+
     std.fs.cwd().deleteFile(aof_file) catch {};
+
     defer std.fs.cwd().deleteFile(aof_file) catch {};
 
     const allocator = std.testing.allocator;
 
     var io = try IO.init(32, 0);
+
     defer io.deinit();
 
     const dir_fd = try IO.open_dir(".");
+
     defer std.posix.close(dir_fd);
 
     var aof = try AOF.init(&io, aof_file);
 
     var message_pool = try MessagePool.init_capacity(allocator, 2);
+
     defer message_pool.deinit(allocator);
 
     const demo_message = message_pool.get_message(.prepare);
+
     defer message_pool.unref(demo_message);
 
     const target = try allocator.create(AOFEntry);
+
     defer allocator.destroy(target);
 
     const demo_payload = "hello world";
@@ -845,15 +917,18 @@ test "aof write / read" {
     aof.close();
 
     var it = try AOFIterator.init(&io, aof_file);
+
     defer it.close();
 
     const read_entry = (try it.next(target)).?;
 
     // Check that to_message also works as expected
     const read_message = message_pool.get_message(.prepare);
+
     defer message_pool.unref(read_message);
 
     read_entry.to_message(read_message);
+
     try testing.expect(std.mem.eql(
         u8,
         demo_message.buffer[0..demo_message.header.size],
@@ -879,10 +954,12 @@ const CLIArgs = union(enum) {
         @"--": void,
         path: []const u8,
     },
+
     debug: struct {
         @"--": void,
         path: []const u8,
     },
+
     merge: struct {
         @"--": void,
         paths: []const []const u8,
@@ -937,15 +1014,18 @@ pub fn main() !void {
     const time = time_os.time();
 
     var flags = stdx.Flags.init(gpa);
+
     defer flags.deinit(gpa);
 
     const args = flags.parse(CLIArgs);
 
     const target = try gpa.create(AOFEntry);
+
     defer gpa.destroy(target);
 
     const IO = @import("io.zig").IO;
     var io = try IO.init(32, 0);
+
     defer io.deinit();
 
     const AOF = AOFType(IO);
@@ -955,26 +1035,32 @@ pub fn main() !void {
     switch (args) {
         .recover => |command| {
             var it = try AOFIterator.init(&io, command.path);
+
             defer it.close();
 
             var addresses_buffer: [constants.replicas_max]stdx.SocketAddress = undefined;
             const addresses_parsed = try vsr.parse_addresses(command.addresses, &addresses_buffer);
+
             var replay =
                 try AOFReplayClient.init(&io, gpa, time, command.cluster, addresses_parsed);
+
             defer replay.deinit(gpa);
 
             try replay.replay(&it);
         },
         .debug => |command| {
             var it = try AOFIterator.init(&io, command.path);
+
             defer it.close();
 
             var data_checksum: [32]u8 = undefined;
             var blake3 = std.crypto.hash.Blake3.init(.{});
 
             const stdout = std.io.getStdOut().writer();
+
             while (try it.next(target)) |entry| {
                 const header = entry.header();
+
                 if (!AOFReplayClient.replay_message(header)) continue;
 
                 try stdout.print("{}\n", .{
@@ -987,7 +1073,9 @@ pub fn main() !void {
                 blake3.update(std.mem.asBytes(&header.timestamp));
                 blake3.update(std.mem.asBytes(&header.operation));
             }
+
             blake3.final(data_checksum[0..]);
+
             try stdout.print(
                 "\nData checksum chain: {}\n",
                 .{@as(u128, @bitCast(data_checksum[0..@sizeOf(u128)].*))},
@@ -999,6 +1087,7 @@ pub fn main() !void {
 
             assert(merge.paths.len > 0);
             assert(merge.paths.len <= constants.members_max);
+
             try AOF.merge(&io, gpa, merge.paths, "prepared.aof");
         },
     }

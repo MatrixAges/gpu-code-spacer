@@ -78,6 +78,7 @@ const indirect_vtable: Reader.VTable = .{
 /// capacity.
 pub fn init(input: *Reader, container: Container, buffer: []u8) Decompress {
     if (buffer.len != 0) assert(buffer.len >= flate.max_window_len);
+
     return .{
         .reader = .{
             .vtable = if (buffer.len == 0) &direct_vtable else &indirect_vtable,
@@ -103,9 +104,12 @@ fn rebaseFallible(r: *Reader, capacity: usize) Reader.RebaseError!void {
 fn rebase(r: *Reader, capacity: usize) void {
     assert(capacity <= r.buffer.len - flate.history_len);
     assert(r.end + capacity > r.buffer.len);
+
     const discard_n = @min(r.seek, r.end - flate.history_len);
     const keep = r.buffer[discard_n..r.end];
+
     @memmove(r.buffer[0..keep.len], keep);
+
     r.end = keep.len;
     r.seek -= discard_n;
 }
@@ -114,6 +118,7 @@ fn rebase(r: *Reader, capacity: usize) void {
 /// entire frame, skip decoding that frame.
 fn discardDirect(r: *Reader, limit: std.Io.Limit) Reader.Error!usize {
     if (r.end + flate.history_len > r.buffer.len) rebase(r, flate.history_len);
+
     var writer: Writer = .{
         .vtable = &.{
             .drain = std.Io.Writer.Discarding.drain,
@@ -122,49 +127,65 @@ fn discardDirect(r: *Reader, limit: std.Io.Limit) Reader.Error!usize {
         .buffer = r.buffer,
         .end = r.end,
     };
+
     defer {
         assert(writer.end != 0);
+
         r.end = writer.end;
         r.seek = r.end;
     }
+
     const n = r.stream(&writer, limit) catch |err| switch (err) {
         error.WriteFailed => unreachable,
         error.ReadFailed => return error.ReadFailed,
         error.EndOfStream => return error.EndOfStream,
     };
+
     assert(n <= @intFromEnum(limit));
+
     return n;
 }
 
 fn discardIndirect(r: *Reader, limit: std.Io.Limit) Reader.Error!usize {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     if (r.end + flate.history_len > r.buffer.len) rebase(r, flate.history_len);
+
     var writer: Writer = .{
         .buffer = r.buffer,
         .end = r.end,
         .vtable = &.{ .drain = Writer.unreachableDrain },
     };
+
     {
         defer r.end = writer.end;
+
         _ = streamFallible(d, &writer, .limited(writer.buffer.len - writer.end)) catch |err| switch (err) {
             error.WriteFailed => unreachable,
             else => |e| return e,
         };
     }
+
     const n = limit.minInt(r.end - r.seek);
+
     r.seek += n;
+
     return n;
 }
 
 fn readVec(r: *Reader, data: [][]u8) Reader.Error!usize {
     _ = data;
+
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     return streamIndirectInner(d);
 }
 
 fn streamIndirectInner(d: *Decompress) Reader.Error!usize {
     const r = &d.reader;
+
     if (r.buffer.len - r.end < flate.history_len) rebase(r, flate.history_len);
+
     var writer: Writer = .{
         .buffer = r.buffer,
         .end = r.end,
@@ -173,27 +194,34 @@ fn streamIndirectInner(d: *Decompress) Reader.Error!usize {
             .rebase = Writer.unreachableRebase,
         },
     };
+
     defer r.end = writer.end;
+
     _ = streamFallible(d, &writer, .limited(writer.buffer.len - writer.end)) catch |err| switch (err) {
         error.WriteFailed => unreachable,
         else => |e| return e,
     };
+
     return 0;
 }
 
 fn decodeLength(self: *Decompress, code_int: u5) !u16 {
     if (code_int > 28) return error.InvalidCode;
+
     const l: token.LenCode = .fromInt(code_int);
     const base = l.base();
     const extra = l.extraBits();
+
     return token.min_length + (base | try self.takeBits(extra));
 }
 
 fn decodeDistance(self: *Decompress, code_int: u5) !u16 {
     if (code_int > 29) return error.InvalidCode;
+
     const d: token.DistCode = .fromInt(code_int);
     const base = d.base();
     const extra = d.extraBits();
+
     return token.min_distance + (base | try self.takeBits(extra));
 }
 
@@ -208,17 +236,21 @@ fn dynamicCodeLength(self: *Decompress, code: u16, lens: []u4, pos: usize) !usiz
         0...15 => {
             // Represent code lengths of 0 - 15
             lens[pos] = @intCast(code);
+
             return 1;
         },
         16 => {
             // Copy the previous code length 3 - 6 times.
             // The next 2 bits indicate repeat length
             const n: u8 = @as(u8, try self.takeIntBits(u2)) + 3;
+
             if (pos == 0 or pos + n > lens.len)
                 return error.InvalidDynamicBlockHeader;
+
             for (0..n) |i| {
                 lens[pos + i] = lens[pos + i - 1];
             }
+
             return n;
         },
         // Repeat a code length of 0 for 3 - 10 times. (3 bits of length)
@@ -232,19 +264,24 @@ fn dynamicCodeLength(self: *Decompress, code: u16, lens: []u4, pos: usize) !usiz
 fn decodeSymbol(self: *Decompress, decoder: anytype) !Symbol {
     // Maximum code len is 15 bits.
     const sym = try decoder.find(@bitReverse(try self.peekIntBitsShort(u15)));
+
     try self.tossBitsShort(sym.code_bits);
+
     return sym;
 }
 
 fn streamDirect(r: *Reader, w: *Writer, limit: std.Io.Limit) Reader.StreamError!usize {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     return streamFallible(d, w, limit);
 }
 
 fn streamIndirect(r: *Reader, w: *Writer, limit: std.Io.Limit) Reader.StreamError!usize {
     const d: *Decompress = @alignCast(@fieldParentPtr("reader", r));
+
     _ = limit;
     _ = w;
+
     return streamIndirectInner(d);
 }
 
@@ -255,6 +292,7 @@ fn streamFallible(d: *Decompress, w: *Writer, limit: std.Io.Limit) Reader.Stream
                 return error.EndOfStream;
             } else {
                 d.err = error.EndOfStream;
+
                 return error.ReadFailed;
             }
         },
@@ -263,6 +301,7 @@ fn streamFallible(d: *Decompress, w: *Writer, limit: std.Io.Limit) Reader.Stream
             // In the event of an error, state is unmodified so that it can be
             // better used to diagnose the failure.
             d.err = e;
+
             return error.ReadFailed;
         },
     };
@@ -271,12 +310,14 @@ fn streamFallible(d: *Decompress, w: *Writer, limit: std.Io.Limit) Reader.Stream
 fn streamInner(d: *Decompress, w: *Writer, limit: std.Io.Limit) (Error || Reader.StreamError)!usize {
     var remaining = @intFromEnum(limit);
     const in = d.input;
+
     sw: switch (d.state) {
         .protocol_header => switch (d.container_metadata.container()) {
             .gzip => {
                 const Header = extern struct {
                     magic: u16 align(1),
                     method: u8,
+
                     flags: packed struct(u8) {
                         text: bool,
                         hcrc: bool,
@@ -285,46 +326,62 @@ fn streamInner(d: *Decompress, w: *Writer, limit: std.Io.Limit) (Error || Reader
                         comment: bool,
                         reserved: u3,
                     },
+
                     mtime: u32 align(1),
                     xfl: u8,
                     os: u8,
                 };
+
                 const header = try in.takeStruct(Header, .little);
+
                 if (header.magic != 0x8b1f or header.method != 0x08)
                     return error.BadGzipHeader;
+
                 if (header.flags.extra) {
                     const extra_len = try in.takeInt(u16, .little);
+
                     try in.discardAll(extra_len);
                 }
+
                 if (header.flags.name) {
                     _ = try in.discardDelimiterInclusive(0);
                 }
+
                 if (header.flags.comment) {
                     _ = try in.discardDelimiterInclusive(0);
                 }
+
                 if (header.flags.hcrc) {
                     try in.discardAll(2);
                 }
+
                 continue :sw .block_header;
             },
             .zlib => {
                 const header = try in.takeArray(2);
                 const cmf: packed struct(u8) { cm: u4, cinfo: u4 } = @bitCast(header[0]);
+
                 if (cmf.cm != 8 or cmf.cinfo > 7) return error.BadZlibHeader;
+
                 continue :sw .block_header;
             },
             .raw => continue :sw .block_header,
         },
         .block_header => {
             d.final_block = (try d.takeIntBits(u1)) != 0;
+
             const block_type: BlockType = @enumFromInt(try d.takeIntBits(u2));
+
             switch (block_type) {
                 .stored => {
                     d.alignBitsForward();
+
                     // everything after this is byte aligned in stored block
                     const len = try in.takeInt(u16, .little);
                     const nlen = try in.takeInt(u16, .little);
+
                     if (len != ~nlen) return error.WrongStoredBlockNlen;
+
                     continue :sw .{ .stored_block = len };
                 },
                 .fixed => continue :sw .fixed_block,
@@ -338,21 +395,28 @@ fn streamInner(d: *Decompress, w: *Writer, limit: std.Io.Limit) (Error || Reader
 
                     // lengths for code lengths
                     var cl_lens: [19]u4 = @splat(0);
+
                     for (token.codegen_order[0..hclen]) |i| {
                         cl_lens[i] = try d.takeIntBits(u3);
                     }
+
                     var cl_dec: CodegenDecoder = .{};
+
                     try cl_dec.generate(&cl_lens);
 
                     // decoded code lengths
                     var dec_lens: [286 + 30]u4 = @splat(0);
                     var pos: usize = 0;
+
                     while (pos < hlit + hdist) {
                         const peeked = @bitReverse(try d.peekIntBitsShort(u7));
                         const sym = try cl_dec.find(peeked);
+
                         try d.tossBitsShort(sym.code_bits);
+
                         pos += try d.dynamicCodeLength(sym.symbol, &dec_lens, pos);
                     }
+
                     if (pos > hlit + hdist) {
                         return error.InvalidDynamicBlockHeader;
                     }
@@ -373,61 +437,81 @@ fn streamInner(d: *Decompress, w: *Writer, limit: std.Io.Limit) (Error || Reader
                 try w.writableSliceGreedyPreserve(flate.history_len, 1)
             else
                 &.{};
+
             var limited_out: [1][]u8 = .{limit.min(.limited(remaining_len)).slice(out)};
             const n = try in.readVec(&limited_out);
+
             if (remaining_len - n == 0) {
                 d.state = if (d.final_block) .protocol_footer else .block_header;
             } else {
                 d.state = .{ .stored_block = @intCast(remaining_len - n) };
             }
+
             w.advance(n);
+
             return @intFromEnum(limit) - remaining + n;
         },
         .fixed_block => {
             while (remaining > 0) {
                 const code = try d.readFixedCode();
+
                 switch (code) {
                     0...255 => {
                         if (remaining != 0) {
                             @branchHint(.likely);
+
                             try w.writeBytePreserve(flate.history_len, @intCast(code));
+
                             remaining -= 1;
                         } else {
                             d.state = .{ .fixed_block_literal = @intCast(code) };
+
                             return @intFromEnum(limit) - remaining;
                         }
                     },
                     256 => {
                         d.state = if (d.final_block) .protocol_footer else .block_header;
+
                         return @intFromEnum(limit) - remaining;
                     },
                     257...285 => {
                         // Handles fixed block non literal (length) code.
                         // Length code is followed by 5 bits of distance code.
                         const length = try d.decodeLength(@intCast(code - 257));
+
                         continue :sw .{ .fixed_block_match = length };
                     },
                     else => return error.InvalidCode,
                 }
             }
+
             d.state = .fixed_block;
+
             return @intFromEnum(limit) - remaining;
         },
         .fixed_block_literal => |symbol| {
             assert(remaining != 0);
+
             remaining -= 1;
+
             try w.writeBytePreserve(flate.history_len, symbol);
+
             continue :sw .fixed_block;
         },
         .fixed_block_match => |length| {
             if (remaining >= length) {
                 @branchHint(.likely);
+
                 const distance = try d.decodeDistance(@bitReverse(try d.takeIntBits(u5)));
+
                 try writeMatch(w, length, distance);
+
                 remaining -= length;
+
                 continue :sw .fixed_block;
             } else {
                 d.state = .{ .fixed_block_match = length };
+
                 return @intFromEnum(limit) - remaining;
             }
         },
@@ -435,51 +519,68 @@ fn streamInner(d: *Decompress, w: *Writer, limit: std.Io.Limit) (Error || Reader
             // In larger archives most blocks are usually dynamic, so
             // decompression performance depends on this logic.
             var sym = try d.decodeSymbol(&d.lit_dec);
+
             sym: switch (sym.kind) {
                 .literal => {
                     if (remaining != 0) {
                         @branchHint(.likely);
+
                         remaining -= 1;
+
                         try w.writeBytePreserve(flate.history_len, sym.symbol);
+
                         sym = try d.decodeSymbol(&d.lit_dec);
+
                         continue :sym sym.kind;
                     } else {
                         d.state = .{ .dynamic_block_literal = sym.symbol };
+
                         return @intFromEnum(limit) - remaining;
                     }
                 },
                 .match => {
                     // Decode match backreference <length, distance>
                     const length = try d.decodeLength(@intCast(sym.symbol));
+
                     continue :sw .{ .dynamic_block_match = length };
                 },
                 .end_of_block => {
                     d.state = if (d.final_block) .protocol_footer else .block_header;
+
                     continue :sw d.state;
                 },
             }
         },
         .dynamic_block_literal => |symbol| {
             assert(remaining != 0);
+
             remaining -= 1;
+
             try w.writeBytePreserve(flate.history_len, symbol);
+
             continue :sw .dynamic_block;
         },
         .dynamic_block_match => |length| {
             if (remaining >= length) {
                 @branchHint(.likely);
+
                 remaining -= length;
+
                 const dsm = try d.decodeSymbol(&d.dst_dec);
                 const distance = try d.decodeDistance(@intCast(dsm.symbol));
+
                 try writeMatch(w, length, distance);
+
                 continue :sw .dynamic_block;
             } else {
                 d.state = .{ .dynamic_block_match = length };
+
                 return @intFromEnum(limit) - remaining;
             }
         },
         .protocol_footer => {
             d.alignBitsForward();
+
             switch (d.container_metadata) {
                 .gzip => |*gzip| {
                     gzip.crc = try in.takeInt(u32, .little);
@@ -490,7 +591,9 @@ fn streamInner(d: *Decompress, w: *Writer, limit: std.Io.Limit) (Error || Reader
                 },
                 .raw => {},
             }
+
             d.state = .end;
+
             return @intFromEnum(limit) - remaining;
         },
         .end => return error.EndOfStream,
@@ -511,6 +614,7 @@ fn writeMatch(w: *Writer, length: u16, distance: u16) !void {
     const dest = try w.writableSlicePreserve(flate.history_len, length);
     const end = dest.ptr - w.buffer.ptr;
     const src = w.buffer[end - distance ..][0..length];
+
     for (dest, src) |*d, s| d.* = s;
 }
 
@@ -519,7 +623,9 @@ fn peekBits(d: *Decompress, n: u4) !u16 {
         error.ReadFailed => error.ReadFailed,
         error.EndOfStream => d.peekBitsEnding(n),
     };
+
     const mask = @shlExact(@as(u16, 1), n) - 1;
+
     return @intCast((bits >> d.consumed_bits) & mask);
 }
 
@@ -527,26 +633,33 @@ fn peekBitsEnding(d: *Decompress, n: u4) !u16 {
     @branchHint(.unlikely);
 
     const left = d.input.buffered();
+
     if (left.len * 8 - d.consumed_bits < n) return error.EndOfStream;
+
     const bits = std.mem.readVarInt(u32, left, .little);
     const mask = @shlExact(@as(u16, 1), n) - 1;
+
     return @intCast((bits >> d.consumed_bits) & mask);
 }
 
 /// Safe only after `peekBits` has been called with a greater or equal `n` value.
 fn tossBits(d: *Decompress, n: u4) void {
     d.input.toss((@as(u8, n) + d.consumed_bits) / 8);
+
     d.consumed_bits +%= @truncate(n);
 }
 
 fn takeBits(d: *Decompress, n: u4) !u16 {
     const bits = try d.peekBits(n);
+
     d.tossBits(n);
+
     return bits;
 }
 
 fn alignBitsForward(d: *Decompress) void {
     d.input.toss(@intFromBool(d.consumed_bits != 0));
+
     d.consumed_bits = 0;
 }
 
@@ -555,7 +668,9 @@ fn peekBitsShort(d: *Decompress, n: u4) !u16 {
         error.ReadFailed => error.ReadFailed,
         error.EndOfStream => d.peekBitsShortEnding(n),
     };
+
     const mask = @shlExact(@as(u16, 1), n) - 1;
+
     return @intCast((bits >> d.consumed_bits) & mask);
 }
 
@@ -565,11 +680,13 @@ fn peekBitsShortEnding(d: *Decompress, n: u4) !u16 {
     const left = d.input.buffered();
     const bits = std.mem.readVarInt(u32, left, .little);
     const mask = @shlExact(@as(u16, 1), n) - 1;
+
     return @intCast((bits >> d.consumed_bits) & mask);
 }
 
 fn tossBitsShort(d: *Decompress, n: u4) !void {
     if (d.input.bufferedLen() * 8 + d.consumed_bits < n) return error.EndOfStream;
+
     d.tossBits(n);
 }
 
@@ -595,6 +712,7 @@ fn peekIntBitsShort(d: *Decompress, T: type) !T {
 ///                                   11000111
 fn readFixedCode(d: *Decompress) !u16 {
     const code7 = @bitReverse(try d.takeIntBits(u7));
+
     return switch (code7) {
         0...0b0010_111 => @as(u16, code7) + 256,
         0b0010_111 + 1...0b1011_111 => (@as(u16, code7) << 1) + @as(u16, try d.takeIntBits(u1)) - 0b0011_0000,
@@ -624,8 +742,10 @@ pub const Symbol = packed struct {
             if (a.kind == b.kind) {
                 return a.symbol < b.symbol;
             }
+
             return @intFromEnum(a.kind) < @intFromEnum(b.kind);
         }
+
         return a.code_bits < b.code_bits;
     }
 };
@@ -669,6 +789,7 @@ fn HuffmanDecoder(
             // init alphabet with code_bits
             for (self.symbols, 0..) |_, i| {
                 const cb: u4 = if (i < lens.len) lens[i] else 0;
+
                 self.symbols[i] = if (i < 256)
                     .{ .kind = .literal, .symbol = @intCast(i), .code_bits = cb }
                 else if (i == 256)
@@ -676,6 +797,7 @@ fn HuffmanDecoder(
                 else
                     .{ .kind = .match, .symbol = @intCast(i - 257), .code_bits = cb };
             }
+
             std.sort.heap(Symbol, &self.symbols, {}, Symbol.asc);
 
             // reset lookup table
@@ -687,14 +809,17 @@ fn HuffmanDecoder(
             // reference: https://youtu.be/9_YEGLe33NA?list=PLU4IQLU9e_OrY8oASHx0u3IXAL9TOdidm&t=2639
             var code: u16 = 0;
             var idx: u16 = 0;
+
             for (&self.symbols, 0..) |*sym, pos| {
                 if (sym.code_bits == 0) continue; // skip unused
+
                 sym.code = code;
 
                 const next_code = code + (@as(u16, 1) << (max_code_bits - sym.code_bits));
                 const next_idx = next_code >> lookup_shift;
 
                 if (next_idx > self.lookup.len or idx >= self.lookup.len) break;
+
                 if (sym.code_bits <= lookup_bits) {
                     // fill small lookup table
                     for (idx..next_idx) |j|
@@ -703,6 +828,7 @@ fn HuffmanDecoder(
                     // insert into linked table starting at root
                     const root = &self.lookup[idx];
                     const root_next = root.next;
+
                     root.next = @intCast(pos);
                     sym.next = root_next;
                 }
@@ -722,25 +848,33 @@ fn HuffmanDecoder(
 
             var count = [_]u16{0} ** (@as(usize, max_code_bits) + 1);
             var max: usize = 0;
+
             for (lens) |n| {
                 if (n == 0) continue;
                 if (n > max) max = n;
+
                 count[n] += 1;
             }
+
             if (max == 0) // empty tree
                 return;
 
             // check for an over-subscribed or incomplete set of lengths
             var left: usize = 1; // one possible code of zero length
+
             for (1..count.len) |len| {
                 left <<= 1; // one more bit, double codes left
+
                 if (count[len] > left)
                     return error.OversubscribedHuffmanTree;
+
                 left -= count[len]; // deduct count from possible codes
             }
+
             if (left > 0) { // left > 0 means incomplete
                 // incomplete code ok only for single length 1 code
                 if (max_code_bits > 7 and max == count[0] + count[1]) return;
+
                 return error.IncompleteHuffmanTree;
             }
         }
@@ -750,20 +884,26 @@ fn HuffmanDecoder(
             // try to find in lookup table
             const idx = code >> lookup_shift;
             const sym = self.lookup[idx];
+
             if (sym.code_bits != 0) return sym;
+
             // if not use linked list of symbols with same prefix
             return self.findLinked(code, sym.next);
         }
 
         fn findLinked(self: *Self, code: u16, start: u16) !Symbol {
             var pos = start;
+
             while (pos > 0) {
                 const sym = self.symbols[pos];
                 const shift = max_code_bits - sym.code_bits;
+
                 // compare code_bits number of upper bits
                 if ((code ^ sym.code) >> shift == 0) return sym;
+
                 pos = sym.next;
             }
+
             return error.InvalidCode;
         }
     };
@@ -773,6 +913,7 @@ test "init/find" {
     // example data from: https://youtu.be/SJPvNi4HrWQ?t=8423
     const code_lens = [_]u4{ 4, 3, 0, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 3, 2 };
     var h: CodegenDecoder = .{};
+
     try h.generate(&code_lens);
 
     const expected = [_]struct {
@@ -813,11 +954,14 @@ test "init/find" {
     for (0..12) |i| {
         try testing.expectEqual(0, h.symbols[i].code_bits);
     }
+
     // used, from index 12
     for (expected, 12..) |e, i| {
         try testing.expectEqual(e.sym.symbol, h.symbols[i].symbol);
         try testing.expectEqual(e.sym.code_bits, h.symbols[i].code_bits);
+
         const sym_from_code = try h.find(e.code);
+
         try testing.expectEqual(e.sym.symbol, sym_from_code.symbol);
     }
 
@@ -849,6 +993,7 @@ test "encode/decode literals" {
     // Check that the example in RFC 1951 section 3.2.2 works (plus some zeroes)
     const max_bits = 5;
     var decoder: HuffmanDecoder(16, max_bits, 3) = .{};
+
     try decoder.generate(&.{ 3, 3, 3, 3, 0, 0, 3, 2, 4, 4 });
 
     inline for (0.., .{
@@ -864,10 +1009,13 @@ test "encode/decode literals" {
         @as(u4, 0b1111),
     }) |i, code| {
         const bits = @bitSizeOf(@TypeOf(code));
+
         if (bits == 0) continue;
+
         for (0..1 << (max_bits - bits)) |extra| {
             const full = (@as(u16, code) << (max_bits - bits)) | @as(u16, @intCast(extra));
             const symbol = try decoder.find(full);
+
             try testing.expectEqual(i, symbol.symbol);
             try testing.expectEqual(bits, symbol.code_bits);
         }
@@ -945,105 +1093,139 @@ test "zlib decompress non compressed block (type 0)" {
 test "failing end-of-stream" {
     try testFailure(.raw, @embedFile("testdata/fuzz/end-of-stream.input"), error.EndOfStream);
 }
+
 test "failing invalid-distance" {
     try testFailure(.raw, @embedFile("testdata/fuzz/invalid-distance.input"), error.InvalidMatch);
 }
+
 test "failing invalid-tree01" {
     try testFailure(.raw, @embedFile("testdata/fuzz/invalid-tree01.input"), error.IncompleteHuffmanTree);
 }
+
 test "failing invalid-tree02" {
     try testFailure(.raw, @embedFile("testdata/fuzz/invalid-tree02.input"), error.IncompleteHuffmanTree);
 }
+
 test "failing invalid-tree03" {
     try testFailure(.raw, @embedFile("testdata/fuzz/invalid-tree03.input"), error.IncompleteHuffmanTree);
 }
+
 test "failing lengths-overflow" {
     try testFailure(.raw, @embedFile("testdata/fuzz/lengths-overflow.input"), error.InvalidDynamicBlockHeader);
 }
+
 test "failing out-of-codes" {
     try testFailure(.raw, @embedFile("testdata/fuzz/out-of-codes.input"), error.InvalidCode);
 }
+
 test "failing puff01" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff01.input"), error.WrongStoredBlockNlen);
 }
+
 test "failing puff02" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff02.input"), error.EndOfStream);
 }
+
 test "failing puff04" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff04.input"), error.InvalidCode);
 }
+
 test "failing puff05" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff05.input"), error.EndOfStream);
 }
+
 test "failing puff06" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff06.input"), error.EndOfStream);
 }
+
 test "failing puff08" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff08.input"), error.InvalidCode);
 }
+
 test "failing puff10" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff10.input"), error.InvalidCode);
 }
+
 test "failing puff11" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff11.input"), error.InvalidMatch);
 }
+
 test "failing puff12" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff12.input"), error.InvalidDynamicBlockHeader);
 }
+
 test "failing puff13" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff13.input"), error.IncompleteHuffmanTree);
 }
+
 test "failing puff14" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff14.input"), error.EndOfStream);
 }
+
 test "failing puff15" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff15.input"), error.IncompleteHuffmanTree);
 }
+
 test "failing puff16" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff16.input"), error.InvalidDynamicBlockHeader);
 }
+
 test "failing puff17" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff17.input"), error.MissingEndOfBlockCode);
 }
+
 test "failing fuzz1" {
     try testFailure(.raw, @embedFile("testdata/fuzz/fuzz1.input"), error.InvalidDynamicBlockHeader);
 }
+
 test "failing fuzz2" {
     try testFailure(.raw, @embedFile("testdata/fuzz/fuzz2.input"), error.InvalidDynamicBlockHeader);
 }
+
 test "failing fuzz3" {
     try testFailure(.raw, @embedFile("testdata/fuzz/fuzz3.input"), error.InvalidMatch);
 }
+
 test "failing fuzz4" {
     try testFailure(.raw, @embedFile("testdata/fuzz/fuzz4.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff18" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff18.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff19" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff19.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff20" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff20.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff21" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff21.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff22" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff22.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff23" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff23.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff24" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff24.input"), error.IncompleteHuffmanTree);
 }
+
 test "failing puff25" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff25.input"), error.OversubscribedHuffmanTree);
 }
+
 test "failing puff26" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff26.input"), error.InvalidDynamicBlockHeader);
 }
+
 test "failing puff27" {
     try testFailure(.raw, @embedFile("testdata/fuzz/puff27.input"), error.InvalidDynamicBlockHeader);
 }
@@ -1090,10 +1272,12 @@ test "reading into empty buffer" {
         0b0000_0001, 0b0000_1100, 0x00, 0b1111_0011, 0xff, // deflate fixed buffer header len, nlen
         'H', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', 0x0a, // non compressed data
     };
+
     var in: Reader = .fixed(input);
     var decomp: Decompress = .init(&in, .raw, &.{});
     const r = &decomp.reader;
     var bufs: [1][]u8 = .{&.{}};
+
     try testing.expectEqual(0, try r.readVec(&bufs));
 }
 
@@ -1161,12 +1345,14 @@ test "zlib should not overshoot" {
 
     {
         const n = try decompress.reader.readSliceShort(&out);
+
         try std.testing.expectEqual(46, n);
         try std.testing.expectEqualStrings("Copyright Willem van Schaik, Singapore 1995-96", out[0..n]);
     }
 
     // 4 bytes after compressed chunk are available in reader.
     const n = try reader.readSliceShort(&out);
+
     try std.testing.expectEqual(n, 4);
     try std.testing.expectEqualSlices(u8, data[data.len - 4 .. data.len], out[0..n]);
 }
@@ -1174,9 +1360,11 @@ test "zlib should not overshoot" {
 fn testFailure(container: Container, in: []const u8, expected_err: anyerror) !void {
     var reader: Reader = .fixed(in);
     var aw: Writer.Allocating = .init(testing.allocator);
+
     defer aw.deinit();
 
     var decompress: Decompress = .init(&reader, container, &.{});
+
     try testing.expectError(error.ReadFailed, decompress.reader.streamRemaining(&aw.writer));
     try testing.expectEqual(expected_err, decompress.err orelse return error.TestFailed);
 }
@@ -1184,10 +1372,12 @@ fn testFailure(container: Container, in: []const u8, expected_err: anyerror) !vo
 fn testDecompress(container: Container, compressed: []const u8, expected_plain: []const u8) !void {
     var in: std.Io.Reader = .fixed(compressed);
     var aw: std.Io.Writer.Allocating = .init(testing.allocator);
+
     defer aw.deinit();
 
     var decompress: Decompress = .init(&in, container, &.{});
     const decompressed_len = try decompress.reader.streamRemaining(&aw.writer);
+
     try testing.expectEqual(expected_plain.len, decompressed_len);
     try testing.expectEqualSlices(u8, expected_plain, aw.written());
 }

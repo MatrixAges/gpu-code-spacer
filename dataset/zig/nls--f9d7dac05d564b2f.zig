@@ -134,9 +134,11 @@ pub fn upcaseW(c: u16) u16 {
     if (c < 'a') {
         return c;
     }
+
     if (c <= 'z') {
         return c - ('a' - 'A');
     }
+
     if (c >= 0xC0) {
         var offset: u16 = 0;
 
@@ -149,6 +151,7 @@ pub fn upcaseW(c: u16) u16 {
 
         return c +% offset;
     }
+
     return c;
 }
 
@@ -156,11 +159,14 @@ test "upcaseW matches RtlUpcaseUnicodeChar" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     var c: u16 = 0;
+
     while (true) : (c += 1) {
         std.testing.expectEqual(std.os.windows.ntdll.RtlUpcaseUnicodeChar(c), upcaseW(c)) catch |err| {
             std.debug.print("mismatch for codepoint U+{X}\n", .{c});
+
             return err;
         };
+
         if (c == 0xFFFF) break;
     }
 }

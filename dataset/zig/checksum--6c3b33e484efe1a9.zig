@@ -55,6 +55,7 @@ comptime {
 
 fn seed_init() void {
     const key: [16]u8 = @splat(0);
+
     seed_state = Aegis128LMac_128.init(&key);
 }
 
@@ -66,13 +67,17 @@ pub fn checksum(source: []const u8) u128 {
         // Use a hard-coded value instead and verify via a test.
         if (source.len == 0) return 0x49F174618255402DE6E7E3C40D60CC83;
     }
+
     var stream = ChecksumStream.init();
+
     stream.add(source);
+
     return stream.checksum();
 }
 
 test "checksum empty" {
     var stream = ChecksumStream.init();
+
     stream.add(&.{});
     try std.testing.expectEqual(stream.checksum(), comptime checksum(&.{}));
 }
@@ -82,6 +87,7 @@ pub const ChecksumStream = struct {
 
     pub fn init() ChecksumStream {
         seed_once.call();
+
         return ChecksumStream{ .state = seed_state };
     }
 
@@ -91,8 +97,11 @@ pub const ChecksumStream = struct {
 
     pub fn checksum(stream: *ChecksumStream) u128 {
         var result: u128 = undefined;
+
         stream.state.final(mem.asBytes(&result));
+
         stream.* = undefined;
+
         return result;
     }
 };
@@ -131,26 +140,33 @@ test "checksum simple fuzzing" {
     const msg_max = 1 * MiB;
 
     var msg_buf = try testing.allocator.alloc(u8, msg_max);
+
     defer testing.allocator.free(msg_buf);
 
     const cipher_buf = try testing.allocator.alloc(u8, msg_max);
+
     defer testing.allocator.free(cipher_buf);
 
     var i: usize = 0;
+
     while (i < 1_000) : (i += 1) {
         const msg_len = prng.range_inclusive(usize, msg_min, msg_max);
         const msg = msg_buf[0..msg_len];
+
         prng.fill(msg);
 
         const msg_checksum = checksum(msg);
 
         // Sanity check that it's a pure function.
         const msg_checksum_again = checksum(msg);
+
         try testing.expectEqual(msg_checksum, msg_checksum_again);
 
         // Change the message and make sure the checksum changes.
         msg[prng.index(msg)] +%= 1;
+
         const changed_checksum = checksum(msg);
+
         try testing.expect(changed_checksum != msg_checksum);
     }
 }
@@ -163,8 +179,10 @@ test "checksum stability" {
 
     // Zeros of various lengths.
     var subcase: usize = 0;
+
     while (subcase < 128) : (subcase += 1) {
         const message = buf[0..subcase];
+
         @memset(message, 0);
 
         cases[case_index] = checksum(message);
@@ -173,9 +191,12 @@ test "checksum stability" {
 
     // 64 bytes with exactly one bit set.
     subcase = 0;
+
     while (subcase < 64 * 8) : (subcase += 1) {
         const message = buf[0..64];
+
         @memset(message, 0);
+
         message[@divFloor(subcase, 8)] = @shlExact(@as(u8, 1), @as(u3, @intCast(subcase % 8)));
 
         cases[case_index] = checksum(message);
@@ -184,9 +205,12 @@ test "checksum stability" {
 
     // Pseudo-random data from a specific PRNG of various lengths.
     var prng = stdx.PRNG.from_seed(92);
+
     subcase = 0;
+
     while (subcase < 256) : (subcase += 1) {
         const message = buf[0 .. subcase + 13];
+
         prng.fill(message);
 
         cases[case_index] = checksum(message);
@@ -197,13 +221,16 @@ test "checksum stability" {
     for (cases, 0..) |case_a, i| {
         assert(case_a != 0);
         assert(case_a != std.math.maxInt(u128));
+
         for (cases[0..i]) |case_b| assert(case_a != case_b);
     }
 
     // Hash me, baby, one more time! If this final hash changes, we broke compatibility in a major
     // way.
     comptime assert(builtin.target.cpu.arch.endian() == .little);
+
     const hash = checksum(mem.sliceAsBytes(&cases));
+
     try testing.expectEqual(0x82dcaacf4875b279446825b6830d1263, hash);
 }
 
@@ -211,9 +238,11 @@ test "checksum alignment and sizing" {
     var gpa = std.testing.allocator;
 
     var input: []align(1) u8 = try gpa.alignedAlloc(u8, 1, 8 * stdx.KiB);
+
     defer gpa.free(input);
 
     var prng = stdx.PRNG.from_seed(92);
+
     prng.fill(input);
 
     var cases: [4112]u128 = @splat(0);
@@ -222,6 +251,7 @@ test "checksum alignment and sizing" {
     for (0..16) |start_idx| {
         cases[case_index] = checksum(input[start_idx..]);
         case_index += 1;
+
         for (0..256) |size| {
             cases[case_index] = checksum(input[start_idx..][0..size]);
             case_index += 1;
@@ -251,6 +281,8 @@ test "checksum alignment and sizing" {
     }
 
     comptime assert(builtin.target.cpu.arch.endian() == .little);
+
     const hash = checksum(mem.sliceAsBytes(&cases));
+
     try testing.expectEqual(0xC8E7102D72CE96458639F6027DA0FBA0, hash);
 }

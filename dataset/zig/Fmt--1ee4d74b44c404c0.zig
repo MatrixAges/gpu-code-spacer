@@ -22,6 +22,7 @@ pub const Options = struct {
 pub fn create(owner: *std.Build, options: Options) *Fmt {
     const fmt = owner.allocator.create(Fmt) catch @panic("OOM");
     const name = if (options.check) "zig fmt --check" else "zig fmt";
+
     fmt.* = .{
         .step = Step.init(.{
             .id = base_id,
@@ -33,6 +34,7 @@ pub fn create(owner: *std.Build, options: Options) *Fmt {
         .exclude_paths = owner.dupeStrings(options.exclude_paths),
         .check = options.check,
     };
+
     return fmt;
 }
 
@@ -49,6 +51,7 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     const fmt: *Fmt = @fieldParentPtr("step", step);
 
     var argv: std.ArrayList([]const u8) = .empty;
+
     try argv.ensureUnusedCapacity(arena, 2 + 1 + fmt.paths.len + 2 * fmt.exclude_paths.len);
 
     argv.appendAssumeCapacity(b.graph.zig_exe);
@@ -68,14 +71,17 @@ fn make(step: *Step, options: Step.MakeOptions) !void {
     }
 
     const run_result = try step.captureChildProcess(options.gpa, prog_node, argv.items);
+
     if (fmt.check) switch (run_result.term) {
         .Exited => |code| if (code != 0 and run_result.stdout.len != 0) {
             var it = std.mem.tokenizeScalar(u8, run_result.stdout, '\n');
+
             while (it.next()) |bad_file_name| {
                 try step.addError("{s}: non-conforming formatting", .{bad_file_name});
             }
         },
         else => {},
     };
+
     try step.handleChildProcessTerm(run_result.term);
 }

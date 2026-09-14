@@ -13,6 +13,7 @@ import {
   normalizeClass,
   normalizeStyle,
 } from '@vue/shared'
+
 import {
   type ClassComponent,
   type Component,
@@ -21,7 +22,9 @@ import {
   type Data,
   isClassComponent,
 } from './component'
+
 import type { RawSlots } from './componentSlots'
+
 import {
   type ReactiveFlags,
   type Ref,
@@ -29,28 +32,36 @@ import {
   isRef,
   toRaw,
 } from '@vue/reactivity'
+
 import type { AppContext } from './apiCreateApp'
+
 import {
   type Suspense,
   type SuspenseBoundary,
   type SuspenseImpl,
   isSuspense,
 } from './components/Suspense'
+
 import type { DirectiveBinding } from './directives'
+
 import {
   type TransitionHooks,
   setTransitionHooks,
 } from './components/BaseTransition'
+
 import { warn } from './warning'
+
 import {
   type Teleport,
   type TeleportImpl,
   isTeleport,
 } from './components/Teleport'
+
 import {
   currentRenderingInstance,
   currentScopeId,
 } from './componentRenderContext'
+
 import type { RendererElement, RendererNode } from './renderer'
 import { NULL_DYNAMIC_COMPONENT } from './helpers/resolveAssets'
 import { hmrDirtyComponents } from './hmr'
@@ -67,6 +78,7 @@ export const Fragment = Symbol.for('v-fgt') as any as {
     $props: VNodeProps
   }
 }
+
 export const Text: unique symbol = Symbol.for('v-txt')
 export const Comment: unique symbol = Symbol.for('v-cmt')
 export const Static: unique symbol = Symbol.for('v-stc')
@@ -116,6 +128,7 @@ export type VNodeNormalizedRef =
 
 type VNodeMountHook = (vnode: VNode) => void
 type VNodeUpdateHook = (vnode: VNode, oldVNode: VNode) => void
+
 export type VNodeHook =
   VNodeMountHook | VNodeUpdateHook | VNodeMountHook[] | VNodeUpdateHook[]
 
@@ -274,6 +287,7 @@ export function openBlock(disableTracking = false): void {
 
 export function closeBlock(): void {
   blockStack.pop()
+
   currentBlock = blockStack[blockStack.length - 1] || null
 }
 
@@ -301,6 +315,7 @@ export let isBlockTreeEnabled = 1
  */
 export function setBlockTracking(value: number, inVOnce = false): void {
   isBlockTreeEnabled += value
+
   if (value < 0 && currentBlock && inVOnce) {
     // mark current block so it doesn't take fast path and skip possible
     // nested components during unmount
@@ -312,13 +327,16 @@ function setupBlock(vnode: VNode) {
   // save current block children on the block vnode
   vnode.dynamicChildren =
     isBlockTreeEnabled > 0 ? currentBlock || (EMPTY_ARR as any) : null
+
   // close block
   closeBlock()
+
   // a block is always going to be patched, so track it as a child of its
   // parent block
   if (isBlockTreeEnabled > 0 && currentBlock) {
     currentBlock.push(vnode)
   }
+
   return vnode
 }
 
@@ -379,15 +397,18 @@ export function isVNode(value: any): value is VNode {
 export function isSameVNodeType(n1: VNode, n2: VNode): boolean {
   if (__DEV__ && n2.shapeFlag & ShapeFlags.COMPONENT && n1.component) {
     const dirtyInstances = hmrDirtyComponents.get(n2.type as ConcreteComponent)
+
     if (dirtyInstances && dirtyInstances.has(n1.component)) {
       // #7042, ensure the vnode being unmounted during HMR
       // bitwise operations to remove keep alive flags
       n1.shapeFlag &= ~ShapeFlags.COMPONENT_SHOULD_KEEP_ALIVE
       n2.shapeFlag &= ~ShapeFlags.COMPONENT_KEPT_ALIVE
+
       // HMR only: if the component has been hot-updated, force a reload.
       return false
     }
   }
+
   return n1.type === n2.type && n1.key === n2.key
 }
 
@@ -431,6 +452,7 @@ const normalizeRef = ({
   if (typeof ref === 'number') {
     ref = '' + ref
   }
+
   return (
     ref != null
       ? isString(ref) || isRef(ref) || isFunction(ref)
@@ -482,6 +504,7 @@ function createBaseVNode(
 
   if (needFullChildrenNormalization) {
     normalizeChildren(vnode, children)
+
     // normalize suspense children
     if (__FEATURE_SUSPENSE__ && shapeFlag & ShapeFlags.SUSPENSE) {
       ;(type as typeof SuspenseImpl).normalize(vnode)
@@ -509,6 +532,7 @@ function createBaseVNode(
         : props.textContent != null
           ? 'textContent'
           : null
+
     if (overwritingProp && hasContentChildren(vnode.children)) {
       warn(
         `The \`${overwritingProp}\` prop on <${vnode.type as string}> will ` +
@@ -556,6 +580,7 @@ export { createBaseVNode as createElementVNode }
 function hasContentChildren(children: VNode['children']): boolean {
   if (isString(children)) return children !== ''
   if (isArray(children)) return children.length > 0
+
   return false
 }
 
@@ -575,6 +600,7 @@ function _createVNode(
     if (__DEV__ && !type) {
       warn(`Invalid vnode type when creating vnode: ${type}.`)
     }
+
     type = Comment
   }
 
@@ -583,9 +609,11 @@ function _createVNode(
     // <component :is="vnode"/>
     // #2078 make sure to merge refs during the clone instead of overwriting it
     const cloned = cloneVNode(type, props, true /* mergeRef: true */)
+
     if (children) {
       normalizeChildren(cloned, children)
     }
+
     if (isBlockTreeEnabled > 0 && !isBlockNode && currentBlock) {
       if (cloned.shapeFlag & ShapeFlags.COMPONENT) {
         currentBlock[currentBlock.indexOf(type)] = cloned
@@ -593,7 +621,9 @@ function _createVNode(
         currentBlock.push(cloned)
       }
     }
+
     cloned.patchFlag = PatchFlags.BAIL
+
     return cloned
   }
 
@@ -611,16 +641,20 @@ function _createVNode(
   if (props) {
     // for reactive or proxy objects, we need to clone it to enable mutation.
     props = guardReactiveProps(props)!
+
     let { class: klass, style } = props
+
     if (klass && !isString(klass)) {
       props.class = normalizeClass(klass)
     }
+
     if (isObject(style)) {
       // reactive state objects need to be cloned since they are likely to be
       // mutated
       if (isProxy(style) && !isArray(style)) {
         style = extend({}, style)
       }
+
       props.style = normalizeStyle(style)
     }
   }
@@ -640,6 +674,7 @@ function _createVNode(
 
   if (__DEV__ && shapeFlag & ShapeFlags.STATEFUL_COMPONENT && isProxy(type)) {
     type = toRaw(type)
+
     warn(
       `Vue received a Component that was made a reactive object. This can ` +
         `lead to unnecessary performance overhead and should be avoided by ` +
@@ -666,6 +701,7 @@ export function guardReactiveProps(
   props: (Data & VNodeProps) | null,
 ): (Data & VNodeProps) | null {
   if (!props) return null
+
   return isProxy(props) || isInternalObject(props) ? extend({}, props) : props
 }
 
@@ -679,6 +715,7 @@ export function cloneVNode<T, U>(
   // key enumeration cost.
   const { props, ref, patchFlag, children, transition } = vnode
   const mergedProps = extraProps ? mergeProps(props || {}, extraProps) : props
+
   const cloned: VNode<T, U> = {
     __v_isVNode: true,
     __v_skip: true,
@@ -762,9 +799,11 @@ export function cloneVNode<T, U>(
  */
 function deepCloneVNode(vnode: VNode): VNode {
   const cloned = cloneVNode(vnode)
+
   if (isArray(vnode.children)) {
     cloned.children = (vnode.children as VNode[]).map(deepCloneVNode)
   }
+
   return cloned
 }
 
@@ -785,7 +824,9 @@ export function createStaticVNode(
   // A static vnode can contain multiple stringified elements, and the number
   // of elements is necessary for hydration.
   const vnode = createVNode(Static, null, content)
+
   vnode.staticCount = numberOfNodes
+
   return vnode
 }
 
@@ -835,7 +876,9 @@ export function cloneIfMounted(child: VNode): VNode {
 
 export function normalizeChildren(vnode: VNode, children: unknown): void {
   let type = 0
+
   const { shapeFlag } = vnode
+
   if (children == null) {
     children = null
   } else if (isArray(children)) {
@@ -844,16 +887,22 @@ export function normalizeChildren(vnode: VNode, children: unknown): void {
     if (shapeFlag & (ShapeFlags.ELEMENT | ShapeFlags.TELEPORT)) {
       // Normalize slot to plain children for plain element and Teleport
       const slot = (children as any).default
+
       if (slot) {
         // _c marker is added by withCtx() indicating this is a compiled slot
         slot._c && (slot._d = false)
+
         normalizeChildren(vnode, slot())
+
         slot._c && (slot._d = true)
       }
+
       return
     } else {
       type = ShapeFlags.SLOTS_CHILDREN
+
       const slotFlag = (children as RawSlots)._
+
       if (!slotFlag && !isInternalObject(children)) {
         // if slots are not normalized, attach context instance
         // (compiled / normalized slots already have context)
@@ -867,6 +916,7 @@ export function normalizeChildren(vnode: VNode, children: unknown): void {
           ;(children as RawSlots)._ = SlotFlags.STABLE
         } else {
           ;(children as RawSlots)._ = SlotFlags.DYNAMIC
+
           vnode.patchFlag |= PatchFlags.DYNAMIC_SLOTS
         }
       }
@@ -874,28 +924,35 @@ export function normalizeChildren(vnode: VNode, children: unknown): void {
   } else if (isFunction(children)) {
     if (shapeFlag & (ShapeFlags.ELEMENT | ShapeFlags.TELEPORT)) {
       normalizeChildren(vnode, { default: children })
+
       return
     }
+
     children = { default: children, _ctx: currentRenderingInstance }
     type = ShapeFlags.SLOTS_CHILDREN
   } else {
     children = String(children)
+
     // force teleport children to array so it can be moved around
     if (shapeFlag & ShapeFlags.TELEPORT) {
       type = ShapeFlags.ARRAY_CHILDREN
+
       children = [createTextVNode(children as string)]
     } else {
       type = ShapeFlags.TEXT_CHILDREN
     }
   }
+
   vnode.children = children as VNodeNormalizedChildren
   vnode.shapeFlag |= type
 }
 
 export function mergeProps(...args: (Data & VNodeProps)[]): Data {
   const ret: Data = {}
+
   for (let i = 0; i < args.length; i++) {
     const toMerge = args[i]
+
     for (const key in toMerge) {
       if (key === 'class') {
         if (ret.class !== toMerge.class) {
@@ -906,6 +963,7 @@ export function mergeProps(...args: (Data & VNodeProps)[]): Data {
       } else if (isOn(key)) {
         const existing = ret[key]
         const incoming = toMerge[key]
+
         if (
           incoming &&
           existing !== incoming &&
@@ -928,6 +986,7 @@ export function mergeProps(...args: (Data & VNodeProps)[]): Data {
       }
     }
   }
+
   return ret
 }
 

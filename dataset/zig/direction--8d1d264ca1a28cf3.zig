@@ -3,7 +3,6 @@ const stdx = @import("stdx");
 const assert = std.debug.assert;
 const maybe = stdx.maybe;
 const Elem = std.meta.Elem;
-
 const binary_search = @import("lsm/binary_search.zig");
 
 /// LSM Tree is a sorted array with a monocle and a top hat.
@@ -59,6 +58,7 @@ pub const Direction = enum(u1) {
 
     pub inline fn slice_peek(d: Direction, slice: anytype) *const Elem(@TypeOf(slice)) {
         assert(slice.len > 0);
+
         return switch (d) {
             .ascending => &slice[0],
             .descending => &slice[slice.len - 1],
@@ -70,6 +70,7 @@ pub const Direction = enum(u1) {
         slice: anytype,
     ) struct { Elem(@TypeOf(slice)), @TypeOf(slice) } {
         assert(slice.len > 0);
+
         return switch (d) {
             .ascending => .{ slice[0], slice[1..] },
             .descending => .{ slice[slice.len - 1], slice[0 .. slice.len - 1] },
@@ -85,6 +86,7 @@ pub const Direction = enum(u1) {
         key: Key,
     ) []const Value {
         maybe(slice.len == 0);
+
         switch (direction) {
             .ascending => {
                 const start = binary_search.binary_search_values_upsert_index(
@@ -108,6 +110,7 @@ pub const Direction = enum(u1) {
                         key,
                         .{ .mode = .upper_bound },
                     );
+
                     break :end index + @intFromBool(
                         index < slice.len and key_from_value(&slice[index]) <= key,
                     );

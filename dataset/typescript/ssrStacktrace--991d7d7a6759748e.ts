@@ -18,6 +18,7 @@ function calculateOffsetOnce() {
     // in Node 13 and later, the function wrapper adds two lines,
     // which must be subtracted to generate a valid mapping
     const match = /:(\d+):\d+\)$/.exec(e.stack.split('\n')[1])
+
     offset = match ? +match[1] - 1 : 0
   }
 }
@@ -29,6 +30,7 @@ export function ssrRewriteStacktrace(
   calculateOffsetOnce()
 
   let alreadyRewritten = false
+
   const rewritten = stack
     .split('\n')
     .map((line) => {
@@ -48,12 +50,15 @@ export function ssrRewriteStacktrace(
           const line = Number(originalLine) - offset
           // stacktrace's column is 1-indexed, but sourcemap's one is 0-indexed
           const column = Number(originalColumn) - 1
+
           if (line <= 0 || column < 0) {
             alreadyRewritten = true
+
             return input
           }
 
           const pos = originalPositionFor(traced, { line, column })
+
           if (!pos.source) {
             return input
           }
@@ -62,6 +67,7 @@ export function ssrRewriteStacktrace(
           const sourceFile = path.resolve(path.dirname(id), pos.source)
           // stacktrace's column is 1-indexed, but sourcemap's one is 0-indexed
           const source = `${sourceFile}:${pos.line}:${pos.column + 1}`
+
           if (!trimmedVarName || trimmedVarName === 'eval') {
             return `    at ${source}`
           } else {
@@ -71,6 +77,7 @@ export function ssrRewriteStacktrace(
       )
     })
     .join('\n')
+
   return { result: rewritten, alreadyRewritten }
 }
 
@@ -79,6 +86,7 @@ export function rebindErrorStacktrace(e: Error, stacktrace: string): void {
     e,
     'stack',
   )!
+
   if (configurable) {
     Object.defineProperty(e, 'stack', {
       value: stacktrace,
@@ -105,7 +113,9 @@ export function ssrFixStacktrace(
     e.stack,
     moduleGraph,
   )
+
   rebindErrorStacktrace(e, stacktrace)
+
   if (alreadyRewritten) {
     e.message +=
       ' (The stacktrace appears to be already rewritten by something else, but was passed to vite.ssrFixStacktrace. This may cause incorrect stacktraces.)'

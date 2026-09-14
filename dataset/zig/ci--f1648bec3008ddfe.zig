@@ -17,6 +17,7 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
 
     // Unit tests.
     try shell.exec("dotnet build --no-restore  --configuration Release", .{});
+
     // Disable coverage on CI, as it is flaky, see
     // <https://github.com/coverlet-coverage/coverlet/issues/865>
     try shell.exec(
@@ -37,12 +38,15 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
         log.info("testing sample '{s}'", .{sample});
 
         try shell.pushd("./samples/" ++ sample);
+
         defer shell.popd();
 
         var tmp_beetle = try TmpTigerBeetle.init(gpa, .{
             .development = true,
         });
+
         defer tmp_beetle.deinit(gpa);
+
         errdefer tmp_beetle.log_stderr();
 
         try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
@@ -68,10 +72,12 @@ pub fn tests(shell: *Shell, gpa: std.mem.Allocator) !void {
 
         inline for (image_tags) |image_tag| {
             const image = "mcr.microsoft.com/dotnet/sdk:" ++ image_tag;
+
             log.info("testing docker image: '{s}'", .{image});
 
             for (0..5) |attempt| {
                 if (attempt > 0) std.time.sleep(1 * std.time.ns_per_min);
+
                 if (shell.exec("docker image pull {image}", .{ .image = image })) {
                     break;
                 } else |_| {}
@@ -125,16 +131,21 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
         .development = true,
         .prebuilt = options.tigerbeetle,
     });
+
     defer tmp_beetle.deinit(gpa);
+
     errdefer tmp_beetle.log_stderr();
 
     try shell.env.put("TB_ADDRESS", tmp_beetle.port_str);
 
     var tmp_dir = std.testing.tmpDir(.{});
+
     defer tmp_dir.cleanup();
 
     const base_dir = shell.cwd;
+
     try shell.pushd_dir(tmp_dir.dir);
+
     defer shell.popd();
 
     try shell.exec("dotnet new console", .{});
@@ -142,15 +153,18 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
     // NuGet may take a few minutes to make the new package available for download.
     for (0..9) |_| {
         if (try nuget_install(shell, .{ .version = options.release }) == .ok) break;
+
         log.warn("waiting for 5 minutes for the {s} version to appear in nuget.org", .{
             options.release,
         });
+
         std.time.sleep(5 * std.time.ns_per_min);
     } else {
         switch (try nuget_install(shell, .{ .version = options.release })) {
             .ok => {},
             .retry => |err| {
                 log.err("package is not available in nuget.org", .{});
+
                 return err;
             },
         }
@@ -162,6 +176,7 @@ pub fn validate_release_sample(shell: *Shell, gpa: std.mem.Allocator, options: s
         shell.cwd,
         "Program.cs",
     );
+
     try shell.exec("dotnet run", .{});
 }
 
@@ -169,10 +184,12 @@ fn nuget_install(shell: *Shell, options: struct {
     version: []const u8,
 }) !union(enum) { ok, retry: anyerror } {
     const command: []const u8 = "dotnet add package tigerbeetle --version {version}";
+
     if (shell.exec(command, options)) {
         return .ok;
     } else |err| {
         const exec_result = try shell.exec_raw(command, options);
+
         switch (exec_result.term) {
             .Exited => |code| if (code == 0) return .ok,
             else => {},
@@ -185,7 +202,9 @@ fn nuget_install(shell: *Shell, options: struct {
             exec_result.stdout,
             "NU1102",
         ) != null;
+
         if (package_missing) return .{ .retry = err };
+
         return err;
     }
 }
@@ -197,8 +216,10 @@ pub fn release_published_latest(shell: *Shell) ![]const u8 {
                 id: []const u8,
                 version: []const u8,
             };
+
             packages: []Package,
         };
+
         searchResult: []SearchResult,
     };
 
@@ -206,6 +227,7 @@ pub fn release_published_latest(shell: *Shell) ![]const u8 {
         "dotnet package search tigerbeetle --exact-match --format json",
         .{},
     );
+
     const dotnet_search_results = try std.json.parseFromSliceLeaky(
         DotnetSearch,
         shell.arena.allocator(),
@@ -215,6 +237,7 @@ pub fn release_published_latest(shell: *Shell) ![]const u8 {
 
     assert(dotnet_search_results.searchResult.len == 1);
     assert(dotnet_search_results.searchResult[0].packages.len >= 1);
+
     const package_count = dotnet_search_results.searchResult[0].packages.len;
     const package_last = dotnet_search_results.searchResult[0].packages[package_count - 1];
 

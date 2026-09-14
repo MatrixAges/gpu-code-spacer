@@ -14,6 +14,7 @@ pub fn isSignalNan(x: anytype) bool {
     const T = @TypeOf(x);
     const U = meta.Int(.unsigned, @bitSizeOf(T));
     const quiet_signal_bit_mask = 1 << (math.floatFractionalBits(T) - 1);
+
     return isNan(x) and (@as(U, @bitCast(x)) & quiet_signal_bit_mask == 0);
 }
 
@@ -43,6 +44,7 @@ test isSignalNan {
         {
             try expect(isSignalNan(math.snan(T)));
         }
+
         try expect(!isSignalNan(math.nan(T)));
         try expect(!isSignalNan(@as(T, 1.0)));
         try expect(!isSignalNan(math.inf(T)));

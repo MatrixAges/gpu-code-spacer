@@ -10,9 +10,11 @@ import {
   shallowReadonlyMap,
   toRaw,
 } from './reactive'
+
 import { arrayInstrumentations } from './arrayInstrumentations'
 import { ReactiveFlags, TrackOpTypes, TriggerOpTypes } from './constants'
 import { ITERATE_KEY, track, trigger } from './dep'
+
 import {
   hasChanged,
   hasOwn,
@@ -22,6 +24,7 @@ import {
   isSymbol,
   makeMap,
 } from '@vue/shared'
+
 import { isRef } from './ref'
 import { warn } from './warning'
 
@@ -41,8 +44,11 @@ const builtInSymbols = new Set(
 function hasOwnProperty(this: object, key: unknown) {
   // #10455 hasOwnProperty may be called with non-string values
   if (!isSymbol(key)) key = String(key)
+
   const obj = toRaw(this)
+
   track(obj, TrackOpTypes.HAS, key)
+
   return obj.hasOwnProperty(key as string)
 }
 
@@ -57,6 +63,7 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
 
     const isReadonly = this._isReadonly,
       isShallow = this._isShallow
+
     if (key === ReactiveFlags.IS_REACTIVE) {
       return !isReadonly
     } else if (key === ReactiveFlags.IS_READONLY) {
@@ -80,6 +87,7 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
       ) {
         return target
       }
+
       // early return undefined
       return
     }
@@ -88,9 +96,11 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
 
     if (!isReadonly) {
       let fn: Function | undefined
+
       if (targetIsArray && (fn = arrayInstrumentations[key])) {
         return fn
       }
+
       if (key === 'hasOwnProperty') {
         return hasOwnProperty
       }
@@ -120,6 +130,7 @@ class BaseReactiveHandler implements ProxyHandler<Target> {
     if (isRef(res)) {
       // ref unwrapping - skip unwrap for Array + integer key.
       const value = targetIsArray && isIntegerKey(key) ? res : res.value
+
       return isReadonly && isObject(value) ? readonly(value) : value
     }
 
@@ -147,12 +158,15 @@ class MutableReactiveHandler extends BaseReactiveHandler {
   ): boolean {
     let oldValue = target[key]
     const isArrayWithIntegerKey = isArray(target) && isIntegerKey(key)
+
     if (!this._isShallow) {
       const isOldValueReadonly = isReadonly(oldValue)
+
       if (!isShallow(value) && !isReadonly(value)) {
         oldValue = toRaw(oldValue)
         value = toRaw(value)
       }
+
       if (!isArrayWithIntegerKey && isRef(oldValue) && !isRef(value)) {
         if (isOldValueReadonly) {
           if (__DEV__) {
@@ -161,9 +175,11 @@ class MutableReactiveHandler extends BaseReactiveHandler {
               target[key],
             )
           }
+
           return true
         } else {
           oldValue.value = value
+
           return true
         }
       }
@@ -174,12 +190,14 @@ class MutableReactiveHandler extends BaseReactiveHandler {
     const hadKey = isArrayWithIntegerKey
       ? Number(key) < target.length
       : hasOwn(target, key)
+
     const result = Reflect.set(
       target,
       key,
       value,
       isRef(target) ? target : receiver,
     )
+
     // don't trigger if target is something up in the prototype chain of original
     if (target === toRaw(receiver) && result) {
       if (!hadKey) {
@@ -188,6 +206,7 @@ class MutableReactiveHandler extends BaseReactiveHandler {
         trigger(target, TriggerOpTypes.SET, key, value, oldValue)
       }
     }
+
     return result
   }
 
@@ -198,17 +217,21 @@ class MutableReactiveHandler extends BaseReactiveHandler {
     const hadKey = hasOwn(target, key)
     const oldValue = target[key]
     const result = Reflect.deleteProperty(target, key)
+
     if (result && hadKey) {
       trigger(target, TriggerOpTypes.DELETE, key, undefined, oldValue)
     }
+
     return result
   }
 
   has(target: Record<string | symbol, unknown>, key: string | symbol): boolean {
     const result = Reflect.has(target, key)
+
     if (!isSymbol(key) || !builtInSymbols.has(key)) {
       track(target, TrackOpTypes.HAS, key)
     }
+
     return result
   }
 
@@ -218,6 +241,7 @@ class MutableReactiveHandler extends BaseReactiveHandler {
       TrackOpTypes.ITERATE,
       isArray(target) ? 'length' : ITERATE_KEY,
     )
+
     return Reflect.ownKeys(target)
   }
 }
@@ -234,6 +258,7 @@ class ReadonlyReactiveHandler extends BaseReactiveHandler {
         target,
       )
     }
+
     return true
   }
 
@@ -244,6 +269,7 @@ class ReadonlyReactiveHandler extends BaseReactiveHandler {
         target,
       )
     }
+
     return true
   }
 }

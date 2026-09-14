@@ -26,6 +26,7 @@ pub fn init(entries: u16, flags: u32) !IoUring {
         .flags = flags,
         .sq_thread_idle = 1000,
     });
+
     return try IoUring.init_params(entries, &params);
 }
 
@@ -46,6 +47,7 @@ pub fn init_params(entries: u16, p: *linux.io_uring_params) !IoUring {
     assert(p.resv[2] == 0);
 
     const res = linux.io_uring_setup(entries, p);
+
     switch (linux.errno(res)) {
         .SUCCESS => {},
         .FAULT => return error.ParamsOutsideAccessibleAddressSpace,
@@ -62,8 +64,11 @@ pub fn init_params(entries: u16, p: *linux.io_uring_params) !IoUring {
         .NOSYS => return error.SystemOutdated,
         else => |errno| return posix.unexpectedErrno(errno),
     }
+
     const fd = @as(linux.fd_t, @intCast(res));
+
     assert(fd >= 0);
+
     errdefer posix.close(fd);
 
     // Kernel versions 5.4 and up use only one mmap() for the submission and completion queues.
@@ -87,8 +92,11 @@ pub fn init_params(entries: u16, p: *linux.io_uring_params) !IoUring {
     // From here on, we only need to read from params, so pass `p` by value as immutable.
     // The completion queue shares the mmap with the submission queue, so pass `sq` there too.
     var sq = try SubmissionQueue.init(fd, p.*);
+
     errdefer sq.deinit();
+
     var cq = try CompletionQueue.init(fd, p.*, sq);
+
     errdefer cq.deinit();
 
     // Check that our starting state is as we expect.
@@ -101,7 +109,6 @@ pub fn init_params(entries: u16, p: *linux.io_uring_params) !IoUring {
     assert(sq.sqes.len == p.sq_entries);
     assert(sq.sqe_head == 0);
     assert(sq.sqe_tail == 0);
-
     assert(cq.head.* == 0);
     assert(cq.tail.* == 0);
     assert(cq.mask == p.cq_entries - 1);
@@ -123,6 +130,7 @@ pub fn deinit(self: *IoUring) void {
     self.cq.deinit();
     self.sq.deinit();
     posix.close(self.fd);
+
     self.fd = -1;
 }
 
@@ -138,9 +146,13 @@ pub fn get_sqe(self: *IoUring) !*linux.io_uring_sqe {
     // Remember that these head and tail offsets wrap around every four billion operations.
     // We must therefore use wrapping addition and subtraction to avoid a runtime crash.
     const next = self.sq.sqe_tail +% 1;
+
     if (next -% head > self.sq.sqes.len) return error.SubmissionQueueFull;
+
     const sqe = &self.sq.sqes[self.sq.sqe_tail & self.sq.mask];
+
     self.sq.sqe_tail = next;
+
     return sqe;
 }
 
@@ -161,12 +173,15 @@ pub fn submit(self: *IoUring) !u32 {
 pub fn submit_and_wait(self: *IoUring, wait_nr: u32) !u32 {
     const submitted = self.flush_sq();
     var flags: u32 = 0;
+
     if (self.sq_ring_needs_enter(&flags) or wait_nr > 0) {
         if (wait_nr > 0 or (self.flags & linux.IORING_SETUP_IOPOLL) != 0) {
             flags |= linux.IORING_ENTER_GETEVENTS;
         }
+
         return try self.enter(submitted, wait_nr, flags);
     }
+
     return submitted;
 }
 
@@ -174,7 +189,9 @@ pub fn submit_and_wait(self: *IoUring, wait_nr: u32) !u32 {
 /// Returns the number of SQEs submitted.
 pub fn enter(self: *IoUring, to_submit: u32, min_complete: u32, flags: u32) !u32 {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_enter(self.fd, to_submit, min_complete, flags, null);
+
     switch (linux.errno(res)) {
         .SUCCESS => {},
         // The kernel was unable to allocate memory or ran out of resources for the request.
@@ -203,6 +220,7 @@ pub fn enter(self: *IoUring, to_submit: u32, min_complete: u32, flags: u32) !u32
         .INTR => return error.SignalInterrupt,
         else => |errno| return posix.unexpectedErrno(errno),
     }
+
     return @as(u32, @intCast(res));
 }
 
@@ -217,14 +235,18 @@ pub fn flush_sq(self: *IoUring) u32 {
         const to_submit = self.sq.sqe_tail -% self.sq.sqe_head;
         var tail = self.sq.tail.*;
         var i: usize = 0;
+
         while (i < to_submit) : (i += 1) {
             self.sq.array[tail & self.sq.mask] = self.sq.sqe_head & self.sq.mask;
+
             tail +%= 1;
             self.sq.sqe_head +%= 1;
         }
+
         // Ensure that the kernel can actually see the SQE updates when it sees the tail update.
         @atomicStore(u32, self.sq.tail, tail, .release);
     }
+
     return self.sq_ready();
 }
 
@@ -234,11 +256,15 @@ pub fn flush_sq(self: *IoUring) u32 {
 /// Matches the implementation of sq_ring_needs_enter() in liburing.
 pub fn sq_ring_needs_enter(self: *IoUring, flags: *u32) bool {
     assert(flags.* == 0);
+
     if ((self.flags & linux.IORING_SETUP_SQPOLL) == 0) return true;
+
     if ((@atomicLoad(u32, self.sq.flags, .unordered) & linux.IORING_SQ_NEED_WAKEUP) != 0) {
         flags.* |= linux.IORING_ENTER_SQ_WAKEUP;
+
         return true;
     }
+
     return false;
 }
 
@@ -271,11 +297,15 @@ pub fn cq_ready(self: *IoUring) u32 {
 /// Matches the implementation of io_uring_peek_batch_cqe() in liburing, but supports waiting.
 pub fn copy_cqes(self: *IoUring, cqes: []linux.io_uring_cqe, wait_nr: u32) !u32 {
     const count = self.copy_cqes_ready(cqes);
+
     if (count > 0) return count;
+
     if (self.cq_ring_needs_flush() or wait_nr > 0) {
         _ = try self.enter(0, wait_nr, linux.IORING_ENTER_GETEVENTS);
+
         return self.copy_cqes_ready(cqes);
     }
+
     return 0;
 }
 
@@ -286,15 +316,18 @@ fn copy_cqes_ready(self: *IoUring, cqes: []linux.io_uring_cqe) u32 {
 
     // before wrapping
     const n = @min(self.cq.cqes.len - head, count);
+
     @memcpy(cqes[0..n], self.cq.cqes[head..][0..n]);
 
     if (count > n) {
         // wrap self.cq.cqes
         const w = count - n;
+
         @memcpy(cqes[n..][0..w], self.cq.cqes[0..w]);
     }
 
     self.cq_advance(count);
+
     return count;
 }
 
@@ -302,8 +335,10 @@ fn copy_cqes_ready(self: *IoUring, cqes: []linux.io_uring_cqe) u32 {
 /// A convenience method for `copy_cqes()` for when you don't need to batch or peek.
 pub fn copy_cqe(ring: *IoUring) !linux.io_uring_cqe {
     var cqes: [1]linux.io_uring_cqe = undefined;
+
     while (true) {
         const count = try ring.copy_cqes(&cqes, 1);
+
         if (count > 0) return cqes[0];
     }
 }
@@ -320,6 +355,7 @@ pub fn cq_ring_needs_flush(self: *IoUring) bool {
 /// Matches the implementation of cqe_seen() in liburing.
 pub fn cqe_seen(self: *IoUring, cqe: *linux.io_uring_cqe) void {
     _ = cqe;
+
     self.cq_advance(1);
 }
 
@@ -343,8 +379,11 @@ pub fn cq_advance(self: *IoUring, count: u32) void {
 /// or else insert a full write barrier using `drain_previous_sqes()` when queueing an fsync.
 pub fn fsync(self: *IoUring, user_data: u64, fd: linux.fd_t, flags: u32) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_fsync(fd, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -355,8 +394,11 @@ pub fn fsync(self: *IoUring, user_data: u64, fd: linux.fd_t, flags: u32) !*linux
 /// know when the ring is idle before acting on a kill signal.
 pub fn nop(self: *IoUring, user_data: u64) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_nop();
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -391,16 +433,20 @@ pub fn read(
     offset: u64,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     switch (buffer) {
         .buffer => |slice| sqe.prep_read(fd, slice, offset),
         .iovecs => |vecs| sqe.prep_readv(fd, vecs, offset),
         .buffer_selection => |selection| {
             sqe.prep_rw(.READ, fd, 0, selection.len, offset);
+
             sqe.flags |= linux.IOSQE_BUFFER_SELECT;
             sqe.buf_index = selection.group_id;
         },
     }
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -414,8 +460,11 @@ pub fn write(
     offset: u64,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_write(fd, buffer, offset);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -435,8 +484,11 @@ pub fn write(
 /// Returns a pointer to the SQE so that you can further modify the SQE for advanced use cases.
 pub fn splice(self: *IoUring, user_data: u64, fd_in: linux.fd_t, off_in: u64, fd_out: linux.fd_t, off_out: u64, len: usize) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_splice(fd_in, off_in, fd_out, off_out, len);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -454,8 +506,11 @@ pub fn read_fixed(
     buffer_index: u16,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_read_fixed(fd, buffer, offset, buffer_index);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -471,8 +526,11 @@ pub fn writev(
     offset: u64,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_writev(fd, iovecs, offset);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -490,8 +548,11 @@ pub fn write_fixed(
     buffer_index: u16,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_write_fixed(fd, buffer, offset, buffer_index);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -507,8 +568,11 @@ pub fn accept(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_accept(fd, addr, addrlen, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -529,8 +593,11 @@ pub fn accept_multishot(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_multishot_accept(fd, addr, addrlen, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -554,8 +621,11 @@ pub fn accept_direct(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_accept_direct(fd, addr, addrlen, flags, linux.IORING_FILE_INDEX_ALLOC);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -570,8 +640,11 @@ pub fn accept_multishot_direct(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_multishot_accept_direct(fd, addr, addrlen, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -585,8 +658,11 @@ pub fn connect(
     addrlen: posix.socklen_t,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_connect(fd, addr, addrlen);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -601,8 +677,11 @@ pub fn epoll_ctl(
     ev: ?*linux.epoll_event,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_epoll_ctl(epfd, fd, op, ev);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -631,16 +710,20 @@ pub fn recv(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     switch (buffer) {
         .buffer => |slice| sqe.prep_recv(fd, slice, flags),
         .buffer_selection => |selection| {
             sqe.prep_rw(.RECV, fd, 0, selection.len, 0);
+
             sqe.rw_flags = flags;
             sqe.flags |= linux.IOSQE_BUFFER_SELECT;
             sqe.buf_index = selection.group_id;
         },
     }
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -655,8 +738,11 @@ pub fn send(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_send(fd, buffer, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -684,8 +770,11 @@ pub fn send_zc(
     zc_flags: u16,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_send_zc(fd, buffer, send_flags, zc_flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -702,8 +791,11 @@ pub fn send_zc_fixed(
     buf_index: u16,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_send_zc_fixed(fd, buffer, send_flags, zc_flags, buf_index);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -718,8 +810,11 @@ pub fn recvmsg(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_recvmsg(fd, msg, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -734,8 +829,11 @@ pub fn sendmsg(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_sendmsg(fd, msg, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -750,8 +848,11 @@ pub fn sendmsg_zc(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_sendmsg_zc(fd, msg, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -767,8 +868,11 @@ pub fn openat(
     mode: posix.mode_t,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_openat(fd, path, flags, mode);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -793,8 +897,11 @@ pub fn openat_direct(
     file_index: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_openat_direct(fd, path, flags, mode, file_index);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -803,8 +910,11 @@ pub fn openat_direct(
 /// Available since 5.6.
 pub fn close(self: *IoUring, user_data: u64, fd: linux.fd_t) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_close(fd);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -812,8 +922,11 @@ pub fn close(self: *IoUring, user_data: u64, fd: linux.fd_t) !*linux.io_uring_sq
 /// Available since 5.15
 pub fn close_direct(self: *IoUring, user_data: u64, file_index: u32) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_close_direct(file_index);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -838,8 +951,11 @@ pub fn timeout(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_timeout(ts, count, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -858,8 +974,11 @@ pub fn timeout_remove(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_timeout_remove(timeout_user_data, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -886,8 +1005,11 @@ pub fn link_timeout(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_link_timeout(ts, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -900,8 +1022,11 @@ pub fn poll_add(
     poll_mask: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_poll_add(fd, poll_mask);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -913,8 +1038,11 @@ pub fn poll_remove(
     target_user_data: u64,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_poll_remove(target_user_data);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -929,8 +1057,11 @@ pub fn poll_update(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_poll_update(old_user_data, new_user_data, poll_mask, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -945,8 +1076,11 @@ pub fn fallocate(
     len: u64,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_fallocate(fd, mode, offset, len);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -962,8 +1096,11 @@ pub fn statx(
     buf: *linux.Statx,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_statx(fd, path, flags, mask, buf);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -982,8 +1119,11 @@ pub fn cancel(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_cancel(cancel_user_data, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -998,8 +1138,11 @@ pub fn shutdown(
     how: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_shutdown(sockfd, how);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1015,8 +1158,11 @@ pub fn renameat(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_renameat(old_dir_fd, old_path, new_dir_fd, new_path, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1030,8 +1176,11 @@ pub fn unlinkat(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_unlinkat(dir_fd, path, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1045,8 +1194,11 @@ pub fn mkdirat(
     mode: posix.mode_t,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_mkdirat(dir_fd, path, mode);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1060,8 +1212,11 @@ pub fn symlinkat(
     link_path: [*:0]const u8,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_symlinkat(target, new_dir_fd, link_path);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1077,8 +1232,11 @@ pub fn linkat(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_linkat(old_dir_fd, old_path, new_dir_fd, new_path, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1098,8 +1256,11 @@ pub fn provide_buffers(
     buffer_id: usize,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_provide_buffers(buffers, buffer_size, buffers_count, group_id, buffer_id);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1112,8 +1273,11 @@ pub fn remove_buffers(
     group_id: usize,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_remove_buffers(buffers_count, group_id);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1129,8 +1293,11 @@ pub fn waitid(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_waitid(id_type, id, infop, options, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1146,12 +1313,14 @@ pub fn waitid(
 /// An application need unregister only if it wants to register a new array of file descriptors.
 pub fn register_files(self: *IoUring, fds: []const linux.fd_t) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(
         self.fd,
         .REGISTER_FILES,
         @as(*const anyopaque, @ptrCast(fds.ptr)),
         @as(u32, @intCast(fds.len)),
     );
+
     try handle_registration_result(res);
 }
 
@@ -1171,6 +1340,7 @@ pub fn register_files_update(self: *IoUring, offset: u32, fds: []const linux.fd_
         resv: u32,
         fds: u64 align(8),
     };
+
     var update = FilesUpdate{
         .offset = offset,
         .resv = @as(u32, 0),
@@ -1183,6 +1353,7 @@ pub fn register_files_update(self: *IoUring, offset: u32, fds: []const linux.fd_
         @as(*const anyopaque, @ptrCast(&update)),
         @as(u32, @intCast(fds.len)),
     );
+
     try handle_registration_result(res);
 }
 
@@ -1234,12 +1405,14 @@ pub fn register_file_alloc_range(self: *IoUring, offset: u32, len: u32) !void {
 /// Only a single a eventfd can be registered at any given point in time.
 pub fn register_eventfd(self: *IoUring, fd: linux.fd_t) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(
         self.fd,
         .REGISTER_EVENTFD,
         @as(*const anyopaque, @ptrCast(&fd)),
         1,
     );
+
     try handle_registration_result(res);
 }
 
@@ -1249,55 +1422,67 @@ pub fn register_eventfd(self: *IoUring, fd: linux.fd_t) !void {
 /// Only a single eventfd can be registered at any given point in time.
 pub fn register_eventfd_async(self: *IoUring, fd: linux.fd_t) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(
         self.fd,
         .REGISTER_EVENTFD_ASYNC,
         @as(*const anyopaque, @ptrCast(&fd)),
         1,
     );
+
     try handle_registration_result(res);
 }
 
 /// Unregister the registered eventfd file descriptor.
 pub fn unregister_eventfd(self: *IoUring) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(
         self.fd,
         .UNREGISTER_EVENTFD,
         null,
         0,
     );
+
     try handle_registration_result(res);
 }
 
 pub fn register_napi(self: *IoUring, napi: *linux.io_uring_napi) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(self.fd, .REGISTER_NAPI, napi, 1);
+
     try handle_registration_result(res);
 }
 
 pub fn unregister_napi(self: *IoUring, napi: *linux.io_uring_napi) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(self.fd, .UNREGISTER_NAPI, napi, 1);
+
     try handle_registration_result(res);
 }
 
 /// Registers an array of buffers for use with `read_fixed` and `write_fixed`.
 pub fn register_buffers(self: *IoUring, buffers: []const posix.iovec) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(
         self.fd,
         .REGISTER_BUFFERS,
         buffers.ptr,
         @as(u32, @intCast(buffers.len)),
     );
+
     try handle_registration_result(res);
 }
 
 /// Unregister the registered buffers.
 pub fn unregister_buffers(self: *IoUring) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(self.fd, .UNREGISTER_BUFFERS, null, 0);
+
     switch (linux.errno(res)) {
         .SUCCESS => {},
         .NXIO => return error.BuffersNotRegistered,
@@ -1311,7 +1496,9 @@ pub fn unregister_buffers(self: *IoUring) !void {
 pub fn get_probe(self: *IoUring) !linux.io_uring_probe {
     var probe = mem.zeroInit(linux.io_uring_probe, .{});
     const res = linux.io_uring_register(self.fd, .REGISTER_PROBE, &probe, probe.ops.len);
+
     try handle_register_buf_ring_result(res);
+
     return probe;
 }
 
@@ -1340,7 +1527,9 @@ fn handle_registration_result(res: usize) !void {
 /// Unregisters all registered file descriptors previously associated with the ring.
 pub fn unregister_files(self: *IoUring) !void {
     assert(self.fd >= 0);
+
     const res = linux.io_uring_register(self.fd, .UNREGISTER_FILES, null, 0);
+
     switch (linux.errno(res)) {
         .SUCCESS => {},
         .NXIO => return error.FilesNotRegistered,
@@ -1360,8 +1549,11 @@ pub fn socket(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_socket(domain, socket_type, protocol, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1377,8 +1569,11 @@ pub fn socket_direct(
     file_index: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_socket_direct(domain, socket_type, protocol, flags, file_index);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1394,8 +1589,11 @@ pub fn socket_direct_alloc(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_socket_direct_alloc(domain, socket_type, protocol, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1411,8 +1609,11 @@ pub fn bind(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_bind(fd, addr, addrlen, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1427,8 +1628,11 @@ pub fn listen(
     flags: u32,
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_listen(fd, backlog, flags);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1446,8 +1650,11 @@ pub fn cmd_sock(
     optlen: u32, // size of the option value
 ) !*linux.io_uring_sqe {
     const sqe = try self.get_sqe();
+
     sqe.prep_cmd_sock(cmd_op, fd, level, optname, optval, optlen);
+
     sqe.user_data = user_data;
+
     return sqe;
 }
 
@@ -1516,10 +1723,12 @@ pub const SubmissionQueue = struct {
     pub fn init(fd: linux.fd_t, p: linux.io_uring_params) !SubmissionQueue {
         assert(fd >= 0);
         assert((p.features & linux.IORING_FEAT_SINGLE_MMAP) != 0);
+
         const size = @max(
             p.sq_off.array + p.sq_entries * @sizeOf(u32),
             p.cq_off.cqes + p.cq_entries * @sizeOf(linux.io_uring_cqe),
         );
+
         const mmap = try posix.mmap(
             null,
             size,
@@ -1528,12 +1737,15 @@ pub const SubmissionQueue = struct {
             fd,
             linux.IORING_OFF_SQ_RING,
         );
+
         errdefer posix.munmap(mmap);
+
         assert(mmap.len == size);
 
         // The motivation for the `sqes` and `array` indirection is to make it possible for the
         // application to preallocate static linux.io_uring_sqe entries and then replay them when needed.
         const size_sqes = p.sq_entries * @sizeOf(linux.io_uring_sqe);
+
         const mmap_sqes = try posix.mmap(
             null,
             size_sqes,
@@ -1542,14 +1754,18 @@ pub const SubmissionQueue = struct {
             fd,
             linux.IORING_OFF_SQES,
         );
+
         errdefer posix.munmap(mmap_sqes);
+
         assert(mmap_sqes.len == size_sqes);
 
         const array: [*]u32 = @ptrCast(@alignCast(&mmap[p.sq_off.array]));
         const sqes: [*]linux.io_uring_sqe = @ptrCast(@alignCast(&mmap_sqes[0]));
+
         // We expect the kernel copies p.sq_entries to the u32 pointed to by p.sq_off.ring_entries,
         // see https://github.com/torvalds/linux/blob/v5.8/fs/io_uring.c#L7843-L7844.
         assert(p.sq_entries == @as(*u32, @ptrCast(@alignCast(&mmap[p.sq_off.ring_entries]))).*);
+
         return SubmissionQueue{
             .head = @ptrCast(@alignCast(&mmap[p.sq_off.head])),
             .tail = @ptrCast(@alignCast(&mmap[p.sq_off.tail])),
@@ -1579,9 +1795,12 @@ pub const CompletionQueue = struct {
     pub fn init(fd: linux.fd_t, p: linux.io_uring_params, sq: SubmissionQueue) !CompletionQueue {
         assert(fd >= 0);
         assert((p.features & linux.IORING_FEAT_SINGLE_MMAP) != 0);
+
         const mmap = sq.mmap;
         const cqes: [*]linux.io_uring_cqe = @ptrCast(@alignCast(&mmap[p.cq_off.cqes]));
+
         assert(p.cq_entries == @as(*u32, @ptrCast(@alignCast(&mmap[p.cq_off.ring_entries]))).*);
+
         return CompletionQueue{
             .head = @ptrCast(@alignCast(&mmap[p.cq_off.head])),
             .tail = @ptrCast(@alignCast(&mmap[p.cq_off.tail])),
@@ -1642,21 +1861,29 @@ pub const BufferGroup = struct {
         buffers_count: u16,
     ) !BufferGroup {
         const buffers = try allocator.alloc(u8, buffer_size * buffers_count);
+
         errdefer allocator.free(buffers);
+
         const heads = try allocator.alloc(u32, buffers_count);
+
         errdefer allocator.free(heads);
 
         const br = try setup_buf_ring(ring.fd, buffers_count, group_id, .{ .inc = true });
+
         buf_ring_init(br);
 
         const mask = buf_ring_mask(buffers_count);
         var i: u16 = 0;
+
         while (i < buffers_count) : (i += 1) {
             const pos = buffer_size * i;
             const buf = buffers[pos .. pos + buffer_size];
+
             heads[i] = 0;
+
             buf_ring_add(br, buf, i, mask, i);
         }
+
         buf_ring_advance(br, buffers_count);
 
         return BufferGroup{
@@ -1672,6 +1899,7 @@ pub const BufferGroup = struct {
 
     pub fn deinit(self: *BufferGroup, allocator: mem.Allocator) void {
         free_buf_ring(self.ring.fd, self.br, self.buffers_count, self.group_id);
+
         allocator.free(self.buffers);
         allocator.free(self.heads);
     }
@@ -1679,24 +1907,30 @@ pub const BufferGroup = struct {
     // Prepare recv operation which will select buffer from this group.
     pub fn recv(self: *BufferGroup, user_data: u64, fd: linux.fd_t, flags: u32) !*linux.io_uring_sqe {
         var sqe = try self.ring.get_sqe();
+
         sqe.prep_rw(.RECV, fd, 0, 0, 0);
+
         sqe.rw_flags = flags;
         sqe.flags |= linux.IOSQE_BUFFER_SELECT;
         sqe.buf_index = self.group_id;
         sqe.user_data = user_data;
+
         return sqe;
     }
 
     // Prepare multishot recv operation which will select buffer from this group.
     pub fn recv_multishot(self: *BufferGroup, user_data: u64, fd: linux.fd_t, flags: u32) !*linux.io_uring_sqe {
         var sqe = try self.recv(user_data, fd, flags);
+
         sqe.ioprio |= linux.IORING_RECV_MULTISHOT;
+
         return sqe;
     }
 
     // Get buffer by id.
     fn get_by_id(self: *BufferGroup, buffer_id: u16) []u8 {
         const pos = self.buffer_size * buffer_id;
+
         return self.buffers[pos .. pos + self.buffer_size][self.heads[buffer_id]..];
     }
 
@@ -1704,23 +1938,29 @@ pub const BufferGroup = struct {
     pub fn get(self: *BufferGroup, cqe: linux.io_uring_cqe) ![]u8 {
         const buffer_id = try cqe.buffer_id();
         const used_len = @as(usize, @intCast(cqe.res));
+
         return self.get_by_id(buffer_id)[0..used_len];
     }
 
     // Release buffer from CQE to the kernel.
     pub fn put(self: *BufferGroup, cqe: linux.io_uring_cqe) !void {
         const buffer_id = try cqe.buffer_id();
+
         if (cqe.flags & linux.IORING_CQE_F_BUF_MORE == linux.IORING_CQE_F_BUF_MORE) {
             // Incremental consumption active, kernel will write to the this buffer again
             const used_len = @as(u32, @intCast(cqe.res));
+
             // Track what part of the buffer is used
             self.heads[buffer_id] += used_len;
+
             return;
         }
+
         self.heads[buffer_id] = 0;
 
         // Release buffer to the kernel.    const mask = buf_ring_mask(self.buffers_count);
         const mask = buf_ring_mask(self.buffers_count);
+
         buf_ring_add(self.br, self.get_by_id(buffer_id), buffer_id, mask, 0);
         buf_ring_advance(self.br, 1);
     }
@@ -1741,6 +1981,7 @@ pub fn setup_buf_ring(
     if (!std.math.isPowerOfTwo(entries)) return error.EntriesNotPowerOfTwo;
 
     const mmap_size = @as(usize, entries) * @sizeOf(linux.io_uring_buf);
+
     const mmap = try posix.mmap(
         null,
         mmap_size,
@@ -1749,11 +1990,15 @@ pub fn setup_buf_ring(
         -1,
         0,
     );
+
     errdefer posix.munmap(mmap);
+
     assert(mmap.len == mmap_size);
 
     const br: *align(page_size_min) linux.io_uring_buf_ring = @ptrCast(mmap.ptr);
+
     try register_buf_ring(fd, @intFromPtr(br), entries, group_id, flags);
+
     return br;
 }
 
@@ -1770,13 +2015,17 @@ fn register_buf_ring(
         .bgid = group_id,
         .flags = flags,
     });
+
     var res = linux.io_uring_register(fd, .REGISTER_PBUF_RING, @as(*const anyopaque, @ptrCast(&reg)), 1);
+
     if (linux.errno(res) == .INVAL and reg.flags.inc) {
         // Retry without incremental buffer consumption.
         // It is available since kernel 6.12. returns INVAL on older.
         reg.flags.inc = false;
+
         res = linux.io_uring_register(fd, .REGISTER_PBUF_RING, @as(*const anyopaque, @ptrCast(&reg)), 1);
     }
+
     try handle_register_buf_ring_result(res);
 }
 
@@ -1784,12 +2033,14 @@ fn unregister_buf_ring(fd: linux.fd_t, group_id: u16) !void {
     var reg = mem.zeroInit(linux.io_uring_buf_reg, .{
         .bgid = group_id,
     });
+
     const res = linux.io_uring_register(
         fd,
         .UNREGISTER_PBUF_RING,
         @as(*const anyopaque, @ptrCast(&reg)),
         1,
     );
+
     try handle_register_buf_ring_result(res);
 }
 
@@ -1804,9 +2055,12 @@ fn handle_register_buf_ring_result(res: usize) !void {
 // Unregisters a previously registered shared buffer ring, returned from io_uring_setup_buf_ring.
 pub fn free_buf_ring(fd: linux.fd_t, br: *align(page_size_min) linux.io_uring_buf_ring, entries: u32, group_id: u16) void {
     unregister_buf_ring(fd, group_id) catch {};
+
     var mmap: []align(page_size_min) u8 = undefined;
+
     mmap.ptr = @ptrCast(br);
     mmap.len = entries * @sizeOf(linux.io_uring_buf);
+
     posix.munmap(mmap);
 }
 
@@ -1838,6 +2092,7 @@ pub fn buf_ring_add(
 
     buf.addr = @intFromPtr(buffer.ptr);
     buf.len = @intCast(buffer.len);
+
     buf.bid = buffer_id;
 }
 
@@ -1845,6 +2100,7 @@ pub fn buf_ring_add(
 /// `io_uring_buf_ring_add` has been called `count` times to fill in new buffers.
 pub fn buf_ring_advance(br: *linux.io_uring_buf_ring, count: u16) void {
     const tail: u16 = br.tail +% count;
+
     @atomicStore(u16, &br.tail, tail, .release);
 }
 
@@ -1854,11 +2110,9 @@ test "structs/offsets/entries" {
     try testing.expectEqual(@as(usize, 120), @sizeOf(linux.io_uring_params));
     try testing.expectEqual(@as(usize, 64), @sizeOf(linux.io_uring_sqe));
     try testing.expectEqual(@as(usize, 16), @sizeOf(linux.io_uring_cqe));
-
     try testing.expectEqual(0, linux.IORING_OFF_SQ_RING);
     try testing.expectEqual(0x8000000, linux.IORING_OFF_CQ_RING);
     try testing.expectEqual(0x10000000, linux.IORING_OFF_SQES);
-
     try testing.expectError(error.EntriesZero, IoUring.init(0, 0));
     try testing.expectError(error.EntriesNotPowerOfTwo, IoUring.init(3, 0));
 }
@@ -1871,12 +2125,14 @@ test "nop" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer {
         ring.deinit();
         testing.expectEqual(@as(linux.fd_t, -1), ring.fd) catch @panic("test failed");
     }
 
     const sqe = try ring.nop(0xaaaaaaaa);
+
     try testing.expectEqual(linux.io_uring_sqe{
         .opcode = .NOP,
         .flags = 0,
@@ -1900,7 +2156,6 @@ test "nop" {
     try testing.expectEqual(@as(u32, 0), ring.cq.head.*);
     try testing.expectEqual(@as(u32, 1), ring.sq_ready());
     try testing.expectEqual(@as(u32, 0), ring.cq_ready());
-
     try testing.expectEqual(@as(u32, 1), try ring.submit());
     try testing.expectEqual(@as(u32, 1), ring.sq.sqe_head);
     try testing.expectEqual(@as(u32, 1), ring.sq.sqe_tail);
@@ -1913,17 +2168,22 @@ test "nop" {
         .res = 0,
         .flags = 0,
     }, try ring.copy_cqe());
+
     try testing.expectEqual(@as(u32, 1), ring.cq.head.*);
     try testing.expectEqual(@as(u32, 0), ring.cq_ready());
 
     const sqe_barrier = try ring.nop(0xbbbbbbbb);
+
     sqe_barrier.flags |= linux.IOSQE_IO_DRAIN;
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0xbbbbbbbb,
         .res = 0,
         .flags = 0,
     }, try ring.copy_cqe());
+
     try testing.expectEqual(@as(u32, 2), ring.sq.sqe_head);
     try testing.expectEqual(@as(u32, 2), ring.sq.sqe_tail);
     try testing.expectEqual(@as(u32, 2), ring.sq.tail.*);
@@ -1938,9 +2198,11 @@ test "readv" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const fd = try posix.openZ("/dev/zero", .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
+
     defer posix.close(fd);
 
     // Linux Kernel 5.4 supports IORING_REGISTER_FILES but not sparse fd sets (i.e. an fd of -1).
@@ -1951,22 +2213,28 @@ test "readv" {
     // We therefore avoid stressing sparse fd sets here:
     var registered_fds = [_]linux.fd_t{0} ** 1;
     const fd_index = 0;
+
     registered_fds[fd_index] = fd;
+
     try ring.register_files(registered_fds[0..]);
 
     var buffer = [_]u8{42} ** 128;
     var iovecs = [_]posix.iovec{posix.iovec{ .base = &buffer, .len = buffer.len }};
     const sqe = try ring.read(0xcccccccc, fd_index, .{ .iovecs = iovecs[0..] }, 0);
+
     try testing.expectEqual(linux.IORING_OP.READV, sqe.opcode);
+
     sqe.flags |= linux.IOSQE_FIXED_FILE;
 
     try testing.expectError(error.SubmissionQueueFull, ring.nop(0));
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0xcccccccc,
         .res = buffer.len,
         .flags = 0,
     }, try ring.copy_cqe());
+
     try testing.expectEqualSlices(u8, &([_]u8{0} ** buffer.len), buffer[0..]);
 
     try ring.unregister_files();
@@ -1980,39 +2248,50 @@ test "writev/fsync/readv" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const path = "test_io_uring_writev_fsync_readv";
     const file = try tmp.dir.createFile(path, .{ .read = true, .truncate = true });
+
     defer file.close();
+
     const fd = file.handle;
 
     const buffer_write = [_]u8{42} ** 128;
+
     const iovecs_write = [_]posix.iovec_const{
         posix.iovec_const{ .base = &buffer_write, .len = buffer_write.len },
     };
+
     var buffer_read = [_]u8{0} ** 128;
+
     var iovecs_read = [_]posix.iovec{
         posix.iovec{ .base = &buffer_read, .len = buffer_read.len },
     };
 
     const sqe_writev = try ring.writev(0xdddddddd, fd, iovecs_write[0..], 17);
+
     try testing.expectEqual(linux.IORING_OP.WRITEV, sqe_writev.opcode);
     try testing.expectEqual(@as(u64, 17), sqe_writev.off);
+
     sqe_writev.flags |= linux.IOSQE_IO_LINK;
 
     const sqe_fsync = try ring.fsync(0xeeeeeeee, fd, 0);
+
     try testing.expectEqual(linux.IORING_OP.FSYNC, sqe_fsync.opcode);
     try testing.expectEqual(fd, sqe_fsync.fd);
+
     sqe_fsync.flags |= linux.IOSQE_IO_LINK;
 
     const sqe_readv = try ring.read(0xffffffff, fd, .{ .iovecs = iovecs_read[0..] }, 17);
+
     try testing.expectEqual(linux.IORING_OP.READV, sqe_readv.opcode);
     try testing.expectEqual(@as(u64, 17), sqe_readv.off);
-
     try testing.expectEqual(@as(u32, 3), ring.sq_ready());
     try testing.expectEqual(@as(u32, 3), try ring.submit_and_wait(3));
     try testing.expectEqual(@as(u32, 0), ring.sq_ready());
@@ -2023,6 +2302,7 @@ test "writev/fsync/readv" {
         .res = buffer_write.len,
         .flags = 0,
     }, try ring.copy_cqe());
+
     try testing.expectEqual(@as(u32, 2), ring.cq_ready());
 
     try testing.expectEqual(linux.io_uring_cqe{
@@ -2030,6 +2310,7 @@ test "writev/fsync/readv" {
         .res = 0,
         .flags = 0,
     }, try ring.copy_cqe());
+
     try testing.expectEqual(@as(u32, 1), ring.cq_ready());
 
     try testing.expectEqual(linux.io_uring_cqe{
@@ -2037,8 +2318,8 @@ test "writev/fsync/readv" {
         .res = buffer_read.len,
         .flags = 0,
     }, try ring.copy_cqe());
-    try testing.expectEqual(@as(u32, 0), ring.cq_ready());
 
+    try testing.expectEqual(@as(u32, 0), ring.cq_ready());
     try testing.expectEqualSlices(u8, buffer_write[0..], buffer_read[0..]);
 }
 
@@ -2050,42 +2331,55 @@ test "write/read" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
+
     const path = "test_io_uring_write_read";
     const file = try tmp.dir.createFile(path, .{ .read = true, .truncate = true });
+
     defer file.close();
+
     const fd = file.handle;
 
     const buffer_write = [_]u8{97} ** 20;
     var buffer_read = [_]u8{98} ** 20;
     const sqe_write = try ring.write(0x11111111, fd, buffer_write[0..], 10);
+
     try testing.expectEqual(linux.IORING_OP.WRITE, sqe_write.opcode);
     try testing.expectEqual(@as(u64, 10), sqe_write.off);
+
     sqe_write.flags |= linux.IOSQE_IO_LINK;
+
     const sqe_read = try ring.read(0x22222222, fd, .{ .buffer = buffer_read[0..] }, 10);
+
     try testing.expectEqual(linux.IORING_OP.READ, sqe_read.opcode);
     try testing.expectEqual(@as(u64, 10), sqe_read.off);
     try testing.expectEqual(@as(u32, 2), try ring.submit());
 
     const cqe_write = try ring.copy_cqe();
     const cqe_read = try ring.copy_cqe();
+
     // Prior to Linux Kernel 5.6 this is the only way to test for read/write support:
     // https://lwn.net/Articles/809820/
     if (cqe_write.err() == .INVAL) return error.SkipZigTest;
     if (cqe_read.err() == .INVAL) return error.SkipZigTest;
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x11111111,
         .res = buffer_write.len,
         .flags = 0,
     }, cqe_write);
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x22222222,
         .res = buffer_read.len,
         .flags = 0,
     }, cqe_read);
+
     try testing.expectEqualSlices(u8, buffer_write[0..], buffer_read[0..]);
 }
 
@@ -2097,39 +2391,50 @@ test "splice/read" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
     const path_src = "test_io_uring_splice_src";
     const file_src = try tmp.dir.createFile(path_src, .{ .read = true, .truncate = true });
+
     defer file_src.close();
+
     const fd_src = file_src.handle;
 
     const path_dst = "test_io_uring_splice_dst";
     const file_dst = try tmp.dir.createFile(path_dst, .{ .read = true, .truncate = true });
+
     defer file_dst.close();
+
     const fd_dst = file_dst.handle;
 
     const buffer_write = [_]u8{97} ** 20;
     var buffer_read = [_]u8{98} ** 20;
+
     _ = try file_src.write(&buffer_write);
 
     const fds = try posix.pipe();
     const pipe_offset: u64 = std.math.maxInt(u64);
 
     const sqe_splice_to_pipe = try ring.splice(0x11111111, fd_src, 0, fds[1], pipe_offset, buffer_write.len);
+
     try testing.expectEqual(linux.IORING_OP.SPLICE, sqe_splice_to_pipe.opcode);
     try testing.expectEqual(@as(u64, 0), sqe_splice_to_pipe.addr);
     try testing.expectEqual(pipe_offset, sqe_splice_to_pipe.off);
+
     sqe_splice_to_pipe.flags |= linux.IOSQE_IO_LINK;
 
     const sqe_splice_from_pipe = try ring.splice(0x22222222, fds[0], pipe_offset, fd_dst, 10, buffer_write.len);
+
     try testing.expectEqual(linux.IORING_OP.SPLICE, sqe_splice_from_pipe.opcode);
     try testing.expectEqual(pipe_offset, sqe_splice_from_pipe.addr);
     try testing.expectEqual(@as(u64, 10), sqe_splice_from_pipe.off);
+
     sqe_splice_from_pipe.flags |= linux.IOSQE_IO_LINK;
 
     const sqe_read = try ring.read(0x33333333, fd_dst, .{ .buffer = buffer_read[0..] }, 10);
+
     try testing.expectEqual(linux.IORING_OP.READ, sqe_read.opcode);
     try testing.expectEqual(@as(u64, 10), sqe_read.off);
     try testing.expectEqual(@as(u32, 3), try ring.submit());
@@ -2137,26 +2442,31 @@ test "splice/read" {
     const cqe_splice_to_pipe = try ring.copy_cqe();
     const cqe_splice_from_pipe = try ring.copy_cqe();
     const cqe_read = try ring.copy_cqe();
+
     // Prior to Linux Kernel 5.6 this is the only way to test for splice/read support:
     // https://lwn.net/Articles/809820/
     if (cqe_splice_to_pipe.err() == .INVAL) return error.SkipZigTest;
     if (cqe_splice_from_pipe.err() == .INVAL) return error.SkipZigTest;
     if (cqe_read.err() == .INVAL) return error.SkipZigTest;
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x11111111,
         .res = buffer_write.len,
         .flags = 0,
     }, cqe_splice_to_pipe);
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x22222222,
         .res = buffer_write.len,
         .flags = 0,
     }, cqe_splice_from_pipe);
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x33333333,
         .res = buffer_read.len,
         .flags = 0,
     }, cqe_read);
+
     try testing.expectEqualSlices(u8, buffer_write[0..], buffer_read[0..]);
 }
 
@@ -2168,25 +2478,32 @@ test "write_fixed/read_fixed" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const path = "test_io_uring_write_read_fixed";
     const file = try tmp.dir.createFile(path, .{ .read = true, .truncate = true });
+
     defer file.close();
+
     const fd = file.handle;
 
     var raw_buffers: [2][11]u8 = undefined;
+
     // First buffer will be written to the file.
     @memset(&raw_buffers[0], 'z');
+
     raw_buffers[0][0.."foobar".len].* = "foobar".*;
 
     var buffers = [2]posix.iovec{
         .{ .base = &raw_buffers[0], .len = raw_buffers[0].len },
         .{ .base = &raw_buffers[1], .len = raw_buffers[1].len },
     };
+
     ring.register_buffers(&buffers) catch |err| switch (err) {
         error.SystemResources => {
             // See https://github.com/ziglang/zig/issues/15362
@@ -2196,14 +2513,16 @@ test "write_fixed/read_fixed" {
     };
 
     const sqe_write = try ring.write_fixed(0x45454545, fd, &buffers[0], 3, 0);
+
     try testing.expectEqual(linux.IORING_OP.WRITE_FIXED, sqe_write.opcode);
     try testing.expectEqual(@as(u64, 3), sqe_write.off);
+
     sqe_write.flags |= linux.IOSQE_IO_LINK;
 
     const sqe_read = try ring.read_fixed(0x12121212, fd, &buffers[1], 0, 1);
+
     try testing.expectEqual(linux.IORING_OP.READ_FIXED, sqe_read.opcode);
     try testing.expectEqual(@as(u64, 0), sqe_read.off);
-
     try testing.expectEqual(@as(u32, 2), try ring.submit());
 
     const cqe_write = try ring.copy_cqe();
@@ -2214,6 +2533,7 @@ test "write_fixed/read_fixed" {
         .res = @as(i32, @intCast(buffers[0].len)),
         .flags = 0,
     }, cqe_write);
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x12121212,
         .res = @as(i32, @intCast(buffers[1].len)),
@@ -2233,9 +2553,11 @@ test "openat" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const path = "test_io_uring_openat";
@@ -2243,13 +2565,16 @@ test "openat" {
     // Workaround for LLVM bug: https://github.com/ziglang/zig/issues/12014
     const path_addr = if (builtin.zig_backend == .stage2_llvm) p: {
         var workaround = path;
+
         _ = &workaround;
+
         break :p @intFromPtr(workaround);
     } else @intFromPtr(path);
 
     const flags: linux.O = .{ .CLOEXEC = true, .ACCMODE = .RDWR, .CREAT = true };
     const mode: posix.mode_t = 0o666;
     const sqe_openat = try ring.openat(0x33333333, tmp.dir.fd, path, flags, mode);
+
     try testing.expectEqual(linux.io_uring_sqe{
         .opcode = .OPENAT,
         .flags = 0,
@@ -2266,13 +2591,17 @@ test "openat" {
         .addr3 = 0,
         .resv = 0,
     }, sqe_openat.*);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe_openat = try ring.copy_cqe();
+
     try testing.expectEqual(@as(u64, 0x33333333), cqe_openat.user_data);
+
     if (cqe_openat.err() == .INVAL) return error.SkipZigTest;
     if (cqe_openat.err() == .BADF) return error.SkipZigTest;
     if (cqe_openat.res <= 0) std.debug.print("\ncqe_openat.res={}\n", .{cqe_openat.res});
+
     try testing.expect(cqe_openat.res > 0);
     try testing.expectEqual(@as(u32, 0), cqe_openat.flags);
 
@@ -2287,22 +2616,28 @@ test "close" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const path = "test_io_uring_close";
     const file = try tmp.dir.createFile(path, .{});
+
     errdefer file.close();
 
     const sqe_close = try ring.close(0x44444444, file.handle);
+
     try testing.expectEqual(linux.IORING_OP.CLOSE, sqe_close.opcode);
     try testing.expectEqual(file.handle, sqe_close.fd);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe_close = try ring.copy_cqe();
+
     if (cqe_close.err() == .INVAL) return error.SkipZigTest;
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x44444444,
         .res = 0,
@@ -2318,21 +2653,28 @@ test "accept/connect/send/recv" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const socket_test_harness = try createSocketTestHarness(&ring);
+
     defer socket_test_harness.close();
 
     const buffer_send = [_]u8{ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 };
     var buffer_recv = [_]u8{ 0, 1, 0, 1, 0 };
 
     const sqe_send = try ring.send(0xeeeeeeee, socket_test_harness.client, buffer_send[0..], 0);
+
     sqe_send.flags |= linux.IOSQE_IO_LINK;
+
     _ = try ring.recv(0xffffffff, socket_test_harness.server, .{ .buffer = buffer_recv[0..] }, 0);
+
     try testing.expectEqual(@as(u32, 2), try ring.submit());
 
     const cqe_send = try ring.copy_cqe();
+
     if (cqe_send.err() == .INVAL) return error.SkipZigTest;
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0xeeeeeeee,
         .res = buffer_send.len,
@@ -2340,7 +2682,9 @@ test "accept/connect/send/recv" {
     }, cqe_send);
 
     const cqe_recv = try ring.copy_cqe();
+
     if (cqe_recv.err() == .INVAL) return error.SkipZigTest;
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0xffffffff,
         .res = buffer_recv.len,
@@ -2359,6 +2703,7 @@ test "sendmsg/recvmsg" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var address_server: linux.sockaddr.in = .{
@@ -2367,22 +2712,28 @@ test "sendmsg/recvmsg" {
     };
 
     const server = try posix.socket(address_server.family, posix.SOCK.DGRAM, 0);
+
     defer posix.close(server);
+
     try posix.setsockopt(server, posix.SOL.SOCKET, posix.SO.REUSEPORT, &mem.toBytes(@as(c_int, 1)));
     try posix.setsockopt(server, posix.SOL.SOCKET, posix.SO.REUSEADDR, &mem.toBytes(@as(c_int, 1)));
     try posix.bind(server, addrAny(&address_server), @sizeOf(linux.sockaddr.in));
 
     // set address_server to the OS-chosen IP/port.
     var slen: posix.socklen_t = @sizeOf(linux.sockaddr.in);
+
     try posix.getsockname(server, addrAny(&address_server), &slen);
 
     const client = try posix.socket(address_server.family, posix.SOCK.DGRAM, 0);
+
     defer posix.close(client);
 
     const buffer_send = [_]u8{42} ** 128;
+
     const iovecs_send = [_]posix.iovec_const{
         posix.iovec_const{ .base = &buffer_send, .len = buffer_send.len },
     };
+
     const msg_send: linux.msghdr_const = .{
         .name = addrAny(&address_server),
         .namelen = @sizeOf(linux.sockaddr.in),
@@ -2392,19 +2743,25 @@ test "sendmsg/recvmsg" {
         .controllen = 0,
         .flags = 0,
     };
+
     const sqe_sendmsg = try ring.sendmsg(0x11111111, client, &msg_send, 0);
+
     sqe_sendmsg.flags |= linux.IOSQE_IO_LINK;
+
     try testing.expectEqual(linux.IORING_OP.SENDMSG, sqe_sendmsg.opcode);
     try testing.expectEqual(client, sqe_sendmsg.fd);
 
     var buffer_recv = [_]u8{0} ** 128;
+
     var iovecs_recv = [_]posix.iovec{
         posix.iovec{ .base = &buffer_recv, .len = buffer_recv.len },
     };
+
     var address_recv: linux.sockaddr.in = .{
         .port = 0,
         .addr = 0,
     };
+
     var msg_recv: linux.msghdr = .{
         .name = addrAny(&address_recv),
         .namelen = @sizeOf(linux.sockaddr.in),
@@ -2414,17 +2771,20 @@ test "sendmsg/recvmsg" {
         .controllen = 0,
         .flags = 0,
     };
+
     const sqe_recvmsg = try ring.recvmsg(0x22222222, server, &msg_recv, 0);
+
     try testing.expectEqual(linux.IORING_OP.RECVMSG, sqe_recvmsg.opcode);
     try testing.expectEqual(server, sqe_recvmsg.fd);
-
     try testing.expectEqual(@as(u32, 2), ring.sq_ready());
     try testing.expectEqual(@as(u32, 2), try ring.submit_and_wait(2));
     try testing.expectEqual(@as(u32, 0), ring.sq_ready());
     try testing.expectEqual(@as(u32, 2), ring.cq_ready());
 
     const cqe_sendmsg = try ring.copy_cqe();
+
     if (cqe_sendmsg.res == -@as(i32, @intFromEnum(linux.E.INVAL))) return error.SkipZigTest;
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x11111111,
         .res = buffer_send.len,
@@ -2432,7 +2792,9 @@ test "sendmsg/recvmsg" {
     }, cqe_sendmsg);
 
     const cqe_recvmsg = try ring.copy_cqe();
+
     if (cqe_recvmsg.res == -@as(i32, @intFromEnum(linux.E.INVAL))) return error.SkipZigTest;
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x22222222,
         .res = buffer_recv.len,
@@ -2453,6 +2815,7 @@ test "timeout (after a relative time)" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const ms = 10;
@@ -2461,8 +2824,10 @@ test "timeout (after a relative time)" {
 
     const started = try std.Io.Clock.awake.now(io);
     const sqe = try ring.timeout(0x55555555, &ts, 0, 0);
+
     try testing.expectEqual(linux.IORING_OP.TIMEOUT, sqe.opcode);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     const cqe = try ring.copy_cqe();
     const stopped = try std.Io.Clock.awake.now(io);
 
@@ -2474,6 +2839,7 @@ test "timeout (after a relative time)" {
 
     // Tests should not depend on timings: skip test if outside margin.
     const ms_elapsed = started.durationTo(stopped).toMilliseconds();
+
     if (ms_elapsed > margin) return error.SkipZigTest;
 }
 
@@ -2485,17 +2851,22 @@ test "timeout (after a number of completions)" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const ts: linux.kernel_timespec = .{ .sec = 3, .nsec = 0 };
     const count_completions: u64 = 1;
     const sqe_timeout = try ring.timeout(0x66666666, &ts, count_completions, 0);
+
     try testing.expectEqual(linux.IORING_OP.TIMEOUT, sqe_timeout.opcode);
     try testing.expectEqual(count_completions, sqe_timeout.off);
+
     _ = try ring.nop(0x77777777);
+
     try testing.expectEqual(@as(u32, 2), try ring.submit());
 
     const cqe_nop = try ring.copy_cqe();
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x77777777,
         .res = 0,
@@ -2503,6 +2874,7 @@ test "timeout (after a number of completions)" {
     }, cqe_nop);
 
     const cqe_timeout = try ring.copy_cqe();
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x66666666,
         .res = 0,
@@ -2518,18 +2890,20 @@ test "timeout_remove" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const ts: linux.kernel_timespec = .{ .sec = 3, .nsec = 0 };
     const sqe_timeout = try ring.timeout(0x88888888, &ts, 0, 0);
+
     try testing.expectEqual(linux.IORING_OP.TIMEOUT, sqe_timeout.opcode);
     try testing.expectEqual(@as(u64, 0x88888888), sqe_timeout.user_data);
 
     const sqe_timeout_remove = try ring.timeout_remove(0x99999999, 0x88888888, 0);
+
     try testing.expectEqual(linux.IORING_OP.TIMEOUT_REMOVE, sqe_timeout_remove.opcode);
     try testing.expectEqual(@as(u64, 0x88888888), sqe_timeout_remove.addr);
     try testing.expectEqual(@as(u64, 0x99999999), sqe_timeout_remove.user_data);
-
     try testing.expectEqual(@as(u32, 2), try ring.submit());
 
     // The order in which the CQE arrive is not clearly documented and it changed with kernel 5.18:
@@ -2537,6 +2911,7 @@ test "timeout_remove" {
     // * kernel 5.18 gives user data 0x99999999 first, 0x88888888 second
 
     var cqes: [2]linux.io_uring_cqe = undefined;
+
     cqes[0] = try ring.copy_cqe();
     cqes[1] = try ring.copy_cqe();
 
@@ -2578,25 +2953,32 @@ test "accept/connect/recv/link_timeout" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const socket_test_harness = try createSocketTestHarness(&ring);
+
     defer socket_test_harness.close();
 
     var buffer_recv = [_]u8{ 0, 1, 0, 1, 0 };
 
     const sqe_recv = try ring.recv(0xffffffff, socket_test_harness.server, .{ .buffer = buffer_recv[0..] }, 0);
+
     sqe_recv.flags |= linux.IOSQE_IO_LINK;
 
     const ts = linux.kernel_timespec{ .sec = 0, .nsec = 1000000 };
+
     _ = try ring.link_timeout(0x22222222, &ts, 0);
 
     const nr_wait = try ring.submit();
+
     try testing.expectEqual(@as(u32, 2), nr_wait);
 
     var i: usize = 0;
+
     while (i < nr_wait) : (i += 1) {
         const cqe = try ring.copy_cqe();
+
         switch (cqe.user_data) {
             0xffffffff => {
                 if (cqe.res != -@as(i32, @intFromEnum(linux.E.INTR)) and
@@ -2627,24 +3009,29 @@ test "fallocate" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const path = "test_io_uring_fallocate";
     const file = try tmp.dir.createFile(path, .{ .truncate = true, .mode = 0o666 });
+
     defer file.close();
 
     try testing.expectEqual(@as(u64, 0), (try file.stat()).size);
 
     const len: u64 = 65536;
     const sqe = try ring.fallocate(0xaaaaaaaa, file.handle, 0, 0, len);
+
     try testing.expectEqual(linux.IORING_OP.FALLOCATE, sqe.opcode);
     try testing.expectEqual(file.handle, sqe.fd);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe = try ring.copy_cqe();
+
     switch (cqe.err()) {
         .SUCCESS => {},
         // This kernel's io_uring does not yet implement fallocate():
@@ -2656,6 +3043,7 @@ test "fallocate" {
         .OPNOTSUPP => return error.SkipZigTest,
         else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
     }
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0xaaaaaaaa,
         .res = 0,
@@ -2673,12 +3061,16 @@ test "statx" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
+
     const path = "test_io_uring_statx";
     const file = try tmp.dir.createFile(path, .{ .truncate = true, .mode = 0o666 });
+
     defer file.close();
 
     try testing.expectEqual(@as(u64, 0), (try file.stat()).size);
@@ -2686,6 +3078,7 @@ test "statx" {
     try file.writeAll("foobar");
 
     var buf: linux.Statx = undefined;
+
     const sqe = try ring.statx(
         0xaaaaaaaa,
         tmp.dir.fd,
@@ -2694,11 +3087,13 @@ test "statx" {
         linux.STATX_SIZE,
         &buf,
     );
+
     try testing.expectEqual(linux.IORING_OP.STATX, sqe.opcode);
     try testing.expectEqual(@as(i32, tmp.dir.fd), sqe.fd);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe = try ring.copy_cqe();
+
     switch (cqe.err()) {
         .SUCCESS => {},
         // This kernel's io_uring does not yet implement statx():
@@ -2712,6 +3107,7 @@ test "statx" {
         .BADF => return error.SkipZigTest,
         else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
     }
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0xaaaaaaaa,
         .res = 0,
@@ -2730,31 +3126,39 @@ test "accept/connect/recv/cancel" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const socket_test_harness = try createSocketTestHarness(&ring);
+
     defer socket_test_harness.close();
 
     var buffer_recv = [_]u8{ 0, 1, 0, 1, 0 };
 
     _ = try ring.recv(0xffffffff, socket_test_harness.server, .{ .buffer = buffer_recv[0..] }, 0);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const sqe_cancel = try ring.cancel(0x99999999, 0xffffffff, 0);
+
     try testing.expectEqual(linux.IORING_OP.ASYNC_CANCEL, sqe_cancel.opcode);
     try testing.expectEqual(@as(u64, 0xffffffff), sqe_cancel.addr);
     try testing.expectEqual(@as(u64, 0x99999999), sqe_cancel.user_data);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     var cqe_recv = try ring.copy_cqe();
+
     if (cqe_recv.err() == .INVAL) return error.SkipZigTest;
+
     var cqe_cancel = try ring.copy_cqe();
+
     if (cqe_cancel.err() == .INVAL) return error.SkipZigTest;
 
     // The recv/cancel CQEs may arrive in any order, the recv CQE will sometimes come first:
     if (cqe_recv.user_data == 0x99999999 and cqe_cancel.user_data == 0xffffffff) {
         const a = cqe_recv;
         const b = cqe_cancel;
+
         cqe_recv = b;
         cqe_cancel = a;
     }
@@ -2780,14 +3184,17 @@ test "register_files_update" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const fd = try posix.openZ("/dev/zero", .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
+
     defer posix.close(fd);
 
     var registered_fds = [_]linux.fd_t{0} ** 2;
     const fd_index = 0;
     const fd_index2 = 1;
+
     registered_fds[fd_index] = fd;
     registered_fds[fd_index2] = -1;
 
@@ -2801,24 +3208,31 @@ test "register_files_update" {
     // Only available since Linux 5.5
 
     const fd2 = try posix.openZ("/dev/zero", .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
+
     defer posix.close(fd2);
 
     registered_fds[fd_index] = fd2;
     registered_fds[fd_index2] = -1;
+
     try ring.register_files_update(0, registered_fds[0..]);
 
     var buffer = [_]u8{42} ** 128;
+
     {
         const sqe = try ring.read(0xcccccccc, fd_index, .{ .buffer = &buffer }, 0);
+
         try testing.expectEqual(linux.IORING_OP.READ, sqe.opcode);
+
         sqe.flags |= linux.IOSQE_FIXED_FILE;
 
         try testing.expectEqual(@as(u32, 1), try ring.submit());
+
         try testing.expectEqual(linux.io_uring_cqe{
             .user_data = 0xcccccccc,
             .res = buffer.len,
             .flags = 0,
         }, try ring.copy_cqe());
+
         try testing.expectEqualSlices(u8, &([_]u8{0} ** buffer.len), buffer[0..]);
     }
 
@@ -2826,20 +3240,25 @@ test "register_files_update" {
 
     registered_fds[fd_index] = -1;
     registered_fds[fd_index2] = -1;
+
     try ring.register_files_update(1, registered_fds[1..]);
 
     {
         // Next read should still work since fd_index in the registered file descriptors hasn't been updated yet.
         const sqe = try ring.read(0xcccccccc, fd_index, .{ .buffer = &buffer }, 0);
+
         try testing.expectEqual(linux.IORING_OP.READ, sqe.opcode);
+
         sqe.flags |= linux.IOSQE_FIXED_FILE;
 
         try testing.expectEqual(@as(u32, 1), try ring.submit());
+
         try testing.expectEqual(linux.io_uring_cqe{
             .user_data = 0xcccccccc,
             .res = buffer.len,
             .flags = 0,
         }, try ring.copy_cqe());
+
         try testing.expectEqualSlices(u8, &([_]u8{0} ** buffer.len), buffer[0..]);
     }
 
@@ -2848,11 +3267,15 @@ test "register_files_update" {
     {
         // Now this should fail since both fds are sparse (-1)
         const sqe = try ring.read(0xcccccccc, fd_index, .{ .buffer = &buffer }, 0);
+
         try testing.expectEqual(linux.IORING_OP.READ, sqe.opcode);
+
         sqe.flags |= linux.IOSQE_FIXED_FILE;
 
         try testing.expectEqual(@as(u32, 1), try ring.submit());
+
         const cqe = try ring.copy_cqe();
+
         try testing.expectEqual(linux.E.BADF, cqe.err());
     }
 
@@ -2867,6 +3290,7 @@ test "shutdown" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var address: linux.sockaddr.in = .{
@@ -2877,22 +3301,26 @@ test "shutdown" {
     // Socket bound, expect shutdown to work
     {
         const server = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
         defer posix.close(server);
+
         try posix.setsockopt(server, posix.SOL.SOCKET, posix.SO.REUSEADDR, &mem.toBytes(@as(c_int, 1)));
         try posix.bind(server, addrAny(&address), @sizeOf(linux.sockaddr.in));
         try posix.listen(server, 1);
 
         // set address to the OS-chosen IP/port.
         var slen: posix.socklen_t = @sizeOf(linux.sockaddr.in);
+
         try posix.getsockname(server, addrAny(&address), &slen);
 
         const shutdown_sqe = try ring.shutdown(0x445445445, server, linux.SHUT.RD);
+
         try testing.expectEqual(linux.IORING_OP.SHUTDOWN, shutdown_sqe.opcode);
         try testing.expectEqual(@as(i32, server), shutdown_sqe.fd);
-
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             // This kernel's io_uring does not yet implement shutdown (kernel version < 5.11)
@@ -2910,17 +3338,19 @@ test "shutdown" {
     // Socket not bound, expect to fail with ENOTCONN
     {
         const server = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
         defer posix.close(server);
 
         const shutdown_sqe = ring.shutdown(0x445445445, server, linux.SHUT.RD) catch |err| switch (err) {
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         };
+
         try testing.expectEqual(linux.IORING_OP.SHUTDOWN, shutdown_sqe.opcode);
         try testing.expectEqual(@as(i32, server), shutdown_sqe.fd);
-
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         try testing.expectEqual(@as(u64, 0x445445445), cqe.user_data);
         try testing.expectEqual(linux.E.NOTCONN, cqe.err());
     }
@@ -2934,18 +3364,22 @@ test "renameat" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const old_path = "test_io_uring_renameat_old";
     const new_path = "test_io_uring_renameat_new";
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     // Write old file with data
 
     const old_file = try tmp.dir.createFile(old_path, .{ .truncate = true, .mode = 0o666 });
+
     defer old_file.close();
+
     try old_file.writeAll("hello");
 
     // Submit renameat
@@ -2958,18 +3392,21 @@ test "renameat" {
         new_path,
         0,
     );
+
     try testing.expectEqual(linux.IORING_OP.RENAMEAT, sqe.opcode);
     try testing.expectEqual(@as(i32, tmp.dir.fd), sqe.fd);
     try testing.expectEqual(@as(i32, tmp.dir.fd), @as(i32, @bitCast(sqe.len)));
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe = try ring.copy_cqe();
+
     switch (cqe.err()) {
         .SUCCESS => {},
         // This kernel's io_uring does not yet implement renameat (kernel version < 5.11)
         .BADF, .INVAL => return error.SkipZigTest,
         else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
     }
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x12121212,
         .res = 0,
@@ -2981,6 +3418,7 @@ test "renameat" {
 
     // Validate that the new file exists with the proper content
     var new_file_data: [16]u8 = undefined;
+
     try testing.expectEqualStrings("hello", try tmp.dir.readFile(new_path, &new_file_data));
 }
 
@@ -2992,16 +3430,19 @@ test "unlinkat" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const path = "test_io_uring_unlinkat";
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     // Write old file with data
 
     const file = try tmp.dir.createFile(path, .{ .truncate = true, .mode = 0o666 });
+
     defer file.close();
 
     // Submit unlinkat
@@ -3012,17 +3453,20 @@ test "unlinkat" {
         path,
         0,
     );
+
     try testing.expectEqual(linux.IORING_OP.UNLINKAT, sqe.opcode);
     try testing.expectEqual(@as(i32, tmp.dir.fd), sqe.fd);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe = try ring.copy_cqe();
+
     switch (cqe.err()) {
         .SUCCESS => {},
         // This kernel's io_uring does not yet implement unlinkat (kernel version < 5.11)
         .BADF, .INVAL => return error.SkipZigTest,
         else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
     }
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x12121212,
         .res = 0,
@@ -3044,9 +3488,11 @@ test "mkdirat" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const path = "test_io_uring_mkdirat";
@@ -3059,17 +3505,20 @@ test "mkdirat" {
         path,
         0o0755,
     );
+
     try testing.expectEqual(linux.IORING_OP.MKDIRAT, sqe.opcode);
     try testing.expectEqual(@as(i32, tmp.dir.fd), sqe.fd);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe = try ring.copy_cqe();
+
     switch (cqe.err()) {
         .SUCCESS => {},
         // This kernel's io_uring does not yet implement mkdirat (kernel version < 5.15)
         .BADF, .INVAL => return error.SkipZigTest,
         else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
     }
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x12121212,
         .res = 0,
@@ -3088,15 +3537,18 @@ test "symlinkat" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const path = "test_io_uring_symlinkat";
     const link_path = "test_io_uring_symlinkat_link";
 
     const file = try tmp.dir.createFile(path, .{ .truncate = true, .mode = 0o666 });
+
     defer file.close();
 
     // Submit symlinkat
@@ -3107,17 +3559,20 @@ test "symlinkat" {
         tmp.dir.fd,
         link_path,
     );
+
     try testing.expectEqual(linux.IORING_OP.SYMLINKAT, sqe.opcode);
     try testing.expectEqual(@as(i32, tmp.dir.fd), sqe.fd);
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe = try ring.copy_cqe();
+
     switch (cqe.err()) {
         .SUCCESS => {},
         // This kernel's io_uring does not yet implement symlinkat (kernel version < 5.15)
         .BADF, .INVAL => return error.SkipZigTest,
         else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
     }
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x12121212,
         .res = 0,
@@ -3136,9 +3591,11 @@ test "linkat" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
 
     const first_path = "test_io_uring_linkat_first";
@@ -3147,7 +3604,9 @@ test "linkat" {
     // Write file with data
 
     const first_file = try tmp.dir.createFile(first_path, .{ .truncate = true, .mode = 0o666 });
+
     defer first_file.close();
+
     try first_file.writeAll("hello");
 
     // Submit linkat
@@ -3160,18 +3619,21 @@ test "linkat" {
         second_path,
         0,
     );
+
     try testing.expectEqual(linux.IORING_OP.LINKAT, sqe.opcode);
     try testing.expectEqual(@as(i32, tmp.dir.fd), sqe.fd);
     try testing.expectEqual(@as(i32, tmp.dir.fd), @as(i32, @bitCast(sqe.len)));
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     const cqe = try ring.copy_cqe();
+
     switch (cqe.err()) {
         .SUCCESS => {},
         // This kernel's io_uring does not yet implement linkat (kernel version < 5.15)
         .BADF, .INVAL => return error.SkipZigTest,
         else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
     }
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0x12121212,
         .res = 0,
@@ -3180,6 +3642,7 @@ test "linkat" {
 
     // Validate the second file
     var second_file_data: [16]u8 = undefined;
+
     try testing.expectEqualStrings("hello", try tmp.dir.readFile(second_path, &second_file_data));
 }
 
@@ -3191,14 +3654,15 @@ test "provide_buffers: read" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const fd = try posix.openZ("/dev/zero", .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
+
     defer posix.close(fd);
 
     const group_id = 1337;
     const buffer_id = 0;
-
     const buffer_len = 128;
 
     var buffers: [4][buffer_len]u8 = undefined;
@@ -3207,6 +3671,7 @@ test "provide_buffers: read" {
 
     {
         const sqe = try ring.provide_buffers(0xcccccccc, @as([*]u8, @ptrCast(&buffers)), buffer_len, buffers.len, group_id, buffer_id);
+
         try testing.expectEqual(linux.IORING_OP.PROVIDE_BUFFERS, sqe.opcode);
         try testing.expectEqual(@as(i32, buffers.len), sqe.fd);
         try testing.expectEqual(@as(u32, buffers[0].len), sqe.len);
@@ -3214,20 +3679,24 @@ test "provide_buffers: read" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             // Happens when the kernel is < 5.7
             .INVAL, .BADF => return error.SkipZigTest,
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
+
         try testing.expectEqual(@as(u64, 0xcccccccc), cqe.user_data);
     }
 
     // Do 4 reads which should consume all buffers
 
     var i: usize = 0;
+
     while (i < buffers.len) : (i += 1) {
         const sqe = try ring.read(0xdededede, fd, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(linux.IORING_OP.READ, sqe.opcode);
         try testing.expectEqual(@as(i32, fd), sqe.fd);
         try testing.expectEqual(@as(u64, 0), sqe.addr);
@@ -3236,16 +3705,18 @@ test "provide_buffers: read" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
 
         try testing.expect(cqe.flags & linux.IORING_CQE_F_BUFFER == linux.IORING_CQE_F_BUFFER);
+
         const used_buffer_id = cqe.flags >> 16;
+
         try testing.expect(used_buffer_id >= 0 and used_buffer_id <= 3);
         try testing.expectEqual(@as(i32, buffer_len), cqe.res);
-
         try testing.expectEqual(@as(u64, 0xdededede), cqe.user_data);
         try testing.expectEqualSlices(u8, &([_]u8{0} ** buffer_len), buffers[used_buffer_id][0..@as(usize, @intCast(cqe.res))]);
     }
@@ -3254,6 +3725,7 @@ test "provide_buffers: read" {
 
     {
         const sqe = try ring.read(0xdfdfdfdf, fd, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(linux.IORING_OP.READ, sqe.opcode);
         try testing.expectEqual(@as(i32, fd), sqe.fd);
         try testing.expectEqual(@as(u64, 0), sqe.addr);
@@ -3262,12 +3734,14 @@ test "provide_buffers: read" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             // Expected
             .NOBUFS => {},
             .SUCCESS => std.debug.panic("unexpected success", .{}),
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
+
         try testing.expectEqual(@as(u64, 0xdfdfdfdf), cqe.user_data);
     }
 
@@ -3280,9 +3754,11 @@ test "provide_buffers: read" {
 
     {
         _ = try ring.provide_buffers(0xabababab, @as([*]u8, @ptrCast(&buffers[reprovided_buffer_id])), buffer_len, 1, group_id, reprovided_buffer_id);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
@@ -3293,6 +3769,7 @@ test "provide_buffers: read" {
 
     {
         const sqe = try ring.read(0xdfdfdfdf, fd, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(linux.IORING_OP.READ, sqe.opcode);
         try testing.expectEqual(@as(i32, fd), sqe.fd);
         try testing.expectEqual(@as(u64, 0), sqe.addr);
@@ -3301,13 +3778,16 @@ test "provide_buffers: read" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
 
         try testing.expect(cqe.flags & linux.IORING_CQE_F_BUFFER == linux.IORING_CQE_F_BUFFER);
+
         const used_buffer_id = cqe.flags >> 16;
+
         try testing.expectEqual(used_buffer_id, reprovided_buffer_id);
         try testing.expectEqual(@as(i32, buffer_len), cqe.res);
         try testing.expectEqual(@as(u64, 0xdfdfdfdf), cqe.user_data);
@@ -3323,14 +3803,15 @@ test "remove_buffers" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const fd = try posix.openZ("/dev/zero", .{ .ACCMODE = .RDONLY, .CLOEXEC = true }, 0);
+
     defer posix.close(fd);
 
     const group_id = 1337;
     const buffer_id = 0;
-
     const buffer_len = 128;
 
     var buffers: [4][buffer_len]u8 = undefined;
@@ -3339,14 +3820,17 @@ test "remove_buffers" {
 
     {
         _ = try ring.provide_buffers(0xcccccccc, @as([*]u8, @ptrCast(&buffers)), buffer_len, buffers.len, group_id, buffer_id);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .INVAL, .BADF => return error.SkipZigTest,
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
+
         try testing.expectEqual(@as(u64, 0xcccccccc), cqe.user_data);
     }
 
@@ -3354,6 +3838,7 @@ test "remove_buffers" {
 
     {
         const sqe = try ring.remove_buffers(0xbababababa, 3, group_id);
+
         try testing.expectEqual(linux.IORING_OP.REMOVE_BUFFERS, sqe.opcode);
         try testing.expectEqual(@as(i32, 3), sqe.fd);
         try testing.expectEqual(@as(u64, 0), sqe.addr);
@@ -3361,10 +3846,12 @@ test "remove_buffers" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
+
         try testing.expectEqual(@as(u64, 0xbababababa), cqe.user_data);
     }
 
@@ -3372,16 +3859,20 @@ test "remove_buffers" {
 
     {
         _ = try ring.read(0xdfdfdfdf, fd, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
 
         try testing.expect(cqe.flags & linux.IORING_CQE_F_BUFFER == linux.IORING_CQE_F_BUFFER);
+
         const used_buffer_id = cqe.flags >> 16;
+
         try testing.expect(used_buffer_id >= 0 and used_buffer_id < 4);
         try testing.expectEqual(@as(i32, buffer_len), cqe.res);
         try testing.expectEqual(@as(u64, 0xdfdfdfdf), cqe.user_data);
@@ -3392,9 +3883,11 @@ test "remove_buffers" {
 
     {
         _ = try ring.read(0xdfdfdfdf, fd, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             // Expected
             .NOBUFS => {},
@@ -3412,11 +3905,11 @@ test "provide_buffers: accept/connect/send/recv" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const group_id = 1337;
     const buffer_id = 0;
-
     const buffer_len = 128;
     var buffers: [4][buffer_len]u8 = undefined;
 
@@ -3424,6 +3917,7 @@ test "provide_buffers: accept/connect/send/recv" {
 
     {
         const sqe = try ring.provide_buffers(0xcccccccc, @as([*]u8, @ptrCast(&buffers)), buffer_len, buffers.len, group_id, buffer_id);
+
         try testing.expectEqual(linux.IORING_OP.PROVIDE_BUFFERS, sqe.opcode);
         try testing.expectEqual(@as(i32, buffers.len), sqe.fd);
         try testing.expectEqual(@as(u32, buffer_len), sqe.len);
@@ -3431,6 +3925,7 @@ test "provide_buffers: accept/connect/send/recv" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             // Happens when the kernel is < 5.7
             .INVAL => return error.SkipZigTest,
@@ -3439,22 +3934,27 @@ test "provide_buffers: accept/connect/send/recv" {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
+
         try testing.expectEqual(@as(u64, 0xcccccccc), cqe.user_data);
     }
 
     const socket_test_harness = try createSocketTestHarness(&ring);
+
     defer socket_test_harness.close();
 
     // Do 4 send on the socket
 
     {
         var i: usize = 0;
+
         while (i < buffers.len) : (i += 1) {
             _ = try ring.send(0xdeaddead, socket_test_harness.server, &([_]u8{'z'} ** buffer_len), 0);
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
         }
 
         var cqes: [4]linux.io_uring_cqe = undefined;
+
         try testing.expectEqual(@as(u32, 4), try ring.copy_cqes(&cqes, 4));
     }
 
@@ -3464,8 +3964,10 @@ test "provide_buffers: accept/connect/send/recv" {
     @memset(mem.sliceAsBytes(&buffers), 1);
 
     var i: usize = 0;
+
     while (i < buffers.len) : (i += 1) {
         const sqe = try ring.recv(0xdededede, socket_test_harness.client, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(linux.IORING_OP.RECV, sqe.opcode);
         try testing.expectEqual(@as(i32, socket_test_harness.client), sqe.fd);
         try testing.expectEqual(@as(u64, 0), sqe.addr);
@@ -3476,18 +3978,22 @@ test "provide_buffers: accept/connect/send/recv" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
 
         try testing.expect(cqe.flags & linux.IORING_CQE_F_BUFFER == linux.IORING_CQE_F_BUFFER);
+
         const used_buffer_id = cqe.flags >> 16;
+
         try testing.expect(used_buffer_id >= 0 and used_buffer_id <= 3);
         try testing.expectEqual(@as(i32, buffer_len), cqe.res);
-
         try testing.expectEqual(@as(u64, 0xdededede), cqe.user_data);
+
         const buffer = buffers[used_buffer_id][0..@as(usize, @intCast(cqe.res))];
+
         try testing.expectEqualSlices(u8, &([_]u8{'z'} ** buffer_len), buffer);
     }
 
@@ -3495,6 +4001,7 @@ test "provide_buffers: accept/connect/send/recv" {
 
     {
         const sqe = try ring.recv(0xdfdfdfdf, socket_test_harness.client, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(linux.IORING_OP.RECV, sqe.opcode);
         try testing.expectEqual(@as(i32, socket_test_harness.client), sqe.fd);
         try testing.expectEqual(@as(u64, 0), sqe.addr);
@@ -3505,12 +4012,14 @@ test "provide_buffers: accept/connect/send/recv" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             // Expected
             .NOBUFS => {},
             .SUCCESS => std.debug.panic("unexpected success", .{}),
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
+
         try testing.expectEqual(@as(u64, 0xdfdfdfdf), cqe.user_data);
     }
 
@@ -3520,9 +4029,11 @@ test "provide_buffers: accept/connect/send/recv" {
 
     {
         _ = try ring.provide_buffers(0xabababab, @as([*]u8, @ptrCast(&buffers[reprovided_buffer_id])), buffer_len, 1, group_id, reprovided_buffer_id);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
@@ -3533,6 +4044,7 @@ test "provide_buffers: accept/connect/send/recv" {
 
     {
         _ = try ring.send(0xdeaddead, socket_test_harness.server, &([_]u8{'w'} ** buffer_len), 0);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         _ = try ring.copy_cqe();
@@ -3545,6 +4057,7 @@ test "provide_buffers: accept/connect/send/recv" {
 
     {
         const sqe = try ring.recv(0xdfdfdfdf, socket_test_harness.client, .{ .buffer_selection = .{ .group_id = group_id, .len = buffer_len } }, 0);
+
         try testing.expectEqual(linux.IORING_OP.RECV, sqe.opcode);
         try testing.expectEqual(@as(i32, socket_test_harness.client), sqe.fd);
         try testing.expectEqual(@as(u64, 0), sqe.addr);
@@ -3555,17 +4068,22 @@ test "provide_buffers: accept/connect/send/recv" {
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         const cqe = try ring.copy_cqe();
+
         switch (cqe.err()) {
             .SUCCESS => {},
             else => |errno| std.debug.panic("unhandled errno: {}", .{errno}),
         }
 
         try testing.expect(cqe.flags & linux.IORING_CQE_F_BUFFER == linux.IORING_CQE_F_BUFFER);
+
         const used_buffer_id = cqe.flags >> 16;
+
         try testing.expectEqual(used_buffer_id, reprovided_buffer_id);
         try testing.expectEqual(@as(i32, buffer_len), cqe.res);
         try testing.expectEqual(@as(u64, 0xdfdfdfdf), cqe.user_data);
+
         const buffer = buffers[used_buffer_id][0..@as(usize, @intCast(cqe.res))];
+
         try testing.expectEqualSlices(u8, &([_]u8{'w'} ** buffer_len), buffer);
     }
 }
@@ -3588,38 +4106,50 @@ fn createSocketTestHarness(ring: *IoUring) !SocketTestHarness {
         .port = 0,
         .addr = @bitCast([4]u8{ 127, 0, 0, 1 }),
     };
+
     const listener_socket = try createListenerSocket(&address);
+
     errdefer posix.close(listener_socket);
 
     // Submit 1 accept
     var accept_addr: posix.sockaddr = undefined;
     var accept_addr_len: posix.socklen_t = @sizeOf(@TypeOf(accept_addr));
+
     _ = try ring.accept(0xaaaaaaaa, listener_socket, &accept_addr, &accept_addr_len, 0);
 
     // Create a TCP client socket
     const client = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
     errdefer posix.close(client);
+
     _ = try ring.connect(0xcccccccc, client, addrAny(&address), @sizeOf(linux.sockaddr.in));
 
     try testing.expectEqual(@as(u32, 2), try ring.submit());
 
     var cqe_accept = try ring.copy_cqe();
+
     if (cqe_accept.err() == .INVAL) return error.SkipZigTest;
+
     var cqe_connect = try ring.copy_cqe();
+
     if (cqe_connect.err() == .INVAL) return error.SkipZigTest;
 
     // The accept/connect CQEs may arrive in any order, the connect CQE will sometimes come first:
     if (cqe_accept.user_data == 0xcccccccc and cqe_connect.user_data == 0xaaaaaaaa) {
         const a = cqe_accept;
         const b = cqe_connect;
+
         cqe_accept = b;
         cqe_connect = a;
     }
 
     try testing.expectEqual(@as(u64, 0xaaaaaaaa), cqe_accept.user_data);
+
     if (cqe_accept.res <= 0) std.debug.print("\ncqe_accept.res={}\n", .{cqe_accept.res});
+
     try testing.expect(cqe_accept.res > 0);
     try testing.expectEqual(@as(u32, 0), cqe_accept.flags);
+
     try testing.expectEqual(linux.io_uring_cqe{
         .user_data = 0xcccccccc,
         .res = 0,
@@ -3638,6 +4168,7 @@ fn createSocketTestHarness(ring: *IoUring) !SocketTestHarness {
 fn createListenerSocket(address: *linux.sockaddr.in) !posix.socket_t {
     const kernel_backlog = 1;
     const listener_socket = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
     errdefer posix.close(listener_socket);
 
     try posix.setsockopt(listener_socket, posix.SOL.SOCKET, posix.SO.REUSEADDR, &mem.toBytes(@as(c_int, 1)));
@@ -3646,6 +4177,7 @@ fn createListenerSocket(address: *linux.sockaddr.in) !posix.socket_t {
 
     // set address to the OS-chosen IP/port.
     var slen: posix.socklen_t = @sizeOf(linux.sockaddr.in);
+
     try posix.getsockname(listener_socket, addrAny(address), &slen);
 
     return listener_socket;
@@ -3659,32 +4191,42 @@ test "accept multishot" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var address: linux.sockaddr.in = .{
         .port = 0,
         .addr = @bitCast([4]u8{ 127, 0, 0, 1 }),
     };
+
     const listener_socket = try createListenerSocket(&address);
+
     defer posix.close(listener_socket);
 
     // submit multishot accept operation
     var addr: posix.sockaddr = undefined;
     var addr_len: posix.socklen_t = @sizeOf(@TypeOf(addr));
     const userdata: u64 = 0xaaaaaaaa;
+
     _ = try ring.accept_multishot(userdata, listener_socket, &addr, &addr_len, 0);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     var nr: usize = 4; // number of clients to connect
+
     while (nr > 0) : (nr -= 1) {
         // connect client
         const client = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
         errdefer posix.close(client);
+
         try posix.connect(client, addrAny(&address), @sizeOf(linux.sockaddr.in));
 
         // test accept completion
         var cqe = try ring.copy_cqe();
+
         if (cqe.err() == .INVAL) return error.SkipZigTest;
+
         try testing.expect(cqe.res > 0);
         try testing.expect(cqe.user_data == userdata);
         try testing.expect(cqe.flags & linux.IORING_CQE_F_MORE > 0); // more flag is set
@@ -3701,9 +4243,11 @@ test "accept/connect/send_zc/recv" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const socket_test_harness = try createSocketTestHarness(&ring);
+
     defer socket_test_harness.close();
 
     const buffer_send = [_]u8{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe };
@@ -3711,11 +4255,15 @@ test "accept/connect/send_zc/recv" {
 
     // zero-copy send
     const sqe_send = try ring.send_zc(0xeeeeeeee, socket_test_harness.client, buffer_send[0..], 0, 0);
+
     sqe_send.flags |= linux.IOSQE_IO_LINK;
+
     _ = try ring.recv(0xffffffff, socket_test_harness.server, .{ .buffer = buffer_recv[0..] }, 0);
+
     try testing.expectEqual(@as(u32, 2), try ring.submit());
 
     var cqe_send = try ring.copy_cqe();
+
     // First completion of zero-copy send.
     // IORING_CQE_F_MORE, means that there
     // will be a second completion event / notification for the
@@ -3730,6 +4278,7 @@ test "accept/connect/send_zc/recv" {
     cqe_send, const cqe_recv = brk: {
         const cqe1 = try ring.copy_cqe();
         const cqe2 = try ring.copy_cqe();
+
         break :brk if (cqe1.user_data == 0xeeeeeeee) .{ cqe1, cqe2 } else .{ cqe2, cqe1 };
     };
 
@@ -3738,6 +4287,7 @@ test "accept/connect/send_zc/recv" {
         .res = buffer_recv.len,
         .flags = cqe_recv.flags & linux.IORING_CQE_F_SOCK_NONEMPTY,
     }, cqe_recv);
+
     try testing.expectEqualSlices(u8, buffer_send[0..buffer_recv.len], buffer_recv[0..]);
 
     // Second completion of zero-copy send.
@@ -3757,7 +4307,9 @@ test "accept_direct" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
+
     var address: linux.sockaddr.in = .{
         .port = 0,
         .addr = @bitCast([4]u8{ 127, 0, 0, 1 }),
@@ -3765,9 +4317,11 @@ test "accept_direct" {
 
     // register direct file descriptors
     var registered_fds = [_]linux.fd_t{-1} ** 2;
+
     try ring.register_files(registered_fds[0..]);
 
     const listener_socket = try createListenerSocket(&address);
+
     defer posix.close(listener_socket);
 
     const accept_userdata: u64 = 0xaaaaaaaa;
@@ -3781,17 +4335,23 @@ test "accept_direct" {
 
             // submit accept, will chose registered fd and return index in cqe
             _ = try ring.accept_direct(accept_userdata, listener_socket, null, null, 0);
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
 
             // connect
             const client = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
             try posix.connect(client, addrAny(&address), @sizeOf(linux.sockaddr.in));
+
             defer posix.close(client);
 
             // accept completion
             const cqe_accept = try ring.copy_cqe();
+
             try testing.expectEqual(posix.E.SUCCESS, cqe_accept.err());
+
             const fd_index = cqe_accept.res;
+
             try testing.expect(fd_index < registered_fds.len);
             try testing.expect(cqe_accept.user_data == accept_userdata);
 
@@ -3803,32 +4363,44 @@ test "accept_direct" {
             // Fd field is set to registered file index, returned by accept.
             // Flag linux.IOSQE_FIXED_FILE must be set.
             const recv_sqe = try ring.recv(read_userdata, fd_index, .{ .buffer = &buffer_recv }, 0);
+
             recv_sqe.flags |= linux.IOSQE_FIXED_FILE;
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
 
             // accept receive
             const recv_cqe = try ring.copy_cqe();
+
             try testing.expect(recv_cqe.user_data == read_userdata);
             try testing.expect(recv_cqe.res == buffer_send.len);
             try testing.expectEqualSlices(u8, buffer_send, buffer_recv[0..buffer_send.len]);
         }
+
         // no more available fds, accept will get NFILE error
         {
             // submit accept
             _ = try ring.accept_direct(accept_userdata, listener_socket, null, null, 0);
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
+
             // connect
             const client = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
             try posix.connect(client, addrAny(&address), @sizeOf(linux.sockaddr.in));
+
             defer posix.close(client);
+
             // completion with error
             const cqe_accept = try ring.copy_cqe();
+
             try testing.expect(cqe_accept.user_data == accept_userdata);
             try testing.expectEqual(posix.E.NFILE, cqe_accept.err());
         }
+
         // return file descriptors to kernel
         try ring.register_files_update(0, registered_fds[0..]);
     }
+
     try ring.unregister_files();
 }
 
@@ -3845,6 +4417,7 @@ test "accept_multishot_direct" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var address: linux.sockaddr.in = .{
@@ -3853,9 +4426,11 @@ test "accept_multishot_direct" {
     };
 
     var registered_fds = [_]linux.fd_t{-1} ** 2;
+
     try ring.register_files(registered_fds[0..]);
 
     const listener_socket = try createListenerSocket(&address);
+
     defer posix.close(listener_socket);
 
     const accept_userdata: u64 = 0xaaaaaaaa;
@@ -3864,37 +4439,48 @@ test "accept_multishot_direct" {
         // submit multishot accept
         // Will chose registered fd and return index of the selected registered file in cqe.
         _ = try ring.accept_multishot_direct(accept_userdata, listener_socket, null, null, 0);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
 
         for (registered_fds) |_| {
             // connect
             const client = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
             try posix.connect(client, addrAny(&address), @sizeOf(linux.sockaddr.in));
+
             defer posix.close(client);
 
             // accept completion
             const cqe_accept = try ring.copy_cqe();
             const fd_index = cqe_accept.res;
+
             try testing.expect(fd_index < registered_fds.len);
             try testing.expect(cqe_accept.user_data == accept_userdata);
             try testing.expect(cqe_accept.flags & linux.IORING_CQE_F_MORE > 0); // has more is set
         }
+
         // No more available fds, accept will get NFILE error.
         // Multishot is terminated (more flag is not set).
         {
             // connect
             const client = try posix.socket(address.family, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
+
             try posix.connect(client, addrAny(&address), @sizeOf(linux.sockaddr.in));
+
             defer posix.close(client);
+
             // completion with error
             const cqe_accept = try ring.copy_cqe();
+
             try testing.expect(cqe_accept.user_data == accept_userdata);
             try testing.expectEqual(posix.E.NFILE, cqe_accept.err());
             try testing.expect(cqe_accept.flags & linux.IORING_CQE_F_MORE == 0); // has more is not set
         }
+
         // return file descriptors to kernel
         try ring.register_files_update(0, registered_fds[0..]);
     }
+
     try ring.unregister_files();
 }
 
@@ -3906,16 +4492,21 @@ test "socket" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     // prepare, submit socket operation
     _ = try ring.socket(0, linux.AF.INET, posix.SOCK.STREAM, 0, 0);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
 
     // test completion
     var cqe = try ring.copy_cqe();
+
     try testing.expectEqual(posix.E.SUCCESS, cqe.err());
+
     const fd: linux.fd_t = @intCast(cqe.res);
+
     try testing.expect(fd > 2);
 
     posix.close(fd);
@@ -3929,30 +4520,41 @@ test "socket_direct/socket_direct_alloc/close_direct" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var registered_fds = [_]linux.fd_t{-1} ** 3;
+
     try ring.register_files(registered_fds[0..]);
 
     // create socket in registered file descriptor at index 0 (last param)
     _ = try ring.socket_direct(0, linux.AF.INET, posix.SOCK.STREAM, 0, 0, 0);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     var cqe_socket = try ring.copy_cqe();
+
     try testing.expectEqual(posix.E.SUCCESS, cqe_socket.err());
     try testing.expect(cqe_socket.res == 0);
 
     // create socket in registered file descriptor at index 1 (last param)
     _ = try ring.socket_direct(0, linux.AF.INET, posix.SOCK.STREAM, 0, 0, 1);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     cqe_socket = try ring.copy_cqe();
+
     try testing.expectEqual(posix.E.SUCCESS, cqe_socket.err());
     try testing.expect(cqe_socket.res == 0); // res is 0 when index is specified
 
     // create socket in kernel chosen file descriptor index (_alloc version)
     // completion res has index from registered files
     _ = try ring.socket_direct_alloc(0, linux.AF.INET, posix.SOCK.STREAM, 0, 0);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     cqe_socket = try ring.copy_cqe();
+
     try testing.expectEqual(posix.E.SUCCESS, cqe_socket.err());
     try testing.expect(cqe_socket.res == 2); // returns registered file index
 
@@ -3961,29 +4563,40 @@ test "socket_direct/socket_direct_alloc/close_direct" {
         .port = 0,
         .addr = @bitCast([4]u8{ 127, 0, 0, 1 }),
     };
+
     const listener_socket = try createListenerSocket(&address);
+
     defer posix.close(listener_socket);
+
     const accept_userdata: u64 = 0xaaaaaaaa;
     const connect_userdata: u64 = 0xbbbbbbbb;
     const close_userdata: u64 = 0xcccccccc;
+
     for (registered_fds, 0..) |_, fd_index| {
         // prepare accept
         _ = try ring.accept(accept_userdata, listener_socket, null, null, 0);
+
         // prepare connect with fixed socket
         const connect_sqe = try ring.connect(connect_userdata, @intCast(fd_index), addrAny(&address), @sizeOf(linux.sockaddr.in));
+
         connect_sqe.flags |= linux.IOSQE_FIXED_FILE; // fd is fixed file index
+
         // submit both
         try testing.expectEqual(@as(u32, 2), try ring.submit());
+
         // get completions
         var cqe_connect = try ring.copy_cqe();
         var cqe_accept = try ring.copy_cqe();
+
         // ignore order
         if (cqe_connect.user_data == accept_userdata and cqe_accept.user_data == connect_userdata) {
             const a = cqe_accept;
             const b = cqe_connect;
+
             cqe_accept = b;
             cqe_connect = a;
         }
+
         // test connect completion
         try testing.expect(cqe_connect.user_data == connect_userdata);
         try testing.expectEqual(posix.E.SUCCESS, cqe_connect.err());
@@ -3993,8 +4606,11 @@ test "socket_direct/socket_direct_alloc/close_direct" {
 
         //  submit and test close_direct
         _ = try ring.close_direct(close_userdata, @intCast(fd_index));
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
+
         var cqe_close = try ring.copy_cqe();
+
         try testing.expect(cqe_close.user_data == close_userdata);
         try testing.expectEqual(posix.E.SUCCESS, cqe_close.err());
     }
@@ -4010,13 +4626,17 @@ test "openat_direct/close_direct" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     var registered_fds = [_]linux.fd_t{-1} ** 3;
+
     try ring.register_files(registered_fds[0..]);
 
     var tmp = std.testing.tmpDir(.{});
+
     defer tmp.cleanup();
+
     const path = "test_io_uring_close_direct";
     const flags: linux.O = .{ .ACCMODE = .RDWR, .CREAT = true };
     const mode: posix.mode_t = 0o666;
@@ -4024,32 +4644,45 @@ test "openat_direct/close_direct" {
 
     // use registered file at index 0 (last param)
     _ = try ring.openat_direct(user_data, tmp.dir.fd, path, flags, mode, 0);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     var cqe = try ring.copy_cqe();
+
     try testing.expectEqual(posix.E.SUCCESS, cqe.err());
     try testing.expect(cqe.res == 0);
 
     // use registered file at index 1
     _ = try ring.openat_direct(user_data, tmp.dir.fd, path, flags, mode, 1);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     cqe = try ring.copy_cqe();
+
     try testing.expectEqual(posix.E.SUCCESS, cqe.err());
     try testing.expect(cqe.res == 0); // res is 0 when we specify index
 
     // let kernel choose registered file index
     _ = try ring.openat_direct(user_data, tmp.dir.fd, path, flags, mode, linux.IORING_FILE_INDEX_ALLOC);
+
     try testing.expectEqual(@as(u32, 1), try ring.submit());
+
     cqe = try ring.copy_cqe();
+
     try testing.expectEqual(posix.E.SUCCESS, cqe.err());
     try testing.expect(cqe.res == 2); // chosen index is in res
 
     // close all open file descriptors
     for (registered_fds, 0..) |_, fd_index| {
         _ = try ring.close_direct(user_data, @intCast(fd_index));
+
         try testing.expectEqual(@as(u32, 1), try ring.submit());
+
         var cqe_close = try ring.copy_cqe();
+
         try testing.expectEqual(posix.E.SUCCESS, cqe_close.err());
     }
+
     try ring.unregister_files();
 }
 
@@ -4061,19 +4694,23 @@ test "waitid" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const pid = try posix.fork();
+
     if (pid == 0) {
         posix.exit(7);
     }
 
     var siginfo: posix.siginfo_t = undefined;
+
     _ = try ring.waitid(0, .PID, pid, &siginfo, posix.W.EXITED, 0);
 
     try testing.expectEqual(1, try ring.submit());
 
     const cqe_waitid = try ring.copy_cqe();
+
     try testing.expectEqual(0, cqe_waitid.res);
     try testing.expectEqual(pid, siginfo.fields.common.first.piduid.pid);
     try testing.expectEqual(7, siginfo.fields.common.second.sigchld.status);
@@ -4085,6 +4722,7 @@ inline fn skipKernelLessThan(required: std.SemanticVersion) !void {
 
     var uts: linux.utsname = undefined;
     const res = linux.uname(&uts);
+
     switch (linux.errno(res)) {
         .SUCCESS => {},
         else => |errno| return posix.unexpectedErrno(errno),
@@ -4094,11 +4732,14 @@ inline fn skipKernelLessThan(required: std.SemanticVersion) !void {
     // Strips potential extra, as kernel version might not be semver compliant, example "6.8.9-300.fc40.x86_64"
     const extra_index = std.mem.indexOfAny(u8, release, "-+");
     const stripped = release[0..(extra_index orelse release.len)];
+
     // Make sure the input don't rely on the extra we just stripped
     try testing.expect(required.pre == null and required.build == null);
 
     var current = try std.SemanticVersion.parse(stripped);
+
     current.pre = null; // don't check pre field
+
     if (required.order(current) == .gt) return error.SkipZigTest;
 }
 
@@ -4111,12 +4752,14 @@ test BufferGroup {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     // Init buffer group for ring
     const group_id: u16 = 1; // buffers group id
     const buffers_count: u16 = 1; // number of buffers in buffer group
     const buffer_size: usize = 128; // size of each buffer in group
+
     var buf_grp = BufferGroup.init(
         &ring,
         testing.allocator,
@@ -4128,20 +4771,28 @@ test BufferGroup {
         error.ArgumentsInvalid => return error.SkipZigTest,
         else => return err,
     };
+
     defer buf_grp.deinit(testing.allocator);
 
     // Create client/server fds
     const fds = try createSocketTestHarness(&ring);
+
     defer fds.close();
+
     const data = [_]u8{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe };
 
     // Client sends data
     {
         _ = try ring.send(1, fds.client, data[0..], 0);
+
         const submitted = try ring.submit();
+
         try testing.expectEqual(1, submitted);
+
         const cqe_send = try ring.copy_cqe();
+
         if (cqe_send.err() == .INVAL) return error.SkipZigTest;
+
         try testing.expectEqual(linux.io_uring_cqe{ .user_data = 1, .res = data.len, .flags = 0 }, cqe_send);
     }
 
@@ -4149,11 +4800,14 @@ test BufferGroup {
     {
         // Submit recv operation, buffer will be chosen from buffer group
         _ = try buf_grp.recv(2, fds.server, 0);
+
         const submitted = try ring.submit();
+
         try testing.expectEqual(1, submitted);
 
         // ... when we have completion for recv operation
         const cqe = try ring.copy_cqe();
+
         try testing.expectEqual(2, cqe.user_data); // matches submitted user_data
         try testing.expect(cqe.res >= 0); // success
         try testing.expectEqual(posix.E.SUCCESS, cqe.err());
@@ -4161,6 +4815,7 @@ test BufferGroup {
 
         // Get buffer from pool
         const buf = try buf_grp.get(cqe);
+
         try testing.expectEqualSlices(u8, &data, buf);
         // Release buffer to the kernel when application is done with it
         try buf_grp.put(cqe);
@@ -4175,12 +4830,14 @@ test "ring mapped buffers recv" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     // init buffer group
     const group_id: u16 = 1; // buffers group id
     const buffers_count: u16 = 2; // number of buffers in buffer group
     const buffer_size: usize = 4; // size of each buffer in group
+
     var buf_grp = BufferGroup.init(
         &ring,
         testing.allocator,
@@ -4192,10 +4849,12 @@ test "ring mapped buffers recv" {
         error.ArgumentsInvalid => return error.SkipZigTest,
         else => return err,
     };
+
     defer buf_grp.deinit(testing.allocator);
 
     // create client/server fds
     const fds = try createSocketTestHarness(&ring);
+
     defer fds.close();
 
     // for random user_data in sqe/cqe
@@ -4203,37 +4862,55 @@ test "ring mapped buffers recv" {
     var rnd = Rnd.random();
 
     var round: usize = 4; // repeat send/recv cycle round times
+
     while (round > 0) : (round -= 1) {
         // client sends data
         const data = [_]u8{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe };
+
         {
             const user_data = rnd.int(u64);
+
             _ = try ring.send(user_data, fds.client, data[0..], 0);
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
+
             const cqe_send = try ring.copy_cqe();
+
             if (cqe_send.err() == .INVAL) return error.SkipZigTest;
+
             try testing.expectEqual(linux.io_uring_cqe{ .user_data = user_data, .res = data.len, .flags = 0 }, cqe_send);
         }
+
         var pos: usize = 0;
 
         // read first chunk
         const cqe1 = try buf_grp_recv_submit_get_cqe(&ring, &buf_grp, fds.server, rnd.int(u64));
         var buf = try buf_grp.get(cqe1);
+
         try testing.expectEqualSlices(u8, data[pos..][0..buf.len], buf);
+
         pos += buf.len;
+
         // second chunk
         const cqe2 = try buf_grp_recv_submit_get_cqe(&ring, &buf_grp, fds.server, rnd.int(u64));
+
         buf = try buf_grp.get(cqe2);
+
         try testing.expectEqualSlices(u8, data[pos..][0..buf.len], buf);
+
         pos += buf.len;
 
         // both buffers provided to the kernel are used so we get error
         // 'no more buffers', until we put buffers to the kernel
         {
             const user_data = rnd.int(u64);
+
             _ = try buf_grp.recv(user_data, fds.server, 0);
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
+
             const cqe = try ring.copy_cqe();
+
             try testing.expectEqual(user_data, cqe.user_data);
             try testing.expect(cqe.res < 0); // fail
             try testing.expectEqual(posix.E.NOBUFS, cqe.err());
@@ -4248,9 +4925,13 @@ test "ring mapped buffers recv" {
         // read remaining data
         while (pos < data.len) {
             const cqe = try buf_grp_recv_submit_get_cqe(&ring, &buf_grp, fds.server, rnd.int(u64));
+
             buf = try buf_grp.get(cqe);
+
             try testing.expectEqualSlices(u8, data[pos..][0..buf.len], buf);
+
             pos += buf.len;
+
             try buf_grp.put(cqe);
         }
     }
@@ -4264,12 +4945,14 @@ test "ring mapped buffers multishot recv" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     // init buffer group
     const group_id: u16 = 1; // buffers group id
     const buffers_count: u16 = 2; // number of buffers in buffer group
     const buffer_size: usize = 4; // size of each buffer in group
+
     var buf_grp = BufferGroup.init(
         &ring,
         testing.allocator,
@@ -4281,10 +4964,12 @@ test "ring mapped buffers multishot recv" {
         error.ArgumentsInvalid => return error.SkipZigTest,
         else => return err,
     };
+
     defer buf_grp.deinit(testing.allocator);
 
     // create client/server fds
     const fds = try createSocketTestHarness(&ring);
+
     defer fds.close();
 
     // for random user_data in sqe/cqe
@@ -4292,21 +4977,30 @@ test "ring mapped buffers multishot recv" {
     var rnd = Rnd.random();
 
     var round: usize = 4; // repeat send/recv cycle round times
+
     while (round > 0) : (round -= 1) {
         // client sends data
         const data = [_]u8{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
+
         {
             const user_data = rnd.int(u64);
+
             _ = try ring.send(user_data, fds.client, data[0..], 0);
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
+
             const cqe_send = try ring.copy_cqe();
+
             if (cqe_send.err() == .INVAL) return error.SkipZigTest;
+
             try testing.expectEqual(linux.io_uring_cqe{ .user_data = user_data, .res = data.len, .flags = 0 }, cqe_send);
         }
 
         // start multishot recv
         var recv_user_data = rnd.int(u64);
+
         _ = try buf_grp.recv_multishot(recv_user_data, fds.server, 0);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit()); // submit
 
         // server reads data into provided buffers
@@ -4314,16 +5008,20 @@ test "ring mapped buffers multishot recv" {
         // we read four chunks of 4, 4, 4, 4 bytes each
         var chunk: []const u8 = data[0..buffer_size]; // first chunk
         const cqe1 = try expect_buf_grp_cqe(&ring, &buf_grp, recv_user_data, chunk);
+
         try testing.expect(cqe1.flags & linux.IORING_CQE_F_MORE > 0);
 
         chunk = data[buffer_size .. buffer_size * 2]; // second chunk
+
         const cqe2 = try expect_buf_grp_cqe(&ring, &buf_grp, recv_user_data, chunk);
+
         try testing.expect(cqe2.flags & linux.IORING_CQE_F_MORE > 0);
 
         // both buffers provided to the kernel are used so we get error
         // 'no more buffers', until we put buffers to the kernel
         {
             const cqe = try ring.copy_cqe();
+
             try testing.expectEqual(recv_user_data, cqe.user_data);
             try testing.expect(cqe.res < 0); // fail
             try testing.expectEqual(posix.E.NOBUFS, cqe.err());
@@ -4340,35 +5038,47 @@ test "ring mapped buffers multishot recv" {
 
         // restart multishot
         recv_user_data = rnd.int(u64);
+
         _ = try buf_grp.recv_multishot(recv_user_data, fds.server, 0);
+
         try testing.expectEqual(@as(u32, 1), try ring.submit()); // submit
 
         chunk = data[buffer_size * 2 .. buffer_size * 3]; // third chunk
+
         const cqe3 = try expect_buf_grp_cqe(&ring, &buf_grp, recv_user_data, chunk);
+
         try testing.expect(cqe3.flags & linux.IORING_CQE_F_MORE > 0);
         try buf_grp.put(cqe3);
 
         chunk = data[buffer_size * 3 ..]; // last chunk
+
         const cqe4 = try expect_buf_grp_cqe(&ring, &buf_grp, recv_user_data, chunk);
+
         try testing.expect(cqe4.flags & linux.IORING_CQE_F_MORE > 0);
         try buf_grp.put(cqe4);
 
         // cancel pending multishot recv operation
         {
             const cancel_user_data = rnd.int(u64);
+
             _ = try ring.cancel(cancel_user_data, recv_user_data, 0);
+
             try testing.expectEqual(@as(u32, 1), try ring.submit());
 
             // expect completion of cancel operation and completion of recv operation
             var cqe_cancel = try ring.copy_cqe();
+
             if (cqe_cancel.err() == .INVAL) return error.SkipZigTest;
+
             var cqe_recv = try ring.copy_cqe();
+
             if (cqe_recv.err() == .INVAL) return error.SkipZigTest;
 
             // don't depend on order of completions
             if (cqe_cancel.user_data == recv_user_data and cqe_recv.user_data == cancel_user_data) {
                 const a = cqe_cancel;
                 const b = cqe_recv;
+
                 cqe_cancel = b;
                 cqe_recv = a;
             }
@@ -4404,11 +5114,14 @@ fn buf_grp_recv_submit_get_cqe(
 ) !linux.io_uring_cqe {
     // prepare and submit recv
     const sqe = try buf_grp.recv(user_data, fd, 0);
+
     try testing.expect(sqe.flags & linux.IOSQE_BUFFER_SELECT == linux.IOSQE_BUFFER_SELECT);
     try testing.expect(sqe.buf_index == buf_grp.group_id);
     try testing.expectEqual(@as(u32, 1), try ring.submit()); // submit
+
     // get cqe, expect success
     const cqe = try ring.copy_cqe();
+
     try testing.expectEqual(user_data, cqe.user_data);
     try testing.expect(cqe.res >= 0); // success
     try testing.expectEqual(posix.E.SUCCESS, cqe.err());
@@ -4425,6 +5138,7 @@ fn expect_buf_grp_cqe(
 ) !linux.io_uring_cqe {
     // get cqe
     const cqe = try ring.copy_cqe();
+
     try testing.expectEqual(user_data, cqe.user_data);
     try testing.expect(cqe.res >= 0); // success
     try testing.expect(cqe.flags & linux.IORING_CQE_F_BUFFER == linux.IORING_CQE_F_BUFFER); // IORING_CQE_F_BUFFER flag is set
@@ -4435,6 +5149,7 @@ fn expect_buf_grp_cqe(
     const buffer_id = try cqe.buffer_id();
     const len = @as(usize, @intCast(cqe.res));
     const buf = buf_grp.get_by_id(buffer_id)[0..len];
+
     try testing.expectEqualSlices(u8, expected, buf);
 
     return cqe;
@@ -4448,6 +5163,7 @@ test "copy_cqes with wrapping sq.cqes buffer" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     try testing.expectEqual(2, ring.sq.sqes.len);
@@ -4455,13 +5171,17 @@ test "copy_cqes with wrapping sq.cqes buffer" {
 
     // submit 2 entries, receive 2 completions
     var cqes: [8]linux.io_uring_cqe = undefined;
+
     {
         for (0..2) |_| {
             const sqe = try ring.get_sqe();
+
             sqe.prep_timeout(&.{ .sec = 0, .nsec = 10000 }, 0, 0);
             try testing.expect(try ring.submit() == 1);
         }
+
         var cqe_count: u32 = 0;
+
         while (cqe_count < 2) {
             cqe_count += try ring.copy_cqes(&cqes, 2 - cqe_count);
         }
@@ -4475,13 +5195,17 @@ test "copy_cqes with wrapping sq.cqes buffer" {
     for (1..1024) |i| {
         for (0..4) |_| {
             const sqe = try ring.get_sqe();
+
             sqe.prep_timeout(&.{ .sec = 0, .nsec = 10000 }, 0, 0);
             try testing.expect(try ring.submit() == 1);
         }
+
         var cqe_count: u32 = 0;
+
         while (cqe_count < 4) {
             cqe_count += try ring.copy_cqes(&cqes, 4 - cqe_count);
         }
+
         try testing.expectEqual(4, cqe_count);
         try testing.expectEqual(2 + 4 * i, ring.cq.head.*);
     }
@@ -4495,9 +5219,11 @@ test "bind/listen/connect" {
         error.PermissionDenied => return error.SkipZigTest,
         else => return err,
     };
+
     defer ring.deinit();
 
     const probe = ring.get_probe() catch return error.SkipZigTest;
+
     // LISTEN is higher required operation
     if (!probe.is_supported(.LISTEN)) return error.SkipZigTest;
 
@@ -4505,44 +5231,60 @@ test "bind/listen/connect" {
         .port = 0,
         .addr = @bitCast([4]u8{ 127, 0, 0, 1 }),
     };
+
     const proto: u32 = if (addr.family == linux.AF.UNIX) 0 else linux.IPPROTO.TCP;
 
     const listen_fd = brk: {
         // Create socket
         _ = try ring.socket(1, addr.family, linux.SOCK.STREAM | linux.SOCK.CLOEXEC, proto, 0);
+
         try testing.expectEqual(1, try ring.submit());
+
         var cqe = try ring.copy_cqe();
+
         try testing.expectEqual(1, cqe.user_data);
         try testing.expectEqual(posix.E.SUCCESS, cqe.err());
+
         const listen_fd: linux.fd_t = @intCast(cqe.res);
+
         try testing.expect(listen_fd > 2);
 
         // Prepare: set socket option * 2, bind, listen
         var optval: u32 = 1;
+
         (try ring.setsockopt(2, listen_fd, linux.SOL.SOCKET, linux.SO.REUSEADDR, mem.asBytes(&optval))).link_next();
         (try ring.setsockopt(3, listen_fd, linux.SOL.SOCKET, linux.SO.REUSEPORT, mem.asBytes(&optval))).link_next();
         (try ring.bind(4, listen_fd, addrAny(&addr), @sizeOf(linux.sockaddr.in), 0)).link_next();
+
         _ = try ring.listen(5, listen_fd, 1, 0);
+
         // Submit 4 operations
         try testing.expectEqual(4, try ring.submit());
+
         // Expect all to succeed
         for (2..6) |user_data| {
             cqe = try ring.copy_cqe();
+
             try testing.expectEqual(user_data, cqe.user_data);
             try testing.expectEqual(posix.E.SUCCESS, cqe.err());
         }
 
         // Check that socket option is set
         optval = 0;
+
         _ = try ring.getsockopt(5, listen_fd, linux.SOL.SOCKET, linux.SO.REUSEADDR, mem.asBytes(&optval));
+
         try testing.expectEqual(1, try ring.submit());
+
         cqe = try ring.copy_cqe();
+
         try testing.expectEqual(5, cqe.user_data);
         try testing.expectEqual(posix.E.SUCCESS, cqe.err());
         try testing.expectEqual(1, optval);
 
         // Read system assigned port into addr
         var addr_len: posix.socklen_t = @sizeOf(linux.sockaddr.in);
+
         try posix.getsockname(listen_fd, addrAny(&addr), &addr_len);
 
         break :brk listen_fd;
@@ -4551,31 +5293,43 @@ test "bind/listen/connect" {
     const connect_fd = brk: {
         // Create connect socket
         _ = try ring.socket(6, addr.family, linux.SOCK.STREAM | linux.SOCK.CLOEXEC, proto, 0);
+
         try testing.expectEqual(1, try ring.submit());
+
         const cqe = try ring.copy_cqe();
+
         try testing.expectEqual(6, cqe.user_data);
         try testing.expectEqual(posix.E.SUCCESS, cqe.err());
+
         // Get connect socket fd
         const connect_fd: linux.fd_t = @intCast(cqe.res);
+
         try testing.expect(connect_fd > 2 and connect_fd != listen_fd);
+
         break :brk connect_fd;
     };
 
     // Prepare accept/connect operations
     _ = try ring.accept(7, listen_fd, null, null, 0);
     _ = try ring.connect(8, connect_fd, addrAny(&addr), @sizeOf(linux.sockaddr.in));
+
     try testing.expectEqual(2, try ring.submit());
+
     // Get listener accepted socket
     var accept_fd: posix.socket_t = 0;
+
     for (0..2) |_| {
         const cqe = try ring.copy_cqe();
+
         try testing.expectEqual(posix.E.SUCCESS, cqe.err());
+
         if (cqe.user_data == 7) {
             accept_fd = @intCast(cqe.res);
         } else {
             try testing.expectEqual(8, cqe.user_data);
         }
     }
+
     try testing.expect(accept_fd > 2 and accept_fd != listen_fd and accept_fd != connect_fd);
 
     // Communicate
@@ -4585,10 +5339,14 @@ test "bind/listen/connect" {
     // Shutdown and close all sockets
     for ([_]posix.socket_t{ connect_fd, accept_fd, listen_fd }) |fd| {
         (try ring.shutdown(9, fd, posix.SHUT.RDWR)).link_next();
+
         _ = try ring.close(10, fd);
+
         try testing.expectEqual(2, try ring.submit());
+
         for (0..2) |i| {
             const cqe = try ring.copy_cqe();
+
             try testing.expectEqual(posix.E.SUCCESS, cqe.err());
             try testing.expectEqual(9 + i, cqe.user_data);
         }
@@ -4602,9 +5360,12 @@ fn testSendRecv(ring: *IoUring, send_fd: posix.socket_t, recv_fd: posix.socket_t
     // 2 sends
     _ = try ring.send(1, send_fd, buffer_send, linux.MSG.WAITALL);
     _ = try ring.send(2, send_fd, buffer_send, linux.MSG.WAITALL);
+
     try testing.expectEqual(2, try ring.submit());
+
     for (0..2) |i| {
         const cqe = try ring.copy_cqe();
+
         try testing.expectEqual(1 + i, cqe.user_data);
         try testing.expectEqual(posix.E.SUCCESS, cqe.err());
         try testing.expectEqual(buffer_send.len, @as(usize, @intCast(cqe.res)));
@@ -4612,12 +5373,17 @@ fn testSendRecv(ring: *IoUring, send_fd: posix.socket_t, recv_fd: posix.socket_t
 
     // receive
     var recv_len: usize = 0;
+
     while (recv_len < buffer_send.len * 2) {
         _ = try ring.recv(3, recv_fd, .{ .buffer = buffer_recv[recv_len..] }, 0);
+
         try testing.expectEqual(1, try ring.submit());
+
         const cqe = try ring.copy_cqe();
+
         try testing.expectEqual(3, cqe.user_data);
         try testing.expectEqual(posix.E.SUCCESS, cqe.err());
+
         recv_len += @intCast(cqe.res);
     }
 

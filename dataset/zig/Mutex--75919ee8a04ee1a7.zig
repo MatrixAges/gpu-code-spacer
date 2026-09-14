@@ -60,23 +60,28 @@ const DebugImpl = struct {
 
     inline fn tryLock(self: *@This()) bool {
         const locking = self.impl.tryLock();
+
         if (locking) {
             self.locking_thread.store(Thread.getCurrentId(), .unordered);
         }
+
         return locking;
     }
 
     inline fn lock(self: *@This()) void {
         const current_id = Thread.getCurrentId();
+
         if (self.locking_thread.load(.unordered) == current_id and current_id != 0) {
             @panic("Deadlock detected");
         }
+
         self.impl.lock();
         self.locking_thread.store(current_id, .unordered);
     }
 
     inline fn unlock(self: *@This()) void {
         assert(self.locking_thread.load(.unordered) == Thread.getCurrentId());
+
         self.locking_thread.store(0, .unordered);
         self.impl.unlock();
     }
@@ -87,7 +92,9 @@ const SingleThreadedImpl = struct {
 
     fn tryLock(self: *@This()) bool {
         if (self.is_locked) return false;
+
         self.is_locked = true;
+
         return true;
     }
 
@@ -99,6 +106,7 @@ const SingleThreadedImpl = struct {
 
     fn unlock(self: *@This()) void {
         assert(self.is_locked);
+
         self.is_locked = false;
     }
 };
@@ -160,6 +168,7 @@ const FutexImpl = struct {
         // - `lock bts` is smaller instruction-wise which makes it better for inlining
         if (builtin.target.cpu.arch.isX86()) {
             const locked_bit = @ctz(locked);
+
             return self.state.bitSet(locked_bit, .acquire) == 0;
         }
 
@@ -200,6 +209,7 @@ const FutexImpl = struct {
         // Release barrier ensures the critical section happens before we let go of the lock
         // and that our critical section happens before the next lock holder grabs the lock.
         const state = self.state.swap(unlocked, .release);
+
         assert(state != unlocked);
 
         if (state == contended) {
@@ -214,7 +224,6 @@ test "smoke test" {
     try testing.expect(mutex.tryLock());
     try testing.expect(!mutex.tryLock());
     mutex.unlock();
-
     mutex.lock();
     try testing.expect(!mutex.tryLock());
     mutex.unlock();
@@ -252,8 +261,10 @@ test "many uncontended" {
 
         fn run(self: *@This()) void {
             var i: usize = num_increments;
+
             while (i > 0) : (i -= 1) {
                 self.mutex.lock();
+
                 defer self.mutex.unlock();
 
                 self.counter.inc();
@@ -262,6 +273,7 @@ test "many uncontended" {
     };
 
     var runners = [_]Runner{.{}} ** num_threads;
+
     for (&runners) |*r| r.thread = try Thread.spawn(.{}, Runner.run, .{r});
     for (runners) |r| r.thread.join();
     for (runners) |r| try testing.expectEqual(r.counter.get(), num_increments);
@@ -282,11 +294,13 @@ test "many contended" {
 
         fn run(self: *@This()) void {
             var i: usize = num_increments;
+
             while (i > 0) : (i -= 1) {
                 // Occasionally hint to let another thread run.
                 defer if (i % 100 == 0) Thread.yield() catch {};
 
                 self.mutex.lock();
+
                 defer self.mutex.unlock();
 
                 self.counter.inc();
@@ -297,6 +311,7 @@ test "many contended" {
     var runner = Runner{};
 
     var threads: [num_threads]Thread = undefined;
+
     for (&threads) |*t| t.* = try Thread.spawn(.{}, Runner.run, .{&runner});
     for (threads) |t| t.join();
 

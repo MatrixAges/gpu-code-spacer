@@ -10,8 +10,10 @@ export default (type: LexicalCommand<KeyboardEvent>, event: KeyboardEvent): bool
 	if (!$isRangeSelection(selection)) return false
 
 	const { anchor, focus } = selection
+
 	const anchor_offset = anchor.offset
 	const focus_offset = focus.offset
+
 	const anchor_node = anchor.getNode()
 	const focus_node = focus.getNode()
 	const arrow_is_up = type === KEY_ARROW_UP_COMMAND
@@ -47,6 +49,7 @@ export default (type: LexicalCommand<KeyboardEvent>, event: KeyboardEvent): bool
 				if (code_node_sibling === null) {
 					code_node.selectNext()
 					event.preventDefault()
+
 					return true
 				}
 			}
@@ -98,19 +101,19 @@ export default (type: LexicalCommand<KeyboardEvent>, event: KeyboardEvent): bool
 	let insertion_point = maybe_insertion_point != null ? maybe_insertion_point : sibling
 
 	linebreak.remove()
-
 	range.forEach(node => node.remove())
 
 	if (type === KEY_ARROW_UP_COMMAND) {
 		range.forEach(node => insertion_point.insertBefore(node))
-
 		insertion_point.insertBefore(linebreak)
 	} else {
 		insertion_point.insertAfter(linebreak)
+
 		insertion_point = linebreak
 
 		range.forEach(node => {
 			insertion_point.insertAfter(node)
+
 			insertion_point = node
 		})
 	}

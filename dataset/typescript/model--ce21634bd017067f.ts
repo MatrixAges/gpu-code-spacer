@@ -74,7 +74,6 @@ export default class Index {
 
 	off() {
 		this.utils.off()
-
 		this.unregister?.()
 
 		this.unregister = null as unknown as () => void

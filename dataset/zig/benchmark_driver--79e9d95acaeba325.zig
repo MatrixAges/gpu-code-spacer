@@ -33,12 +33,16 @@ pub fn command_benchmark(
     // put it into CWD, as performance of TigerBeetle very much depends on a specific file system.
     const data_file = args.file orelse data_file: {
         var random_bytes: [4]u8 = undefined;
+
         std.crypto.random.bytes(&random_bytes);
+
         const random_suffix: [8]u8 = std.fmt.bytesToHex(random_bytes, .lower);
+
         break :data_file "0_0-" ++ random_suffix ++ ".tigerbeetle.benchmark";
     };
 
     var data_file_created = false;
+
     defer {
         if (data_file_created and args.file == null) {
             std.fs.cwd().deleteFile(data_file) catch {};
@@ -46,17 +50,22 @@ pub fn command_benchmark(
     }
 
     var tigerbeetle_process: ?TigerBeetleProcess = null;
+
     defer if (tigerbeetle_process) |*p| {
         _ = p.deinit();
     };
 
     var maybe_stat_empty: ?std.fs.File.Stat = null;
+
     if (args.addresses == null) {
         const me = try std.fs.selfExePathAlloc(allocator);
+
         defer allocator.free(me);
 
         try format(allocator, .{ .tigerbeetle = me, .data_file = data_file });
+
         data_file_created = true;
+
         maybe_stat_empty = try std.fs.cwd().statFile(data_file);
 
         tigerbeetle_process = try start(allocator, .{
@@ -90,10 +99,12 @@ pub fn command_benchmark(
         addresses.slice()
     else
         &.{tigerbeetle_process.?.address};
+
     try benchmark_load.main(allocator, io, time, addresses, args);
 
     if (tigerbeetle_process) |*p| {
         const rusage = p.deinit();
+
         tigerbeetle_process = null;
 
         if (rusage.getMaxRss()) |max_rss_bytes| {
@@ -103,11 +114,13 @@ pub fn command_benchmark(
 
     if (data_file_created) {
         const stat = try std.fs.cwd().statFile(data_file);
+
         if (maybe_stat_empty) |stat_empty| {
             try std.io.getStdOut().writer().print("\ndatafile empty = {} bytes\n", .{
                 stat_empty.size,
             });
         }
+
         try std.io.getStdOut().writer().print("datafile = {} bytes\n", .{stat.size});
     }
 }
@@ -127,10 +140,12 @@ fn format(allocator: std.mem.Allocator, options: struct {
             options.data_file,
         },
     });
+
     defer {
         allocator.free(format_result.stdout);
         allocator.free(format_result.stderr);
     }
+
     errdefer log.err("stderr: {s}", .{format_result.stderr});
 
     switch (format_result.term) {
@@ -148,7 +163,9 @@ const TigerBeetleProcess = struct {
         // through stdin closure, such that, from the perspective of the child, there's no
         // difference between the parent process exiting normally or just crashing.
         self.child.stdin.?.close();
+
         self.child.stdin = null;
+
         _ = self.child.wait() catch {};
 
         defer self.* = undefined;
@@ -163,9 +180,11 @@ fn start(allocator: std.mem.Allocator, options: struct {
     args: *const cli.Command.Benchmark,
 }) !TigerBeetleProcess {
     var arena = std.heap.ArenaAllocator.init(allocator);
+
     defer arena.deinit();
 
     var start_args = std.ArrayListUnmanaged([]const u8){};
+
     try start_args.append(arena.allocator(), options.tigerbeetle);
     try start_args.append(arena.allocator(), "start");
     try start_args.append(arena.allocator(), "--addresses=0");
@@ -201,26 +220,32 @@ fn start(allocator: std.mem.Allocator, options: struct {
     const experimental: bool = inline for (forward_args) |forward_arg| {
         if (forward_arg[0] != null) break true;
     } else false;
+
     if (experimental or options.args.log_debug_replica) {
         try start_args.append(arena.allocator(), "--experimental");
     }
 
     try start_args.append(arena.allocator(), options.data_file);
+
     var child = std.process.Child.init(start_args.items, allocator);
 
     child.request_resource_usage_statistics = true;
     child.stdin_behavior = .Pipe;
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Inherit;
+
     try child.spawn();
+
     errdefer {
         _ = child.kill() catch {};
     }
 
     const port = port: {
         errdefer log.err("failed to read port number from tigerbeetle process", .{});
+
         var port_buf: [std.fmt.count("{}\n", .{std.math.maxInt(u16)})]u8 = undefined;
         const port_buf_len = try child.stdout.?.readAll(&port_buf);
+
         break :port try stdx.parse_int(u16, port_buf[0 .. port_buf_len - 1], .{});
     };
 

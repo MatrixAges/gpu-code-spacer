@@ -24,6 +24,7 @@ const keywords = [_][]const u8{
     "credit_account_id",
     "amount",
 };
+
 const completion_entries = keywords.len;
 const completion_entry_bytes = 512;
 
@@ -78,7 +79,9 @@ pub const Completion = struct {
     pub fn get_next_completion(self: *Completion) ![]const u8 {
         if (self.matches.count > 0) {
             const match_ptr = self.matches.get_ptr(self.match_index).?;
+
             self.match_index = (self.match_index + 1) % self.matches.count;
+
             return std.mem.sliceTo(match_ptr, '\x00');
         } else {
             return self.query.const_slice();
@@ -91,6 +94,7 @@ pub const Completion = struct {
         self.prefix.clear();
         self.suffix.clear();
         self.query.clear();
+
         self.match_index = 0;
     }
 
@@ -113,8 +117,11 @@ pub const Completion = struct {
                 }
 
                 const completion_tail = self.matches.next_tail_ptr().?;
+
                 stdx.copy_left(.exact, u8, completion_tail[0..kw.len], kw);
+
                 completion_tail[kw.len] = '\x00';
+
                 self.matches.advance_tail();
             }
         }
@@ -172,10 +179,13 @@ test "completion.zig: Split buffer and complete" {
 
     for (tests) |t| {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+
         defer arena.deinit();
 
         var completion: Completion = undefined;
+
         try completion.init();
+
         var c = &completion;
 
         try c.split_and_complete(t.buffer, t.idx);
@@ -186,9 +196,12 @@ test "completion.zig: Split buffer and complete" {
         try std.testing.expectEqual(c.count(), t.matches.count());
 
         var i: usize = 0;
+
         while (i < t.matches.count()) {
             const cur_match = try c.get_next_completion();
+
             try std.testing.expectEqualSlices(u8, cur_match, t.matches.get(i));
+
             i += 1;
         }
 

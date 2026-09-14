@@ -8,6 +8,7 @@ import {
   type SetupContext,
   currentInstance,
 } from './component'
+
 import {
   type LooseRequired,
   NOOP,
@@ -19,15 +20,19 @@ import {
   isPromise,
   isString,
 } from '@vue/shared'
+
 import { type Ref, getCurrentScope, isRef, traverse } from '@vue/reactivity'
 import { computed } from './apiComputed'
+
 import {
   type WatchCallback,
   type WatchOptions,
   createPathGetter,
   watch,
 } from './apiWatch'
+
 import { inject, provide } from './apiInject'
+
 import {
   type DebuggerHook,
   type ErrorCapturedHook,
@@ -44,23 +49,28 @@ import {
   onUnmounted,
   onUpdated,
 } from './apiLifecycle'
+
 import {
   type ComputedGetter,
   type WritableComputedOptions,
   reactive,
 } from '@vue/reactivity'
+
 import type {
   ComponentObjectPropsOptions,
   ComponentPropsOptions,
   ExtractDefaultPropTypes,
   ExtractPropTypes,
 } from './componentProps'
+
 import type {
   EmitsOptions,
   EmitsToProps,
   TypeEmitsToOptions,
 } from './componentEmits'
+
 import type { Directive } from './directives'
+
 import {
   type ComponentPublicInstance,
   type CreateComponentPublicInstanceWithMixins,
@@ -68,23 +78,28 @@ import {
   type UnwrapMixinsType,
   isReservedPrefix,
 } from './componentPublicInstance'
+
 import { warn } from './warning'
 import type { VNodeChild } from './vnode'
 import { callWithAsyncErrorHandling } from './errorHandling'
 import { deepMergeData } from './compat/data'
 import { DeprecationTypes, checkCompatEnabled } from './compat/compatConfig'
+
 import {
   type CompatConfig,
   isCompatEnabled,
   softAssertCompatEnabled,
 } from './compat/compatConfig'
+
 import type { OptionMergeFunction } from './apiCreateApp'
 import { LifecycleHooks } from './enums'
 import type { SlotsType } from './componentSlots'
+
 import {
   type ComponentTypeEmits,
   normalizePropsOrEmits,
 } from './apiSetupHelpers'
+
 import { markAsyncBoundary } from './helpers/useId'
 
 /**
@@ -143,6 +158,7 @@ export interface ComponentOptionsBase<
     >,
     ctx: SetupContext<E, S>,
   ) => Promise<RawBindings> | RawBindings | RenderFunction | void
+
   name?: string
   template?: string | object // can be a direct DOM node
   // Note: we are intentionally using the signature-less `Function` type here
@@ -404,6 +420,7 @@ interface LegacyOptions<
       Extends
     >,
   ) => D
+
   computed?: C
   methods?: M
   watch?: ComponentWatchOptions
@@ -506,6 +523,7 @@ enum OptionTypes {
 
 function createDuplicateChecker() {
   const cache = Object.create(null)
+
   return (type: OptionTypes, key: string) => {
     if (cache[key]) {
       warn(`${type} property "${key}" is already defined in ${cache[key]}.`)
@@ -569,6 +587,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
 
   if (__DEV__) {
     const [propsOptions] = instance.propsOptions
+
     if (propsOptions) {
       for (const key in propsOptions) {
         checkDuplicateProperties!(OptionTypes.PROPS, key)
@@ -591,6 +610,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
   if (methods) {
     for (const key in methods) {
       const methodHandler = (methods as MethodOptions)[key]
+
       if (isFunction(methodHandler)) {
         // In dev mode, we use the `createRenderContext` function to define
         // methods to the proxy target, and those are read-only but
@@ -605,6 +625,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
         } else {
           ctx[key] = methodHandler.bind(publicThis)
         }
+
         if (__DEV__) {
           checkDuplicateProperties!(OptionTypes.METHODS, key)
         }
@@ -624,7 +645,9 @@ export function applyOptions(instance: ComponentInternalInstance): void {
           `Plain object usage is no longer supported.`,
       )
     }
+
     const data = dataOptions.call(publicThis, publicThis)
+
     if (__DEV__ && isPromise(data)) {
       warn(
         `data() returned a Promise - note data() cannot be async; If you ` +
@@ -632,13 +655,16 @@ export function applyOptions(instance: ComponentInternalInstance): void {
           `async setup() + <Suspense>.`,
       )
     }
+
     if (!isObject(data)) {
       __DEV__ && warn(`data() should return an object.`)
     } else {
       instance.data = reactive(data)
+
       if (__DEV__) {
         for (const key in data) {
           checkDuplicateProperties!(OptionTypes.DATA, key)
+
           // expose data on ctx during dev
           if (!isReservedPrefix(key[0])) {
             Object.defineProperty(ctx, key, {
@@ -659,14 +685,17 @@ export function applyOptions(instance: ComponentInternalInstance): void {
   if (computedOptions) {
     for (const key in computedOptions) {
       const opt = (computedOptions as ComputedOptions)[key]
+
       const get = isFunction(opt)
         ? opt.bind(publicThis, publicThis)
         : isFunction(opt.get)
           ? opt.get.bind(publicThis, publicThis)
           : NOOP
+
       if (__DEV__ && get === NOOP) {
         warn(`Computed property "${key}" has no getter.`)
       }
+
       const set =
         !isFunction(opt) && isFunction(opt.set)
           ? opt.set.bind(publicThis)
@@ -677,16 +706,19 @@ export function applyOptions(instance: ComponentInternalInstance): void {
                 )
               }
             : NOOP
+
       const c = computed({
         get,
         set,
       })
+
       Object.defineProperty(ctx, key, {
         enumerable: true,
         configurable: true,
         get: () => c.value,
         set: v => (c.value = v),
       })
+
       if (__DEV__) {
         checkDuplicateProperties!(OptionTypes.COMPUTED, key)
       }
@@ -703,6 +735,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
     const provides = isFunction(provideOptions)
       ? provideOptions.call(publicThis)
       : provideOptions
+
     Reflect.ownKeys(provides).forEach(key => {
       provide(key, provides[key])
     })
@@ -743,6 +776,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
     ) {
       registerLifecycleHook(onBeforeUnmount, beforeDestroy)
     }
+
     if (
       destroyed &&
       softAssertCompatEnabled(DeprecationTypes.OPTIONS_DESTROYED, instance)
@@ -754,6 +788,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
   if (isArray(expose)) {
     if (expose.length) {
       const exposed = instance.exposed || (instance.exposed = {})
+
       expose.forEach(key => {
         Object.defineProperty(exposed, key, {
           get: () => publicThis[key],
@@ -771,6 +806,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
   if (render && instance.render === NOOP) {
     instance.render = render as InternalRenderFunction
   }
+
   if (inheritAttrs != null) {
     instance.inheritAttrs = inheritAttrs
   }
@@ -778,6 +814,7 @@ export function applyOptions(instance: ComponentInternalInstance): void {
   // asset options.
   if (components) instance.components = components as any
   if (directives) instance.directives = directives
+
   if (
     __COMPAT__ &&
     filters &&
@@ -799,9 +836,12 @@ export function resolveInjections(
   if (isArray(injectOptions)) {
     injectOptions = normalizeInject(injectOptions)!
   }
+
   for (const key in injectOptions) {
     const opt = injectOptions[key]
+
     let injected: unknown
+
     if (isObject(opt)) {
       if ('default' in opt) {
         injected = inject(
@@ -815,6 +855,7 @@ export function resolveInjections(
     } else {
       injected = inject(opt)
     }
+
     if (isRef(injected)) {
       // unwrap injected refs (ref #4196)
       Object.defineProperty(ctx, key, {
@@ -826,6 +867,7 @@ export function resolveInjections(
     } else {
       ctx[key] = injected
     }
+
     if (__DEV__) {
       checkDuplicateProperties!(OptionTypes.INJECT, key)
     }
@@ -857,6 +899,7 @@ export function createWatcher(
     : () => publicThis[key as keyof typeof publicThis]
 
   const options: WatchOptions = {}
+
   if (__COMPAT__) {
     const instance =
       currentInstance && getCurrentScope() === currentInstance.scope
@@ -864,6 +907,7 @@ export function createWatcher(
         : null
 
     const newValue = getter()
+
     if (
       isArray(newValue) &&
       isCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance)
@@ -872,20 +916,24 @@ export function createWatcher(
     }
 
     const baseGetter = getter
+
     getter = () => {
       const val = baseGetter()
+
       if (
         isArray(val) &&
         checkCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance)
       ) {
         traverse(val)
       }
+
       return val
     }
   }
 
   if (isString(raw)) {
     const handler = ctx[raw]
+
     if (isFunction(handler)) {
       if (__COMPAT__) {
         watch(getter, handler as WatchCallback, options)
@@ -908,6 +956,7 @@ export function createWatcher(
       const handler = isFunction(raw.handler)
         ? raw.handler.bind(publicThis)
         : (ctx[raw.handler] as WatchCallback)
+
       if (isFunction(handler)) {
         watch(getter, handler, __COMPAT__ ? extend(raw, options) : raw)
       } else if (__DEV__) {
@@ -928,12 +977,15 @@ export function resolveMergedOptions(
   instance: ComponentInternalInstance,
 ): MergedComponentOptions {
   const base = instance.type as ComponentOptions
+
   const { mixins, extends: extendsOptions } = base
+
   const {
     mixins: globalMixins,
     optionsCache: cache,
     config: { optionMergeStrategies },
   } = instance.appContext
+
   const cached = cache.get(base)
 
   let resolved: MergedComponentOptions
@@ -946,6 +998,7 @@ export function resolveMergedOptions(
       isCompatEnabled(DeprecationTypes.PRIVATE_APIS, instance)
     ) {
       resolved = extend({}, base) as MergedComponentOptions
+
       resolved.parent = instance.parent && instance.parent.proxy
       resolved.propsData = instance.vnode.props
     } else {
@@ -953,16 +1006,20 @@ export function resolveMergedOptions(
     }
   } else {
     resolved = {}
+
     if (globalMixins.length) {
       globalMixins.forEach(m =>
         mergeOptions(resolved, m, optionMergeStrategies, true),
       )
     }
+
     mergeOptions(resolved, base, optionMergeStrategies)
   }
+
   if (isObject(base)) {
     cache.set(base, resolved)
   }
+
   return resolved
 }
 
@@ -981,6 +1038,7 @@ export function mergeOptions(
   if (extendsOptions) {
     mergeOptions(to, extendsOptions, strats, true)
   }
+
   if (mixins) {
     mixins.forEach((m: ComponentOptionsMixin) =>
       mergeOptions(to, m, strats, true),
@@ -996,9 +1054,11 @@ export function mergeOptions(
         )
     } else {
       const strat = internalOptionMergeStrats[key] || (strats && strats[key])
+
       to[key] = strat ? strat(to[key], from[key]) : from[key]
     }
   }
+
   return to
 }
 
@@ -1042,9 +1102,11 @@ function mergeDataFn(to: any, from: any) {
   if (!from) {
     return to
   }
+
   if (!to) {
     return from
   }
+
   return function mergedDataFn(this: ComponentPublicInstance) {
     return (
       __COMPAT__ && isCompatEnabled(DeprecationTypes.OPTIONS_DATA_MERGE, null)
@@ -1069,11 +1131,14 @@ function normalizeInject(
 ): ObjectInjectOptions | undefined {
   if (isArray(raw)) {
     const res: ObjectInjectOptions = {}
+
     for (let i = 0; i < raw.length; i++) {
       res[raw[i]] = raw[i]
     }
+
     return res
   }
+
   return raw
 }
 
@@ -1089,10 +1154,12 @@ function mergeEmitsOrPropsOptions(
   to: EmitsOptions | undefined,
   from: EmitsOptions | undefined,
 ): EmitsOptions | undefined
+
 function mergeEmitsOrPropsOptions(
   to: ComponentPropsOptions | undefined,
   from: ComponentPropsOptions | undefined,
 ): ComponentPropsOptions | undefined
+
 function mergeEmitsOrPropsOptions(
   to: ComponentPropsOptions | EmitsOptions | undefined,
   from: ComponentPropsOptions | EmitsOptions | undefined,
@@ -1101,6 +1168,7 @@ function mergeEmitsOrPropsOptions(
     if (isArray(to) && isArray(from)) {
       return [...new Set([...to, ...from])]
     }
+
     return extend(
       Object.create(null),
       normalizePropsOrEmits(to),
@@ -1117,10 +1185,13 @@ function mergeWatchOptions(
 ) {
   if (!to) return from
   if (!from) return to
+
   const merged = extend(Object.create(null), to)
+
   for (const key in from) {
     merged[key] = mergeAsArray(to[key], from[key])
   }
+
   return merged
 }
 

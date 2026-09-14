@@ -15,7 +15,9 @@ const testing = std.testing;
 
 test Scanner {
     var scanner = Scanner.initCompleteInput(testing.allocator, "{\"foo\": 123}\n");
+
     defer scanner.deinit();
+
     try testing.expectEqual(Token.object_begin, try scanner.next());
     try testing.expectEqualSlices(u8, "foo", (try scanner.next()).string);
     try testing.expectEqualSlices(u8, "123", (try scanner.next()).number);
@@ -25,38 +27,49 @@ test Scanner {
 
 test parseFromSlice {
     var parsed_str = try parseFromSlice([]const u8, testing.allocator, "\"a\\u0020b\"", .{});
+
     defer parsed_str.deinit();
+
     try testing.expectEqualSlices(u8, "a b", parsed_str.value);
 
     const T = struct { a: i32 = -1, b: [2]u8 };
     var parsed_struct = try parseFromSlice(T, testing.allocator, "{\"b\":\"xy\"}", .{});
+
     defer parsed_struct.deinit();
+
     try testing.expectEqual(@as(i32, -1), parsed_struct.value.a); // default value
     try testing.expectEqualSlices(u8, "xy", parsed_struct.value.b[0..]);
 }
 
 test Value {
     var parsed = try parseFromSlice(Value, testing.allocator, "{\"anything\": \"goes\"}", .{});
+
     defer parsed.deinit();
+
     try testing.expectEqualSlices(u8, "goes", parsed.value.object.get("anything").?.string);
 }
 
 test Stringify {
     var out: std.Io.Writer.Allocating = .init(testing.allocator);
+
     var write_stream: Stringify = .{
         .writer = &out.writer,
         .options = .{ .whitespace = .indent_2 },
     };
+
     defer out.deinit();
+
     try write_stream.beginObject();
     try write_stream.objectField("foo");
     try write_stream.write(123);
     try write_stream.endObject();
+
     const expected =
         \\{
         \\  "foo": 123
         \\}
     ;
+
     try testing.expectEqualSlices(u8, expected, out.written());
 }
 
@@ -100,7 +113,9 @@ pub fn fmt(value: anytype, options: Stringify.Options) Formatter(@TypeOf(value))
 
 test fmt {
     const expectFmt = std.testing.expectFmt;
+
     try expectFmt("123", "{f}", .{fmt(@as(u32, 123), .{})});
+
     try expectFmt(
         \\{"num":927,"msg":"hello","sub":{"mybool":true}}
     , "{f}", .{fmt(struct {

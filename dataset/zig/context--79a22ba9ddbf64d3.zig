@@ -39,6 +39,7 @@ pub const InitParameters = extern struct {
 /// Safe to call from multiple threads, even after `deinit` is called.
 pub const ClientInterface = extern struct {
     pub const Error = error{ClientInvalid};
+
     pub const VTable = struct {
         submit_fn: *const fn (*anyopaque, *Packet.Extern) void,
         completion_context_fn: *const fn (*anyopaque) usize,
@@ -58,10 +59,12 @@ pub const ClientInterface = extern struct {
         ptr: ?*anyopaque,
         int_ptr: u64,
     },
+
     vtable: extern union {
         ptr: *const VTable,
         int_ptr: u64,
     },
+
     locker: Locker,
     reserved: u32,
     magic_number: u64,
@@ -78,39 +81,49 @@ pub const ClientInterface = extern struct {
 
     pub fn submit(interface: *ClientInterface, packet: *Packet.Extern) Error!void {
         if (interface.magic_number != beetle) return Error.ClientInvalid;
+
         assert(interface.reserved == 0);
 
         interface.locker.lock();
+
         defer interface.locker.unlock();
 
         const context = interface.context.ptr orelse return Error.ClientInvalid;
+
         interface.vtable.ptr.submit_fn(context, packet);
     }
 
     pub fn completion_context(interface: *ClientInterface) Error!usize {
         if (interface.magic_number != beetle) return Error.ClientInvalid;
+
         assert(interface.reserved == 0);
 
         interface.locker.lock();
+
         defer interface.locker.unlock();
 
         const context = interface.context.ptr orelse return Error.ClientInvalid;
+
         return interface.vtable.ptr.completion_context_fn(context);
     }
 
     pub fn deinit(interface: *ClientInterface) Error!void {
         if (interface.magic_number != beetle) return Error.ClientInvalid;
+
         assert(interface.reserved == 0);
 
         const context: *anyopaque = context: {
             interface.locker.lock();
+
             defer interface.locker.unlock();
 
             const context = interface.context.ptr orelse return Error.ClientInvalid;
+
             interface.context = .{ .ptr = null };
 
             break :context context;
         };
+
         interface.vtable.ptr.deinit_fn(context);
     }
 
@@ -119,12 +132,15 @@ pub const ClientInterface = extern struct {
         out_parameters: *InitParameters,
     ) Error!void {
         if (interface.magic_number != beetle) return Error.ClientInvalid;
+
         assert(interface.reserved == 0);
 
         interface.locker.lock();
+
         defer interface.locker.unlock();
 
         const context = interface.context.ptr orelse return Error.ClientInvalid;
+
         return interface.vtable.ptr.init_parameters_fn(context, out_parameters);
     }
 
@@ -196,6 +212,7 @@ pub fn ContextType(
         request_latency: ?stdx.Duration = null,
 
         const Context = @This();
+
         const GPA = std.heap.GeneralPurposeAllocator(.{
             .thread_safe = true,
         });
@@ -233,6 +250,7 @@ pub fn ContextType(
                 var gpa = GPA{
                     .backing_allocator = root_allocator,
                 };
+
                 errdefer assert(gpa.deinit() == .ok);
 
                 const context = try gpa.allocator().create(Context);
@@ -245,7 +263,9 @@ pub fn ContextType(
 
             errdefer {
                 var gpa: GPA = context.gpa;
+
                 gpa.allocator().destroy(context);
+
                 assert(gpa.deinit() == .ok);
             }
 
@@ -278,13 +298,17 @@ pub fn ContextType(
                 .thread = undefined,
                 .request_timer = undefined,
             };
+
             context.addresses_owned = try allocator.dupe(u8, addresses);
+
             errdefer allocator.free(context.addresses_owned);
 
             const time = context.time_os.time();
 
             log.debug("{}: init: parsing vsr addresses: {s}", .{ context.client_id, addresses });
+
             context.addresses = .{};
+
             const addresses_parsed = vsr.parse_addresses(
                 addresses,
                 context.addresses.unused_capacity_slice(),
@@ -296,26 +320,33 @@ pub fn ContextType(
                 error.PortInvalid,
                 => error.AddressInvalid,
             };
+
             assert(addresses_parsed.len > 0);
             assert(addresses_parsed.len <= constants.replicas_max);
+
             context.addresses.resize(addresses_parsed.len) catch unreachable;
 
             log.debug("{}: init: initializing IO", .{context.client_id});
+
             context.io = IO.init(32, 0) catch |err| {
                 log.err("{}: failed to initialize IO: {s}", .{
                     context.client_id,
                     @errorName(err),
                 });
+
                 return switch (err) {
                     error.ProcessFdQuotaExceeded => error.SystemResources,
                     error.Unexpected => error.Unexpected,
                     else => unreachable,
                 };
             };
+
             errdefer context.io.deinit();
 
             log.debug("{}: init: initializing MessagePool", .{context.client_id});
+
             context.message_pool = try MessagePool.init(allocator, .client);
+
             errdefer context.message_pool.deinit(allocator);
 
             log.debug("{}: init: initializing client (cluster_id={x:0>32}, addresses={any})", .{
@@ -323,6 +354,7 @@ pub fn ContextType(
                 cluster_id,
                 context.addresses.const_slice(),
             });
+
             context.client = Client.init(
                 allocator,
                 time,
@@ -345,10 +377,12 @@ pub fn ContextType(
                     context.client_id,
                     @errorName(err),
                 });
+
                 return switch (err) {
                     error.OutOfMemory => error.OutOfMemory,
                 };
             };
+
             errdefer context.client.deinit(allocator);
 
             ClientInterface.init(client_out, context, comptime &.{
@@ -360,12 +394,15 @@ pub fn ContextType(
 
             log.debug("{}: init: initializing signal", .{context.client_id});
             try context.signal.init(&context.io, Context.signal_notify_callback);
+
             errdefer context.signal.deinit();
 
             context.request_timer = context.client.time.monotonic();
+
             context.client.register(client_register_callback, @intFromPtr(context));
 
             log.debug("{}: init: spawning thread", .{context.client_id});
+
             context.thread = std.Thread.spawn(
                 .{ .stack_size = io_thread_stack_size },
                 Context.io_thread,
@@ -375,6 +412,7 @@ pub fn ContextType(
                     context.client_id,
                     @errorName(err),
                 });
+
                 return switch (err) {
                     error.Unexpected => error.Unexpected,
                     error.OutOfMemory => error.OutOfMemory,
@@ -399,6 +437,7 @@ pub fn ContextType(
             maybe(self.eviction_reason != null);
 
             assert(self.client.shutdown_complete());
+
             self.signal.deinit();
             self.client.deinit(self.gpa.allocator());
             self.message_pool.deinit(self.gpa.allocator());
@@ -408,7 +447,9 @@ pub fn ContextType(
 
             // NB: Copy the allocator back out before trying to destroy `self` with it!
             var gpa: GPA = self.gpa;
+
             gpa.allocator().destroy(self);
+
             assert(gpa.deinit() == .ok);
         }
 
@@ -421,16 +462,20 @@ pub fn ContextType(
         fn io_thread(self: *Context) void {
             // Initializing the flag as the IO thread.
             assert(thread_caller == .user);
+
             thread_caller = .{ .io = std.Thread.getCurrentId() };
+
             defer thread_caller = .user;
 
             while (self.signal.status() != .shutdown_completed) {
                 self.tick();
+
                 self.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms) catch |err| {
                     log.err("{}: IO.run() failed: {s}", .{
                         self.client_id,
                         @errorName(err),
                     });
+
                     @panic("IO.run() failed");
                 };
             }
@@ -452,12 +497,14 @@ pub fn ContextType(
             // Close every connection and drain outstanding IO before tearing the
             // client down.
             self.client.shutdown();
+
             while (!self.client.shutdown_complete()) {
                 self.io.run_for_ns(constants.tick_ms * std.time.ns_per_ms) catch |err| {
                     log.err("{}: IO.run() failed during shutdown: {s}", .{
                         self.client_id,
                         @errorName(err),
                     });
+
                     @panic("IO.run() failed");
                 };
             }
@@ -469,9 +516,11 @@ pub fn ContextType(
         /// as it won't be replied anymore.
         fn cancel_request_inflight(self: *Context) void {
             assert(thread_caller == .io);
+
             if (self.client.request_inflight) |*inflight| {
                 if (inflight.message.header.operation != .register) {
                     const packet: *Packet = @as(UserData, @bitCast(inflight.user_data)).packet;
+
                     packet.assert_phase(.sent);
                     self.packet_cancel(packet);
                 }
@@ -493,13 +542,17 @@ pub fn ContextType(
                 else => error.ClientEvicted,
             } else result: {
                 assert(self.signal.status() != .running);
+
                 break :result error.ClientShutdown;
             };
 
             var it: ?*Packet = packet_list;
+
             while (it) |batched| {
                 if (batched != packet_list) batched.assert_phase(.batched);
+
                 it = batched.multi_batch_next;
+
                 self.notify_completion(batched, result);
             }
         }
@@ -512,13 +565,16 @@ pub fn ContextType(
             // Avoid making a packet inflight by cancelling it if the client was shutdown.
             if (self.signal.status() != .running) {
                 maybe(self.eviction_reason != null);
+
                 self.packet_cancel(packet);
+
                 return;
             }
 
             // Nothing inflight means the packet should be submitted right now.
             if (self.client.request_inflight == null) {
                 assert(self.pending.empty());
+
                 const batch = packet.batch_validate(
                     Operation,
                     operations_allowed,
@@ -534,9 +590,12 @@ pub fn ContextType(
                 packet.multi_batch_count = 1;
                 packet.multi_batch_event_count = @intCast(batch.event_count);
                 packet.multi_batch_result_count_expected = @intCast(batch.result_count_expected);
+
                 self.packet_send(packet);
+
                 return;
             }
+
             assert(self.client.request_inflight != null);
             maybe(self.pending.empty());
 
@@ -565,9 +624,11 @@ pub fn ContextType(
             if (self.signal.status() != .running) {
                 return self.packet_cancel(packet_list);
             }
+
             assert(self.eviction_reason == null);
 
             const message = self.client.get_message().build(.request);
+
             defer {
                 self.client.release_message(message.base());
                 packet_list.assert_phase(.sent);
@@ -585,6 +646,7 @@ pub fn ContextType(
             // Sending the request.
             const previous_request_latency =
                 self.request_latency orelse stdx.Duration{ .ns = 0 };
+
             message.header.* = .{
                 .release = self.client.release,
                 .client = self.client.id,
@@ -602,6 +664,7 @@ pub fn ContextType(
             self.request_timer = .{ .ns = packet_list.multi_batch_time_monotonic };
 
             packet_list.phase = .sent;
+
             self.client.raw_request(
                 Context.client_result_callback,
                 @bitCast(UserData{
@@ -610,6 +673,7 @@ pub fn ContextType(
                 }),
                 message.ref(),
             );
+
             assert(message.header.request != 0);
         }
 
@@ -617,11 +681,13 @@ pub fn ContextType(
             assert(thread_caller == .io);
 
             const self: *Context = @alignCast(@fieldParentPtr("signal", signal));
+
             switch (self.signal.status()) {
                 .running => if (self.batch_size_limit == null) {
                     // Don't send any requests until registration completes.
                     assert(self.client.request_inflight != null);
                     assert(self.client.request_inflight.?.message.header.operation == .register);
+
                     return;
                 },
                 // Shutdown flushes pending requests.
@@ -632,13 +698,16 @@ pub fn ContextType(
             // Process only the minimal number of packets for the next pending request.
             const enqueued_count = self.pending.count();
             const safety_limit = 8 * 1024; // Avoid unbounded loop in case of invalid packets.
+
             for (0..safety_limit) |_| {
                 const packet: *Packet = pop: {
                     self.interface.locker.lock();
+
                     defer self.interface.locker.unlock();
 
                     break :pop self.submitted.pop() orelse return;
                 };
+
                 self.packet_enqueue(packet);
 
                 // Packets can be processed without increasing `pending.count`:
@@ -653,10 +722,12 @@ pub fn ContextType(
             // allowing the IO thread to remain free for processing completions.
             const empty: bool = empty: {
                 self.interface.locker.lock();
+
                 defer self.interface.locker.unlock();
 
                 break :empty self.submitted.empty();
             };
+
             if (!empty) {
                 self.signal.notify();
             }
@@ -666,16 +737,19 @@ pub fn ContextType(
             assert(thread_caller == .io);
 
             const self: *Context = @ptrFromInt(@as(usize, @intCast(user_data)));
+
             assert(self.client.request_inflight == null);
             assert(self.batch_size_limit == null);
             assert(result.batch_size_limit > 0);
 
             const current_timestamp = self.client.time.monotonic();
+
             self.request_latency =
                 self.request_timer.elapsed(current_timestamp);
 
             // The client might have a smaller message size limit.
             maybe(constants.message_body_size_max < result.batch_size_limit);
+
             self.batch_size_limit = @min(result.batch_size_limit, constants.message_body_size_max);
 
             // Some requests may have queued up while the client was registering.
@@ -686,6 +760,7 @@ pub fn ContextType(
             assert(thread_caller == .io);
 
             const self: *Context = @fieldParentPtr("client", client);
+
             assert(self.eviction_reason == null);
 
             log.debug("{}: client_eviction_callback: reason={?s} reason_int={}", .{
@@ -699,6 +774,7 @@ pub fn ContextType(
             // In-flight requests fail with the eviction reason; subsequent ones fail
             // with "shutdown".
             self.interface.locker.lock();
+
             defer self.interface.locker.unlock();
 
             self.interface.context = .{ .ptr = null };
@@ -706,6 +782,7 @@ pub fn ContextType(
             // Stops the IO thread, which then deinitializes the client before
             // it exits (see `io_thread`).
             self.eviction_reason = eviction.header.reason;
+
             self.signal.stop();
         }
 
@@ -721,19 +798,23 @@ pub fn ContextType(
             const self: *Context = user_data.self;
             const packet_list: *Packet = user_data.packet;
             const operation = operation_vsr.cast(Client.Operation);
+
             assert(self.eviction_reason == null);
             assert(packet_list.operation == @intFromEnum(operation));
             assert(timestamp > 0);
             packet_list.assert_phase(.sent);
 
             const current_timestamp = self.client.time.monotonic();
+
             self.request_latency =
                 self.request_timer.elapsed(current_timestamp);
 
             // Submit the next pending packet (if any) now that VSR has completed this one.
             assert(self.client.request_inflight == null);
+
             while (self.pending.pop()) |packet_next| {
                 self.packet_send(packet_next);
+
                 if (self.client.request_inflight != null) break;
             }
 
@@ -744,21 +825,25 @@ pub fn ContextType(
                     .batch_size_limit = self.batch_size_limit.?,
                 },
             ) catch unreachable; // The callback should never be called with an invalid packet.
+
             assert(batch.result_size > 0);
 
             if (!batch.operation.is_multi_batch()) {
                 assert(packet_list.multi_batch_next == null);
                 assert(reply.len % batch.result_size == 0);
+
                 return self.notify_completion(packet_list, .{
                     .timestamp = timestamp,
                     .reply = reply,
                 });
             }
+
             assert(batch.operation.is_multi_batch());
 
             var reply_decoder = MultiBatchDecoder.init(reply, .{
                 .element_size = batch.result_size,
             }) catch unreachable;
+
             assert(packet_list.multi_batch_count == reply_decoder.batch_count());
 
             // Copying it because `packet` is no longer valid after the callback.
@@ -767,23 +852,28 @@ pub fn ContextType(
 
             var multi_batch_results_actual: u16 = 0;
             var it: ?*Packet = packet_list;
+
             while (it) |packet_next| {
                 if (packet_next != packet_list) packet_next.assert_phase(.batched);
+
                 assert(packet_next.operation == @intFromEnum(batch.operation));
 
                 // NB: The reference to `packet` isn't valid after `notify_completion`.
                 it = packet_next.multi_batch_next;
 
                 const batched_reply: []const u8 = reply_decoder.pop().?;
+
                 multi_batch_results_actual += @intCast(@divExact(
                     batched_reply.len,
                     batch.result_size,
                 ));
+
                 self.notify_completion(packet_next, .{
                     .timestamp = timestamp,
                     .reply = batched_reply,
                 });
             }
+
             assert(reply_decoder.pop() == null);
             assert(multi_batch_results_actual <= multi_batch_result_count_expected);
         }
@@ -808,7 +898,9 @@ pub fn ContextType(
                     error.InvalidOperation => .invalid_operation,
                     error.InvalidDataSize => .invalid_data_size,
                 };
+
                 assert(packet.status != .ok);
+
                 packet.phase = .complete;
 
                 // The packet completed with an error.
@@ -819,12 +911,15 @@ pub fn ContextType(
                     null,
                     0,
                 );
+
                 return;
             };
 
             // The packet completed normally.
             assert(packet.status == .ok);
+
             packet.phase = .complete;
+
             self.completion_callback(
                 self.completion_context,
                 packet.cast(),
@@ -845,16 +940,19 @@ pub fn ContextType(
             // memory management. However, some of Packet's fields are essentially private.
             // Initialize them here to avoid threading default fields through FFI boundary.
             const packet: *Packet = packet_extern.cast();
+
             packet.* = .init(packet_extern);
 
             // Enqueue the packet and notify the IO thread to process it asynchronously.
             assert(self.signal.status() == .running);
+
             self.submitted.push(packet);
             self.signal.notify();
         }
 
         fn vtable_completion_context_fn(context: *anyopaque) usize {
             const self: *Context = @ptrCast(@alignCast(context));
+
             return self.completion_context;
         }
 
@@ -866,6 +964,7 @@ pub fn ContextType(
             // Copy the thread handle here, since stopping the I/O thread deinitializes
             // the context and invalidates the `self` pointer.
             const thread = self.thread;
+
             defer thread.join();
 
             self.signal.stop();
@@ -875,6 +974,7 @@ pub fn ContextType(
             assert(thread_caller == .user);
 
             const self: *Context = @ptrCast(@alignCast(context));
+
             assert(self.signal.status() == .running);
 
             out_parameters.cluster_id = self.cluster_id;
@@ -907,6 +1007,7 @@ const Locker = extern struct {
         // - `lock bts` is smaller instruction-wise which makes it better for inlining.
         if (comptime builtin.target.cpu.arch.isX86()) {
             const locked_bit = @ctz(locked);
+
             return self.state.bitSet(locked_bit, .acquire) == 0;
         }
 
@@ -951,6 +1052,7 @@ const Locker = extern struct {
         // Release barrier ensures the critical section happens before we let go of the lock
         // and that our critical section happens before the next lock holder grabs the lock.
         const state = self.state.swap(unlocked, .release);
+
         assert(state != unlocked);
 
         if (state == contended) {
@@ -985,12 +1087,15 @@ test "Locker: contended" {
     const Runner = struct {
         thread: std.Thread = undefined,
         state: *State,
+
         fn run(self: *@This()) void {
             while (true) {
                 self.state.locker.lock();
+
                 defer self.state.locker.unlock();
 
                 if (self.state.counter == increments) break;
+
                 self.state.counter += 1;
             }
         }
@@ -998,10 +1103,13 @@ test "Locker: contended" {
 
     var state = State{};
     var runners: [threads_count]Runner = undefined;
+
     for (&runners) |*runner| {
         runner.* = .{ .state = &state };
+
         runner.thread = try std.Thread.spawn(.{}, Runner.run, .{runner});
     }
+
     for (&runners) |*runner| {
         runner.thread.join();
     }

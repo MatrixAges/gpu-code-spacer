@@ -18,26 +18,32 @@ import type { SourceMap } from 'rolldown'
 import type { ModuleRunner } from 'vite/module-runner'
 import type { FSWatcher } from '#dep-types/chokidar'
 import type { Connect } from '#dep-types/connect'
+
 import type {
   ForwardConsoleOptions,
   ResolvedForwardConsoleOptions,
 } from '../../shared/forwardConsole'
+
 import type { InlineConfig, ResolvedConfig } from '../config'
 import { isResolvedConfig, resolveConfig } from '../config'
+
 import {
   CLIENT_DIR,
   DEFAULT_DEV_PORT,
   defaultAllowedOrigins,
 } from '../constants'
+
 import { warnFutureDeprecation } from '../deprecations'
 import { getEnvFilesForMode } from '../env'
 import type { CommonServerOptions } from '../http'
+
 import {
   httpServerStart,
   resolveHttpServer,
   resolveHttpsConfig,
   setClientErrorHandler,
 } from '../http'
+
 import type { Logger } from '../logger'
 import { printServerUrls } from '../logger'
 import type { MinimalPluginContextWithoutEnvironment } from '../plugin'
@@ -49,6 +55,7 @@ import { ssrLoadModule } from '../ssr/ssrModuleLoader'
 import { ssrFixStacktrace, ssrRewriteStacktrace } from '../ssr/ssrStacktrace'
 import { ssrTransform } from '../ssr/ssrTransform'
 import type { RequiredExceptFor } from '../typeUtils'
+
 import {
   type Hostname,
   diffDnsOrderChange,
@@ -66,12 +73,14 @@ import {
   setupSIGTERMListener,
   teardownSIGTERMListener,
 } from '../utils'
+
 import {
   createNoopWatcher,
   getResolvedOutDirs,
   resolveChokidarOptions,
   resolveEmptyOutDir,
 } from '../watch'
+
 import type { ServerWatchOptions } from '../watch'
 import type { DevEnvironment } from './environment'
 import type { HmrOptions, NormalizedHotChannel, WsOptions } from './hmr'
@@ -80,34 +89,42 @@ import { baseMiddleware } from './middlewares/base'
 import { errorMiddleware } from './middlewares/error'
 import { hostValidationMiddleware } from './middlewares/hostCheck'
 import { htmlFallbackMiddleware } from './middlewares/htmlFallback'
+
 import {
   createDevHtmlTransformFn,
   indexHtmlMiddleware,
 } from './middlewares/indexHtml'
+
 import { memoryFilesMiddleware } from './middlewares/memoryFiles'
 import { notFoundMiddleware } from './middlewares/notFound'
 import { proxyMiddleware } from './middlewares/proxy'
 import { rejectInvalidRequestMiddleware } from './middlewares/rejectInvalidRequest'
+
 import {
   servePublicMiddleware,
   serveRawFsMiddleware,
   serveStaticMiddleware,
 } from './middlewares/static'
+
 import { timeMiddleware } from './middlewares/time'
+
 import {
   cachedTransformMiddleware,
   transformMiddleware,
 } from './middlewares/transform'
+
 import { triggerLazyBundlingMiddleware } from './middlewares/triggerLazyBundling'
 import { ModuleGraph } from './mixedModuleGraph'
 import type { ModuleNode } from './mixedModuleGraph'
 import { openBrowser as _openBrowser } from './openBrowser'
 import type { PluginContainer } from './pluginContainer'
+
 import {
   BasicMinimalPluginContext,
   basePluginContextMeta,
   createPluginContainer,
 } from './pluginContainer'
+
 import { searchForPackageRoot, searchForWorkspaceRoot } from './searchRoot'
 import type { TransformOptions, TransformResult } from './transformRequest'
 import type { WebSocketServer } from './ws'
@@ -139,6 +156,7 @@ export interface ServerOptions extends CommonServerOptions {
      */
     ssrFiles?: string[]
   }
+
   /**
    * File system watcher options, or null to disable FS watching.
    *
@@ -162,6 +180,7 @@ export interface ServerOptions extends CommonServerOptions {
          */
         server: HttpServer
       }
+
   /**
    * Options for files served via '/\@fs/'.
    */
@@ -188,6 +207,7 @@ export interface ServerOptions extends CommonServerOptions {
   sourcemapIgnoreList?:
     | false
     | ((sourcePath: string, sourcemapPath: string) => boolean)
+
   /**
    * Backward compatibility. The buildStart and buildEnd hooks were called only once for
    * the client environment. This option enables per-environment buildStart and buildEnd hooks.
@@ -230,10 +250,12 @@ export interface ResolvedServerOptions extends Omit<
 > {
   fs: Required<FileSystemServeOptions>
   middlewareMode: NonNullable<ServerOptions['middlewareMode']>
+
   sourcemapIgnoreList: Exclude<
     ServerOptions['sourcemapIgnoreList'],
     false | undefined
   >
+
   forwardConsole: ResolvedForwardConsoleOptions
 }
 
@@ -370,6 +392,7 @@ export interface ViteDevServer {
    * in middleware mode or if the server is not listening on any port.
    */
   resolvedUrls: ResolvedServerUrls | null
+
   /**
    * Programmatically resolve, load and transform a URL and get the result
    * without going through the http request pipeline.
@@ -378,12 +401,14 @@ export interface ViteDevServer {
     url: string,
     options?: TransformOptions,
   ): Promise<TransformResult | null>
+
   /**
    * Same as `transformRequest` but only warm up the URLs so the next request
    * will already be cached. The function will never throw as it handles and
    * reports errors internally.
    */
   warmupRequest(url: string, options?: TransformOptions): Promise<void>
+
   /**
    * Apply vite built-in HTML transforms and any plugin HTML transforms.
    */
@@ -392,6 +417,7 @@ export interface ViteDevServer {
     html: string,
     originalUrl?: string,
   ): Promise<string>
+
   /**
    * Transform module code into SSR format.
    */
@@ -401,6 +427,7 @@ export interface ViteDevServer {
     url: string,
     originalCode?: string,
   ): Promise<TransformResult | null>
+
   /**
    * Load a given URL as an instantiated module for SSR.
    */
@@ -408,6 +435,7 @@ export interface ViteDevServer {
     url: string,
     opts?: { fixStacktrace?: boolean },
   ): Promise<Record<string, any>>
+
   /**
    * Returns a fixed version of the given stack
    */
@@ -542,7 +570,9 @@ export async function _createServer(
   const initPublicFilesPromise = initPublicFiles(config)
 
   const { root, server: serverConfig } = config
+
   const httpsOptions = await resolveHttpsConfig(config.server.https)
+
   const { middlewareMode } = serverConfig
 
   const resolvedOutDirs = getResolvedOutDirs(
@@ -550,11 +580,13 @@ export async function _createServer(
     config.build.outDir,
     config.build.rolldownOptions.output,
   )
+
   const emptyOutDir = resolveEmptyOutDir(
     config.build.emptyOutDir,
     config.root,
     resolvedOutDirs,
   )
+
   const resolvedWatchOptions = resolveChokidarOptions(
     {
       disableGlobbing: true,
@@ -566,6 +598,7 @@ export async function _createServer(
   )
 
   const middlewares = connect() as Connect.Server
+
   const httpServer = middlewareMode
     ? null
     : await resolveHttpServer(middlewares, httpsOptions)
@@ -573,6 +606,7 @@ export async function _createServer(
   const ws = createWebSocketServer(httpServer, config, httpsOptions)
 
   const publicFiles = await initPublicFilesPromise
+
   const { publicDir } = config
 
   if (httpServer) {
@@ -581,6 +615,7 @@ export async function _createServer(
 
   // eslint-disable-next-line eqeqeq
   const watchEnabled = serverConfig.watch !== null
+
   const watcher = watchEnabled
     ? (chokidar.watch(
         // config file dependencies and env file might be outside of root
@@ -609,10 +644,12 @@ export async function _createServer(
             ws,
           },
         )
+
         environments[name] = environment
 
         const previousInstance =
           options.previousEnvironments?.[environment.name]
+
         await environment.init({ watcher, previousInstance })
       },
     ),
@@ -624,6 +661,7 @@ export async function _createServer(
     client: () => environments.client.moduleGraph,
     ssr: () => environments.ssr.moduleGraph,
   })
+
   let pluginContainer = createPluginContainer(environments)
 
   const closeHttpServer = createServerCloseFn(httpServer)
@@ -632,6 +670,7 @@ export async function _createServer(
 
   // Promise used by `server.close()` to ensure `closeServer()` is only called once
   let closeServerPromise: Promise<void> | undefined
+
   const closeServer = async (reason: 'restart' | 'close') => {
     if (!middlewareMode) {
       teardownSIGTERMListener(closeServerAndExit)
@@ -648,6 +687,7 @@ export async function _createServer(
       closeHttpServer(),
       server._ssrCompatModuleRunner?.close(),
     ])
+
     server.resolvedUrls = null
     server._ssrCompatModuleRunner = undefined
 
@@ -656,6 +696,7 @@ export async function _createServer(
       { ...basePluginContextMeta, watchMode: true },
       config.logger,
     )
+
     await Promise.all(
       config
         .getSortedPluginHooks('closeServer')
@@ -664,6 +705,7 @@ export async function _createServer(
   }
 
   let hot = ws
+
   let server: ViteDevServer = {
     config,
     middlewares,
@@ -672,6 +714,7 @@ export async function _createServer(
     ws,
     get hot() {
       warnFutureDeprecation(config, 'removeServerHot')
+
       return hot
     },
     set hot(h) {
@@ -681,6 +724,7 @@ export async function _createServer(
     environments,
     get pluginContainer() {
       warnFutureDeprecation(config, 'removeServerPluginContainer')
+
       return pluginContainer
     },
     set pluginContainer(p) {
@@ -688,6 +732,7 @@ export async function _createServer(
     },
     get moduleGraph() {
       warnFutureDeprecation(config, 'removeServerModuleGraph')
+
       return moduleGraph
     },
     set moduleGraph(graph) {
@@ -710,12 +755,16 @@ export async function _createServer(
     },
     transformRequest(url, options) {
       warnFutureDeprecation(config, 'removeServerTransformRequest')
+
       const environment = server.environments[options?.ssr ? 'ssr' : 'client']
+
       return environment.transformRequest(url)
     },
     warmupRequest(url, options) {
       warnFutureDeprecation(config, 'removeServerWarmupRequest')
+
       const environment = server.environments[options?.ssr ? 'ssr' : 'client']
+
       return environment.warmupRequest(url)
     },
     transformIndexHtml(url, html, originalUrl) {
@@ -723,6 +772,7 @@ export async function _createServer(
     },
     async ssrLoadModule(url, opts?: { fixStacktrace?: boolean }) {
       warnFutureDeprecation(config, 'removeSsrLoadModule')
+
       return ssrLoadModule(url, server, opts?.fixStacktrace)
     },
     ssrFixStacktrace(e) {
@@ -731,6 +781,7 @@ export async function _createServer(
         'removeSsrLoadModule',
         "ssrFixStacktrace doesn't need to be used for Environment Module Runners.",
       )
+
       ssrFixStacktrace(e, server.environments.ssr.moduleGraph)
     },
     ssrRewriteStacktrace(stack: string) {
@@ -739,14 +790,17 @@ export async function _createServer(
         'removeSsrLoadModule',
         "ssrRewriteStacktrace doesn't need to be used for Environment Module Runners.",
       )
+
       return ssrRewriteStacktrace(stack, server.environments.ssr.moduleGraph)
         .result
     },
     async reloadModule(module) {
       warnFutureDeprecation(config, 'removeServerReloadModule')
+
       if (serverConfig.hmr !== false && module.file) {
         // TODO: Should we also update the node moduleGraph for backward compatibility?
         const environmentModule = (module._clientModule ?? module._ssrModule)!
+
         updateModules(
           environments[environmentModule.environment]!,
           module.file,
@@ -757,6 +811,7 @@ export async function _createServer(
     },
     async listen(port?: number, isRestart?: boolean) {
       const hostname = await resolveHostname(config.server.host)
+
       if (httpServer) {
         httpServer.prependListener('listening', () => {
           server.resolvedUrls = resolveServerUrls(
@@ -768,15 +823,19 @@ export async function _createServer(
           )
         })
       }
+
       await startServer(server, hostname, port)
+
       if (httpServer) {
         if (!isRestart && config.server.open) server.openBrowser()
       }
+
       return server
     },
     openBrowser() {
       const options = server.config.server
       const url = getServerUrlByHost(server.resolvedUrls, options.host)
+
       if (url) {
         const path =
           typeof options.open === 'string'
@@ -842,11 +901,13 @@ export async function _createServer(
     async restart(forceOptimize?: boolean) {
       if (!server._restartPromise) {
         server._forceOptimizeOnRestart = !!forceOptimize
+
         server._restartPromise = restartServer(server).finally(() => {
           server._restartPromise = null
           server._forceOptimizeOnRestart = false
         })
       }
+
       return server._restartPromise
     },
 
@@ -863,6 +924,7 @@ export async function _createServer(
       if (!closeServerPromise) {
         closeServerPromise = closeServer(reason)
       }
+
       return closeServerPromise
     },
     _restartPromise: options.previousRestartPromise ?? null,
@@ -877,6 +939,7 @@ export async function _createServer(
     },
     set: (_, property: keyof ViteDevServer, value: never) => {
       server[property] = value
+
       return true
     },
   })
@@ -886,6 +949,7 @@ export async function _createServer(
       await server.close()
     } finally {
       process.exitCode ??= exitCode ? 128 + exitCode : undefined
+
       process.exit()
     }
   }
@@ -905,6 +969,7 @@ export async function _createServer(
 
   const onFileAddUnlink = async (file: string, isUnlink: boolean) => {
     file = normalizePath(file)
+
     reloadOnTsconfigChange(server, file)
 
     await Promise.all(
@@ -918,12 +983,17 @@ export async function _createServer(
     if (publicDir && publicFiles) {
       if (file.startsWith(publicDir)) {
         const path = file.slice(publicDir.length)
+
         publicFiles[isUnlink ? 'delete' : 'add'](path)
+
         if (!isUnlink) {
           const clientModuleGraph = server.environments.client.moduleGraph
+
           const moduleWithSamePath =
             await clientModuleGraph.getModuleByUrl(path)
+
           const etag = moduleWithSamePath?.transformResult?.etag
+
           if (etag) {
             // The public file should win on the next request over a module with the
             // same path. Prevent the transform etag fast path from serving the module
@@ -932,17 +1002,20 @@ export async function _createServer(
         }
       }
     }
+
     if (isUnlink) {
       // invalidate module graph cache on file change
       for (const environment of Object.values(server.environments)) {
         environment.moduleGraph.onFileDelete(file)
       }
     }
+
     await onHMRUpdate(isUnlink ? 'delete' : 'create', file)
   }
 
   const onFileChange = async (file: string) => {
     file = normalizePath(file)
+
     reloadOnTsconfigChange(server, file)
 
     await Promise.all(
@@ -950,10 +1023,12 @@ export async function _createServer(
         environment.pluginContainer.watchChange(file, { event: 'update' }),
       ),
     )
+
     // invalidate module graph cache on file change
     for (const environment of Object.values(server.environments)) {
       environment.moduleGraph.onFileChange(file)
     }
+
     await onHMRUpdate('update', file)
   }
 
@@ -964,6 +1039,7 @@ export async function _createServer(
   watcher.on('add', (file) => {
     onFileAddUnlink(file, false).catch((e) => server.config.logger.error(e))
   })
+
   watcher.on('unlink', (file) => {
     onFileAddUnlink(file, true).catch((e) => server.config.logger.error(e))
   })
@@ -986,12 +1062,14 @@ export async function _createServer(
 
   // cors
   const { cors } = serverConfig
+
   if (cors !== false) {
     middlewares.use(corsMiddleware(typeof cors === 'boolean' ? {} : cors))
   }
 
   // host check (to prevent DNS rebinding attacks)
   const { allowedHosts } = serverConfig
+
   // no need to check for HTTPS as HTTPS is not vulnerable to DNS rebinding attacks
   if (allowedHosts !== true && !serverConfig.https) {
     middlewares.use(hostValidationMiddleware(allowedHosts, false))
@@ -1003,7 +1081,9 @@ export async function _createServer(
     { ...basePluginContextMeta, watchMode: true },
     config.logger,
   )
+
   const postHooks: ((() => void) | void)[] = []
+
   for (const hook of config.getSortedPluginHooks('configureServer')) {
     postHooks.push(await hook.call(configureServerContext, reflexServer))
   }
@@ -1016,9 +1096,11 @@ export async function _createServer(
 
   // proxy
   const { proxy } = serverConfig
+
   if (proxy) {
     const middlewareServer =
       (isObject(middlewareMode) ? middlewareMode.server : null) || httpServer
+
     middlewares.use(proxyMiddleware(middlewareServer, proxy, config))
   }
 
@@ -1092,6 +1174,7 @@ export async function _createServer(
   // this code is to avoid calling buildStart multiple times
   let initingServer: Promise<void> | undefined
   let serverInited = false
+
   const initServer = async (onListen: boolean) => {
     if (serverInited) return
     if (initingServer) return initingServer
@@ -1114,19 +1197,23 @@ export async function _createServer(
       initingServer = undefined
       serverInited = true
     })()
+
     return initingServer
   }
 
   if (!middlewareMode && httpServer) {
     // overwrite listen to init optimizer before server start
     const listen = httpServer.listen.bind(httpServer)
+
     httpServer.listen = (async (port: number, ...args: any[]) => {
       try {
         await initServer(true)
       } catch (e) {
         httpServer.emit('error', e)
+
         return
       }
+
       return listen(port, ...args)
     }) as any
   } else {
@@ -1142,12 +1229,14 @@ async function startServer(
   inlinePort?: number,
 ): Promise<void> {
   const httpServer = server.httpServer
+
   if (!httpServer) {
     throw new Error('Cannot call server.listen in middleware mode.')
   }
 
   const options = server.config.server
   const configPort = inlinePort ?? options.port
+
   // When using non strict port for the dev server, the running port can be different from the config one.
   // When restarting, the original port may be available but to avoid a switch of URL for the running
   // browser tabs, we enforce the previously used port, except if the config port changed.
@@ -1155,6 +1244,7 @@ async function startServer(
     configPort === server._configServerPort
       ? (server._currentServerPort ?? configPort)
       : configPort
+
   server._configServerPort = configPort
 
   const serverPort = await httpServerStart(httpServer, {
@@ -1163,6 +1253,7 @@ async function startServer(
     host: hostname.host,
     logger: server.config.logger,
   })
+
   server._currentServerPort = serverPort
 }
 
@@ -1178,6 +1269,7 @@ export function createServerCloseFn(
 
   server.on('connection', (socket) => {
     openSockets.add(socket)
+
     socket.on('close', () => {
       openSockets.delete(socket)
     })
@@ -1190,6 +1282,7 @@ export function createServerCloseFn(
   return () =>
     new Promise<void>((resolve, reject) => {
       openSockets.forEach((s) => s.destroy())
+
       if (hasListened) {
         server.close((err) => {
           if (err) {
@@ -1246,6 +1339,7 @@ const _serverConfigDefaults = Object.freeze({
   // hotUpdateEnvironments
   forwardConsole: undefined,
 } satisfies ServerOptions)
+
 export const serverConfigDefaults: Readonly<Partial<ServerOptions>> =
   _serverConfigDefaults
 
@@ -1268,6 +1362,7 @@ export async function resolveServerOptions(
   setupHmrWsOptionCompat(_server)
 
   const workspaceRoot = searchForWorkspaceRoot(root)
+
   const server: ResolvedServerOptions = {
     ..._server,
     fs: {
@@ -1285,6 +1380,7 @@ export async function resolveServerOptions(
   let allowDirs = server.fs.allow
 
   const cwd = searchForPackageRoot(root)
+
   if (process.versions.pnp) {
     // running a command fails if cwd doesn't exist and root may not exist
     // search for package root to find a path that exists
@@ -1293,12 +1389,14 @@ export async function resolveServerOptions(
         execSync('yarn config get enableGlobalCache', { cwd })
           .toString()
           .trim() === 'true'
+
       const yarnCacheDir = execSync(
         `yarn config get ${enableGlobalCache ? 'globalFolder' : 'cacheFolder'}`,
         { cwd },
       )
         .toString()
         .trim()
+
       allowDirs.push(yarnCacheDir)
     } catch (e) {
       logger.warn(`Get yarn cache dir error: ${e.message}`, {
@@ -1318,10 +1416,12 @@ export async function resolveServerOptions(
     'node_modules',
     '.modules.yaml',
   )
+
   try {
     const content = fs.readFileSync(pnpmModulesYaml, 'utf-8')
     const parsed = JSON.parse(content)
     const virtualStoreDir = parsed.virtualStoreDir
+
     if (virtualStoreDir) {
       if (path.isAbsolute(virtualStoreDir)) {
         allowDirs.push(virtualStoreDir)
@@ -1342,6 +1442,7 @@ export async function resolveServerOptions(
 
   // only push client dir when vite itself is outside-of-root
   const resolvedClientDir = resolvedAllowDir(root, CLIENT_DIR)
+
   if (!allowDirs.some((dir) => isParentDirectory(dir, resolvedClientDir))) {
     allowDirs.push(resolvedClientDir)
   }
@@ -1350,6 +1451,7 @@ export async function resolveServerOptions(
 
   if (server.origin?.endsWith('/')) {
     server.origin = server.origin.slice(0, -1)
+
     logger.warn(
       colors.yellow(
         `${colors.bold('(!)')} server.origin should not end with "/". Using "${
@@ -1365,6 +1467,7 @@ export async function resolveServerOptions(
   ) {
     const rawAdditionalHosts =
       process.env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+
     if (RESERVED_ALLOWED_HOSTS_CHARACTERS_RE.test(rawAdditionalHosts)) {
       logger.warn(
         colors.yellow(
@@ -1376,6 +1479,7 @@ export async function resolveServerOptions(
         .split(',')
         .map((host) => host.trim())
         .filter(Boolean)
+
       server.allowedHosts = [...server.allowedHosts, ...additionalHosts]
     }
   }
@@ -1387,6 +1491,7 @@ async function restartServer(server: ViteDevServer) {
   global.__vite_start_time = performance.now()
 
   let inlineConfig = server.config.inlineConfig
+
   if (server._forceOptimizeOnRestart) {
     inlineConfig = mergeConfig(inlineConfig, {
       forceOptimizeDeps: true,
@@ -1400,6 +1505,7 @@ async function restartServer(server: ViteDevServer) {
   // This allows us to keep the same server instance for the user.
   {
     let newServer: ViteDevServer | null = null
+
     try {
       // delay ws server listen
       newServer = await _createServer(inlineConfig, {
@@ -1413,7 +1519,9 @@ async function restartServer(server: ViteDevServer) {
       server.config.logger.error(err.message, {
         timestamp: true,
       })
+
       server.config.logger.error('server restart failed', { timestamp: true })
+
       return
     }
 
@@ -1426,8 +1534,10 @@ async function restartServer(server: ViteDevServer) {
 
     // Assign new server props to existing server instance
     const middlewares = server.middlewares
+
     newServer._configServerPort = server._configServerPort
     newServer._currentServerPort = server._currentServerPort
+
     Object.assign(server, newServer)
 
     // Keep the same connect instance so app.use(vite.middlewares) works
@@ -1443,6 +1553,7 @@ async function restartServer(server: ViteDevServer) {
     logger,
     server: { port, middlewareMode },
   } = server.config
+
   if (!middlewareMode) {
     await server.listen(port, true)
   } else {
@@ -1450,6 +1561,7 @@ async function restartServer(server: ViteDevServer) {
       Object.values(server.environments).map((e) => e.listen(server)),
     )
   }
+
   logger.info('server restarted.', { timestamp: true })
 
   if (
@@ -1473,10 +1585,12 @@ export async function restartServerWithUrls(
 ): Promise<void> {
   if (server.config.server.middlewareMode) {
     await server.restart()
+
     return
   }
 
   const { port: prevPort, host: prevHost } = server.config.server
+
   const prevUrls = server.resolvedUrls
 
   await server.restart()
@@ -1485,6 +1599,7 @@ export async function restartServerWithUrls(
     logger,
     server: { port, host },
   } = server.config
+
   if (
     (port ?? DEFAULT_DEV_PORT) !== (prevPort ?? DEFAULT_DEV_PORT) ||
     host !== prevHost ||

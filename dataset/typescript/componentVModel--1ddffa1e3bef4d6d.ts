@@ -4,6 +4,7 @@ import { createAppContext } from '../apiCreateApp'
 import { ErrorCodes, callWithErrorHandling } from '../errorHandling'
 import type { VNode } from '../vnode'
 import { popWarningContext, pushWarningContext } from '../warning'
+
 import {
   DeprecationTypes,
   isCompatEnabled,
@@ -16,7 +17,9 @@ const warnedTypes = new WeakSet()
 
 export function convertLegacyVModelProps(vnode: VNode): void {
   const { type, shapeFlag, props, dynamicProps } = vnode
+
   const comp = type as ComponentOptions
+
   if (shapeFlag & ShapeFlags.COMPONENT && props && 'modelValue' in props) {
     if (
       !isCompatEnabled(
@@ -32,6 +35,7 @@ export function convertLegacyVModelProps(vnode: VNode): void {
 
     if (__DEV__ && !warnedTypes.has(comp)) {
       pushWarningContext(vnode)
+
       warnDeprecation(
         DeprecationTypes.COMPONENT_V_MODEL,
         {
@@ -40,7 +44,9 @@ export function convertLegacyVModelProps(vnode: VNode): void {
         } as any,
         comp,
       )
+
       popWarningContext()
+
       warnedTypes.add(comp)
     }
 
@@ -48,17 +54,24 @@ export function convertLegacyVModelProps(vnode: VNode): void {
     // modelValue -> value
     // onUpdate:modelValue -> onModelCompat:input
     const model = comp.model || {}
+
     applyModelFromMixins(model, comp.mixins)
+
     const { prop = 'value', event = 'input' } = model
+
     if (prop !== 'modelValue') {
       props[prop] = props.modelValue
+
       delete props.modelValue
     }
+
     // important: update dynamic props
     if (dynamicProps) {
       dynamicProps[dynamicProps.indexOf('modelValue')] = prop
     }
+
     props[compatModelEventPrefix + event] = props['onUpdate:modelValue']
+
     delete props['onUpdate:modelValue']
   }
 }
@@ -80,8 +93,10 @@ export function compatModelEmit(
   if (!isCompatEnabled(DeprecationTypes.COMPONENT_V_MODEL, instance)) {
     return
   }
+
   const props = instance.vnode.props
   const modelHandler = props && props[compatModelEventPrefix + event]
+
   if (modelHandler) {
     callWithErrorHandling(
       modelHandler,

@@ -8,7 +8,9 @@ import type CodeTextNode from '../CodeTextNode'
 export default (anchor: LexicalNode, offset: number) => {
 	let last: { node: CodeTextNode | TabNode | LineBreakNode; offset: number } | null = null
 	let last_non_blank: null | { node: CodeTextNode; offset: number } = null
+
 	let node: CodeTextNode | TabNode | LineBreakNode | LexicalNode = anchor
+
 	let node_offset = offset
 	let node_text_content = anchor.getTextContent()
 

@@ -18,6 +18,7 @@ const maxInt = std.math.maxInt;
 ///  - sinh(nan)   = nan
 pub fn sinh(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => sinh32(x),
         f64 => sinh64(x),
@@ -38,6 +39,7 @@ fn sinh32(x: f32) f32 {
     }
 
     var h: f32 = 0.5;
+
     if (u >> 31 != 0) {
         h = -h;
     }
@@ -45,6 +47,7 @@ fn sinh32(x: f32) f32 {
     // |x| < log(FLT_MAX)
     if (ux < 0x42B17217) {
         const t = math.expm1(ax);
+
         if (ux < 0x3F800000) {
             if (ux < 0x3F800000 - (12 << 23)) {
                 return x;
@@ -52,6 +55,7 @@ fn sinh32(x: f32) f32 {
                 return h * (2 * t - t * t / (t + 1));
             }
         }
+
         return h * (t + t / (t + 1));
     }
 
@@ -69,6 +73,7 @@ fn sinh64(x: f64) f64 {
     }
 
     var h: f32 = 0.5;
+
     if (u >> 63 != 0) {
         h = -h;
     }
@@ -76,6 +81,7 @@ fn sinh64(x: f64) f64 {
     // |x| < log(FLT_MAX)
     if (w < 0x40862E42) {
         const t = math.expm1(ax);
+
         if (w < 0x3FF00000) {
             if (w < 0x3FF00000 - (26 << 20)) {
                 return x;
@@ -83,6 +89,7 @@ fn sinh64(x: f64) f64 {
                 return h * (2 * t - t * t / (t + 1));
             }
         }
+
         // NOTE: |x| > log(0x1p26) + eps could be h * exp(x)
         return h * (t + t / (t + 1));
     }

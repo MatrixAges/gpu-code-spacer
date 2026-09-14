@@ -55,6 +55,7 @@ pub fn pbkdf2(dk: []u8, password: []const u8, salt: []const u8, rounds: u32, com
 
     const dk_len = dk.len;
     const h_len = Prf.mac_length;
+
     comptime std.debug.assert(h_len >= 1);
 
     // FromSpec:
@@ -76,6 +77,7 @@ pub fn pbkdf2(dk: []u8, password: []const u8, salt: []const u8, rounds: u32, com
 
     const blocks_count = @as(u32, @intCast(std.math.divCeil(usize, dk_len, h_len) catch unreachable));
     var r = dk_len % h_len;
+
     if (r == 0) {
         r = h_len;
     }
@@ -114,6 +116,7 @@ pub fn pbkdf2(dk: []u8, password: []const u8, salt: []const u8, rounds: u32, com
     //            DK = T_1 || T_2 ||  ...  || T_l<0..r-1>
 
     var block: u32 = 0;
+
     while (block < blocks_count) : (block += 1) {
         var prev_block: [h_len]u8 = undefined;
         var new_block: [h_len]u8 = undefined;
@@ -121,6 +124,7 @@ pub fn pbkdf2(dk: []u8, password: []const u8, salt: []const u8, rounds: u32, com
         // U_1 = PRF (P, S || INT (i))
         const block_index = mem.toBytes(mem.nativeToBig(u32, block + 1)); // Block index starts at 0001
         var ctx = Prf.init(password);
+
         ctx.update(salt);
         ctx.update(block_index[0..]);
         ctx.final(prev_block[0..]);
@@ -129,12 +133,15 @@ pub fn pbkdf2(dk: []u8, password: []const u8, salt: []const u8, rounds: u32, com
         const offset = block * h_len;
         const block_len = if (block != blocks_count - 1) h_len else r;
         const dk_block: []u8 = dk[offset..][0..block_len];
+
         @memcpy(dk_block, prev_block[0..dk_block.len]);
 
         var i: u32 = 1;
+
         while (i < rounds) : (i += 1) {
             // U_c = PRF (P, U_{c-1})
             Prf.create(&new_block, prev_block[0..], password);
+
             prev_block = new_block;
 
             // F (P, S, c, i) = U_1 \xor U_2 \xor ... \xor U_c
@@ -250,12 +257,14 @@ test "Very large dk_len" {
     if (true) {
         return error.SkipZigTest;
     }
+
     const p = "password";
     const s = "salt";
     const c = 1;
     const dk_len = 1 << 33;
 
     const dk = try std.testing.allocator.alloc(u8, dk_len);
+
     defer std.testing.allocator.free(dk);
 
     // Just verify this doesn't crash with an overflow

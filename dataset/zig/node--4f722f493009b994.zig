@@ -46,6 +46,7 @@ export fn napi_register_module_v1(env: c.napi_env, exports: c.napi_value) c.napi
     translate.register_function(env, exports, "init", init) catch return null;
     translate.register_function(env, exports, "deinit", deinit) catch return null;
     translate.register_function(env, exports, "submit", submit) catch return null;
+
     return exports;
 }
 
@@ -58,16 +59,19 @@ fn init(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
     }) catch return null;
 
     const cluster = translate.u128_from_object(env, args[0], "cluster_id") catch return null;
+
     const addresses = translate.slice_from_object(
         env,
         args[0],
         "replica_addresses",
     ) catch return null;
+
     const request_error_ctor = translate.get_object_property(
         env,
         args[0],
         "request_error_class",
     ) catch return null;
+
     assert(request_error_ctor != null);
 
     translate.create_reference(
@@ -79,6 +83,7 @@ fn init(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
         &request_error_ctor_ref,
         "Cannot reference the object constructor",
     ) catch return null;
+
     assert(request_error_ctor_ref != null);
 
     return create(env, cluster, addresses) catch null;
@@ -91,6 +96,7 @@ fn deinit(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value
     }) catch return null;
 
     destroy(env, args[0]) catch {};
+
     return null;
 }
 
@@ -101,6 +107,7 @@ fn submit(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value
     }) catch return null;
 
     const operation_int = translate.u32_from_value(env, args[1], "operation") catch return null;
+
     if (!@as(vsr.Operation, @enumFromInt(operation_int)).valid(Operation)) {
         translate.throw(env, .{
             .message = "Unknown operation.",
@@ -108,11 +115,13 @@ fn submit(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value
     }
 
     var is_array: bool = undefined;
+
     if (c.napi_is_array(env, args[2], &is_array) != c.napi_ok) {
         translate.throw(env, .{
             .message = "Failed to check array argument type.",
         }) catch return null;
     }
+
     if (!is_array) {
         translate.throw(env, .{
             .message = "Array argument must be an [object Array].",
@@ -120,11 +129,13 @@ fn submit(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value
     }
 
     var callback_type: c.napi_valuetype = undefined;
+
     if (c.napi_typeof(env, args[3], &callback_type) != c.napi_ok) {
         translate.throw(env, .{
             .message = "Failed to check callback argument type.",
         }) catch return null;
     }
+
     if (callback_type != c.napi_function) {
         translate.throw(env, .{
             .message = "Callback argument must be a Function.",
@@ -138,6 +149,7 @@ fn submit(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value
         args[2], // request array
         args[3], // callback
     ) catch {};
+
     return null;
 }
 
@@ -149,6 +161,7 @@ fn create(
     addresses: []const u8,
 ) !c.napi_value {
     var tsfn_name: c.napi_value = undefined;
+
     if (c.napi_create_string_utf8(env, "tb_client", c.NAPI_AUTO_LENGTH, &tsfn_name) != c.napi_ok) {
         return translate.throw(
             env,
@@ -157,6 +170,7 @@ fn create(
     }
 
     var completion_tsfn: c.napi_threadsafe_function = undefined;
+
     if (c.napi_create_threadsafe_function(
         env,
         null, // No javascript function to call directly from here.
@@ -174,6 +188,7 @@ fn create(
             .message = "Failed to create thread-safe function.",
         });
     }
+
     errdefer if (c.napi_release_threadsafe_function(
         completion_tsfn,
         c.napi_tsfn_abort,
@@ -186,6 +201,7 @@ fn create(
             .message = "Failed to allocated the client interface.",
         });
     };
+
     errdefer global_allocator.destroy(client);
 
     tb_client.Context.init(
@@ -215,6 +231,7 @@ fn create(
             .message = "Unexpected error occurred on Client.",
         }),
     };
+
     errdefer client.deinit() catch unreachable;
 
     return try translate.create_external(env, client);
@@ -227,7 +244,9 @@ fn destroy(env: c.napi_env, context: c.napi_value) !void {
         context,
         "Failed to get client context pointer.",
     );
+
     const client: *tb_client.ClientInterface = @ptrCast(@alignCast(client_ptr.?));
+
     defer {
         client.deinit() catch unreachable;
         global_allocator.destroy(client);
@@ -236,7 +255,9 @@ fn destroy(env: c.napi_env, context: c.napi_value) !void {
     const completion_ctx = client.completion_context() catch |err| switch (err) {
         error.ClientInvalid => return request_error(env, .ERR_CLIENT_CLOSED),
     };
+
     const completion_tsfn: c.napi_threadsafe_function = @ptrFromInt(completion_ctx);
+
     if (c.napi_release_threadsafe_function(completion_tsfn, c.napi_tsfn_release) != c.napi_ok) {
         return translate.throw(env, .{
             .message = "Failed to release allocated thread-safe function on error.",
@@ -256,10 +277,12 @@ fn request(
         context,
         "Failed to get client context pointer.",
     );
+
     const client: *tb_client.ClientInterface = @ptrCast(@alignCast(client_ptr.?));
 
     // Create a reference to the callback so it stay alive until the packet completes.
     var callback_ref: c.napi_ref = undefined;
+
     try translate.create_reference(
         env,
         callback,
@@ -267,20 +290,24 @@ fn request(
         &callback_ref,
         "Failed to create reference to callback.",
     );
+
     errdefer translate.delete_reference(env, callback_ref) catch {
         std.log.warn("Failed to delete reference to callback on error.", .{});
     };
 
     const array_length: u32 = try translate.array_length(env, array);
+
     const packet, const packet_data = switch (operation) {
         inline else => |operation_comptime| blk: {
             const Event = operation_comptime.EventType();
+
             // Avoid allocating memory for requests that are known to be too large.
             // However, the final validation happens in `tb_client` against the runtime-known
             // maximum size.
             const event_max: u32 = comptime operation_comptime.event_max(
                 constants.message_body_size_max,
             );
+
             if (array_length > event_max) {
                 return request_error(env, .ERR_TOO_MUCH_DATA);
             }
@@ -290,6 +317,7 @@ fn request(
                     .message = "Failed to allocated a new packet.",
                 });
             };
+
             errdefer global_allocator.destroy(packet);
 
             const buffer: []Event = global_allocator.alloc(Event, array_length) catch {
@@ -297,9 +325,11 @@ fn request(
                     .message = "Failed to allocated the request buffer.",
                 });
             };
+
             errdefer global_allocator.free(buffer);
 
             try decode_array(Event, env, array, buffer);
+
             break :blk .{ packet, std.mem.sliceAsBytes(buffer) };
         },
         .pulse, .get_change_events => unreachable,
@@ -313,6 +343,7 @@ fn request(
         .user_tag = 0,
         .status = undefined,
     };
+
     client.submit(packet) catch |err| switch (err) {
         error.ClientInvalid => return request_error(env, .ERR_CLIENT_CLOSED),
     };
@@ -334,14 +365,17 @@ fn on_completion(
     switch (packet_extern.status) {
         .ok => {
             const operation: Operation = @enumFromInt(packet_extern.operation);
+
             switch (operation) {
                 inline else => |operation_comptime| {
                     const Event = operation_comptime.EventType();
                     const Result = operation_comptime.ResultType();
 
                     const packet = packet_extern.cast();
+
                     const request_buffer: []align(@alignOf(Event)) u8 =
                         @constCast(@alignCast(packet.slice()));
+
                     // Trying to reallocate the request buffer instead of allocating a new one.
                     // This is optimal for create_* operations.
                     const reply_buffer: []align(@alignOf(Result)) u8 = global_allocator.realloc(
@@ -357,6 +391,7 @@ fn on_completion(
                         Result,
                         result.?[0..result_size],
                     );
+
                     const target = stdx.bytes_as_slice(
                         .exact,
                         Result,
@@ -390,6 +425,7 @@ fn on_completion(
 
     // Queue the packet to be processed on the JS thread to invoke its JS callback.
     const completion_tsfn: c.napi_threadsafe_function = @ptrFromInt(completion_ctx);
+
     switch (c.napi_call_threadsafe_function(
         completion_tsfn,
         packet_extern,
@@ -418,14 +454,17 @@ fn on_completion_js(
 
     // Decode the packet's Buffer results into an array then free the packet/Buffer.
     const operation: Operation = @enumFromInt(packet_extern.operation);
+
     const array_or_error = switch (operation) {
         inline else => |operation_comptime| blk: {
             const Result = operation_comptime.ResultType();
 
             const packet = packet_extern.cast();
+
             defer global_allocator.destroy(packet);
 
             const buffer: []const u8 = packet.slice();
+
             defer global_allocator.free(buffer);
 
             switch (packet.status) {
@@ -435,6 +474,7 @@ fn on_completion_js(
                         Result,
                         buffer,
                     );
+
                     break :blk encode_array(Result, env, results);
                 },
                 .client_shutdown => {
@@ -461,11 +501,13 @@ fn on_completion_js(
     // Parse Result array out of packet data, freeing it in the process.
     // NOTE: Ensure this is called before anything that could early-return to avoid a alloc leak.
     var callback_error = napi_null;
+
     const callback_result = array_or_error catch |err| switch (err) {
         error.ExceptionThrown => blk: {
             if (c.napi_get_and_clear_last_exception(env, &callback_error) != c.napi_ok) {
                 std.log.warn("Failed to capture callback error from thrown Exception.", .{});
             }
+
             break :blk napi_null;
         },
     };
@@ -482,6 +524,7 @@ fn on_completion_js(
     ) catch return;
 
     var args = [_]c.napi_value{ callback_error, callback_result };
+
     _ = translate.call_function(env, napi_null, callback, &args) catch return;
 }
 
@@ -490,6 +533,7 @@ fn on_completion_js(
 fn decode_array(comptime Event: type, env: c.napi_env, array: c.napi_value, events: []Event) !void {
     for (events, 0..) |*event, i| {
         const object = try translate.array_element(env, array, @intCast(i));
+
         switch (Event) {
             Account,
             Transfer,
@@ -585,7 +629,9 @@ fn add_trailing_null(comptime input: []const u8) [:0]const u8 {
     // Concatenating `[]const u8` with an empty string `[0:0]const u8`,
     // gives us a null-terminated string `[:0]const u8`.
     const output = input ++ "";
+
     comptime assert(output.len == input.len);
     comptime assert(output[output.len] == 0);
+
     return output;
 }

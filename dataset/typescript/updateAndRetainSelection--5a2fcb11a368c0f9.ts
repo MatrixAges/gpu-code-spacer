@@ -17,6 +17,7 @@ export default (node_key: string, update_fn: () => boolean) => {
 
 	const anchor = selection.anchor
 	const anchor_offset = anchor.offset
+
 	const is_new_line_anchor = anchor.type === 'element' && $isLineBreakNode(node.getChildAtIndex(anchor_offset - 1))
 
 	let text_offset = 0

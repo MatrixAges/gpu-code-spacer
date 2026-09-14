@@ -10,6 +10,7 @@ import getTodoItems from './utils/getTodoItems'
 
 import type { MangoQueryOperators, MangoQuerySelector, MangoQuerySortPart, RxDocument } from 'rxdb'
 import type { ArchiveQueryParams, AnalysisTrending } from './types/model'
+
 import type {
 	ArgsCheck,
 	ArgsQueryArchives,
@@ -96,7 +97,6 @@ export const getQueryItems = (args: ArgsQueryItems) => {
 		}
 	} else {
 		selector['type'] = 'todo'
-
 		sort['archive'] = 'asc'
 
 		if (!sort['create_at']) sort['create_at'] = 'desc'
@@ -136,6 +136,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 	const selector_common: MangoQuerySelector<Todo.Todo> = { file_id, type: 'todo' }
 	const selector_trending: MangoQuerySelector<Todo.Todo> = {}
 	const selector_items: MangoQuerySelector<Todo.Todo> = {}
+
 	const now = dayjs()
 	const periods = Array.from({ length: 6 }, (_, index) => index)
 
@@ -178,6 +179,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 				$gte: now.startOf('day').valueOf(),
 				$lte: now.endOf('day').valueOf()
 			}
+
 			break
 		case 'weekly':
 			trending_dates = periods.map(index => getTrendingDate(now, index, 'week', `[W]W`))
@@ -186,6 +188,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 				$gte: now.startOf('week').valueOf(),
 				$lte: now.endOf('week').valueOf()
 			}
+
 			break
 		case 'monthly':
 			trending_dates = periods.map(index => getTrendingDate(now, index, 'month', '[M]M'))
@@ -194,6 +197,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 				$gte: now.startOf('month').valueOf(),
 				$lte: now.endOf('month').valueOf()
 			}
+
 			break
 		case 'quarterly':
 			trending_dates = periods.map(index => getTrendingDate(now, index, 'quarter', '[Q]Q'))
@@ -202,6 +206,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 				$gte: now.startOf('quarter').valueOf(),
 				$lte: now.endOf('quarter').valueOf()
 			}
+
 			break
 		case 'yearly':
 			trending_dates = periods.map(index => getTrendingDate(now, index, 'year', 'YYYY'))
@@ -210,6 +215,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 				$gte: now.startOf('year').valueOf(),
 				$lte: now.endOf('year').valueOf()
 			}
+
 			break
 	}
 
@@ -225,6 +231,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 		const create = await $db.todo_items
 			.count({ selector: { ...selector_common, ...selector_trending, create_at: item.duration } })
 			.exec()
+
 		const done = await $db.todo_items
 			.count({
 				selector: {
@@ -235,6 +242,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 				}
 			})
 			.exec()
+
 		const close = await $db.todo_items
 			.count({
 				selector: {
@@ -245,6 +253,7 @@ export const getAnalysisData = async (args: ArgsGetAnalysisData) => {
 				}
 			})
 			.exec()
+
 		const uncheck = await $db.todo_items
 			.count({
 				selector: {
@@ -307,6 +316,7 @@ export const queryItem = (id: string) => {
 export const queryArchives = (args: ArgsQueryArchives, query_params: ArchiveQueryParams) => {
 	const { file_id, page } = args
 	const { angle_id, tags, begin_date, end_date, status } = query_params
+
 	const selector: MangoQuerySelector<Todo.Todo> = {}
 
 	if (angle_id) {

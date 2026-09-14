@@ -11,16 +11,21 @@ export default () => {
 
 	const anchor = selection.anchor.getNode()
 	const focus = selection.focus.getNode()
+
 	const [anchor_cell, , grid] = $getNodeTriplet(anchor)
 	const [focus_cell] = $getNodeTriplet(focus)
 	const [grid_map, anchor_cell_map, focus_cell_map] = $computeTableMap(grid, anchor_cell, focus_cell)
+
 	const { start_column: anchor_start_column } = anchor_cell_map
 	const { start_row: focus_start_row, start_column: focus_start_column } = focus_cell_map
+
 	const start_column = Math.min(anchor_start_column, focus_start_column)
+
 	const end_column = Math.max(
 		anchor_start_column + anchor_cell.__col_span - 1,
 		focus_start_column + focus_cell.__col_span - 1
 	)
+
 	const selected_column_count = end_column - start_column + 1
 	const column_count = grid_map[0].length
 
@@ -56,6 +61,7 @@ export default () => {
 			}
 		}
 	}
+
 	const focus_row_map = grid_map[focus_start_row]
 	const next_column = focus_row_map[focus_start_column + focus_cell.__col_span]
 

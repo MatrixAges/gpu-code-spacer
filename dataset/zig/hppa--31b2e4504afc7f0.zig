@@ -19,8 +19,11 @@ pub const featureSetHasAll = CpuFeature.FeatureSetFns(Feature).featureSetHasAll;
 
 pub const all_features = blk: {
     const len = @typeInfo(Feature).@"enum".fields.len;
+
     std.debug.assert(len <= CpuFeature.Set.needed_bit_count);
+
     var result: [len]CpuFeature = undefined;
+
     result[@intFromEnum(Feature.@"64bit")] = .{
         .llvm_name = null,
         .description = "Enable 64-bit PA-RISC 2.0",
@@ -28,11 +31,13 @@ pub const all_features = blk: {
             .v2_0,
         }),
     };
+
     result[@intFromEnum(Feature.max_1)] = .{
         .llvm_name = null,
         .description = "Enable MAX-1 multimedia acceleration extensions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.max_2)] = .{
         .llvm_name = null,
         .description = "Enable MAX-2 multimedia acceleration extensions",
@@ -40,11 +45,13 @@ pub const all_features = blk: {
             .max_1,
         }),
     };
+
     result[@intFromEnum(Feature.v1_1)] = .{
         .llvm_name = null,
         .description = "Enable ISA v1.1",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.v2_0)] = .{
         .llvm_name = null,
         .description = "Enable ISA v2.0",
@@ -53,11 +60,14 @@ pub const all_features = blk: {
             .v1_1,
         }),
     };
+
     const ti = @typeInfo(Feature);
+
     for (&result, 0..) |*elem, i| {
         elem.index = i;
         elem.name = ti.@"enum".fields[i].name;
     }
+
     break :blk result;
 };
 
@@ -67,11 +77,13 @@ pub const cpu = struct {
         .llvm_name = null,
         .features = featureSet(&[_]Feature{}),
     };
+
     pub const ns_2: CpuModel = .{
         .name = "ns_2",
         .llvm_name = null,
         .features = featureSet(&[_]Feature{}),
     };
+
     pub const pa_7000: CpuModel = .{
         .name = "pa_7000",
         .llvm_name = null,
@@ -79,6 +91,7 @@ pub const cpu = struct {
             .v1_1,
         }),
     };
+
     pub const pa_7100: CpuModel = .{
         .name = "pa_7100",
         .llvm_name = null,
@@ -86,6 +99,7 @@ pub const cpu = struct {
             .v1_1,
         }),
     };
+
     pub const pa_7100lc: CpuModel = .{
         .name = "pa_7100lc",
         .llvm_name = null,
@@ -94,6 +108,7 @@ pub const cpu = struct {
             .v1_1,
         }),
     };
+
     pub const pa_7150: CpuModel = .{
         .name = "pa_7150",
         .llvm_name = null,
@@ -101,6 +116,7 @@ pub const cpu = struct {
             .v1_1,
         }),
     };
+
     pub const pa_7200: CpuModel = .{
         .name = "pa_7200",
         .llvm_name = null,
@@ -108,6 +124,7 @@ pub const cpu = struct {
             .v1_1,
         }),
     };
+
     pub const pa_7300lc: CpuModel = .{
         .name = "pa_7300lc",
         .llvm_name = null,
@@ -116,6 +133,7 @@ pub const cpu = struct {
             .v1_1,
         }),
     };
+
     pub const pa_8000: CpuModel = .{
         .name = "pa_8000",
         .llvm_name = null,
@@ -123,6 +141,7 @@ pub const cpu = struct {
             .@"64bit",
         }),
     };
+
     pub const pa_8200: CpuModel = .{
         .name = "pa_8200",
         .llvm_name = null,
@@ -130,6 +149,7 @@ pub const cpu = struct {
             .@"64bit",
         }),
     };
+
     pub const pa_8500: CpuModel = .{
         .name = "pa_8500",
         .llvm_name = null,
@@ -137,6 +157,7 @@ pub const cpu = struct {
             .@"64bit",
         }),
     };
+
     pub const pa_8600: CpuModel = .{
         .name = "pa_8600",
         .llvm_name = null,
@@ -144,6 +165,7 @@ pub const cpu = struct {
             .@"64bit",
         }),
     };
+
     pub const pa_8700: CpuModel = .{
         .name = "pa_8700",
         .llvm_name = null,
@@ -151,6 +173,7 @@ pub const cpu = struct {
             .@"64bit",
         }),
     };
+
     pub const pa_8800: CpuModel = .{
         .name = "pa_8800",
         .llvm_name = null,
@@ -158,6 +181,7 @@ pub const cpu = struct {
             .@"64bit",
         }),
     };
+
     pub const pa_8900: CpuModel = .{
         .name = "pa_8900",
         .llvm_name = null,
@@ -165,11 +189,13 @@ pub const cpu = struct {
             .@"64bit",
         }),
     };
+
     pub const pcx: CpuModel = .{
         .name = "pcx",
         .llvm_name = null,
         .features = featureSet(&[_]Feature{}),
     };
+
     pub const ts_1: CpuModel = .{
         .name = "ts_1",
         .llvm_name = null,

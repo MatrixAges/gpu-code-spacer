@@ -115,6 +115,7 @@ pub const Error = union(enum) {
 /// Returns an error if there is not exactly one UTF-8 codepoint in between.
 pub fn parseCharLiteral(slice: []const u8) ParsedCharLiteral {
     if (slice.len < 3) return .{ .failure = .empty_char_literal };
+
     assert(slice[0] == '\'');
     assert(slice[slice.len - 1] == '\'');
 
@@ -122,6 +123,7 @@ pub fn parseCharLiteral(slice: []const u8) ParsedCharLiteral {
         '\\' => {
             var offset: usize = 1;
             const result = parseEscapeSequence(slice, &offset);
+
             if (result == .success and (offset + 1 != slice.len or slice[offset] != '\''))
                 return .{ .failure = .{ .expected_single_quote = offset } };
 
@@ -130,10 +132,13 @@ pub fn parseCharLiteral(slice: []const u8) ParsedCharLiteral {
         0 => return .{ .failure = .{ .invalid_character = 1 } },
         else => {
             const inner = slice[1 .. slice.len - 1];
+
             const n = std.unicode.utf8ByteSequenceLength(inner[0]) catch return .{
                 .failure = .{ .invalid_unicode_codepoint = 1 },
             };
+
             if (inner.len > n) return .{ .failure = .{ .expected_single_quote = 1 + n } };
+
             const codepoint = switch (n) {
                 1 => inner[0],
                 2 => std.unicode.utf8Decode2(inner[0..2].*),
@@ -141,6 +146,7 @@ pub fn parseCharLiteral(slice: []const u8) ParsedCharLiteral {
                 4 => std.unicode.utf8Decode4(inner[0..4].*),
                 else => unreachable,
             } catch return .{ .failure = .{ .invalid_unicode_codepoint = 1 } };
+
             return .{ .success = codepoint };
         },
     }
@@ -156,6 +162,7 @@ pub fn parseEscapeSequence(slice: []const u8, offset: *usize) ParsedCharLiteral 
         return .{ .failure = .{ .invalid_escape_character = offset.* + 1 } };
 
     offset.* += 2;
+
     switch (slice[offset.* - 1]) {
         'n' => return .{ .success = '\n' },
         'r' => return .{ .success = '\r' },
@@ -166,10 +173,12 @@ pub fn parseEscapeSequence(slice: []const u8, offset: *usize) ParsedCharLiteral 
         'x' => {
             var value: u8 = 0;
             var i: usize = offset.*;
+
             while (i < offset.* + 2) : (i += 1) {
                 if (i == slice.len) return .{ .failure = .{ .expected_hex_digit = i } };
 
                 const c = slice[i];
+
                 switch (c) {
                     '0'...'9' => {
                         value *= 16;
@@ -188,19 +197,26 @@ pub fn parseEscapeSequence(slice: []const u8, offset: *usize) ParsedCharLiteral 
                     },
                 }
             }
+
             offset.* = i;
+
             return .{ .success = value };
         },
         'u' => {
             var i: usize = offset.*;
+
             if (i >= slice.len or slice[i] != '{') return .{ .failure = .{ .expected_lbrace = i } };
+
             i += 1;
+
             if (i >= slice.len) return .{ .failure = .{ .expected_hex_digit_or_rbrace = i } };
             if (slice[i] == '}') return .{ .failure = .{ .empty_unicode_escape_sequence = i } };
 
             var value: u32 = 0;
+
             while (i < slice.len) : (i += 1) {
                 const c = slice[i];
+
                 switch (c) {
                     '0'...'9' => {
                         value *= 16;
@@ -216,17 +232,21 @@ pub fn parseEscapeSequence(slice: []const u8, offset: *usize) ParsedCharLiteral 
                     },
                     '}' => {
                         i += 1;
+
                         break;
                     },
                     else => return .{ .failure = .{ .expected_hex_digit_or_rbrace = i } },
                 }
+
                 if (value > 0x10ffff) {
                     return .{ .failure = .{ .invalid_unicode_codepoint = i } };
                 }
             } else {
                 return .{ .failure = .{ .expected_rbrace = i } };
             }
+
             offset.* = i;
+
             return .{ .success = @as(u21, @intCast(value)) };
         },
         else => return .{ .failure = .{ .invalid_escape_character = offset.* - 1 } },
@@ -238,78 +258,97 @@ test parseCharLiteral {
         ParsedCharLiteral{ .success = 'a' },
         parseCharLiteral("'a'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 'ä' },
         parseCharLiteral("'ä'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0 },
         parseCharLiteral("'\\x00'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0x4f },
         parseCharLiteral("'\\x4f'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0x4f },
         parseCharLiteral("'\\x4F'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0x3041 },
         parseCharLiteral("'ぁ'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0 },
         parseCharLiteral("'\\u{0}'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0x3041 },
         parseCharLiteral("'\\u{3041}'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0x7f },
         parseCharLiteral("'\\u{7f}'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .success = 0x7fff },
         parseCharLiteral("'\\u{7FFF}'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .expected_hex_digit = 4 } },
         parseCharLiteral("'\\x0'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .expected_single_quote = 5 } },
         parseCharLiteral("'\\x000'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .invalid_escape_character = 2 } },
         parseCharLiteral("'\\y'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .expected_lbrace = 3 } },
         parseCharLiteral("'\\u'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .expected_lbrace = 3 } },
         parseCharLiteral("'\\uFFFF'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .empty_unicode_escape_sequence = 4 } },
         parseCharLiteral("'\\u{}'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .invalid_unicode_codepoint = 9 } },
         parseCharLiteral("'\\u{FFFFFF}'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .expected_hex_digit_or_rbrace = 8 } },
         parseCharLiteral("'\\u{FFFF'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .expected_single_quote = 9 } },
         parseCharLiteral("'\\u{FFFF}x'"),
     );
+
     try std.testing.expectEqual(
         ParsedCharLiteral{ .failure = .{ .invalid_character = 1 } },
         parseCharLiteral("'\x00'"),
@@ -323,6 +362,7 @@ pub fn parseWrite(writer: *Writer, bytes: []const u8) Writer.Error!Result {
     assert(bytes.len >= 2 and bytes[0] == '"' and bytes[bytes.len - 1] == '"');
 
     var index: usize = 1;
+
     while (true) {
         const b = bytes[index];
 
@@ -330,13 +370,16 @@ pub fn parseWrite(writer: *Writer, bytes: []const u8) Writer.Error!Result {
             '\\' => {
                 const escape_char_index = index + 1;
                 const result = parseEscapeSequence(bytes, &index);
+
                 switch (result) {
                     .success => |codepoint| {
                         if (bytes[escape_char_index] == 'u') {
                             var buf: [4]u8 = undefined;
+
                             const len = utf8Encode(codepoint, &buf) catch {
                                 return .{ .failure = .{ .invalid_unicode_codepoint = escape_char_index + 1 } };
                             };
+
                             try writer.writeAll(buf[0..len]);
                         } else {
                             try writer.writeByte(@as(u8, @intCast(codepoint)));
@@ -349,6 +392,7 @@ pub fn parseWrite(writer: *Writer, bytes: []const u8) Writer.Error!Result {
             '"' => return .success,
             else => {
                 try writer.writeByte(b);
+
                 index += 1;
             },
         }
@@ -359,10 +403,13 @@ pub fn parseWrite(writer: *Writer, bytes: []const u8) Writer.Error!Result {
 /// Caller owns returned memory.
 pub fn parseAlloc(allocator: std.mem.Allocator, bytes: []const u8) ParseError![]u8 {
     var aw: Writer.Allocating = .init(allocator);
+
     defer aw.deinit();
+
     const result = parseWrite(&aw.writer, bytes) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,
     };
+
     switch (result) {
         .success => return aw.toOwnedSlice(),
         .failure => return error.InvalidLiteral,
@@ -375,6 +422,7 @@ test parseAlloc {
     const eql = std.mem.eql;
 
     var fixed_buf_mem: [512]u8 = undefined;
+
     var fixed_buf_alloc = std.heap.FixedBufferAllocator.init(&fixed_buf_mem);
     const alloc = fixed_buf_alloc.allocator();
 

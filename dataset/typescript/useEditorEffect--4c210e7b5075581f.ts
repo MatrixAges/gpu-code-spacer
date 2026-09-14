@@ -16,6 +16,7 @@ interface Args {
 
 export default (args: Args) => {
 	const { mounted, unmounted, editor, deps } = args
+
 	const ref_dom = useRef<HTMLDivElement | null>(null)
 	const ref_deps = useRef<DependencyList>()
 	const id = useStackId()
@@ -50,7 +51,6 @@ export default (args: Args) => {
 						const set = new Set<() => void>()
 
 						set.add(unmounted)
-
 						$stack_offs.set(id, set)
 					}
 				} else {

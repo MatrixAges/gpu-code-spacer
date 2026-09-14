@@ -15,6 +15,7 @@ export default (
 
 	const write = (start_row: number, start_column: number, cell: TableCellNode) => {
 		const value = { start_row, start_column, cell } as TableMapValue
+
 		const row_span = cell.__row_span || 1
 		const col_span = cell.__col_span || 1
 

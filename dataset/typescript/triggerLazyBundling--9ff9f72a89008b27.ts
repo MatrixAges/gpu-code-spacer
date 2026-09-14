@@ -5,6 +5,7 @@ export function triggerLazyBundlingMiddleware(
   server: ViteDevServer,
 ): Connect.NextHandleFunction {
   const bundledDev = server.environments.client.bundledDev
+
   if (!bundledDev) {
     throw new Error(
       'triggerLazyBundlingMiddleware can only be used for fullBundleMode',
@@ -17,6 +18,7 @@ export function triggerLazyBundlingMiddleware(
     }
 
     let params: URLSearchParams
+
     try {
       params = new URL(`http://localhost${req.url}`).searchParams
     } catch {
@@ -26,7 +28,9 @@ export function triggerLazyBundlingMiddleware(
 
     const moduleId = params.get('id')
     const clientId = params.get('clientId')
+
     let result: { code: string; filename: string } | undefined
+
     try {
       result = await bundledDev.triggerLazyBundling(moduleId, clientId)
     } catch (e) {
@@ -35,13 +39,16 @@ export function triggerLazyBundlingMiddleware(
           e,
         { error: e },
       )
+
       return next(new Error(`Failed to trigger lazy bundling`))
     }
+
     if (result == null) {
       return next()
     }
 
     res!.setHeader('Content-Type', 'application/javascript')
+
     return res!.end(result.code)
   }
 }

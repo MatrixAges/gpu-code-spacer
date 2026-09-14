@@ -17,8 +17,10 @@ function checkNodeVersion(nodeVersion: string): boolean {
   const currentVersion = nodeVersion.split('.')
   const major = parseInt(currentVersion[0], 10)
   const minor = parseInt(currentVersion[1], 10)
+
   const isSupported =
     (major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22
+
   return isSupported
 }
 
@@ -71,25 +73,32 @@ export const stopProfiler = (
   log: (message: string) => void,
 ): void | Promise<void> => {
   if (!profileSession) return
+
   return new Promise((res, rej) => {
     profileSession!.post('Profiler.stop', (err, { profile }) => {
       // Write profile to disk, upload, etc.
       if (!err) {
         const name = global.__vite_profile_name
         const count = profileCount++
+
         const fileName = name
           ? count === 0
             ? name
             : `${name}-${count}`
           : `vite-profile-${count}`
+
         const outPath = path.resolve(`./${fileName}.cpuprofile`)
+
         fs.writeFileSync(outPath, JSON.stringify(profile))
+
         log(
           colors.yellow(
             `CPU profile written to ${colors.white(colors.dim(outPath))}`,
           ),
         )
+
         profileSession = undefined
+
         res()
       } else {
         rej(err)
@@ -105,6 +114,7 @@ const filterDuplicateOptions = <T extends object>(options: T) => {
     }
   }
 }
+
 /**
  * removing global flags before passing as command specific sub-configs
  */
@@ -112,6 +122,7 @@ function cleanGlobalCLIOptions<Options extends GlobalCLIOptions>(
   options: Options,
 ): Omit<Options, keyof GlobalCLIOptions> {
   const ret = { ...options }
+
   delete ret['--']
   delete ret.c
   delete ret.config
@@ -133,6 +144,7 @@ function cleanGlobalCLIOptions<Options extends GlobalCLIOptions>(
   // convert the sourcemap option to a boolean if necessary
   if ('sourcemap' in ret) {
     const sourcemap = ret.sourcemap as `${boolean}` | 'inline' | 'hidden'
+
     ret.sourcemap =
       sourcemap === 'true'
         ? true
@@ -140,8 +152,10 @@ function cleanGlobalCLIOptions<Options extends GlobalCLIOptions>(
           ? false
           : ret.sourcemap
   }
+
   if ('watch' in ret) {
     const watch = ret.watch
+
     ret.watch = watch ? {} : undefined
   }
 
@@ -155,7 +169,9 @@ function cleanBuilderCLIOptions<Options extends BuilderCLIOptions>(
   options: Options,
 ): Omit<Options, keyof BuilderCLIOptions> {
   const ret = { ...options }
+
   delete ret.app
+
   return ret
 }
 
@@ -166,6 +182,7 @@ const convertHost = (v: any) => {
   if (typeof v === 'number') {
     return String(v)
   }
+
   return v
 }
 
@@ -176,6 +193,7 @@ const convertBase = (v: any) => {
   if (v === 0) {
     return ''
   }
+
   return v
 }
 
@@ -222,9 +240,11 @@ cli
       options: ServerOptions & ExperimentalDevOptions & GlobalCLIOptions,
     ) => {
       filterDuplicateOptions(options)
+
       // output structure is preserved even after bundling so require()
       // is ok here
       const { createServer } = await import('./server')
+
       try {
         const server = await createServer({
           root,
@@ -253,7 +273,9 @@ cli
           options.mode && options.mode !== 'development'
             ? `  ${colors.bgGreen(` ${colors.bold(options.mode)} `)}`
             : ''
+
         const viteStartTime = global.__vite_start_time ?? false
+
         const startupDurationString = viteStartTime
           ? colors.dim(
               `ready in ${colors.reset(
@@ -261,6 +283,7 @@ cli
               )} ms`,
             )
           : ''
+
         const hasExistingLogs =
           process.stdout.bytesWritten > 0 || process.stderr.bytesWritten > 0
 
@@ -274,7 +297,9 @@ cli
         )
 
         server.printUrls()
+
         const customShortcuts: CLIShortcut<typeof server>[] = []
+
         if (profileSession) {
           customShortcuts.push({
             key: 'p',
@@ -286,12 +311,16 @@ cli
                 const inspector = await import('node:inspector').then(
                   (r) => r.default,
                 )
+
                 await new Promise<void>((res) => {
                   profileSession = new inspector.Session()
+
                   profileSession.connect()
+
                   profileSession.post('Profiler.enable', () => {
                     profileSession!.post('Profiler.start', () => {
                       server.config.logger.info('Profiler started')
+
                       res()
                     })
                   })
@@ -300,16 +329,20 @@ cli
             },
           })
         }
+
         server.bindCLIShortcuts({ print: true, customShortcuts })
       } catch (e) {
         const logger = createLogger(options.logLevel)
+
         logger.error(
           colors.red(`error when starting dev server:\n${inspect(e)}`),
           {
             error: e,
           },
         )
+
         await stopProfiler(logger.info)
+
         process.exit(1)
       }
     },
@@ -375,7 +408,9 @@ cli
           build: buildOptions,
           ...(options.app ? { builder: {} } : {}),
         }
+
         const builder = await createBuilder(inlineConfig, null)
+
         await builder.buildApp()
         await builder.runDevTools()
       } catch (e) {
@@ -383,6 +418,7 @@ cli
           colors.red(`error during build:\n${inspect(e)}`),
           { error: e },
         )
+
         process.exit(1)
       } finally {
         await stopProfiler((message) =>
@@ -405,8 +441,10 @@ cli
   .action(
     async (root: string, options: { force?: boolean } & GlobalCLIOptions) => {
       filterDuplicateOptions(options)
+
       const { resolveConfig } = await import('./config')
       const { optimizeDeps } = await import('./optimizer')
+
       try {
         const config = await resolveConfig(
           {
@@ -419,12 +457,14 @@ cli
           },
           'serve',
         )
+
         await optimizeDeps(config, options.force, true)
       } catch (e) {
         createLogger(options.logLevel).error(
           colors.red(`error when optimizing deps:\n${inspect(e)}`),
           { error: e },
         )
+
         process.exit(1)
       }
     },
@@ -450,7 +490,9 @@ cli
       } & GlobalCLIOptions,
     ) => {
       filterDuplicateOptions(options)
+
       const { preview } = await import('./preview')
+
       try {
         const server = await preview({
           root,
@@ -469,6 +511,7 @@ cli
             open: options.open,
           },
         })
+
         server.printUrls()
         server.bindCLIShortcuts({ print: true })
       } catch (e) {
@@ -476,6 +519,7 @@ cli
           colors.red(`error when starting preview server:\n${inspect(e)}`),
           { error: e },
         )
+
         process.exit(1)
       } finally {
         await stopProfiler((message) =>

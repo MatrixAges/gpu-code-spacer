@@ -10,7 +10,6 @@ const posix = std.posix;
 const Io = std.Io;
 
 pub const NativePaths = @import("system/NativePaths.zig");
-
 pub const windows = @import("system/windows.zig");
 pub const darwin = @import("system/darwin.zig");
 pub const linux = @import("system/linux.zig");
@@ -44,6 +43,7 @@ pub fn getExternalExecutor(
     options: GetExternalExecutorOptions,
 ) Executor {
     const os_match = host.os.tag == candidate.os.tag;
+
     const cpu_ok = cpu_ok: {
         if (host.cpu.arch == candidate.cpu.arch)
             break :cpu_ok true;
@@ -71,10 +71,12 @@ pub fn getExternalExecutor(
             if (candidate.dynamic_linker.get()) |candidate_dl| {
                 fs.cwd().access(candidate_dl, .{}) catch {
                     bad_result = .{ .bad_dl = candidate_dl };
+
                     break :native;
                 };
             }
         }
+
         return .native;
     }
 
@@ -180,8 +182,10 @@ pub fn getExternalExecutor(
                     .x86_64 => host.cpu.arch == .x86_64,
                     else => false,
                 };
+
                 return if (wine_supported) .{ .wine = "wine" } else bad_result;
             }
+
             return bad_result;
         },
         .driverkit, .macos => {
@@ -192,8 +196,10 @@ pub fn getExternalExecutor(
                 if (candidate.cpu.arch != host.cpu.arch) {
                     return bad_result;
                 }
+
                 return .{ .darling = "darling" };
             }
+
             return bad_result;
         },
         else => return bad_result,
@@ -224,15 +230,18 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
     const query_os_tag = query.os_tag orelse builtin.os.tag;
     const query_abi = query.abi orelse builtin.abi;
     var os = query_os_tag.defaultVersionRange(query_cpu_arch, query_abi);
+
     if (query.os_tag == null) {
         switch (builtin.target.os.tag) {
             .linux, .illumos => {
                 const uts = posix.uname();
                 const release = mem.sliceTo(&uts.release, 0);
+
                 // The release field sometimes has a weird format,
                 // `Version.parse` will attempt to find some meaningful interpretation.
                 if (std.SemanticVersion.parse(release)) |ver| {
                     var stripped = ver;
+
                     stripped.pre = null;
                     stripped.build = null;
                     os.version_range.linux.range.min = stripped;
@@ -244,6 +253,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
             },
             .windows => {
                 const detected_version = windows.detectRuntimeVersion();
+
                 os.version_range.windows.min = detected_version;
                 os.version_range.windows.max = detected_version;
             },
@@ -254,6 +264,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
                     .netbsd, .dragonfly => "kern.osrevision",
                     else => unreachable,
                 };
+
                 var value: u32 = undefined;
                 var len: usize = @sizeOf(@TypeOf(value));
 
@@ -274,6 +285,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
                         const minor1 = value % 100_000 / 10_000; // usually 0 since 5.1
                         const minor2 = value % 10_000 / 1_000; // 0 before 5.1, minor version since
                         const patch = value % 1_000;
+
                         os.version_range.semver.min = .{ .major = major, .minor = minor1 + minor2, .patch = patch };
                         os.version_range.semver.max = os.version_range.semver.min;
                     },
@@ -287,6 +299,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
                         const major = value / 100_000_000;
                         const minor = value % 100_000_000 / 1_000_000;
                         const patch = value % 10_000 / 100;
+
                         os.version_range.semver.min = .{ .major = major, .minor = minor, .patch = patch };
                         os.version_range.semver.max = os.version_range.semver.min;
                     },
@@ -299,6 +312,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
                         const major = value / 100_000;
                         const minor = value % 100_000 / 100;
                         const patch = value % 100;
+
                         os.version_range.semver.min = .{ .major = major, .minor = minor, .patch = patch };
                         os.version_range.semver.max = os.version_range.semver.min;
                     },
@@ -310,6 +324,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
                     posix.CTL.KERN,
                     posix.KERN.OSRELEASE,
                 };
+
                 var buf: [64:0]u8 = undefined;
                 // consider that sysctl result includes null-termination
                 var len: usize = buf.len + 1;
@@ -325,6 +340,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
                 if (Target.Query.parseVersion(buf[0..len :0])) |ver| {
                     assert(ver.build == null);
                     assert(ver.pre == null);
+
                     os.version_range.semver.min = ver;
                     os.version_range.semver.max = ver;
                 } else |_| {
@@ -404,6 +420,7 @@ pub fn resolveTargetQuery(io: Io, query: Target.Query) DetectError!Target {
         },
         else => {},
     }
+
     updateCpuFeatures(
         &cpu.features,
         cpu.arch.allFeaturesList(),
@@ -574,6 +591,7 @@ fn abiAndDynamicLinkerFromFile(
     query: Target.Query,
 ) AbiAndDynamicLinkerFromFileError!Target {
     const io = file_reader.io;
+
     var result: Target = .{
         .cpu = cpu,
         .os = os,
@@ -581,34 +599,45 @@ fn abiAndDynamicLinkerFromFile(
         .ofmt = query.ofmt orelse Target.ObjectFormat.default(os.tag, cpu.arch),
         .dynamic_linker = query.dynamic_linker orelse .none,
     };
+
     var rpath_offset: ?u64 = null; // Found inside PT_DYNAMIC
     const look_for_ld = query.dynamic_linker == null;
 
     var got_dyn_section: bool = false;
+
     {
         var it = header.iterateProgramHeaders(file_reader);
+
         while (try it.next()) |phdr| switch (phdr.p_type) {
             elf.PT_INTERP => {
                 got_dyn_section = true;
 
                 if (look_for_ld) {
                     const p_filesz = phdr.p_filesz;
+
                     if (p_filesz > result.dynamic_linker.buffer.len) return error.NameTooLong;
+
                     const filesz: usize = @intCast(p_filesz);
+
                     try file_reader.seekTo(phdr.p_offset);
                     try file_reader.interface.readSliceAll(result.dynamic_linker.buffer[0..filesz]);
+
                     // PT_INTERP includes a null byte in filesz.
                     const len = filesz - 1;
+
                     // dynamic_linker.max_byte is "max", not "len".
                     // We know it will fit in u8 because we check against dynamic_linker.buffer.len above.
                     result.dynamic_linker.len = @intCast(len);
 
                     // Use it to determine ABI.
                     const full_ld_path = result.dynamic_linker.buffer[0..len];
+
                     for (ld_info_list) |ld_info| {
                         const standard_ld_basename = fs.path.basename(ld_info.ld.get().?);
+
                         if (std.mem.endsWith(u8, full_ld_path, standard_ld_basename)) {
                             result.abi = ld_info.abi;
+
                             break;
                         }
                     }
@@ -620,9 +649,11 @@ fn abiAndDynamicLinkerFromFile(
 
                 if (builtin.target.os.tag == .linux and result.isGnuLibC() and query.glibc_version == null) {
                     var dyn_it = header.iterateDynamicSection(file_reader, phdr.p_offset, phdr.p_filesz);
+
                     while (try dyn_it.next()) |dyn| {
                         if (dyn.d_tag == elf.DT_RUNPATH) {
                             rpath_offset = dyn.d_val;
+
                             break;
                         }
                     }
@@ -638,37 +669,50 @@ fn abiAndDynamicLinkerFromFile(
 
     if (builtin.target.os.tag == .linux and result.isGnuLibC() and query.glibc_version == null) {
         const str_section_off = header.shoff + @as(u64, header.shentsize) * @as(u64, header.shstrndx);
+
         try file_reader.seekTo(str_section_off);
+
         const shstr = try elf.takeSectionHeader(&file_reader.interface, header.is_64, header.endian);
+
         var strtab_buf: [4096]u8 = undefined;
         const shstrtab = strtab_buf[0..@min(shstr.sh_size, strtab_buf.len)];
+
         try file_reader.seekTo(shstr.sh_offset);
         try file_reader.interface.readSliceAll(shstrtab);
+
         const dynstr: ?struct { offset: u64, size: u64 } = find_dyn_str: {
             var it = header.iterateSectionHeaders(file_reader);
+
             while (try it.next()) |shdr| {
                 const end = mem.findScalarPos(u8, shstrtab, shdr.sh_name, 0) orelse continue;
                 const sh_name = shstrtab[shdr.sh_name..end :0];
+
                 if (mem.eql(u8, sh_name, ".dynstr")) break :find_dyn_str .{
                     .offset = shdr.sh_offset,
                     .size = shdr.sh_size,
                 };
             } else break :find_dyn_str null;
         };
+
         if (dynstr) |ds| {
             if (rpath_offset) |rpoff| {
                 if (rpoff > ds.size) return error.InvalidElfFile;
+
                 const rpoff_file = ds.offset + rpoff;
                 const rp_max_size = ds.size - rpoff;
 
                 try file_reader.seekTo(rpoff_file);
+
                 const rpath_list = try file_reader.interface.takeSentinel(0);
+
                 if (rpath_list.len > rp_max_size) return error.StreamTooLong;
 
                 var it = mem.tokenizeScalar(u8, rpath_list, ':');
+
                 while (it.next()) |rpath| {
                     if (glibcVerFromRPath(io, rpath)) |ver| {
                         result.os.version_range.linux.glibc = ver;
+
                         return result;
                     } else |err| switch (err) {
                         error.GLibCNotFound => continue,
@@ -684,6 +728,7 @@ fn abiAndDynamicLinkerFromFile(
             if (fs.path.dirname(dl_path)) |rpath| {
                 if (glibcVerFromRPath(io, rpath)) |ver| {
                     result.os.version_range.linux.glibc = ver;
+
                     return result;
                 } else |err| switch (err) {
                     error.GLibCNotFound => {},
@@ -694,6 +739,7 @@ fn abiAndDynamicLinkerFromFile(
             // So far, no luck. Next we try to see if the information is
             // present in the symlink data for the dynamic linker path.
             var link_buf: [posix.PATH_MAX]u8 = undefined;
+
             const link_name = posix.readlink(dl_path, &link_buf) catch |err| switch (err) {
                 error.NameTooLong => unreachable,
                 error.BadPathName => unreachable, // Windows only
@@ -714,6 +760,7 @@ fn abiAndDynamicLinkerFromFile(
                 error.Unexpected,
                 => |e| return e,
             };
+
             result.os.version_range.linux.glibc = glibcVerFromLinkName(
                 fs.path.basename(link_name),
                 "ld-",
@@ -722,6 +769,7 @@ fn abiAndDynamicLinkerFromFile(
                 error.InvalidGnuLibCVersion,
                 => break :glibc_ver,
             };
+
             return result;
         }
 
@@ -733,21 +781,32 @@ fn abiAndDynamicLinkerFromFile(
         const cpu_arch = @tagName(result.cpu.arch);
         const os_tag = @tagName(result.os.tag);
         const abi = @tagName(result.abi);
+
         @memcpy(path_buf[index..][0..prefix.len], prefix);
+
         index += prefix.len;
+
         @memcpy(path_buf[index..][0..cpu_arch.len], cpu_arch);
+
         index += cpu_arch.len;
         path_buf[index] = '-';
         index += 1;
+
         @memcpy(path_buf[index..][0..os_tag.len], os_tag);
+
         index += os_tag.len;
         path_buf[index] = '-';
         index += 1;
+
         @memcpy(path_buf[index..][0..abi.len], abi);
+
         index += abi.len;
+
         const rpath = path_buf[0..index];
+
         if (glibcVerFromRPath(io, rpath)) |ver| {
             result.os.version_range.linux.glibc = ver;
+
             return result;
         } else |err| switch (err) {
             error.GLibCNotFound => {},
@@ -763,11 +822,14 @@ fn glibcVerFromLinkName(link_name: []const u8, prefix: []const u8) error{ Unreco
     // example: "libc-2.27.so"
     // example: "ld-2.33.so"
     const suffix = ".so";
+
     if (!mem.startsWith(u8, link_name, prefix) or !mem.endsWith(u8, link_name, suffix)) {
         return error.UnrecognizedGnuLibCFileName;
     }
+
     // chop off "libc-" and ".so"
     const link_name_chopped = link_name[prefix.len .. link_name.len - suffix.len];
+
     return Target.Query.parseVersion(link_name_chopped) catch |err| switch (err) {
         error.Overflow => return error.InvalidGnuLibCVersion,
         error.InvalidVersion => return error.InvalidGnuLibCVersion,
@@ -777,7 +839,6 @@ fn glibcVerFromLinkName(link_name: []const u8, prefix: []const u8) error{ Unreco
 test glibcVerFromLinkName {
     try std.testing.expectError(error.UnrecognizedGnuLibCFileName, glibcVerFromLinkName("ld-2.37.so", "this-prefix-does-not-exist"));
     try std.testing.expectError(error.UnrecognizedGnuLibCFileName, glibcVerFromLinkName("libc-2.37.so-is-not-end", "libc-"));
-
     try std.testing.expectError(error.InvalidGnuLibCVersion, glibcVerFromLinkName("ld-2.so", "ld-"));
     try std.testing.expectEqual(std.SemanticVersion{ .major = 2, .minor = 37, .patch = 0 }, try glibcVerFromLinkName("ld-2.37.so", "ld-"));
     try std.testing.expectEqual(std.SemanticVersion{ .major = 2, .minor = 37, .patch = 0 }, try glibcVerFromLinkName("ld-2.37.0.so", "ld-"));
@@ -805,6 +866,7 @@ fn glibcVerFromRPath(io: Io, rpath: []const u8) !std.SemanticVersion {
         error.Unexpected => |e| return e,
         error.Canceled => |e| return e,
     };
+
     defer dir.close();
 
     // Now we have a candidate for the path to libc shared object. In
@@ -815,6 +877,7 @@ fn glibcVerFromRPath(io: Io, rpath: []const u8) !std.SemanticVersion {
     // .dynstr section, and finding the max version number of symbols
     // that start with "GLIBC_2.".
     const glibc_so_basename = "libc.so.6";
+
     var file = dir.openFile(glibc_so_basename, .{}) catch |err| switch (err) {
         error.NameTooLong => return error.Unexpected,
         error.BadPathName => return error.Unexpected,
@@ -845,6 +908,7 @@ fn glibcVerFromRPath(io: Io, rpath: []const u8) !std.SemanticVersion {
         error.Unexpected => |e| return e,
         error.Canceled => |e| return e,
     };
+
     defer file.close();
 
     // Empirically, glibc 2.34 libc.so .dynstr section is 32441 bytes on my system.
@@ -868,17 +932,24 @@ fn glibcVerFromRPath(io: Io, rpath: []const u8) !std.SemanticVersion {
 fn glibcVerFromSoFile(file_reader: *Io.File.Reader) !std.SemanticVersion {
     const header = try elf.Header.read(&file_reader.interface);
     const str_section_off = header.shoff + @as(u64, header.shentsize) * @as(u64, header.shstrndx);
+
     try file_reader.seekTo(str_section_off);
+
     const shstr = try elf.takeSectionHeader(&file_reader.interface, header.is_64, header.endian);
+
     var strtab_buf: [4096]u8 = undefined;
     const shstrtab = strtab_buf[0..@min(shstr.sh_size, strtab_buf.len)];
+
     try file_reader.seekTo(shstr.sh_offset);
     try file_reader.interface.readSliceAll(shstrtab);
+
     const dynstr: struct { offset: u64, size: u64 } = find_dyn_str: {
         var it = header.iterateSectionHeaders(file_reader);
+
         while (try it.next()) |shdr| {
             const end = mem.findScalarPos(u8, shstrtab, shdr.sh_name, 0) orelse continue;
             const sh_name = shstrtab[shdr.sh_name..end :0];
+
             if (mem.eql(u8, sh_name, ".dynstr")) break :find_dyn_str .{
                 .offset = shdr.sh_offset,
                 .size = shdr.sh_size,
@@ -891,20 +962,25 @@ fn glibcVerFromSoFile(file_reader: *Io.File.Reader) !std.SemanticVersion {
     // and furthermore, that the system-installed glibc is at minimum that version.
     var max_ver: std.SemanticVersion = .{ .major = 2, .minor = 2, .patch = 5 };
     var offset: u64 = 0;
+
     try file_reader.seekTo(dynstr.offset);
+
     while (offset < dynstr.size) {
         if (file_reader.interface.takeSentinel(0)) |s| {
             if (mem.startsWith(u8, s, "GLIBC_2.")) {
                 const chopped = s["GLIBC_".len..];
+
                 const ver = Target.Query.parseVersion(chopped) catch |err| switch (err) {
                     error.Overflow => return error.InvalidGnuLibCVersion,
                     error.InvalidVersion => return error.InvalidGnuLibCVersion,
                 };
+
                 switch (ver.order(max_ver)) {
                     .gt => max_ver = ver,
                     .lt, .eq => continue,
                 }
             }
+
             offset += s.len + 1;
         } else |err| switch (err) {
             error.EndOfStream, error.StreamTooLong => break,
@@ -933,19 +1009,24 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
     const is_linux = builtin.target.os.tag == .linux;
     const is_illumos = builtin.target.os.tag == .illumos;
     const is_darwin = builtin.target.os.tag.isDarwin();
+
     const have_all_info = query.dynamic_linker != null and
         query.abi != null and (!is_linux or query.abi.?.isGnu());
+
     const os_is_non_native = query.os_tag != null;
+
     // The illumos environment is always the same.
     if (!native_target_has_ld or have_all_info or os_is_non_native or is_illumos or is_darwin) {
         return defaultAbiAndDynamicLinker(cpu, os, query);
     }
+
     if (query.abi) |abi| {
         if (abi.isMusl()) {
             // musl implies static linking.
             return defaultAbiAndDynamicLinker(cpu, os, query);
         }
     }
+
     // The current target's ABI cannot be relied on for this. For example, we may build the zig
     // compiler for target riscv64-linux-musl and provide a tarball for users to download.
     // A user could then run that zig compiler on riscv64-linux-gnu. This use case is well-defined
@@ -953,13 +1034,17 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
     // relying on `builtin.target`.
     const all_abis = comptime blk: {
         assert(@intFromEnum(Target.Abi.none) == 0);
+
         const fields = std.meta.fields(Target.Abi)[1..];
         var array: [fields.len]Target.Abi = undefined;
+
         for (fields, 0..) |field, i| {
             array[i] = @field(Target.Abi, field.name);
         }
+
         break :blk array;
     };
+
     var ld_info_list_buffer: [all_abis.len]LdInfo = undefined;
     var ld_info_list_len: usize = 0;
 
@@ -985,6 +1070,7 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
                 .ld = ld,
                 .abi = abi,
             };
+
             ld_info_list_len += 1;
         },
     }
@@ -1005,6 +1091,7 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
     // For safety, we set max length as 255 + \n (1).
     const max_shebang_line_size = 256;
     var file_reader_buffer: [4096]u8 = undefined;
+
     comptime assert(file_reader_buffer.len >= max_shebang_line_size);
 
     // Best case scenario: the executable is dynamically linked, and we can iterate
@@ -1048,10 +1135,13 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
 
                 else => |e| return e,
             };
+
             var is_elf_file = false;
+
             defer if (!is_elf_file) file.close();
 
             file_reader = .initAdapted(file, io, &file_reader_buffer);
+
             file_name = undefined; // it aliases file_reader_buffer
 
             const header = elf.Header.read(&file_reader.interface) catch |hdr_err| switch (hdr_err) {
@@ -1063,6 +1153,7 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
                         // It's neither an ELF file nor file with shebang line.
                         error.EndOfStream, error.StreamTooLong => return error.UnhelpfulFile,
                     };
+
                     if (!mem.startsWith(u8, shebang_line, "#!")) return error.UnhelpfulFile;
                     // We detected shebang, now parse entire line.
 
@@ -1078,7 +1169,9 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
                     // Separate path and args.
                     const path_end = mem.indexOfAny(u8, path_maybe_args, &.{ ' ', '\t', 0 }) orelse path_maybe_args.len;
                     const unvalidated_path = path_maybe_args[0..path_end];
+
                     file_name = if (fs.path.isAbsolute(unvalidated_path)) unvalidated_path else return error.RelativeShebang;
+
                     continue;
                 },
 
@@ -1089,10 +1182,13 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
 
                 error.ReadFailed => return file_reader.err.?,
             };
+
             is_elf_file = true;
+
             break :elf_file header;
         }
     };
+
     defer file_reader.file.close(io);
 
     return abiAndDynamicLinkerFromFile(&file_reader, &header, cpu, os, ld_info_list, query) catch |err| switch (err) {
@@ -1109,6 +1205,7 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
 
         else => |e| {
             std.log.warn("encountered {t}; falling back to default ABI and dynamic linker", .{e});
+
             return defaultAbiAndDynamicLinker(cpu, os, query);
         },
     };
@@ -1116,6 +1213,7 @@ fn detectAbiAndDynamicLinker(io: Io, cpu: Target.Cpu, os: Target.Os, query: Targ
 
 fn defaultAbiAndDynamicLinker(cpu: Target.Cpu, os: Target.Os, query: Target.Query) Target {
     const abi = query.abi orelse Target.Abi.default(cpu.arch, os.tag);
+
     return .{
         .cpu = cpu,
         .os = os,
@@ -1132,7 +1230,6 @@ const LdInfo = struct {
 
 test {
     _ = NativePaths;
-
     _ = darwin;
     _ = linux;
     _ = windows;

@@ -41,7 +41,9 @@ export function htmlFallbackMiddleware(
     }
 
     const url = cleanUrl(req.url!)
+
     let pathname
+
     try {
       pathname = decodeURIComponent(url)
     } catch {
@@ -54,7 +56,9 @@ export function htmlFallbackMiddleware(
     if (pathname.endsWith('.html')) {
       if (checkFileExists(pathname)) {
         debug?.(`Rewriting ${req.method} ${req.url} to ${url}`)
+
         req.url = url
+
         return next()
       }
     }
@@ -62,8 +66,11 @@ export function htmlFallbackMiddleware(
     else if (pathname.endsWith('/')) {
       if (checkFileExists(joinUrlSegments(pathname, 'index.html'))) {
         const newUrl = url + 'index.html'
+
         debug?.(`Rewriting ${req.method} ${req.url} to ${newUrl}`)
+
         req.url = newUrl
+
         return next()
       }
     }
@@ -71,14 +78,18 @@ export function htmlFallbackMiddleware(
     else {
       if (checkFileExists(pathname + '.html')) {
         const newUrl = url + '.html'
+
         debug?.(`Rewriting ${req.method} ${req.url} to ${newUrl}`)
+
         req.url = newUrl
+
         return next()
       }
     }
 
     if (spaFallback) {
       debug?.(`Rewriting ${req.method} ${req.url} to /index.html`)
+
       req.url = '/index.html'
     }
 

@@ -37,6 +37,7 @@ pub fn hashPointer(hasher: anytype, key: anytype, comptime strat: HashStrategy) 
                 .Deep => hashArray(hasher, key, .Shallow),
                 .DeepRecursive => hashArray(hasher, key, .DeepRecursive),
             }
+
             hash(hasher, key.len, .Shallow);
         },
 
@@ -63,6 +64,7 @@ pub fn hashArray(hasher: anytype, key: anytype, comptime strat: HashStrategy) vo
 /// Strategy is provided to determine if pointers should be followed or not.
 pub fn hash(hasher: anytype, key: anytype, comptime strat: HashStrategy) void {
     const Key = @TypeOf(key);
+
     const Hasher = switch (@typeInfo(@TypeOf(hasher))) {
         .pointer => |ptr| ptr.child,
         else => @TypeOf(hasher),
@@ -70,6 +72,7 @@ pub fn hash(hasher: anytype, key: anytype, comptime strat: HashStrategy) void {
 
     if (strat == .Shallow and std.meta.hasUniqueRepresentation(Key)) {
         @call(.always_inline, Hasher.update, .{ hasher, mem.asBytes(&key) });
+
         return;
     }
 
@@ -99,6 +102,7 @@ pub fn hash(hasher: anytype, key: anytype, comptime strat: HashStrategy) void {
                     // Take only the part containing the key value, the remaining
                     // bytes are undefined and must not be hashed!
                     const byte_size = comptime std.math.divCeil(comptime_int, @bitSizeOf(Key), 8) catch unreachable;
+
                     @call(.always_inline, Hasher.update, .{ hasher, std.mem.asBytes(&key)[0..byte_size] });
                 }
             },
@@ -120,6 +124,7 @@ pub fn hash(hasher: anytype, key: anytype, comptime strat: HashStrategy) void {
                 hasher.update(mem.asBytes(&key));
             } else {
                 comptime var i = 0;
+
                 inline while (i < info.len) : (i += 1) {
                     hash(hasher, key[i], strat);
                 }
@@ -137,15 +142,19 @@ pub fn hash(hasher: anytype, key: anytype, comptime strat: HashStrategy) void {
         .@"union" => |info| blk: {
             if (info.tag_type) |tag_type| {
                 const tag = std.meta.activeTag(key);
+
                 hash(hasher, tag, strat);
+
                 inline for (info.fields) |field| {
                     if (@field(tag_type, field.name) == tag) {
                         if (field.type != void) {
                             hash(hasher, @field(key, field.name), strat);
                         }
+
                         break :blk;
                     }
                 }
+
                 unreachable;
             } else @compileError("cannot hash untagged union type: " ++ @typeName(Key) ++ ", provide your own hash function");
         },
@@ -153,8 +162,10 @@ pub fn hash(hasher: anytype, key: anytype, comptime strat: HashStrategy) void {
         .error_union => blk: {
             const payload = key catch |err| {
                 hash(hasher, err, strat);
+
                 break :blk;
             };
+
             hash(hasher, payload, strat);
         },
     }
@@ -170,6 +181,7 @@ inline fn typeContainsSlice(comptime K: type) bool {
                     return true;
                 }
             }
+
             return false;
         },
 
@@ -183,6 +195,7 @@ inline fn typeContainsSlice(comptime K: type) bool {
 /// ambiguity on the user's intention.
 pub fn autoHash(hasher: anytype, key: anytype) void {
     const Key = @TypeOf(key);
+
     if (comptime typeContainsSlice(Key)) {
         @compileError("std.hash.autoHash does not allow slices as well as unions and structs containing slices here (" ++ @typeName(Key) ++
             ") because the intent is unclear. Consider using std.hash.autoHashStrat or providing your own hash function instead.");
@@ -197,28 +210,36 @@ const Wyhash = std.hash.Wyhash;
 fn testHash(key: anytype) u64 {
     // Any hash could be used here, for testing autoHash.
     var hasher = Wyhash.init(0);
+
     hash(&hasher, key, .Shallow);
+
     return hasher.final();
 }
 
 fn testHashShallow(key: anytype) u64 {
     // Any hash could be used here, for testing autoHash.
     var hasher = Wyhash.init(0);
+
     hash(&hasher, key, .Shallow);
+
     return hasher.final();
 }
 
 fn testHashDeep(key: anytype) u64 {
     // Any hash could be used here, for testing autoHash.
     var hasher = Wyhash.init(0);
+
     hash(&hasher, key, .Deep);
+
     return hasher.final();
 }
 
 fn testHashDeepRecursive(key: anytype) u64 {
     // Any hash could be used here, for testing autoHash.
     var hasher = Wyhash.init(0);
+
     hash(&hasher, key, .DeepRecursive);
+
     return hasher.final();
 }
 
@@ -228,10 +249,12 @@ test "typeContainsSlice" {
 
         try testing.expect(typeContainsSlice([]const u8));
         try testing.expect(!typeContainsSlice(u8));
+
         const A = struct { x: []const u8 };
         const B = struct { a: A };
         const C = struct { b: B };
         const D = struct { x: u8 };
+
         try testing.expect(typeContainsSlice(A));
         try testing.expect(typeContainsSlice(B));
         try testing.expect(typeContainsSlice(C));
@@ -263,15 +286,21 @@ test "hash slice shallow" {
     // Allocate one array dynamically so that we're assured it is not merged
     // with the other by the optimization passes.
     const array1 = try std.testing.allocator.create([6]u32);
+
     defer std.testing.allocator.destroy(array1);
+
     array1.* = [_]u32{ 1, 2, 3, 4, 5, 6 };
+
     const array2 = [_]u32{ 1, 2, 3, 4, 5, 6 };
     // TODO audit deep/shallow - maybe it has the wrong behavior with respect to array pointers and slices
     var runtime_zero: usize = 0;
+
     _ = &runtime_zero;
+
     const a = array1[runtime_zero..];
     const b = array2[runtime_zero..];
     const c = array1[runtime_zero..3];
+
     try testing.expect(testHashShallow(a) == testHashShallow(a));
     try testing.expect(testHashShallow(a) != testHashShallow(array1));
     try testing.expect(testHashShallow(a) != testHashShallow(b));
@@ -282,12 +311,16 @@ test "hash slice deep" {
     // Allocate one array dynamically so that we're assured it is not merged
     // with the other by the optimization passes.
     const array1 = try std.testing.allocator.create([6]u32);
+
     defer std.testing.allocator.destroy(array1);
+
     array1.* = [_]u32{ 1, 2, 3, 4, 5, 6 };
+
     const array2 = [_]u32{ 1, 2, 3, 4, 5, 6 };
     const a = array1[0..];
     const b = array2[0..];
     const c = array1[0..3];
+
     try testing.expect(testHashDeep(a) == testHashDeep(a));
     try testing.expect(testHashDeep(a) == testHashDeep(array1));
     try testing.expect(testHashDeep(a) == testHashDeep(b));
@@ -304,7 +337,9 @@ test "hash struct deep" {
 
         pub fn init(allocator: mem.Allocator, a_: u32, b_: u16, c_: bool) !Self {
             const ptr = try allocator.create(bool);
+
             ptr.* = c_;
+
             return Self{ .a = a_, .b = b_, .c = ptr };
         }
     };
@@ -313,6 +348,7 @@ test "hash struct deep" {
     const foo = try Foo.init(allocator, 123, 10, true);
     const bar = try Foo.init(allocator, 123, 10, true);
     const baz = try Foo.init(allocator, 123, 10, false);
+
     defer allocator.destroy(foo.c);
     defer allocator.destroy(bar.c);
     defer allocator.destroy(baz.c);
@@ -323,12 +359,15 @@ test "hash struct deep" {
 
     var hasher = Wyhash.init(0);
     const h = testHashDeep(foo);
+
     autoHash(&hasher, foo.a);
     autoHash(&hasher, foo.b);
     autoHash(&hasher, foo.c.*);
+
     try testing.expectEqual(h, hasher.final());
 
     const h2 = testHashDeepRecursive(&foo);
+
     try testing.expect(h2 != testHashDeep(&foo));
     try testing.expect(h2 == testHashDeep(foo));
 }
@@ -336,6 +375,7 @@ test "hash struct deep" {
 test "testHash optional" {
     const a: ?u32 = 123;
     const b: ?u32 = null;
+
     try testing.expectEqual(testHash(a), testHash(@as(u32, 123)));
     try testing.expect(testHash(a) != testHash(b));
     try testing.expectEqual(testHash(b), 0x409638ee2bde459); // wyhash empty input hash
@@ -345,15 +385,18 @@ test "testHash array" {
     const a = [_]u32{ 1, 2, 3 };
     const h = testHash(a);
     var hasher = Wyhash.init(0);
+
     autoHash(&hasher, @as(u32, 1));
     autoHash(&hasher, @as(u32, 2));
     autoHash(&hasher, @as(u32, 3));
+
     try testing.expectEqual(h, hasher.final());
 }
 
 test "testHash multi-dimensional array" {
     const a = [_][]const u32{ &.{ 1, 2, 3 }, &.{ 4, 5 } };
     const b = [_][]const u32{ &.{ 1, 2 }, &.{ 3, 4, 5 } };
+
     try testing.expect(testHash(a) != testHash(b));
 }
 
@@ -363,12 +406,15 @@ test "testHash struct" {
         b: u32 = 2,
         c: u32 = 3,
     };
+
     const f = Foo{};
     const h = testHash(f);
     var hasher = Wyhash.init(0);
+
     autoHash(&hasher, @as(u32, 1));
     autoHash(&hasher, @as(u32, 2));
     autoHash(&hasher, @as(u32, 3));
+
     try testing.expectEqual(h, hasher.final());
 }
 
@@ -384,39 +430,47 @@ test "testHash union" {
     var b = Foo{ .B = true };
     const c = Foo{ .C = 18 };
     const d: Foo = .D;
+
     try testing.expect(testHash(a) == testHash(a));
     try testing.expect(testHash(a) != testHash(b));
     try testing.expect(testHash(a) != testHash(c));
     try testing.expect(testHash(a) != testHash(d));
 
     b = Foo{ .A = 18 };
+
     try testing.expect(testHash(a) == testHash(b));
 
     b = .D;
+
     try testing.expect(testHash(d) == testHash(b));
 }
 
 test "testHash vector" {
     const a: @Vector(4, u32) = [_]u32{ 1, 2, 3, 4 };
     const b: @Vector(4, u32) = [_]u32{ 1, 2, 3, 5 };
+
     try testing.expect(testHash(a) == testHash(a));
     try testing.expect(testHash(a) != testHash(b));
 
     const c: @Vector(4, u31) = [_]u31{ 1, 2, 3, 4 };
     const d: @Vector(4, u31) = [_]u31{ 1, 2, 3, 5 };
+
     try testing.expect(testHash(c) == testHash(c));
     try testing.expect(testHash(c) != testHash(d));
 }
 
 test "testHash error union" {
     const Errors = error{Test};
+
     const Foo = struct {
         a: u32 = 1,
         b: u32 = 2,
         c: u32 = 3,
     };
+
     const f = Foo{};
     const g: Errors!Foo = Errors.Test;
+
     try testing.expect(testHash(f) != testHash(g));
     try testing.expect(testHash(f) == testHash(Foo{}));
     try testing.expect(testHash(g) == testHash(Errors.Test));

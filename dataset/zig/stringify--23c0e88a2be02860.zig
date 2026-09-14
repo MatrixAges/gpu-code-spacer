@@ -47,6 +47,7 @@ pub fn serialize(val: anytype, options: SerializeOptions, writer: *Writer) Write
         .writer = writer,
         .options = .{ .whitespace = options.whitespace },
     };
+
     try s.value(val, .{
         .emit_codepoint_literals = options.emit_codepoint_literals,
         .emit_strings_as_containers = options.emit_strings_as_containers,
@@ -68,6 +69,7 @@ pub fn serializeMaxDepth(
         .writer = writer,
         .options = .{ .whitespace = options.whitespace },
     };
+
     try s.valueMaxDepth(val, .{
         .emit_codepoint_literals = options.emit_codepoint_literals,
         .emit_strings_as_containers = options.emit_strings_as_containers,
@@ -87,6 +89,7 @@ pub fn serializeArbitraryDepth(
         .writer = writer,
         .options = .{ .whitespace = options.whitespace },
     };
+
     try s.valueArbitraryDepth(val, .{
         .emit_codepoint_literals = options.emit_codepoint_literals,
         .emit_strings_as_containers = options.emit_strings_as_containers,
@@ -122,37 +125,31 @@ fn expectSerializeEqual(
 ) !void {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     const bw = &aw.writer;
+
     defer aw.deinit();
 
     try serialize(value, options, bw);
+
     try std.testing.expectEqualStrings(expected, aw.written());
 }
 
 test "std.zon stringify whitespace, high level API" {
     try expectSerializeEqual(".{}", .{}, .{});
     try expectSerializeEqual(".{}", .{}, .{ .whitespace = false });
-
     try expectSerializeEqual(".{1}", .{1}, .{});
     try expectSerializeEqual(".{1}", .{1}, .{ .whitespace = false });
-
     try expectSerializeEqual(".{1}", @as([1]u32, .{1}), .{});
     try expectSerializeEqual(".{1}", @as([1]u32, .{1}), .{ .whitespace = false });
-
     try expectSerializeEqual(".{1}", @as([]const u32, &.{1}), .{});
     try expectSerializeEqual(".{1}", @as([]const u32, &.{1}), .{ .whitespace = false });
-
     try expectSerializeEqual(".{ .x = 1 }", .{ .x = 1 }, .{});
     try expectSerializeEqual(".{.x=1}", .{ .x = 1 }, .{ .whitespace = false });
-
     try expectSerializeEqual(".{ 1, 2 }", .{ 1, 2 }, .{});
     try expectSerializeEqual(".{1,2}", .{ 1, 2 }, .{ .whitespace = false });
-
     try expectSerializeEqual(".{ 1, 2 }", @as([2]u32, .{ 1, 2 }), .{});
     try expectSerializeEqual(".{1,2}", @as([2]u32, .{ 1, 2 }), .{ .whitespace = false });
-
     try expectSerializeEqual(".{ 1, 2 }", @as([]const u32, &.{ 1, 2 }), .{});
     try expectSerializeEqual(".{1,2}", @as([]const u32, &.{ 1, 2 }), .{ .whitespace = false });
-
     try expectSerializeEqual(".{ .x = 1, .y = 2 }", .{ .x = 1, .y = 2 }, .{});
     try expectSerializeEqual(".{.x=1,.y=2}", .{ .x = 1, .y = 2 }, .{ .whitespace = false });
 
@@ -163,6 +160,7 @@ test "std.zon stringify whitespace, high level API" {
         \\    3,
         \\}
     , .{ 1, 2, 3 }, .{});
+
     try expectSerializeEqual(".{1,2,3}", .{ 1, 2, 3 }, .{ .whitespace = false });
 
     try expectSerializeEqual(
@@ -172,6 +170,7 @@ test "std.zon stringify whitespace, high level API" {
         \\    3,
         \\}
     , @as([3]u32, .{ 1, 2, 3 }), .{});
+
     try expectSerializeEqual(".{1,2,3}", @as([3]u32, .{ 1, 2, 3 }), .{ .whitespace = false });
 
     try expectSerializeEqual(
@@ -181,6 +180,7 @@ test "std.zon stringify whitespace, high level API" {
         \\    3,
         \\}
     , @as([]const u32, &.{ 1, 2, 3 }), .{});
+
     try expectSerializeEqual(
         ".{1,2,3}",
         @as([]const u32, &.{ 1, 2, 3 }),
@@ -194,6 +194,7 @@ test "std.zon stringify whitespace, high level API" {
         \\    .z = 3,
         \\}
     , .{ .x = 1, .y = 2, .z = 3 }, .{});
+
     try expectSerializeEqual(
         ".{.x=1,.y=2,.z=3}",
         .{ .x = 1, .y = 2, .z = 3 },
@@ -224,6 +225,7 @@ test "std.zon stringify whitespace, high level API" {
 test "std.zon stringify whitespace, low level API" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     for ([2]bool{ true, false }) |whitespace| {
@@ -232,6 +234,7 @@ test "std.zon stringify whitespace, low level API" {
         // Empty containers
         {
             var container = try s.beginStruct(.{});
+
             try container.end();
             try std.testing.expectEqualStrings(".{}", aw.written());
             aw.clearRetainingCapacity();
@@ -239,6 +242,7 @@ test "std.zon stringify whitespace, low level API" {
 
         {
             var container = try s.beginTuple(.{});
+
             try container.end();
             try std.testing.expectEqualStrings(".{}", aw.written());
             aw.clearRetainingCapacity();
@@ -246,6 +250,7 @@ test "std.zon stringify whitespace, low level API" {
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.end();
             try std.testing.expectEqualStrings(".{}", aw.written());
             aw.clearRetainingCapacity();
@@ -253,6 +258,7 @@ test "std.zon stringify whitespace, low level API" {
 
         {
             var container = try s.beginTuple(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.end();
             try std.testing.expectEqualStrings(".{}", aw.written());
             aw.clearRetainingCapacity();
@@ -260,6 +266,7 @@ test "std.zon stringify whitespace, low level API" {
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .fields = 0 } });
+
             try container.end();
             try std.testing.expectEqualStrings(".{}", aw.written());
             aw.clearRetainingCapacity();
@@ -267,6 +274,7 @@ test "std.zon stringify whitespace, low level API" {
 
         {
             var container = try s.beginTuple(.{ .whitespace_style = .{ .fields = 0 } });
+
             try container.end();
             try std.testing.expectEqualStrings(".{}", aw.written());
             aw.clearRetainingCapacity();
@@ -275,8 +283,10 @@ test "std.zon stringify whitespace, low level API" {
         // Size 1
         {
             var container = try s.beginStruct(.{});
+
             try container.field("a", 1, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -286,13 +296,16 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{.a=1}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{});
+
             try container.field(1, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -302,18 +315,22 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{1}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.field("a", 1, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ .a = 1 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{.a=1}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
@@ -321,30 +338,37 @@ test "std.zon stringify whitespace, low level API" {
             // We get extra spaces here, since we didn't know up front that there would only be one
             // field.
             var container = try s.beginTuple(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.field(1, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ 1 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{1}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .fields = 1 } });
+
             try container.field("a", 1, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ .a = 1 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{.a=1}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{ .whitespace_style = .{ .fields = 1 } });
+
             try container.field(1, .{});
             try container.end();
             try std.testing.expectEqualStrings(".{1}", aw.written());
@@ -354,9 +378,11 @@ test "std.zon stringify whitespace, low level API" {
         // Size 2
         {
             var container = try s.beginStruct(.{});
+
             try container.field("a", 1, .{});
             try container.field("b", 2, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -367,14 +393,17 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{.a=1,.b=2}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{});
+
             try container.field(1, .{});
             try container.field(2, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -385,68 +414,83 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{1,2}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.field("a", 1, .{});
             try container.field("b", 2, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ .a = 1, .b = 2 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{.a=1,.b=2}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.field(1, .{});
             try container.field(2, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ 1, 2 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{1,2}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .fields = 2 } });
+
             try container.field("a", 1, .{});
             try container.field("b", 2, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ .a = 1, .b = 2 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{.a=1,.b=2}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{ .whitespace_style = .{ .fields = 2 } });
+
             try container.field(1, .{});
             try container.field(2, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ 1, 2 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{1,2}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         // Size 3
         {
             var container = try s.beginStruct(.{});
+
             try container.field("a", 1, .{});
             try container.field("b", 2, .{});
             try container.field("c", 3, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -458,15 +502,18 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{.a=1,.b=2,.c=3}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{});
+
             try container.field(1, .{});
             try container.field(2, .{});
             try container.field(3, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -478,43 +525,52 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{1,2,3}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.field("a", 1, .{});
             try container.field("b", 2, .{});
             try container.field("c", 3, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ .a = 1, .b = 2, .c = 3 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{.a=1,.b=2,.c=3}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.field(1, .{});
             try container.field(2, .{});
             try container.field(3, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(".{ 1, 2, 3 }", aw.written());
             } else {
                 try std.testing.expectEqualStrings(".{1,2,3}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .fields = 3 } });
+
             try container.field("a", 1, .{});
             try container.field("b", 2, .{});
             try container.field("c", 3, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -526,15 +582,18 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{.a=1,.b=2,.c=3}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             var container = try s.beginTuple(.{ .whitespace_style = .{ .fields = 3 } });
+
             try container.field(1, .{});
             try container.field(2, .{});
             try container.field(3, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{
@@ -546,15 +605,18 @@ test "std.zon stringify whitespace, low level API" {
             } else {
                 try std.testing.expectEqualStrings(".{1,2,3}", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         // Nested objects where the outer container doesn't wrap but the inner containers do
         {
             var container = try s.beginStruct(.{ .whitespace_style = .{ .wrap = false } });
+
             try container.field("first", .{ 1, 2, 3 }, .{});
             try container.field("second", .{ 4, 5, 6 }, .{});
             try container.end();
+
             if (whitespace) {
                 try std.testing.expectEqualStrings(
                     \\.{ .first = .{
@@ -573,6 +635,7 @@ test "std.zon stringify whitespace, low level API" {
                     aw.written(),
                 );
             }
+
             aw.clearRetainingCapacity();
         }
     }
@@ -581,25 +644,22 @@ test "std.zon stringify whitespace, low level API" {
 test "std.zon stringify utf8 codepoints" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     // Printable ASCII
     try s.int('a');
     try std.testing.expectEqualStrings("97", aw.written());
     aw.clearRetainingCapacity();
-
     try s.codePoint('a');
     try std.testing.expectEqualStrings("'a'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('a', .{ .emit_codepoint_literals = .always });
     try std.testing.expectEqualStrings("'a'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('a', .{ .emit_codepoint_literals = .printable_ascii });
     try std.testing.expectEqualStrings("'a'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('a', .{ .emit_codepoint_literals = .never });
     try std.testing.expectEqualStrings("97", aw.written());
     aw.clearRetainingCapacity();
@@ -608,19 +668,15 @@ test "std.zon stringify utf8 codepoints" {
     try s.int('\n');
     try std.testing.expectEqualStrings("10", aw.written());
     aw.clearRetainingCapacity();
-
     try s.codePoint('\n');
     try std.testing.expectEqualStrings("'\\n'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('\n', .{ .emit_codepoint_literals = .always });
     try std.testing.expectEqualStrings("'\\n'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('\n', .{ .emit_codepoint_literals = .printable_ascii });
     try std.testing.expectEqualStrings("10", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('\n', .{ .emit_codepoint_literals = .never });
     try std.testing.expectEqualStrings("10", aw.written());
     aw.clearRetainingCapacity();
@@ -629,19 +685,15 @@ test "std.zon stringify utf8 codepoints" {
     try s.int('⚡');
     try std.testing.expectEqualStrings("9889", aw.written());
     aw.clearRetainingCapacity();
-
     try s.codePoint('⚡');
     try std.testing.expectEqualStrings("'\\u{26a1}'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('⚡', .{ .emit_codepoint_literals = .always });
     try std.testing.expectEqualStrings("'\\u{26a1}'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('⚡', .{ .emit_codepoint_literals = .printable_ascii });
     try std.testing.expectEqualStrings("9889", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value('⚡', .{ .emit_codepoint_literals = .never });
     try std.testing.expectEqualStrings("9889", aw.written());
     aw.clearRetainingCapacity();
@@ -650,19 +702,15 @@ test "std.zon stringify utf8 codepoints" {
     try s.codePoint(0x110000 + 1);
     try std.testing.expectEqualStrings("'\\u{110001}'", aw.written());
     aw.clearRetainingCapacity();
-
     try s.int(0x110000 + 1);
     try std.testing.expectEqualStrings("1114113", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value(0x110000 + 1, .{ .emit_codepoint_literals = .always });
     try std.testing.expectEqualStrings("1114113", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value(0x110000 + 1, .{ .emit_codepoint_literals = .printable_ascii });
     try std.testing.expectEqualStrings("1114113", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value(0x110000 + 1, .{ .emit_codepoint_literals = .never });
     try std.testing.expectEqualStrings("1114113", aw.written());
     aw.clearRetainingCapacity();
@@ -671,11 +719,9 @@ test "std.zon stringify utf8 codepoints" {
     try s.value(@as(u22, 'a'), .{ .emit_codepoint_literals = .always });
     try std.testing.expectEqualStrings("97", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value(@as(u22, 'a'), .{ .emit_codepoint_literals = .printable_ascii });
     try std.testing.expectEqualStrings("97", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value(@as(i32, 'a'), .{ .emit_codepoint_literals = .never });
     try std.testing.expectEqualStrings("97", aw.written());
     aw.clearRetainingCapacity();
@@ -684,7 +730,6 @@ test "std.zon stringify utf8 codepoints" {
     try s.value(.{ .c = '⚡' }, .{ .emit_codepoint_literals = .always });
     try std.testing.expectEqualStrings(".{ .c = '\\u{26a1}' }", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value(.{ .c = '⚡' }, .{ .emit_codepoint_literals = .never });
     try std.testing.expectEqualStrings(".{ .c = 9889 }", aw.written());
     aw.clearRetainingCapacity();
@@ -693,14 +738,15 @@ test "std.zon stringify utf8 codepoints" {
 test "std.zon stringify strings" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     // Minimal case
     try s.string("abc⚡\n");
     try std.testing.expectEqualStrings("\"abc\\xe2\\x9a\\xa1\\n\"", aw.written());
     aw.clearRetainingCapacity();
-
     try s.tuple("abc⚡\n", .{});
+
     try std.testing.expectEqualStrings(
         \\.{
         \\    97,
@@ -712,13 +758,14 @@ test "std.zon stringify strings" {
         \\    10,
         \\}
     , aw.written());
+
     aw.clearRetainingCapacity();
 
     try s.value("abc⚡\n", .{});
     try std.testing.expectEqualStrings("\"abc\\xe2\\x9a\\xa1\\n\"", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value("abc⚡\n", .{ .emit_strings_as_containers = true });
+
     try std.testing.expectEqualStrings(
         \\.{
         \\    97,
@@ -730,14 +777,15 @@ test "std.zon stringify strings" {
         \\    10,
         \\}
     , aw.written());
+
     aw.clearRetainingCapacity();
 
     // Value options are inherited by children
     try s.value(.{ .str = "abc" }, .{});
     try std.testing.expectEqualStrings(".{ .str = \"abc\" }", aw.written());
     aw.clearRetainingCapacity();
-
     try s.value(.{ .str = "abc" }, .{ .emit_strings_as_containers = true });
+
     try std.testing.expectEqualStrings(
         \\.{ .str = .{
         \\    97,
@@ -745,11 +793,13 @@ test "std.zon stringify strings" {
         \\    99,
         \\} }
     , aw.written());
+
     aw.clearRetainingCapacity();
 
     // Arrays (rather than pointers to arrays) of u8s are not considered strings, so that data can
     // round trip correctly.
     try s.value("abc".*, .{});
+
     try std.testing.expectEqualStrings(
         \\.{
         \\    97,
@@ -757,12 +807,14 @@ test "std.zon stringify strings" {
         \\    99,
         \\}
     , aw.written());
+
     aw.clearRetainingCapacity();
 }
 
 test "std.zon stringify multiline strings" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     inline for (.{ true, false }) |whitespace| {
@@ -806,16 +858,19 @@ test "std.zon stringify multiline strings" {
 
         {
             try s.multilineString("abc\ndef", .{});
+
             if (whitespace) {
                 try std.testing.expectEqualStrings("\n\\\\abc\n\\\\def\n", aw.written());
             } else {
                 try std.testing.expectEqualStrings("\\\\abc\n\\\\def\n", aw.written());
             }
+
             aw.clearRetainingCapacity();
         }
 
         {
             const str: []const u8 = &.{ 'a', '\r', 'c' };
+
             try s.string(str);
             try std.testing.expectEqualStrings("\"a\\rc\"", aw.written());
             aw.clearRetainingCapacity();
@@ -826,14 +881,17 @@ test "std.zon stringify multiline strings" {
                 error.InnerCarriageReturn,
                 s.multilineString(@as([]const u8, &.{ 'a', '\r', 'c' }), .{}),
             );
+
             try std.testing.expectError(
                 error.InnerCarriageReturn,
                 s.multilineString(@as([]const u8, &.{ 'a', '\r', 'c', '\n' }), .{}),
             );
+
             try std.testing.expectError(
                 error.InnerCarriageReturn,
                 s.multilineString(@as([]const u8, &.{ 'a', '\r', 'c', '\r', '\n' }), .{}),
             );
+
             try std.testing.expectEqualStrings("", aw.written());
             aw.clearRetainingCapacity();
         }
@@ -845,16 +903,19 @@ test "std.zon stringify skip default fields" {
         x: i32 = 2,
         y: i8,
         z: u32 = 4,
+
         inner1: struct { a: u8 = 'z', b: u8 = 'y', c: u8 } = .{
             .a = '1',
             .b = '2',
             .c = '3',
         },
+
         inner2: struct { u8, u8, u8 } = .{
             'a',
             'b',
             'c',
         },
+
         inner3: struct { u8, u8, u8 } = .{
             'a',
             'b',
@@ -966,12 +1027,14 @@ test "std.zon stringify skip default fields" {
     const DefaultStrings = struct {
         foo: []const u8 = "abc",
     };
+
     try expectSerializeEqual(
         \\.{}
     ,
         DefaultStrings{ .foo = "abc" },
         .{ .emit_default_optional_fields = false },
     );
+
     try expectSerializeEqual(
         \\.{ .foo = "abcd" }
     ,
@@ -983,16 +1046,19 @@ test "std.zon stringify skip default fields" {
 test "std.zon depth limits" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     const bw = &aw.writer;
+
     defer aw.deinit();
 
     const Recurse = struct { r: []const @This() };
 
     // Normal operation
     try serializeMaxDepth(.{ 1, .{ 2, 3 } }, .{}, bw, 16);
+
     try std.testing.expectEqualStrings(".{ 1, .{ 2, 3 } }", aw.written());
     aw.clearRetainingCapacity();
 
     try serializeArbitraryDepth(.{ 1, .{ 2, 3 } }, .{}, bw);
+
     try std.testing.expectEqualStrings(".{ 1, .{ 2, 3 } }", aw.written());
     aw.clearRetainingCapacity();
 
@@ -1001,13 +1067,16 @@ test "std.zon depth limits" {
         error.ExceededMaxDepth,
         serializeMaxDepth(.{ 1, .{ 2, .{ 3, 4 } } }, .{}, bw, 3),
     );
+
     try std.testing.expectEqualStrings("", aw.written());
     aw.clearRetainingCapacity();
 
     // Max depth passing on recursive type
     {
         const maybe_recurse = Recurse{ .r = &.{} };
+
         try serializeMaxDepth(maybe_recurse, .{}, bw, 2);
+
         try std.testing.expectEqualStrings(".{ .r = .{} }", aw.written());
         aw.clearRetainingCapacity();
     }
@@ -1015,7 +1084,9 @@ test "std.zon depth limits" {
     // Unchecked passing on recursive type
     {
         const maybe_recurse = Recurse{ .r = &.{} };
+
         try serializeArbitraryDepth(maybe_recurse, .{}, bw);
+
         try std.testing.expectEqualStrings(".{ .r = .{} }", aw.written());
         aw.clearRetainingCapacity();
     }
@@ -1023,11 +1094,14 @@ test "std.zon depth limits" {
     // Max depth failing on recursive type due to depth
     {
         var maybe_recurse = Recurse{ .r = &.{} };
+
         maybe_recurse.r = &.{.{ .r = &.{} }};
+
         try std.testing.expectError(
             error.ExceededMaxDepth,
             serializeMaxDepth(maybe_recurse, .{}, bw, 2),
         );
+
         try std.testing.expectEqualStrings("", aw.written());
         aw.clearRetainingCapacity();
     }
@@ -1041,6 +1115,7 @@ test "std.zon depth limits" {
             error.ExceededMaxDepth,
             serializeMaxDepth(maybe_recurse, .{}, bw, 2),
         );
+
         try std.testing.expectEqualStrings("", aw.written());
         aw.clearRetainingCapacity();
 
@@ -1050,9 +1125,9 @@ test "std.zon depth limits" {
             error.ExceededMaxDepth,
             s.tupleMaxDepth(maybe_recurse, .{}, 2),
         );
+
         try std.testing.expectEqualStrings("", aw.written());
         aw.clearRetainingCapacity();
-
         try s.tupleArbitraryDepth(maybe_recurse, .{});
         try std.testing.expectEqualStrings(".{.{ .r = .{} }}", aw.written());
         aw.clearRetainingCapacity();
@@ -1064,6 +1139,7 @@ test "std.zon depth limits" {
         const maybe_recurse: []const Recurse = &temp;
 
         try serializeMaxDepth(maybe_recurse, .{}, bw, 3);
+
         try std.testing.expectEqualStrings(".{.{ .r = .{} }}", aw.written());
         aw.clearRetainingCapacity();
 
@@ -1072,7 +1148,6 @@ test "std.zon depth limits" {
         try s.tupleMaxDepth(maybe_recurse, .{}, 3);
         try std.testing.expectEqualStrings(".{.{ .r = .{} }}", aw.written());
         aw.clearRetainingCapacity();
-
         try s.tupleArbitraryDepth(maybe_recurse, .{});
         try std.testing.expectEqualStrings(".{.{ .r = .{} }}", aw.written());
         aw.clearRetainingCapacity();
@@ -1081,21 +1156,26 @@ test "std.zon depth limits" {
     // Max depth failing on recursive type due to recursion
     {
         var temp: [1]Recurse = .{.{ .r = &.{} }};
+
         temp[0].r = &temp;
+
         const maybe_recurse: []const Recurse = &temp;
 
         try std.testing.expectError(
             error.ExceededMaxDepth,
             serializeMaxDepth(maybe_recurse, .{}, bw, 128),
         );
+
         try std.testing.expectEqualStrings("", aw.written());
         aw.clearRetainingCapacity();
 
         var s: Serializer = .{ .writer = bw };
+
         try std.testing.expectError(
             error.ExceededMaxDepth,
             s.tupleMaxDepth(maybe_recurse, .{}, 128),
         );
+
         try std.testing.expectEqualStrings("", aw.written());
         aw.clearRetainingCapacity();
     }
@@ -1112,6 +1192,7 @@ test "std.zon depth limits" {
         try s.valueArbitraryDepth(maybe_recurse, .{});
 
         var wip_struct = try s.beginStruct(.{});
+
         try std.testing.expectError(error.ExceededMaxDepth, wip_struct.fieldMaxDepth("a", 1, .{}, 0));
         try wip_struct.fieldMaxDepth("b", 4, .{}, 1);
         try wip_struct.field("c", 5, .{});
@@ -1119,6 +1200,7 @@ test "std.zon depth limits" {
         try wip_struct.end();
 
         var t = try s.beginTuple(.{});
+
         try std.testing.expectError(error.ExceededMaxDepth, t.fieldMaxDepth(1, .{}, 0));
         try t.fieldMaxDepth(6, .{}, 1);
         try t.field(7, .{});
@@ -1126,6 +1208,7 @@ test "std.zon depth limits" {
         try t.end();
 
         var a = try s.beginTuple(.{});
+
         try std.testing.expectError(error.ExceededMaxDepth, a.fieldMaxDepth(1, .{}, 0));
         try a.fieldMaxDepth(8, .{}, 1);
         try a.field(9, .{});
@@ -1218,6 +1301,7 @@ test "std.zon stringify primitives" {
     );
 
     const Struct = struct { x: f32, y: f32 };
+
     try expectSerializeEqual(
         ".{ .a = .{ .x = 1, .y = 2 }, .b = null }",
         .{
@@ -1231,6 +1315,7 @@ test "std.zon stringify primitives" {
         foo,
         bar,
     };
+
     try expectSerializeEqual(
         ".{ .a = .foo, .b = .foo }",
         .{
@@ -1244,37 +1329,32 @@ test "std.zon stringify primitives" {
 test "std.zon stringify ident" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     try expectSerializeEqual(".{ .a = 0 }", .{ .a = 0 }, .{});
+
     try s.ident("a");
     try std.testing.expectEqualStrings(".a", aw.written());
     aw.clearRetainingCapacity();
-
     try s.ident("foo_1");
     try std.testing.expectEqualStrings(".foo_1", aw.written());
     aw.clearRetainingCapacity();
-
     try s.ident("_foo_1");
     try std.testing.expectEqualStrings("._foo_1", aw.written());
     aw.clearRetainingCapacity();
-
     try s.ident("foo bar");
     try std.testing.expectEqualStrings(".@\"foo bar\"", aw.written());
     aw.clearRetainingCapacity();
-
     try s.ident("1foo");
     try std.testing.expectEqualStrings(".@\"1foo\"", aw.written());
     aw.clearRetainingCapacity();
-
     try s.ident("var");
     try std.testing.expectEqualStrings(".@\"var\"", aw.written());
     aw.clearRetainingCapacity();
-
     try s.ident("true");
     try std.testing.expectEqualStrings(".true", aw.written());
     aw.clearRetainingCapacity();
-
     try s.ident("_");
     try std.testing.expectEqualStrings("._", aw.written());
     aw.clearRetainingCapacity();
@@ -1282,6 +1362,7 @@ test "std.zon stringify ident" {
     const Enum = enum {
         @"foo bar",
     };
+
     try expectSerializeEqual(".{ .@\"var\" = .@\"foo bar\", .@\"1\" = .@\"foo bar\" }", .{
         .@"var" = .@"foo bar",
         .@"1" = Enum.@"foo bar",
@@ -1291,6 +1372,7 @@ test "std.zon stringify ident" {
 test "std.zon stringify as tuple" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     // Tuples
@@ -1312,6 +1394,7 @@ test "std.zon stringify as tuple" {
 test "std.zon stringify as float" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     // Comptime float
@@ -1379,14 +1462,12 @@ test "std.zon pointers" {
     try expectSerializeEqual("null", @as(?*const u32, null), .{});
     try expectSerializeEqual("10", @as(?*const u32, &10), .{});
     try expectSerializeEqual("null", @as(*const ?u32, &null), .{});
-
     try expectSerializeEqual("10", @as(?*const *const u32, &&10), .{});
     try expectSerializeEqual("null", @as(?*const *const u32, null), .{});
     try expectSerializeEqual("10", @as(*const ?*const u32, &&10), .{});
     try expectSerializeEqual("null", @as(*const ?*const u32, &null), .{});
     try expectSerializeEqual("10", @as(*const *const ?u32, &&10), .{});
     try expectSerializeEqual("null", @as(*const *const ?u32, &&null), .{});
-
     try expectSerializeEqual(".{ 1, 2 }", &[2]u32{ 1, 2 }, .{});
 
     // A complicated type with nested internal pointers and string allocations
@@ -1395,10 +1476,12 @@ test "std.zon pointers" {
             f1: *const ?*const []const u8,
             f2: *const ?*const []const u8,
         };
+
         const Outer = struct {
             f1: *const ?*const Inner,
             f2: *const ?*const Inner,
         };
+
         const val: ?*const Outer = &.{
             .f1 = &&.{
                 .f1 = &null,
@@ -1416,23 +1499,29 @@ test "std.zon pointers" {
 test "std.zon tuple/struct field" {
     var aw: Writer.Allocating = .init(std.testing.allocator);
     var s: Serializer = .{ .writer = &aw.writer };
+
     defer aw.deinit();
 
     // Test on structs
     {
         var root = try s.beginStruct(.{});
+
         {
             var tuple = try root.beginTupleField("foo", .{});
+
             try tuple.field(0, .{});
             try tuple.field(1, .{});
             try tuple.end();
         }
+
         {
             var strct = try root.beginStructField("bar", .{});
+
             try strct.field("a", 0, .{});
             try strct.field("b", 1, .{});
             try strct.end();
         }
+
         try root.end();
 
         try std.testing.expectEqualStrings(
@@ -1447,24 +1536,30 @@ test "std.zon tuple/struct field" {
             \\    },
             \\}
         , aw.written());
+
         aw.clearRetainingCapacity();
     }
 
     // Test on tuples
     {
         var root = try s.beginTuple(.{});
+
         {
             var tuple = try root.beginTupleField(.{});
+
             try tuple.field(0, .{});
             try tuple.field(1, .{});
             try tuple.end();
         }
+
         {
             var strct = try root.beginStructField(.{});
+
             try strct.field("a", 0, .{});
             try strct.field("b", 1, .{});
             try strct.end();
         }
+
         try root.end();
 
         try std.testing.expectEqualStrings(
@@ -1479,6 +1574,7 @@ test "std.zon tuple/struct field" {
             \\    },
             \\}
         , aw.written());
+
         aw.clearRetainingCapacity();
     }
 }

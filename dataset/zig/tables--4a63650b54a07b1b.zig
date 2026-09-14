@@ -26,6 +26,7 @@ pub const MemoryType = enum(u32) {
         0,
         @intFromEnum(MemoryType.oem_end) - @intFromEnum(MemoryType.oem_start),
     );
+
     pub const Vendor = math.IntFittingRange(
         0,
         @intFromEnum(MemoryType.vendor_end) - @intFromEnum(MemoryType.vendor_start),
@@ -66,27 +67,33 @@ pub const MemoryType = enum(u32) {
 
     pub fn fromOem(value: Oem) MemoryType {
         const oem_start = @intFromEnum(MemoryType.oem_start);
+
         return @enumFromInt(oem_start + value);
     }
 
     pub fn toOem(memtype: MemoryType) ?Oem {
         const as_int = @intFromEnum(memtype);
         const oem_start = @intFromEnum(MemoryType.oem_start);
+
         if (as_int < oem_start) return null;
         if (as_int > @intFromEnum(MemoryType.oem_end)) return null;
+
         return @truncate(as_int - oem_start);
     }
 
     pub fn fromVendor(value: Vendor) MemoryType {
         const vendor_start = @intFromEnum(MemoryType.vendor_start);
+
         return @enumFromInt(vendor_start + value);
     }
 
     pub fn toVendor(memtype: MemoryType) ?Vendor {
         const as_int = @intFromEnum(memtype);
         const vendor_start = @intFromEnum(MemoryType.vendor_start);
+
         if (as_int < @intFromEnum(MemoryType.vendor_end)) return null;
         if (as_int > @intFromEnum(MemoryType.vendor_end)) return null;
+
         return @truncate(as_int - vendor_start);
     }
 
@@ -141,6 +148,7 @@ pub const MemoryMapInfo = struct {
 
 pub const MemoryMapSlice = struct {
     info: MemoryMapInfo,
+
     ptr: [*]align(@alignOf(MemoryDescriptor)) u8,
 
     pub fn iterator(self: MemoryMapSlice) MemoryDescriptorIterator {
@@ -149,11 +157,13 @@ pub const MemoryMapSlice = struct {
 
     pub fn get(self: MemoryMapSlice, index: usize) ?*MemoryDescriptor {
         if (index >= self.info.len) return null;
+
         return self.getUnchecked(index);
     }
 
     pub fn getUnchecked(self: MemoryMapSlice, index: usize) *MemoryDescriptor {
         const offset: usize = index * self.info.descriptor_size;
+
         return @ptrCast(@alignCast(self.ptr[offset..]));
     }
 };
@@ -164,7 +174,9 @@ pub const MemoryDescriptorIterator = struct {
 
     pub fn next(self: *MemoryDescriptorIterator) ?*MemoryDescriptor {
         const md = self.ctx.get(self.index) orelse return null;
+
         self.index += 1;
+
         return md;
     }
 };
@@ -282,6 +294,7 @@ pub const CapsuleHeader = extern struct {
 
 pub const UefiCapsuleBlockDescriptor = extern struct {
     length: u64,
+
     address: extern union {
         data_block: PhysicalAddress,
         continuation_pointer: PhysicalAddress,

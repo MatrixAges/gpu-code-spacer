@@ -14,7 +14,6 @@ export default class Index {
 
 	onEdit(e: MouseEvent<HTMLSpanElement>) {
 		e.stopPropagation()
-
 		this.block.onClick(e)
 		this.block.editor.dispatchCommand(SHOW_MODAL_COMMAND, { type: 'Katex', node_key: this.block.key })
 	}

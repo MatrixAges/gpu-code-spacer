@@ -19,9 +19,7 @@ pub const timeit = @import("benchmark/timeit.zig").timeit;
 pub const Snap = @import("testing/snaptest.zig").Snap;
 pub const ZipfianGenerator = @import("zipfian.zig").ZipfianGenerator;
 pub const ZipfianShuffled = @import("zipfian.zig").ZipfianShuffled;
-
 pub const huge_page_allocator = @import("huge_page_allocator.zig").huge_page_allocator;
-
 pub const aegis = @import("vendored/aegis.zig");
 pub const Flags = @import("flags.zig");
 pub const memory_lock_allocated = @import("mlock.zig").memory_lock_allocated;
@@ -29,7 +27,6 @@ pub const Shell = @import("shell.zig");
 pub const unshare = @import("unshare.zig");
 pub const windows = @import("windows.zig");
 pub const radix_sort = @import("radix.zig").sort;
-
 pub const Instant = @import("time_units.zig").Instant;
 pub const Duration = @import("time_units.zig").Duration;
 pub const InstantUnix = @import("time_units.zig").InstantUnix;
@@ -72,6 +69,7 @@ pub inline fn div_ceil(numerator: anytype, denominator: anytype) @TypeOf(numerat
     assert(denominator > 0);
 
     if (numerator == 0) return 0;
+
     return @divFloor(numerator - 1, denominator) + 1;
 }
 
@@ -85,6 +83,7 @@ test "div_ceil" {
 
     // Unsized ints
     const max = std.math.maxInt(u64);
+
     try std.testing.expectEqual(div_ceil(@as(u64, 0), 8), 0);
     try std.testing.expectEqual(div_ceil(@as(u64, 1), 8), 1);
     try std.testing.expectEqual(div_ceil(@as(u64, max), 2), max / 2 + 1);
@@ -111,15 +110,19 @@ pub inline fn copy_left(
 
     // (Bypass tidy's ban.)
     const copyForwards = std.mem.copyForwards;
+
     copyForwards(T, target, source);
 }
 
 test "copy_left" {
     const a = try std.testing.allocator.alloc(usize, 8);
+
     defer std.testing.allocator.free(a);
 
     for (a, 0..) |*v, i| v.* = i;
+
     copy_left(.exact, usize, a[0..6], a[2..]);
+
     try std.testing.expect(std.mem.eql(usize, a, &.{ 2, 3, 4, 5, 6, 7, 6, 7 }));
 }
 
@@ -140,15 +143,19 @@ pub inline fn copy_right(
 
     // (Bypass tidy's ban.)
     const copyBackwards = std.mem.copyBackwards;
+
     copyBackwards(T, target, source);
 }
 
 test "copy_right" {
     const a = try std.testing.allocator.alloc(usize, 8);
+
     defer std.testing.allocator.free(a);
 
     for (a, 0..) |*v, i| v.* = i;
+
     copy_right(.exact, usize, a[2..], a[0..6]);
+
     try std.testing.expect(std.mem.eql(usize, a, &.{ 0, 1, 0, 1, 2, 3, 4, 5 }));
 }
 
@@ -182,23 +189,21 @@ pub inline fn disjoint_slices(comptime A: type, comptime B: type, a: []const A, 
 
 test "disjoint_slices" {
     const a = try std.testing.allocator.alignedAlloc(u8, @sizeOf(u32), 8 * @sizeOf(u32));
+
     defer std.testing.allocator.free(a);
 
     const b = try std.testing.allocator.alloc(u32, 8);
+
     defer std.testing.allocator.free(b);
 
     try std.testing.expectEqual(true, disjoint_slices(u8, u32, a, b));
     try std.testing.expectEqual(true, disjoint_slices(u32, u8, b, a));
-
     try std.testing.expectEqual(true, disjoint_slices(u8, u8, a, a[0..0]));
     try std.testing.expectEqual(true, disjoint_slices(u32, u32, b, b[0..0]));
-
     try std.testing.expectEqual(false, disjoint_slices(u8, u8, a, a[0..1]));
     try std.testing.expectEqual(false, disjoint_slices(u8, u8, a, a[a.len - 1 .. a.len]));
-
     try std.testing.expectEqual(false, disjoint_slices(u32, u32, b, b[0..1]));
     try std.testing.expectEqual(false, disjoint_slices(u32, u32, b, b[b.len - 1 .. b.len]));
-
     try std.testing.expectEqual(false, disjoint_slices(u8, u32, a, std.mem.bytesAsSlice(u32, a)));
     try std.testing.expectEqual(false, disjoint_slices(u32, u8, b, std.mem.sliceAsBytes(b)));
 }
@@ -208,9 +213,11 @@ pub fn zeroed(bytes: []const u8) bool {
     // This implementation already gets vectorized
     // https://godbolt.org/z/46cMsPKPc
     var byte_bits: u8 = 0;
+
     for (bytes) |byte| {
         byte_bits |= byte;
     }
+
     return byte_bits == 0;
 }
 
@@ -224,6 +231,7 @@ pub fn bytes_as_slice(
     bytes: anytype,
 ) type: {
     const type_info = @typeInfo(@TypeOf(bytes));
+
     switch (type_info) {
         .pointer => |info| switch (info.size) {
             .one => switch (@typeInfo(info.child)) {
@@ -241,10 +249,12 @@ pub fn bytes_as_slice(
     switch (precision) {
         .exact => {
             assert(bytes.len % @sizeOf(T) == 0);
+
             return @alignCast(std.mem.bytesAsSlice(T, bytes));
         },
         .inexact => {
             const size = @divFloor(bytes.len, @sizeOf(T)) * @sizeOf(T);
+
             return @alignCast(std.mem.bytesAsSlice(T, bytes[0..size]));
         },
     }
@@ -259,6 +269,7 @@ test bytes_as_slice {
         @as(usize, 4),
         bytes_as_slice(.exact, T16, buffer[0..]).len,
     );
+
     try std.testing.expectEqual(
         @as(usize, 6),
         bytes_as_slice(.exact, T10, buffer[0..60]).len,
@@ -268,22 +279,27 @@ test bytes_as_slice {
         @as(usize, 6),
         bytes_as_slice(.inexact, T10, buffer[0..]).len,
     );
+
     try std.testing.expectEqual(
         @as(usize, 4),
         bytes_as_slice(.inexact, T16, buffer[0..]).len,
     );
+
     try std.testing.expectEqual(
         @as(usize, 6),
         bytes_as_slice(.inexact, T10, buffer[0 .. buffer.len - 1]).len,
     );
+
     try std.testing.expectEqual(
         @as(usize, 3),
         bytes_as_slice(.inexact, T16, buffer[0 .. buffer.len - 1]).len,
     );
+
     try std.testing.expectEqual(
         @as(usize, 5),
         bytes_as_slice(.inexact, T10, buffer[0 .. buffer.len - 10]).len,
     );
+
     try std.testing.expectEqual(
         @as(usize, 3),
         bytes_as_slice(.inexact, T16, buffer[0 .. buffer.len - 10]).len,
@@ -304,6 +320,7 @@ pub fn cut(haystack: []const u8, needle: []const u8) ?struct { []const u8, []con
 test cut {
     try std.testing.expectEqualStrings("he", cut("hello world", "l").?[0]);
     try std.testing.expectEqualStrings("lo world", cut("hello world", "l").?[1]);
+
     assert(null == cut("hello world", "x"));
 }
 
@@ -311,11 +328,13 @@ pub fn cut_prefix(haystack: []const u8, needle: []const u8) ?[]const u8 {
     if (std.mem.startsWith(u8, haystack, needle)) {
         return haystack[needle.len..];
     }
+
     return null;
 }
 
 test cut_prefix {
     try std.testing.expectEqualStrings(" world", cut_prefix("hello world", "hello").?);
+
     assert(null == cut_prefix("hello world", "hellnope"));
 }
 
@@ -323,11 +342,13 @@ pub fn cut_suffix(haystack: []const u8, needle: []const u8) ?[]const u8 {
     if (std.mem.endsWith(u8, haystack, needle)) {
         return haystack[0 .. haystack.len - needle.len];
     }
+
     return null;
 }
 
 test cut_suffix {
     try std.testing.expectEqualStrings("hello ", cut_suffix("hello world", "world").?);
+
     assert(null == cut_suffix("hello world", "hello"));
 }
 
@@ -335,8 +356,10 @@ pub fn unique(sorted: []u8) []u8 {
     assert(sorted.len > 0);
 
     var count: usize = 1;
+
     for (1..sorted.len) |index| {
         assert(sorted[count - 1] <= sorted[index]);
+
         if (sorted[count - 1] == sorted[index]) {
             // Duplicate! Skip to the next index.
         } else {
@@ -350,6 +373,7 @@ pub fn unique(sorted: []u8) []u8 {
 
 test unique {
     var abba = "AAABBBCaaa".*;
+
     try std.testing.expectEqualStrings("ABCa", unique(&abba));
 }
 
@@ -368,6 +392,7 @@ pub const log = if (builtin.is_test)
     struct {
         pub fn scoped(comptime scope: @Type(.enum_literal)) type {
             const base = std.log.scoped(scope);
+
             return struct {
                 pub const err = warn;
                 pub const warn = base.warn;
@@ -424,6 +449,7 @@ pub fn equal_bytes(comptime T: type, a: *const T, b: *const T) bool {
     // TODO: Remove the following two lines once the issue is fixed.
     const a_bytes: *align(@alignOf(Word)) const [@sizeOf(T)]u8 =
         @alignCast(std.mem.asBytes(a));
+
     const b_bytes: *align(@alignOf(Word)) const [@sizeOf(T)]u8 =
         @alignCast(std.mem.asBytes(b));
 
@@ -433,6 +459,7 @@ pub fn equal_bytes(comptime T: type, a: *const T, b: *const T) bool {
     assert(a_words.len == b_words.len);
 
     var total: Word = 0;
+
     for (a_words, b_words) |a_word, b_word| {
         total |= a_word ^ b_word;
     }
@@ -453,6 +480,7 @@ fn has_pointers(comptime T: type) bool {
             inline for (info.fields) |field| {
                 if (comptime has_pointers(field.type)) return true;
             }
+
             return false;
         },
     }
@@ -476,10 +504,12 @@ pub fn no_padding(comptime T: type) bool {
                     for (info.fields) |field| {
                         if (field.type == u128) {
                             const offset = @offsetOf(T, field.name);
+
                             if (offset % @sizeOf(u128) != 0) return false;
 
                             if (@hasField(T, field.name ++ "_padding")) {
                                 if (offset % @sizeOf(u256) != 0) return false;
+
                                 if (offset + @sizeOf(u128) !=
                                     @offsetOf(T, field.name ++ "_padding"))
                                 {
@@ -490,11 +520,15 @@ pub fn no_padding(comptime T: type) bool {
                     }
 
                     var offset = 0;
+
                     for (info.fields) |field| {
                         const field_offset = @offsetOf(T, field.name);
+
                         if (offset != field_offset) return false;
+
                         offset += @sizeOf(field.type);
                     }
+
                     return offset == @sizeOf(T);
                 },
                 .@"packed" => return @bitSizeOf(T) == 8 * @sizeOf(T),
@@ -502,6 +536,7 @@ pub fn no_padding(comptime T: type) bool {
         },
         .@"enum" => |info| {
             maybe(info.is_exhaustive);
+
             return no_padding(info.tag_type);
         },
         .pointer => return false,
@@ -539,6 +574,7 @@ pub inline fn hash_inline(value: anytype) u64 {
         assert(no_padding(@TypeOf(value)));
         assert(has_unique_representation(@TypeOf(value)));
     }
+
     return low_level_hash(0, switch (@typeInfo(@TypeOf(value))) {
         .@"struct", .int => std.mem.asBytes(&value),
         else => @compileError("unsupported hashing for " ++ @typeName(@TypeOf(value))),
@@ -562,12 +598,14 @@ inline fn low_level_hash(seed: u64, input: anytype) u64 {
 
     if (in.len > 64) {
         var dup = [_]u64{ state, state };
+
         defer state = dup[0] ^ dup[1];
 
         while (in.len > 64) : (in = in[64..]) {
             for (@as([2][4]u64, @bitCast(in[0..64].*)), 0..) |chunk, i| {
                 const mix1 = @as(u128, chunk[0] ^ salt[(i * 2) + 1]) *% (chunk[1] ^ dup[i]);
                 const mix2 = @as(u128, chunk[2] ^ salt[(i * 2) + 2]) *% (chunk[3] ^ dup[i]);
+
                 dup[i] = @as(u64, @truncate(mix1 ^ (mix1 >> 64)));
                 dup[i] ^= @as(u64, @truncate(mix2 ^ (mix2 >> 64)));
             }
@@ -577,10 +615,12 @@ inline fn low_level_hash(seed: u64, input: anytype) u64 {
     while (in.len > 16) : (in = in[16..]) {
         const chunk = @as([2]u64, @bitCast(in[0..16].*));
         const mixed = @as(u128, chunk[0] ^ salt[1]) *% (chunk[1] ^ state);
+
         state = @as(u64, @truncate(mixed ^ (mixed >> 64)));
     }
 
     var chunk: [2]u64 = .{ 0, 0 };
+
     if (in.len > 8) {
         chunk[0] = @as(u64, @bitCast(in[0..8].*));
         chunk[1] = @as(u64, @bitCast(in[in.len - 8 ..][0..8].*));
@@ -592,8 +632,10 @@ inline fn low_level_hash(seed: u64, input: anytype) u64 {
     }
 
     var mixed = @as(u128, chunk[0] ^ salt[1]) *% (chunk[1] ^ state);
+
     mixed = @as(u64, @truncate(mixed ^ (mixed >> 64)));
     mixed *%= (@as(u64, starting_len) ^ salt[1]);
+
     return @as(u64, @truncate(mixed ^ (mixed >> 64)));
 }
 
@@ -603,9 +645,11 @@ test "hash_inline" {
 
         const b64 = std.base64.standard;
         const input = buffer[0..try b64.Decoder.calcSizeForSlice(case.b64)];
+
         try b64.Decoder.decode(input, case.b64);
 
         const hash = low_level_hash(case.seed, input);
+
         try std.testing.expectEqual(case.hash, hash);
     }
 }
@@ -619,9 +663,11 @@ pub fn update(base: anytype, diff: anytype) @TypeOf(base) {
     assert(@typeInfo(@TypeOf(base)) == .@"struct");
 
     var updated = base;
+
     inline for (std.meta.fields(@TypeOf(diff))) |f| {
         @field(updated, f.name) = @field(diff, f.name);
     }
+
     return updated;
 }
 
@@ -635,6 +681,7 @@ const fsword_t = i64;
 const fsid_t = u64;
 
 pub const TmpfsMagic = 0x01021994;
+
 pub const StatFs = extern struct {
     f_type: fsword_t,
     f_bsize: fsword_t,
@@ -687,7 +734,9 @@ pub fn has_unique_representation(comptime T: type) bool {
 
             inline for (info.fields) |field| {
                 const FieldType = field.type;
+
                 if (comptime !has_unique_representation(FieldType)) return false;
+
                 sum_size += @sizeOf(FieldType);
             }
 
@@ -796,13 +845,13 @@ test "has_unique_representation" {
     inline for ([_]type{ i0, u8, i16, u32, i64 }) |T| {
         try std.testing.expect(has_unique_representation(T));
     }
+
     inline for ([_]type{ i1, u9, i17, u33, i24 }) |T| {
         try std.testing.expect(!has_unique_representation(T));
     }
 
     try std.testing.expect(!has_unique_representation([]u8));
     try std.testing.expect(!has_unique_representation([]const u8));
-
     try std.testing.expect(has_unique_representation(@Vector(4, u16)));
 }
 
@@ -823,6 +872,7 @@ pub fn EnumUnionType(
     const UnionField = std.builtin.Type.UnionField;
 
     var fields: [std.enums.values(Enum).len]UnionField = undefined;
+
     for (std.enums.values(Enum), 0..) |enum_variant, i| {
         fields[i] = .{
             .name = @tagName(enum_variant),
@@ -842,8 +892,10 @@ pub fn EnumUnionType(
 /// Constructs an `enum` type from names.
 pub fn EnumType(comptime names: anytype) type {
     comptime assert(names.len > 0);
+
     const EnumField = std.builtin.Type.EnumField;
     var fields: [names.len]EnumField = undefined;
+
     for (names, 0..) |name, i| {
         fields[i] = .{
             .name = name,
@@ -870,6 +922,7 @@ pub fn comptime_slice(comptime slice: anytype, comptime len: usize) []const @Typ
 /// and represents it using the IEC measurement units (KiB, MiB, GiB, ...).
 pub fn fmt_int_size_bin_exact(comptime value: u64) std.fmt.Formatter(format_int_size_bin_exact) {
     comptime assert(value < 1024 or value % 1024 == 0);
+
     return .{ .data = value };
 }
 
@@ -880,6 +933,7 @@ fn format_int_size_bin_exact(
     writer: anytype,
 ) !void {
     _ = fmt;
+
     if (value == 0) {
         return std.fmt.formatBuf("0B", options, writer);
     }
@@ -888,10 +942,12 @@ fn format_int_size_bin_exact(
     // since `maxInt(u64)` is the highest number,
     // + 3 bytes for the measurement units suffix.
     comptime assert(std.fmt.comptimePrint("{}GiB", .{std.math.maxInt(u64)}).len == 23);
+
     var buf: [23]u8 = undefined;
 
     var magnitude: u8 = 0;
     var value_unit = value;
+
     while (value_unit % 1024 == 0) : (magnitude += 1) {
         value_unit = @divExact(value_unit, 1024);
     }
@@ -901,11 +957,14 @@ fn format_int_size_bin_exact(
 
     const length: usize = length: {
         const i = std.fmt.formatIntBuf(&buf, value_unit, 10, .lower, .{});
+
         if (magnitude == 0) {
             buf[i] = suffix;
+
             break :length i + 1;
         } else {
             buf[i..][0..3].* = [_]u8{ suffix, 'i', 'B' };
+
             break :length i + 3;
         }
     };
@@ -920,6 +979,7 @@ test fmt_int_size_bin_exact {
     try std.testing.expectFmt("1025KiB", "{}", .{fmt_int_size_bin_exact(1025 * 1024)});
     try std.testing.expectFmt("12345KiB", "{}", .{fmt_int_size_bin_exact(12345 * 1024)});
     try std.testing.expectFmt("42MiB", "{}", .{fmt_int_size_bin_exact(42 * 1024 * 1024)});
+
     try std.testing.expectFmt("18014398509481983KiB", "{}", .{
         fmt_int_size_bin_exact(std.math.maxInt(u64) - 1023),
     });
@@ -936,15 +996,18 @@ pub fn parse_int(T: type, text: []const u8, comptime options: struct {
     allow_separators: bool = false,
 }) !T {
     comptime assert((options.base == 10) or (options.base == 16));
+
     if (!options.allow_leading_zero) {
         if (text.len > 1 and text[0] == '0') return error.LeadingZero;
     }
+
     for (text) |c| switch (c) {
         '0'...'9', 'a'...'f', 'A'...'F' => {},
         '_' => if (!options.allow_separators) return error.InvalidCharacter,
         '-' => if (@typeInfo(T).int.signedness == .unsigned) return error.InvalidCharacter,
         else => return error.InvalidCharacter,
     };
+
     return std_parse_int(T, text, options.base);
 }
 
@@ -953,6 +1016,7 @@ test parse_int {
         fn check(text: []const u8) !void {
             _ = try std_parse_int(u8, text, 10);
             _ = parse_int(u8, text, .{}) catch return;
+
             return error.TestExpectedError;
         }
     };
@@ -966,6 +1030,7 @@ test parse_int {
 // Allows `0b`, `0o`, `0x` prefixes to select the base, matches the syntax of Zig literals.
 pub fn parse_int_with_base(T: type, text: []const u8) !T {
     comptime assert(@typeInfo(T).int.signedness == .unsigned);
+
     return std_parse_unsigned(T, text, 0);
 }
 
@@ -982,18 +1047,23 @@ pub fn array_print(
 ) []const u8 {
     const Args = @TypeOf(args);
     const ArgsStruct = @typeInfo(Args).@"struct";
+
     comptime assert(ArgsStruct.is_tuple);
 
     comptime {
         var args_worst_case: Args = undefined;
+
         for (ArgsStruct.fields, 0..) |field, index| {
             const arg_worst_case = switch (field.type) {
                 u8, u16, u32, u64, u128 => std.math.maxInt(field.type),
                 else => @compileError("array_print: unsupported type: " ++ @typeName(field.type)),
             };
+
             args_worst_case[index] = arg_worst_case;
         }
+
         const buffer_size = std.fmt.count(fmt, args_worst_case);
+
         assert(n >= buffer_size); // array_print buffer too small
     }
 
@@ -1014,6 +1084,7 @@ pub fn unexpected_errno(label: []const u8, err: std.posix.system.E) std.posix.Un
     if (builtin.mode == .Debug) {
         std.debug.dumpCurrentStackTrace(null);
     }
+
     return error.Unexpected;
 }
 
@@ -1055,6 +1126,7 @@ pub const ByteSize = struct {
 
         const string_amount = string[0..split_index];
         const string_unit = string[split_index..];
+
         maybe(string_amount.len == 0);
         maybe(string_unit.len == 0);
 
@@ -1062,14 +1134,17 @@ pub const ByteSize = struct {
             switch (err) {
                 error.Overflow => {
                     static_diagnostic.* = "value exceeds 64-bit unsigned integer:";
+
                     return error.InvalidFlagValue;
                 },
                 error.InvalidCharacter => {
                     static_diagnostic.* = "expected a size, but found:";
+
                     return error.InvalidFlagValue;
                 },
                 error.LeadingZero => {
                     static_diagnostic.* = "leading zero disallowed:";
+
                     return error.InvalidFlagValue;
                 },
             };
@@ -1080,11 +1155,13 @@ pub const ByteSize = struct {
             if (std.ascii.eqlIgnoreCase(string_unit, @tagName(tag))) break tag;
         } else {
             static_diagnostic.* = "invalid unit in size, needed KiB, MiB, GiB or TiB:";
+
             return error.InvalidFlagValue;
         };
 
         _ = std.math.mul(u64, amount, @intFromEnum(unit)) catch {
             static_diagnostic.* = "size in bytes exceeds 64-bit unsigned integer:";
+
             return error.InvalidFlagValue;
         };
 
@@ -1147,12 +1224,14 @@ pub inline fn fastrange(word: u64, p: u64) u64 {
     const lword: u128 = @intCast(word);
     const lp: u128 = @intCast(p);
     const ln: u128 = lword *% lp;
+
     return @truncate(ln >> 64);
 }
 
 // For Zig 14.1 the compiler generates branchless code as is: https://godbolt.org/z/hc563WPKP
 pub inline fn branchless_select(comptime T: type, flag: bool, a: T, b: T) T {
     @branchHint(.unpredictable);
+
     return if (flag) a else b;
 }
 
@@ -1160,11 +1239,15 @@ const snap = Snap.snap_fn("src/stdx");
 
 test fastrange {
     var prng = PRNG.from_seed(42);
+
     var distribution: [8]u32 = @splat(0);
+
     for (0..10_000) |_| {
         const key = prng.int(u64);
+
         distribution[fastrange(key, 8)] += 1;
     }
+
     try snap(@src(),
         \\{ 1263, 1273, 1244, 1226, 1228, 1276, 1169, 1321 }
     ).diff_fmt("{d}", .{distribution});
@@ -1174,9 +1257,11 @@ test fastrange {
 // It is best used uniformly distributed hashes or random numbers across the full range.
 test "fastrange not modulo" {
     var distribution: [8]u32 = @splat(0);
+
     for (0..10_000) |key| {
         distribution[fastrange(key, 8)] += 1;
     }
+
     try snap(@src(),
         \\{ 10000, 0, 0, 0, 0, 0, 0, 0 }
     ).diff_fmt("{d}", .{distribution});
@@ -1185,6 +1270,7 @@ test "fastrange not modulo" {
 /// `status` is a waitpid() status result.
 pub fn term_from_status(status: u32) std.process.Child.Term {
     const Term = std.process.Child.Term;
+
     return if (std.posix.W.IFEXITED(status))
         Term{ .Exited = std.posix.W.EXITSTATUS(status) }
     else if (std.posix.W.IFSIGNALED(status))
@@ -1202,20 +1288,26 @@ pub fn to_case(
 ) []const u8 {
     return comptime blk: {
         var output: [snake_case.len]u8 = undefined;
+
         switch (case) {
             .@"kebab-case" => {
                 for (snake_case, 0..) |byte, index| output[index] = if (byte == '_') '-' else byte;
+
                 break :blk comptime_slice(&output, snake_case.len);
             },
             .UPPER_CASE => {
                 const len = std.ascii.upperString(output[0..], snake_case).len;
+
                 break :blk comptime_slice(&output, len);
             },
             .camelCase, .PascalCase => {
                 var len: usize = 0;
+
                 var iterator = std.mem.tokenizeScalar(u8, snake_case, '_');
+
                 while (iterator.next()) |word| {
                     _ = std.ascii.lowerString(output[len..], word);
+
                     output[len] = std.ascii.toUpper(output[len]);
                     len += word.len;
                 }
@@ -1236,6 +1328,7 @@ test "to_case" {
     try std.testing.expectEqualStrings("createAccounts", to_case("create_accounts", .camelCase));
     try std.testing.expectEqualStrings("CreateTransfers", to_case("create_transfers", .PascalCase));
     try std.testing.expectEqualStrings("user-data-128", to_case("user_data_128", .@"kebab-case"));
+
     try std.testing.expectEqualStrings(
         "GET_ACCOUNT_BALANCES",
         to_case("get_account_balances", .UPPER_CASE),
@@ -1251,6 +1344,7 @@ pub fn dbg(prefix: []const u8, value: anytype) @TypeOf(value) {
         prefix,
         std.json.fmt(value, .{ .whitespace = .indent_2 }),
     });
+
     return value;
 }
 

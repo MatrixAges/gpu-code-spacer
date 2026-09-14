@@ -9,15 +9,18 @@ const Instant = @import("../time_units.zig").Instant;
 /// printing to stderr and formatting times in some (unspecified) readable way.
 pub fn timeit() TimeIt {
     var time: Time = .{};
+
     return .{ .time = time, .timer = time.benchmark_monotonic() };
 }
 
 test "timeit usage" {
     var timer = timeit();
+
     defer timer.print_if_longer_than_ms(1000, "timeit test");
 
     const scale = 1_000_000;
     var checksum: u128 = 0;
+
     for (1..scale) |i| {
         checksum += i * i;
     }
@@ -33,6 +36,7 @@ const TimeIt = struct {
 
         const now = self.time.benchmark_monotonic();
         const elapsed = self.timer.elapsed(now);
+
         self.timer = now;
 
         std.debug.print(
@@ -65,10 +69,12 @@ const TimeIt = struct {
     ) void {
         const now = self.time.benchmark_monotonic();
         const elapsed = self.timer.elapsed(now);
+
         self.timer = now;
 
         if (elapsed.ns > threshold_ms * std.time.ns_per_ms) {
             std.debug.print(label ++ ": {}\n", .{std.fmt.fmtDuration(elapsed.ns)});
+
             if (backtrace) std.debug.dumpCurrentStackTrace(null);
         }
     }

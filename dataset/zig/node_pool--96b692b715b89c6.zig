@@ -13,6 +13,7 @@ pub fn NodePoolType(comptime _node_size: u32, comptime _node_alignment: u13) typ
 
         pub const node_size = _node_size;
         pub const node_alignment = _node_alignment;
+
         pub const Node = *align(node_alignment) [node_size]u8;
 
         comptime {
@@ -25,6 +26,7 @@ pub fn NodePoolType(comptime _node_size: u32, comptime _node_alignment: u13) typ
         }
 
         buffer: []align(node_alignment) u8,
+
         free: std.bit_set.DynamicBitSetUnmanaged,
 
         pub fn init(pool: *NodePool, allocator: mem.Allocator, node_count: u32) !void {
@@ -34,11 +36,15 @@ pub fn NodePoolType(comptime _node_size: u32, comptime _node_alignment: u13) typ
                 .buffer = undefined,
                 .free = undefined,
             };
+
             const size = node_size * node_count;
+
             pool.buffer = try allocator.alignedAlloc(u8, node_alignment, size);
+
             errdefer allocator.free(pool.buffer);
 
             pool.free = try std.bit_set.DynamicBitSetUnmanaged.initFull(allocator, node_count);
+
             errdefer pool.free.deinit(allocator);
         }
 
@@ -60,10 +66,12 @@ pub fn NodePoolType(comptime _node_size: u32, comptime _node_alignment: u13) typ
                     "restart the replica increasing '--memory-lsm-manifest'",
                 .{},
             );
+
             assert(pool.free.isSet(node_index));
             pool.free.unset(node_index);
 
             const node = pool.buffer[node_index * node_size ..][0..node_size];
+
             return @alignCast(node);
         }
 
@@ -77,6 +85,7 @@ pub fn NodePoolType(comptime _node_size: u32, comptime _node_alignment: u13) typ
 
             const node_offset = @intFromPtr(node) - @intFromPtr(pool.buffer.ptr);
             const node_index = @divExact(node_offset, node_size);
+
             assert(!pool.free.isSet(node_index));
             pool.free.set(node_index);
         }
@@ -93,9 +102,13 @@ fn TestContextType(comptime node_size: usize, comptime node_alignment: u12) type
         const TestContext = @This();
 
         node_count: u32,
+
         prng: *stdx.PRNG,
+
         sentinel: u64,
+
         node_pool: TestPool,
+
         node_map: std.AutoArrayHashMap(TestPool.Node, u64),
 
         acquires: u64 = 0,
@@ -112,10 +125,13 @@ fn TestContextType(comptime node_size: usize, comptime node_alignment: u12) type
             };
 
             try context.node_pool.init(testing.allocator, node_count);
+
             errdefer context.node_pool.deinit(testing.allocator);
+
             @memset(mem.bytesAsSlice(u64, context.node_pool.buffer), context.sentinel);
 
             context.node_map = std.AutoArrayHashMap(TestPool.Node, u64).init(testing.allocator);
+
             errdefer context.node_map.deinit();
         }
 
@@ -126,8 +142,10 @@ fn TestContextType(comptime node_size: usize, comptime node_alignment: u12) type
 
         fn run(context: *TestContext) !void {
             const Action = enum { acquire, release };
+
             {
                 var i: usize = 0;
+
                 while (i < context.node_count * 4) : (i += 1) {
                     switch (context.prng.enum_weighted(Action, .{
                         .acquire = 60,
@@ -141,6 +159,7 @@ fn TestContextType(comptime node_size: usize, comptime node_alignment: u12) type
 
             {
                 var i: usize = 0;
+
                 while (i < context.node_count * 4) : (i += 1) {
                     switch (context.prng.enum_weighted(Action, .{
                         .acquire = 40,
@@ -166,11 +185,14 @@ fn TestContextType(comptime node_size: usize, comptime node_alignment: u12) type
             }
 
             const gop = try context.node_map.getOrPut(node);
+
             try testing.expect(!gop.found_existing);
 
             // Write unique data into the node so we can test that it doesn't get overwritten.
             const id = context.prng.int(u64);
+
             @memset(mem.bytesAsSlice(u64, node), id);
+
             gop.value_ptr.* = id;
 
             context.acquires += 1;
@@ -189,6 +211,7 @@ fn TestContextType(comptime node_size: usize, comptime node_alignment: u12) type
             }
 
             @memset(mem.bytesAsSlice(u64, node), context.sentinel);
+
             context.node_pool.release(node);
             context.node_map.swapRemoveAt(index);
 
@@ -220,6 +243,7 @@ test "NodePool" {
     const seed = 42;
 
     var prng = stdx.PRNG.from_seed(seed);
+
     const Tuple = struct {
         node_size: u32,
         node_alignment: u12,
@@ -236,9 +260,12 @@ test "NodePool" {
         const TestContext = TestContextType(tuple.node_size, tuple.node_alignment);
 
         var i: u32 = 1;
+
         while (i < 64) : (i += 1) {
             var context: TestContext = undefined;
+
             try context.init(&prng, i);
+
             defer context.deinit();
 
             try context.run();

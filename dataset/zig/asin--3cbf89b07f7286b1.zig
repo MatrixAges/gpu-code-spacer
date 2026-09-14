@@ -15,6 +15,7 @@ const expect = std.testing.expect;
 ///  - asin(x)   = nan if x < -1 or x > 1
 pub fn asin(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => asin32(x),
         f64 => asin64(x),
@@ -30,6 +31,7 @@ fn r32(z: f32) f32 {
 
     const p = z * (pS0 + z * (pS1 + z * pS2));
     const q = 1.0 + z * qS1;
+
     return p / q;
 }
 
@@ -85,6 +87,7 @@ fn r64(z: f64) f64 {
 
     const p = z * (pS0 + z * (pS1 + z * (pS2 + z * (pS3 + z * (pS4 + z * pS5)))));
     const q = 1.0 + z * (qS1 + z * (qS2 + z * (qS3 + z * qS4)));
+
     return p / q;
 }
 
@@ -131,6 +134,7 @@ fn asin64(x: f64) f64 {
         const jx = @as(u64, @bitCast(s));
         const df = @as(f64, @bitCast(jx & 0xFFFFFFFF00000000));
         const c = (z - df * df) / (s + df);
+
         fx = 0.5 * pio2_hi - (2 * s * r - (pio2_lo - 2 * c) - (0.5 * pio2_hi - 2 * df));
     }
 

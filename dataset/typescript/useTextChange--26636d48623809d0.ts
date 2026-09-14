@@ -17,6 +17,7 @@ interface Args {
 
 export default (args: Args) => {
 	const { ref_editor, text } = args
+
 	const [editor_size, setEditorSize] = useState(0)
 
 	useCreateEffect(() => {

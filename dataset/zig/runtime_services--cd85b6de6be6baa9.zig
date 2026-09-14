@@ -177,6 +177,7 @@ pub const RuntimeServices = extern struct {
         self: *const RuntimeServices,
     ) GetWakeupTimeError!GetWakeupTime {
         var result: GetWakeupTime = undefined;
+
         switch (self._getWakeupTime(
             &result.enabled,
             &result.pending,
@@ -300,6 +301,7 @@ pub const RuntimeServices = extern struct {
         buffer: []u16,
     ) VariableNameIterator {
         buffer[0] = 0;
+
         return .{
             .services = self,
             .buffer = buffer,
@@ -335,6 +337,7 @@ pub const RuntimeServices = extern struct {
 
     pub fn getNextHighMonotonicCount(self: *const RuntimeServices) GetNextHighMonotonicCountError!u32 {
         var cnt: u32 = undefined;
+
         switch (self._getNextHighMonotonicCount(&cnt)) {
             .success => return cnt,
             .device_error => return error.DeviceError,
@@ -460,6 +463,7 @@ pub const RuntimeServices = extern struct {
 
         pub fn payload(self: *VariableAuthentication3) []u8 {
             var ptr: [*]u8 = @ptrCast(self);
+
             return ptr[@sizeOf(VariableAuthentication3)..self.metadata_size];
         }
 
@@ -497,6 +501,7 @@ pub const RuntimeServices = extern struct {
 
         pub fn nextSize(self: *VariableNameIterator) NextSizeError!?usize {
             var len: usize = 0;
+
             switch (self.services._getNextVariableName(
                 &len,
                 null,
@@ -516,6 +521,7 @@ pub const RuntimeServices = extern struct {
             self: *VariableNameIterator,
         ) IterateVariableNameError!?[:0]const u16 {
             var len = self.buffer.len;
+
             switch (self.services._getNextVariableName(
                 &len,
                 @ptrCast(self.buffer.ptr),

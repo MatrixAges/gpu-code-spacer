@@ -124,6 +124,7 @@ export default class CodeNode extends ElementNode {
 		}
 
 		const { anchor, focus } = selection
+
 		const first_point = anchor.isBefore(focus) ? anchor : focus
 		const first_selection_node = first_point.getNode()
 
@@ -135,6 +136,7 @@ export default class CodeNode extends ElementNode {
 			while (true) {
 				if ($isTabNode(node)) {
 					insert_nodes.push($createTabNode())
+
 					node = node.getNextSibling()!
 				} else if ($isCodeTextNode(node)) {
 					let spaces = 0
@@ -164,6 +166,7 @@ export default class CodeNode extends ElementNode {
 			const x = anchor.offset === 0 ? 0 : 1
 			const index = split.getIndexWithinParent() + x
 			const code_node = first_selection_node.getParentOrThrow()
+
 			const nodes_to_insert = [$createLineBreakNode(), ...insert_nodes]
 
 			code_node.splice(index, 0, nodes_to_insert)
@@ -181,6 +184,7 @@ export default class CodeNode extends ElementNode {
 
 		if ($isCodeNode(first_selection_node)) {
 			const { offset } = selection.anchor
+
 			const target = first_selection_node as CodeNode
 
 			target.splice(offset, 0, [$createLineBreakNode()])

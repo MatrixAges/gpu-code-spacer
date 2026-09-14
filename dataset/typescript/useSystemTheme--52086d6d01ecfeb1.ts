@@ -4,6 +4,7 @@ const match_media = window.matchMedia('(prefers-color-scheme: dark)')
 
 const setBodyAttr = (v: 'light' | 'dark') => {
 	document.documentElement.setAttribute('data-theme', v)
+
 	document.documentElement.style.colorScheme = v
 }
 

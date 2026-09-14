@@ -67,6 +67,7 @@ const Index = (
 
 	if ($isRangeSelection(selection) && selection.isCollapsed()) {
 		const { anchor, focus } = selection
+
 		const anchor_cell_node = $findMatchingParent(anchor.getNode(), $isTableCellNode) as TableCellNode
 		const focus_cell_node = $findMatchingParent(focus.getNode(), $isTableCellNode) as TableCellNode
 
@@ -118,6 +119,7 @@ const Index = (
 		}
 
 		const edge_child = direction === 'up' ? anchor_cell_node.getFirstChild() : anchor_cell_node.getLastChild()
+
 		if (edge_child == null) {
 			return false
 		}
@@ -129,6 +131,7 @@ const Index = (
 		}
 
 		const edge_rect = edge_child_dom.getBoundingClientRect()
+
 		const is_exiting =
 			direction === 'up'
 				? edge_rect.top > edge_selection_rect.top - edge_selection_rect.height
@@ -152,10 +155,12 @@ const Index = (
 		}
 	} else if ($isTableSelection(selection)) {
 		const { anchor, focus } = selection
+
 		const anchor_cell_node = $findMatchingParent(anchor.getNode(), $isTableCellNode) as TableCellNode
 		const focus_cell_node = $findMatchingParent(focus.getNode(), $isTableCellNode) as TableCellNode
 
 		const [table_node_from_selection] = selection.getNodes()
+
 		const table_element = editor.getElementByKey(table_node_from_selection.getKey())
 
 		if (

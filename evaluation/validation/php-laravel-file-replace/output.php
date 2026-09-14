@@ -6,6 +6,7 @@ class ValidationSample {
         clearstatcache(true, $path);
 
         $path = realpath($path) ?: $path;
+
         $tempPath = tempnam(dirname($path), basename($path));
 
         // Fix permissions of tempPath because `tempnam()` creates it with permissions set to 0600...

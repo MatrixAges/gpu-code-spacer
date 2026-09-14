@@ -14,11 +14,13 @@ return withDirectives(h(comp), [
 import type { VNode } from './vnode'
 import { EMPTY_OBJ, isBuiltInDirective, isFunction } from '@vue/shared'
 import { warn } from './warning'
+
 import {
   type ComponentInternalInstance,
   type Data,
   getComponentPublicInstance,
 } from './component'
+
 import { currentRenderingInstance } from './componentRenderContext'
 import { ErrorCodes, callWithAsyncErrorHandling } from './errorHandling'
 import type { ComponentPublicInstance } from './componentPublicInstance'
@@ -75,6 +77,7 @@ export interface ObjectDirective<
   created?: DirectiveHook<HostElement, null, Value, Modifiers, Arg>
   beforeMount?: DirectiveHook<HostElement, null, Value, Modifiers, Arg>
   mounted?: DirectiveHook<HostElement, null, Value, Modifiers, Arg>
+
   beforeUpdate?: DirectiveHook<
     HostElement,
     VNode<any, HostElement>,
@@ -82,6 +85,7 @@ export interface ObjectDirective<
     Modifiers,
     Arg
   >
+
   updated?: DirectiveHook<
     HostElement,
     VNode<any, HostElement>,
@@ -89,6 +93,7 @@ export interface ObjectDirective<
     Modifiers,
     Arg
   >
+
   beforeUnmount?: DirectiveHook<HostElement, null, Value, Modifiers, Arg>
   unmounted?: DirectiveHook<HostElement, null, Value, Modifiers, Arg>
   getSSRProps?: SSRDirectiveHook<Value, Modifiers, Arg>
@@ -138,12 +143,16 @@ export function withDirectives<T extends VNode>(
 ): T {
   if (currentRenderingInstance === null) {
     __DEV__ && warn(`withDirectives can only be used inside render functions.`)
+
     return vnode
   }
+
   const instance = getComponentPublicInstance(currentRenderingInstance)
   const bindings: DirectiveBinding[] = vnode.dirs || (vnode.dirs = [])
+
   for (let i = 0; i < directives.length; i++) {
     let [dir, value, arg, modifiers = EMPTY_OBJ] = directives[i]
+
     if (dir) {
       if (isFunction(dir)) {
         dir = {
@@ -151,9 +160,11 @@ export function withDirectives<T extends VNode>(
           updated: dir,
         } as ObjectDirective
       }
+
       if (dir.deep) {
         traverse(value)
       }
+
       bindings.push({
         dir,
         instance,
@@ -164,6 +175,7 @@ export function withDirectives<T extends VNode>(
       })
     }
   }
+
   return vnode
 }
 
@@ -175,25 +187,32 @@ export function invokeDirectiveHook(
 ): void {
   const bindings = vnode.dirs!
   const oldBindings = prevVNode && prevVNode.dirs!
+
   for (let i = 0; i < bindings.length; i++) {
     const binding = bindings[i]
+
     if (oldBindings) {
       binding.oldValue = oldBindings[i].value
     }
+
     let hook = binding.dir[name] as DirectiveHook | DirectiveHook[] | undefined
+
     if (__COMPAT__ && !hook) {
       hook = mapCompatDirectiveHook(name, binding.dir, instance)
     }
+
     if (hook) {
       // disable tracking inside all lifecycle hooks
       // since they can potentially be called inside effects.
       pauseTracking()
+
       callWithAsyncErrorHandling(hook, instance, ErrorCodes.DIRECTIVE_HOOK, [
         vnode.el,
         binding,
         vnode,
         prevVNode,
       ])
+
       resetTracking()
     }
   }

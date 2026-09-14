@@ -10,19 +10,23 @@ import { resolveConfig } from './config'
 import type { InlineConfig, ResolvedConfig } from './config'
 import { DEFAULT_PREVIEW_PORT } from './constants'
 import type { CommonServerOptions } from './http'
+
 import {
   httpServerStart,
   resolveHttpServer,
   resolveHttpsConfig,
   setClientErrorHandler,
 } from './http'
+
 import { printServerUrls } from './logger'
 import type { MinimalPluginContextWithoutEnvironment } from './plugin'
+
 import type {
   HttpServer,
   ResolvedServerOptions,
   ResolvedServerUrls,
 } from './server'
+
 import { createServerCloseFn } from './server'
 import { baseMiddleware } from './server/middlewares/base'
 import { hostValidationMiddleware } from './server/middlewares/hostCheck'
@@ -31,13 +35,16 @@ import { indexHtmlMiddleware } from './server/middlewares/indexHtml'
 import { notFoundMiddleware } from './server/middlewares/notFound'
 import { proxyMiddleware } from './server/middlewares/proxy'
 import { openBrowser } from './server/openBrowser'
+
 import {
   BasicMinimalPluginContext,
   basePluginContextMeta,
 } from './server/pluginContainer'
+
 import { bindCLIShortcuts } from './shortcuts'
 import type { BindCLIShortcutsOptions, ShortcutsState } from './shortcuts'
 import type { RequiredExceptFor } from './typeUtils'
+
 import {
   getServerUrlByHost,
   normalizePath,
@@ -145,6 +152,7 @@ export async function preview(
 
   const clientOutDir = config.environments.client.build.outDir
   const distDir = path.resolve(config.root, clientOutDir)
+
   if (
     !fs.existsSync(distDir) &&
     // error if no plugins implement `configurePreviewServer`
@@ -162,6 +170,7 @@ export async function preview(
   const httpsOptions = await resolveHttpsConfig(config.preview.https)
   const app = connect() as Connect.Server
   const httpServer = await resolveHttpServer(app, httpsOptions)
+
   setClientErrorHandler(httpServer, config.logger)
 
   const options = config.preview
@@ -171,10 +180,12 @@ export async function preview(
 
   // Promise used by `server.close()` to ensure `closeServer()` is only called once
   let closeServerPromise: Promise<void> | undefined
+
   const closeServer = async () => {
     teardownSIGTERMListener(closeServerAndExit)
 
     await closeHttpServer()
+
     server.resolvedUrls = null
 
     // Run `closePreviewServer` plugin hooks after the server has been torn down.
@@ -182,6 +193,7 @@ export async function preview(
       { ...basePluginContextMeta, watchMode: false },
       config.logger,
     )
+
     await Promise.all(
       config
         .getSortedPluginHooks('closePreviewServer')
@@ -197,6 +209,7 @@ export async function preview(
       if (!closeServerPromise) {
         closeServerPromise = closeServer()
       }
+
       return closeServerPromise
     },
     resolvedUrls: null,
@@ -217,6 +230,7 @@ export async function preview(
       await server.close()
     } finally {
       process.exitCode ??= exitCode ? 128 + exitCode : undefined
+
       process.exit()
     }
   }
@@ -225,12 +239,14 @@ export async function preview(
 
   // cors
   const { cors } = config.preview
+
   if (cors !== false) {
     app.use(corsMiddleware(typeof cors === 'boolean' ? {} : cors))
   }
 
   // host check (to prevent DNS rebinding attacks)
   const { allowedHosts } = config.preview
+
   // no need to check for HTTPS as HTTPS is not vulnerable to DNS rebinding attacks
   if (allowedHosts !== true && !config.preview.https) {
     app.use(hostValidationMiddleware(allowedHosts, true))
@@ -241,13 +257,16 @@ export async function preview(
     { ...basePluginContextMeta, watchMode: false },
     config.logger,
   )
+
   const postHooks: ((() => void) | void)[] = []
+
   for (const hook of config.getSortedPluginHooks('configurePreviewServer')) {
     postHooks.push(await hook.call(configurePreviewServerContext, server))
   }
 
   // proxy
   const { proxy } = config.preview
+
   if (proxy) {
     app.use(proxyMiddleware(httpServer, proxy, config))
   }
@@ -261,6 +280,7 @@ export async function preview(
 
   // static assets
   const headers = config.preview.headers
+
   const viteAssetMiddleware = (...args: readonly [any, any?, any?]) =>
     sirv(distDir, {
       etag: true,
@@ -292,6 +312,7 @@ export async function preview(
   if (config.appType === 'spa' || config.appType === 'mpa') {
     // transform index.html
     const normalizedDistDir = normalizePath(distDir)
+
     app.use(indexHtmlMiddleware(normalizedDistDir, server))
 
     // handle 404s
@@ -317,9 +338,11 @@ export async function preview(
 
   if (options.open) {
     const url = getServerUrlByHost(server.resolvedUrls, options.host)
+
     if (url) {
       const path =
         typeof options.open === 'string' ? new URL(options.open, url).href : url
+
       openBrowser(path, true, logger)
     }
   }

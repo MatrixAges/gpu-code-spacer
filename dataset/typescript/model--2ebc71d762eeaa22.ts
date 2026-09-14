@@ -11,6 +11,7 @@ import {
 	RootNode,
 	SELECTION_CHANGE_COMMAND
 } from 'lexical'
+
 import { injectable } from 'tsyringe'
 
 import blocks from '@/Editor/blocks'

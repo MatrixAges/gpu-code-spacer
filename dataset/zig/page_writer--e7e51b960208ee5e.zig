@@ -13,7 +13,9 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = arena.allocator();
     const args = try std.process.argsAlloc(allocator);
+
     assert(args.len == 9);
+
     const title = args[1];
     const author = args[2];
     const url_prefix = args[3];
@@ -24,10 +26,13 @@ pub fn main() !void {
     const target_file_path = args[8];
 
     var script = try Html.create(allocator);
+
     try script.write(page_script, .{ .url_prefix = url_prefix });
 
     var script_hash: [32]u8 = undefined;
+
     std.crypto.hash.sha2.Sha256.hash(script.string(), &script_hash, .{});
+
     const b64_encoder = std.base64.standard.Encoder;
     var script_hash_b64_buf: [b64_encoder.calcSize(script_hash.len)]u8 = undefined;
     const script_hash_b64 = b64_encoder.encode(&script_hash_b64_buf, &script_hash);
@@ -37,15 +42,18 @@ pub fn main() !void {
         source_file_path,
         Website.file_size_max,
     );
+
     var html = try Html.create(allocator);
     var search_box = try html.child();
     var search_results = try html.child();
     var search_script = try html.child();
+
     if (include_search) {
         try search_box.write(search_box_template, .{});
         try search_results.write(search_results_template, .{ .url_prefix = url_prefix });
         try search_script.write(search_script_template, .{ .url_prefix = url_prefix });
     }
+
     try html.write(page_template, .{
         .page_script_hash = script_hash_b64,
         .title = title,
@@ -59,5 +67,6 @@ pub fn main() !void {
         .page_script = script,
         .search_script = search_script,
     });
+
     try std.fs.cwd().writeFile(.{ .sub_path = target_file_path, .data = html.string() });
 }

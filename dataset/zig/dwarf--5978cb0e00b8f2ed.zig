@@ -54,7 +54,6 @@ pub const CFA = struct {
     pub const val_offset = 0x14;
     pub const val_offset_sf = 0x15;
     pub const val_expression = 0x16;
-
     pub const lo_user = 0x1c;
     pub const hi_user = 0x3f;
 
@@ -108,7 +107,6 @@ pub const UT = struct {
     pub const skeleton = 0x04;
     pub const split_compile = 0x05;
     pub const split_type = 0x06;
-
     pub const lo_user = 0x80;
     pub const hi_user = 0xff;
 };
@@ -119,10 +117,8 @@ pub const LNCT = struct {
     pub const timestamp = 0x3;
     pub const size = 0x4;
     pub const MD5 = 0x5;
-
     pub const lo_user = 0x2000;
     pub const hi_user = 0x3fff;
-
     pub const LLVM_source = 0x2001;
 };
 

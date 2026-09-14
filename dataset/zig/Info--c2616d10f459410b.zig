@@ -31,12 +31,15 @@ pub fn load(gpa: Allocator, path: Path, coverage: *Coverage, format: std.Target.
     switch (format) {
         .elf => {
             var file = try path.root_dir.handle.openFile(path.sub_path, .{});
+
             defer file.close();
 
             var elf_file: ElfFile = try .load(gpa, file, null, &.none);
+
             errdefer elf_file.deinit(gpa);
 
             if (elf_file.dwarf == null) return error.MissingDebugInfo;
+
             try elf_file.dwarf.?.open(gpa, elf_file.endian);
             try elf_file.dwarf.?.populateRanges(gpa, elf_file.endian);
 
@@ -47,9 +50,11 @@ pub fn load(gpa: Allocator, path: Path, coverage: *Coverage, format: std.Target.
         },
         .macho => {
             const path_str = try path.toString(gpa);
+
             defer gpa.free(path_str);
 
             var macho_file: MachOFile = try .load(gpa, path_str, arch);
+
             errdefer macho_file.deinit(gpa);
 
             return .{
@@ -66,6 +71,7 @@ pub fn deinit(info: *Info, gpa: Allocator) void {
         .elf => |*ef| ef.deinit(gpa),
         .macho => |*mf| mf.deinit(gpa),
     }
+
     info.* = undefined;
 }
 
@@ -82,6 +88,7 @@ pub fn resolveAddresses(
     output: []SourceLocation,
 ) ResolveAddressesError!void {
     assert(sorted_pc_addrs.len == output.len);
+
     switch (info.impl) {
         .elf => |*ef| return info.coverage.resolveAddressesDwarf(gpa, ef.endian, sorted_pc_addrs, output, &ef.dwarf.?),
         .macho => |*mf| {
@@ -92,6 +99,7 @@ pub fn resolveAddresses(
                     error.InvalidMachO, error.InvalidDwarf => return error.InvalidDebugInfo,
                     else => |e| return e,
                 };
+
                 if (dwarf.ranges.items.len == 0) {
                     dwarf.populateRanges(gpa, .little) catch |err| switch (err) {
                         error.EndOfStream,
@@ -102,6 +110,7 @@ pub fn resolveAddresses(
                         else => |e| return e,
                     };
                 }
+
                 try info.coverage.resolveAddressesDwarf(gpa, .little, &.{dwarf_pc_addr}, src_loc[0..1], dwarf);
             }
         },

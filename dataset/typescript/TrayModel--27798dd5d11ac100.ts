@@ -16,9 +16,11 @@ import type { KeyboardEvent, MouseEvent } from 'react'
 export default class Index {
 	visible_todo_fields = false
 	visible_schedule_fields = false
+
 	todo_files = [] as DirTree.Items
 	todo_angles = [] as Array<Todo.Angle>
 	schedule_files = [] as DirTree.Items
+
 	todo_files_watcher = null as Subscription | null
 	todo_angles_watcher = null as Subscription | null
 	schedule_files_watcher = null as Subscription | null

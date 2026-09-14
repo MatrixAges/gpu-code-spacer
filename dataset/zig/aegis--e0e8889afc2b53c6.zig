@@ -22,6 +22,7 @@
 //! https://datatracker.ietf.org/doc/draft-irtf-cfrg-aegis-aead/
 
 const std = @import("std");
+
 const crypto = std.crypto;
 const mem = std.mem;
 const assert = std.debug.assert;
@@ -58,6 +59,7 @@ pub const Aegis256_256 = Aegis256XGeneric(1, 256);
 fn State128X(comptime degree: u7) type {
     return struct {
         const AesBlockVec = crypto.core.aes.BlockVec(degree);
+
         const State = @This();
 
         blocks: [8]AesBlockVec,
@@ -69,8 +71,10 @@ fn State128X(comptime degree: u7) type {
         fn init(key: [16]u8, nonce: [16]u8) State {
             const c1 = AesBlockVec.fromBytes(&[16]u8{ 0xdb, 0x3d, 0x18, 0x55, 0x6d, 0xc2, 0x2f, 0xf1, 0x20, 0x11, 0x31, 0x42, 0x73, 0xb5, 0x28, 0xdd } ** degree);
             const c2 = AesBlockVec.fromBytes(&[16]u8{ 0x0, 0x1, 0x01, 0x02, 0x03, 0x05, 0x08, 0x0d, 0x15, 0x22, 0x37, 0x59, 0x90, 0xe9, 0x79, 0x62 } ** degree);
+
             const key_block = AesBlockVec.fromBytes(&(key ** degree));
             const nonce_block = AesBlockVec.fromBytes(&(nonce ** degree));
+
             const blocks = [8]AesBlockVec{
                 key_block.xorBlocks(nonce_block),
                 c1,
@@ -81,19 +85,25 @@ fn State128X(comptime degree: u7) type {
                 key_block.xorBlocks(c1),
                 key_block.xorBlocks(c2),
             };
+
             var state = State{ .blocks = blocks };
+
             if (degree > 1) {
                 const context_block = ctx: {
                     var contexts_bytes = [_]u8{0} ** aes_block_length;
+
                     for (0..degree) |i| {
                         contexts_bytes[i * 16] = @intCast(i);
                         contexts_bytes[i * 16 + 1] = @intCast(degree - 1);
                     }
+
                     break :ctx AesBlockVec.fromBytes(&contexts_bytes);
                 };
+
                 for (0..10) |_| {
                     state.blocks[3] = state.blocks[3].xorBlocks(context_block);
                     state.blocks[7] = state.blocks[7].xorBlocks(context_block);
+
                     state.update(nonce_block, key_block);
                 }
             } else {
@@ -101,6 +111,7 @@ fn State128X(comptime degree: u7) type {
                     state.update(nonce_block, key_block);
                 }
             }
+
             return state;
         }
 
@@ -108,9 +119,11 @@ fn State128X(comptime degree: u7) type {
             const blocks = &state.blocks;
             const tmp = blocks[7];
             comptime var i: usize = 7;
+
             inline while (i > 0) : (i -= 1) {
                 blocks[i] = blocks[i - 1].encrypt(blocks[i]);
             }
+
             blocks[0] = tmp.encrypt(blocks[0]);
             blocks[0] = blocks[0].xorBlocks(d1);
             blocks[4] = blocks[4].xorBlocks(d2);
@@ -119,82 +132,108 @@ fn State128X(comptime degree: u7) type {
         fn absorb(state: *State, src: *const [rate]u8) void {
             const msg0 = AesBlockVec.fromBytes(src[0..aes_block_length]);
             const msg1 = AesBlockVec.fromBytes(src[aes_block_length..rate]);
+
             state.update(msg0, msg1);
         }
 
         fn enc(state: *State, dst: *[rate]u8, src: *const [rate]u8) void {
             const blocks = &state.blocks;
+
             const msg0 = AesBlockVec.fromBytes(src[0..aes_block_length]);
             const msg1 = AesBlockVec.fromBytes(src[aes_block_length..rate]);
             var tmp0 = msg0.xorBlocks(blocks[6]).xorBlocks(blocks[1]);
             var tmp1 = msg1.xorBlocks(blocks[2]).xorBlocks(blocks[5]);
+
             tmp0 = tmp0.xorBlocks(blocks[2].andBlocks(blocks[3]));
             tmp1 = tmp1.xorBlocks(blocks[6].andBlocks(blocks[7]));
+
             dst[0..aes_block_length].* = tmp0.toBytes();
             dst[aes_block_length..rate].* = tmp1.toBytes();
+
             state.update(msg0, msg1);
         }
 
         fn dec(state: *State, dst: *[rate]u8, src: *const [rate]u8) void {
             const blocks = &state.blocks;
+
             var msg0 = AesBlockVec.fromBytes(src[0..aes_block_length]).xorBlocks(blocks[6]).xorBlocks(blocks[1]);
             var msg1 = AesBlockVec.fromBytes(src[aes_block_length..rate]).xorBlocks(blocks[2]).xorBlocks(blocks[5]);
+
             msg0 = msg0.xorBlocks(blocks[2].andBlocks(blocks[3]));
             msg1 = msg1.xorBlocks(blocks[6].andBlocks(blocks[7]));
+
             dst[0..aes_block_length].* = msg0.toBytes();
             dst[aes_block_length..rate].* = msg1.toBytes();
+
             state.update(msg0, msg1);
         }
 
         fn decLast(state: *State, dst: []u8, src: []const u8) void {
             const blocks = &state.blocks;
+
             const z0 = blocks[6].xorBlocks(blocks[1]).xorBlocks(blocks[2].andBlocks(blocks[3]));
             const z1 = blocks[2].xorBlocks(blocks[5]).xorBlocks(blocks[6].andBlocks(blocks[7]));
+
             var pad = [_]u8{0} ** rate;
+
             pad[0..aes_block_length].* = z0.toBytes();
             pad[aes_block_length..].* = z1.toBytes();
+
             for (pad[0..src.len], src) |*p, x| p.* ^= x;
+
             @memcpy(dst, pad[0..src.len]);
             @memset(pad[src.len..], 0);
+
             const msg0 = AesBlockVec.fromBytes(pad[0..aes_block_length]);
             const msg1 = AesBlockVec.fromBytes(pad[aes_block_length..rate]);
+
             state.update(msg0, msg1);
         }
 
         fn finalize(state: *State, comptime tag_bits: u9, adlen: usize, mlen: usize) [tag_bits / 8]u8 {
             const blocks = &state.blocks;
             var sizes: [aes_block_length]u8 = undefined;
+
             mem.writeInt(u64, sizes[0..8], @as(u64, adlen) * 8, .little);
             mem.writeInt(u64, sizes[8..16], @as(u64, mlen) * 8, .little);
+
             for (1..degree) |i| {
                 @memcpy(sizes[i * 16 ..][0..16], sizes[0..16]);
             }
+
             const tmp = AesBlockVec.fromBytes(&sizes).xorBlocks(blocks[2]);
+
             for (0..7) |_| {
                 state.update(tmp, tmp);
             }
+
             switch (tag_bits) {
                 128 => {
                     var tag_multi = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).xorBlocks(blocks[4]).xorBlocks(blocks[5]).xorBlocks(blocks[6]).toBytes();
                     var tag = tag_multi[0..16].*;
+
                     @memcpy(tag[0..], tag_multi[0..16]);
+
                     for (1..degree) |d| {
                         for (0..16) |i| {
                             tag[i] ^= tag_multi[d * 16 + i];
                         }
                     }
+
                     return tag;
                 },
                 256 => {
                     const tag_multi_1 = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).toBytes();
                     const tag_multi_2 = blocks[4].xorBlocks(blocks[5]).xorBlocks(blocks[6]).xorBlocks(blocks[7]).toBytes();
                     var tag = tag_multi_1[0..16].* ++ tag_multi_2[0..16].*;
+
                     for (1..degree) |d| {
                         for (0..16) |i| {
                             tag[i] ^= tag_multi_1[d * 16 + i];
                             tag[i + 16] ^= tag_multi_2[d * 16 + i];
                         }
                     }
+
                     return tag;
                 },
                 else => unreachable,
@@ -204,52 +243,68 @@ fn State128X(comptime degree: u7) type {
         fn finalizeMac(state: *State, comptime tag_bits: u9, datalen: usize) [tag_bits / 8]u8 {
             const blocks = &state.blocks;
             var sizes: [aes_block_length]u8 = undefined;
+
             mem.writeInt(u64, sizes[0..8], @as(u64, datalen) * 8, .little);
             mem.writeInt(u64, sizes[8..16], tag_bits, .little);
+
             for (1..degree) |i| {
                 @memcpy(sizes[i * 16 ..][0..16], sizes[0..16]);
             }
+
             var t = blocks[2].xorBlocks(AesBlockVec.fromBytes(&sizes));
+
             for (0..7) |_| {
                 state.update(t, t);
             }
+
             if (degree > 1) {
                 var v = [_]u8{0} ** rate;
+
                 switch (tag_bits) {
                     128 => {
                         const tags = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).xorBlocks(blocks[4]).xorBlocks(blocks[5]).xorBlocks(blocks[6]).toBytes();
+
                         for (0..degree / 2) |d| {
                             v[0..16].* = tags[d * 32 ..][0..16].*;
                             v[rate / 2 ..][0..16].* = tags[d * 32 ..][16..32].*;
+
                             state.absorb(&v);
                         }
                     },
                     256 => {
                         const tags_0 = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).toBytes();
                         const tags_1 = blocks[4].xorBlocks(blocks[5]).xorBlocks(blocks[6]).xorBlocks(blocks[7]).toBytes();
+
                         for (1..degree) |d| {
                             v[0..16].* = tags_0[d * 16 ..][0..16].*;
                             v[rate / 2 ..][0..16].* = tags_1[d * 16 ..][0..16].*;
+
                             state.absorb(&v);
                         }
                     },
                     else => unreachable,
                 }
+
                 mem.writeInt(u64, sizes[0..8], degree, .little);
                 mem.writeInt(u64, sizes[8..16], tag_bits, .little);
+
                 t = blocks[2].xorBlocks(AesBlockVec.fromBytes(&sizes));
+
                 for (0..7) |_| {
                     state.update(t, t);
                 }
             }
+
             switch (tag_bits) {
                 128 => {
                     const tags = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).xorBlocks(blocks[4]).xorBlocks(blocks[5]).xorBlocks(blocks[6]).toBytes();
+
                     return tags[0..16].*;
                 },
                 256 => {
                     const tags_0 = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).toBytes();
                     const tags_1 = blocks[4].xorBlocks(blocks[5]).xorBlocks(blocks[6]).xorBlocks(blocks[7]).toBytes();
+
                     return tags_0[0..16].* ++ tags_1[0..16].*;
                 },
                 else => unreachable,
@@ -285,28 +340,39 @@ fn Aegis128XGeneric(comptime degree: u7, comptime tag_bits: u9) type {
         /// k: private key
         pub fn encrypt(c: []u8, tag: *[tag_length]u8, m: []const u8, ad: []const u8, npub: [nonce_length]u8, key: [key_length]u8) void {
             assert(c.len == m.len);
+
             var state = State.init(key, npub);
+
             var src: [block_length]u8 align(alignment) = undefined;
             var dst: [block_length]u8 align(alignment) = undefined;
             var i: usize = 0;
+
             while (i + block_length <= ad.len) : (i += block_length) {
                 state.absorb(ad[i..][0..block_length]);
             }
+
             if (ad.len % block_length != 0) {
                 @memset(src[0..], 0);
                 @memcpy(src[0 .. ad.len % block_length], ad[i..][0 .. ad.len % block_length]);
+
                 state.absorb(&src);
             }
+
             i = 0;
+
             while (i + block_length <= m.len) : (i += block_length) {
                 state.enc(c[i..][0..block_length], m[i..][0..block_length]);
             }
+
             if (m.len % block_length != 0) {
                 @memset(src[0..], 0);
                 @memcpy(src[0 .. m.len % block_length], m[i..][0 .. m.len % block_length]);
+
                 state.enc(&dst, &src);
+
                 @memcpy(c[i..][0 .. m.len % block_length], dst[0 .. m.len % block_length]);
             }
+
             tag.* = state.finalize(tag_bits, ad.len, m.len);
         }
 
@@ -321,29 +387,41 @@ fn Aegis128XGeneric(comptime degree: u7, comptime tag_bits: u9) type {
         /// Contents of `m` are undefined if an error is returned.
         pub fn decrypt(m: []u8, c: []const u8, tag: [tag_length]u8, ad: []const u8, npub: [nonce_length]u8, key: [key_length]u8) AuthenticationError!void {
             assert(c.len == m.len);
+
             var state = State.init(key, npub);
+
             var src: [block_length]u8 align(alignment) = undefined;
             var i: usize = 0;
+
             while (i + block_length <= ad.len) : (i += block_length) {
                 state.absorb(ad[i..][0..block_length]);
             }
+
             if (ad.len % block_length != 0) {
                 @memset(src[0..], 0);
                 @memcpy(src[0 .. ad.len % block_length], ad[i..][0 .. ad.len % block_length]);
+
                 state.absorb(&src);
             }
+
             i = 0;
+
             while (i + block_length <= m.len) : (i += block_length) {
                 state.dec(m[i..][0..block_length], c[i..][0..block_length]);
             }
+
             if (m.len % block_length != 0) {
                 state.decLast(m[i..], c[i..]);
             }
+
             var computed_tag = state.finalize(tag_bits, ad.len, m.len);
             const verify = crypto.timing_safe.eql([tag_length]u8, computed_tag, tag);
+
             if (!verify) {
                 crypto.secureZero(u8, &computed_tag);
+
                 @memset(m, undefined);
+
                 return error.AuthenticationFailed;
             }
         }
@@ -353,6 +431,7 @@ fn Aegis128XGeneric(comptime degree: u7, comptime tag_bits: u9) type {
 fn State256X(comptime degree: u7) type {
     return struct {
         const AesBlockVec = crypto.core.aes.BlockVec(degree);
+
         const State = @This();
 
         blocks: [6]AesBlockVec,
@@ -364,12 +443,14 @@ fn State256X(comptime degree: u7) type {
         fn init(key: [32]u8, nonce: [32]u8) State {
             const c1 = AesBlockVec.fromBytes(&[16]u8{ 0xdb, 0x3d, 0x18, 0x55, 0x6d, 0xc2, 0x2f, 0xf1, 0x20, 0x11, 0x31, 0x42, 0x73, 0xb5, 0x28, 0xdd } ** degree);
             const c2 = AesBlockVec.fromBytes(&[16]u8{ 0x0, 0x1, 0x01, 0x02, 0x03, 0x05, 0x08, 0x0d, 0x15, 0x22, 0x37, 0x59, 0x90, 0xe9, 0x79, 0x62 } ** degree);
+
             const key_block1 = AesBlockVec.fromBytes(key[0..16] ** degree);
             const key_block2 = AesBlockVec.fromBytes(key[16..32] ** degree);
             const nonce_block1 = AesBlockVec.fromBytes(nonce[0..16] ** degree);
             const nonce_block2 = AesBlockVec.fromBytes(nonce[16..32] ** degree);
             const kxn1 = key_block1.xorBlocks(nonce_block1);
             const kxn2 = key_block2.xorBlocks(nonce_block2);
+
             const blocks = [6]AesBlockVec{
                 kxn1,
                 kxn2,
@@ -378,28 +459,40 @@ fn State256X(comptime degree: u7) type {
                 key_block1.xorBlocks(c2),
                 key_block2.xorBlocks(c1),
             };
+
             var state = State{ .blocks = blocks };
+
             if (degree > 1) {
                 const context_block = ctx: {
                     var contexts_bytes = [_]u8{0} ** aes_block_length;
+
                     for (0..degree) |i| {
                         contexts_bytes[i * 16] = @intCast(i);
                         contexts_bytes[i * 16 + 1] = @intCast(degree - 1);
                     }
+
                     break :ctx AesBlockVec.fromBytes(&contexts_bytes);
                 };
+
                 for (0..4) |_| {
                     state.blocks[3] = state.blocks[3].xorBlocks(context_block);
                     state.blocks[5] = state.blocks[5].xorBlocks(context_block);
+
                     state.update(key_block1);
+
                     state.blocks[3] = state.blocks[3].xorBlocks(context_block);
                     state.blocks[5] = state.blocks[5].xorBlocks(context_block);
+
                     state.update(key_block2);
+
                     state.blocks[3] = state.blocks[3].xorBlocks(context_block);
                     state.blocks[5] = state.blocks[5].xorBlocks(context_block);
+
                     state.update(kxn1);
+
                     state.blocks[3] = state.blocks[3].xorBlocks(context_block);
                     state.blocks[5] = state.blocks[5].xorBlocks(context_block);
+
                     state.update(kxn2);
                 }
             } else {
@@ -410,86 +503,114 @@ fn State256X(comptime degree: u7) type {
                     state.update(kxn2);
                 }
             }
+
             return state;
         }
 
         fn update(state: *State, d: AesBlockVec) void {
             const blocks = &state.blocks;
             const tmp = blocks[5].encrypt(blocks[0]);
+
             comptime var i: usize = 5;
+
             inline while (i > 0) : (i -= 1) {
                 blocks[i] = blocks[i - 1].encrypt(blocks[i]);
             }
+
             blocks[0] = tmp.xorBlocks(d);
         }
 
         fn absorb(state: *State, src: *const [rate]u8) void {
             const msg = AesBlockVec.fromBytes(src);
+
             state.update(msg);
         }
 
         fn enc(state: *State, dst: *[rate]u8, src: *const [rate]u8) void {
             const blocks = &state.blocks;
+
             const msg = AesBlockVec.fromBytes(src);
             var tmp = msg.xorBlocks(blocks[5]).xorBlocks(blocks[4]).xorBlocks(blocks[1]);
+
             tmp = tmp.xorBlocks(blocks[2].andBlocks(blocks[3]));
+
             dst.* = tmp.toBytes();
+
             state.update(msg);
         }
 
         fn dec(state: *State, dst: *[rate]u8, src: *const [rate]u8) void {
             const blocks = &state.blocks;
+
             var msg = AesBlockVec.fromBytes(src).xorBlocks(blocks[5]).xorBlocks(blocks[4]).xorBlocks(blocks[1]);
+
             msg = msg.xorBlocks(blocks[2].andBlocks(blocks[3]));
+
             dst.* = msg.toBytes();
+
             state.update(msg);
         }
 
         fn decLast(state: *State, dst: []u8, src: []const u8) void {
             const blocks = &state.blocks;
+
             const z = blocks[5].xorBlocks(blocks[4]).xorBlocks(blocks[1]).xorBlocks(blocks[2].andBlocks(blocks[3]));
             var pad = z.toBytes();
+
             for (pad[0..src.len], src) |*p, x| p.* ^= x;
+
             @memcpy(dst, pad[0..src.len]);
             @memset(pad[src.len..], 0);
+
             const msg = AesBlockVec.fromBytes(pad[0..]);
+
             state.update(msg);
         }
 
         fn finalize(state: *State, comptime tag_bits: u9, adlen: usize, mlen: usize) [tag_bits / 8]u8 {
             const blocks = &state.blocks;
             var sizes: [aes_block_length]u8 = undefined;
+
             mem.writeInt(u64, sizes[0..8], @as(u64, adlen) * 8, .little);
             mem.writeInt(u64, sizes[8..16], @as(u64, mlen) * 8, .little);
+
             for (1..degree) |i| {
                 @memcpy(sizes[i * 16 ..][0..16], sizes[0..16]);
             }
+
             const tmp = AesBlockVec.fromBytes(&sizes).xorBlocks(blocks[3]);
+
             for (0..7) |_| {
                 state.update(tmp);
             }
+
             switch (tag_bits) {
                 128 => {
                     var tag_multi = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).xorBlocks(blocks[4]).xorBlocks(blocks[5]).toBytes();
                     var tag = tag_multi[0..16].*;
+
                     @memcpy(tag[0..], tag_multi[0..16]);
+
                     for (1..degree) |d| {
                         for (0..16) |i| {
                             tag[i] ^= tag_multi[d * 16 + i];
                         }
                     }
+
                     return tag;
                 },
                 256 => {
                     const tag_multi_1 = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).toBytes();
                     const tag_multi_2 = blocks[3].xorBlocks(blocks[4]).xorBlocks(blocks[5]).toBytes();
                     var tag = tag_multi_1[0..16].* ++ tag_multi_2[0..16].*;
+
                     for (1..degree) |d| {
                         for (0..16) |i| {
                             tag[i] ^= tag_multi_1[d * 16 + i];
                             tag[i + 16] ^= tag_multi_2[d * 16 + i];
                         }
                     }
+
                     return tag;
                 },
                 else => unreachable,
@@ -499,52 +620,70 @@ fn State256X(comptime degree: u7) type {
         fn finalizeMac(state: *State, comptime tag_bits: u9, datalen: usize) [tag_bits / 8]u8 {
             const blocks = &state.blocks;
             var sizes: [aes_block_length]u8 = undefined;
+
             mem.writeInt(u64, sizes[0..8], @as(u64, datalen) * 8, .little);
             mem.writeInt(u64, sizes[8..16], tag_bits, .little);
+
             for (1..degree) |i| {
                 @memcpy(sizes[i * 16 ..][0..16], sizes[0..16]);
             }
+
             var t = blocks[3].xorBlocks(AesBlockVec.fromBytes(&sizes));
+
             for (0..7) |_| {
                 state.update(t);
             }
+
             if (degree > 1) {
                 var v = [_]u8{0} ** rate;
+
                 switch (tag_bits) {
                     128 => {
                         const tags = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).xorBlocks(blocks[4]).xorBlocks(blocks[5]).toBytes();
+
                         for (1..degree) |d| {
                             v[0..16].* = tags[d * 16 ..][0..16].*;
+
                             state.absorb(&v);
                         }
                     },
                     256 => {
                         const tags_0 = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).toBytes();
                         const tags_1 = blocks[3].xorBlocks(blocks[4]).xorBlocks(blocks[5]).toBytes();
+
                         for (1..degree) |d| {
                             v[0..16].* = tags_0[d * 16 ..][0..16].*;
+
                             state.absorb(&v);
+
                             v[0..16].* = tags_1[d * 16 ..][0..16].*;
+
                             state.absorb(&v);
                         }
                     },
                     else => unreachable,
                 }
+
                 mem.writeInt(u64, sizes[0..8], degree, .little);
                 mem.writeInt(u64, sizes[8..16], tag_bits, .little);
+
                 t = blocks[3].xorBlocks(AesBlockVec.fromBytes(&sizes));
+
                 for (0..7) |_| {
                     state.update(t);
                 }
             }
+
             switch (tag_bits) {
                 128 => {
                     const tags = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).xorBlocks(blocks[3]).xorBlocks(blocks[4]).xorBlocks(blocks[5]).toBytes();
+
                     return tags[0..16].*;
                 },
                 256 => {
                     const tags_0 = blocks[0].xorBlocks(blocks[1]).xorBlocks(blocks[2]).toBytes();
                     const tags_1 = blocks[3].xorBlocks(blocks[4]).xorBlocks(blocks[5]).toBytes();
+
                     return tags_0[0..16].* ++ tags_1[0..16].*;
                 },
                 else => unreachable,
@@ -580,28 +719,39 @@ fn Aegis256XGeneric(comptime degree: u7, comptime tag_bits: u9) type {
         /// k: private key
         pub fn encrypt(c: []u8, tag: *[tag_length]u8, m: []const u8, ad: []const u8, npub: [nonce_length]u8, key: [key_length]u8) void {
             assert(c.len == m.len);
+
             var state = State.init(key, npub);
+
             var src: [block_length]u8 align(alignment) = undefined;
             var dst: [block_length]u8 align(alignment) = undefined;
             var i: usize = 0;
+
             while (i + block_length <= ad.len) : (i += block_length) {
                 state.absorb(ad[i..][0..block_length]);
             }
+
             if (ad.len % block_length != 0) {
                 @memset(src[0..], 0);
                 @memcpy(src[0 .. ad.len % block_length], ad[i..][0 .. ad.len % block_length]);
+
                 state.absorb(&src);
             }
+
             i = 0;
+
             while (i + block_length <= m.len) : (i += block_length) {
                 state.enc(c[i..][0..block_length], m[i..][0..block_length]);
             }
+
             if (m.len % block_length != 0) {
                 @memset(src[0..], 0);
                 @memcpy(src[0 .. m.len % block_length], m[i..][0 .. m.len % block_length]);
+
                 state.enc(&dst, &src);
+
                 @memcpy(c[i..][0 .. m.len % block_length], dst[0 .. m.len % block_length]);
             }
+
             tag.* = state.finalize(tag_bits, ad.len, m.len);
         }
 
@@ -616,29 +766,41 @@ fn Aegis256XGeneric(comptime degree: u7, comptime tag_bits: u9) type {
         /// Contents of `m` are undefined if an error is returned.
         pub fn decrypt(m: []u8, c: []const u8, tag: [tag_length]u8, ad: []const u8, npub: [nonce_length]u8, key: [key_length]u8) AuthenticationError!void {
             assert(c.len == m.len);
+
             var state = State.init(key, npub);
+
             var src: [block_length]u8 align(alignment) = undefined;
             var i: usize = 0;
+
             while (i + block_length <= ad.len) : (i += block_length) {
                 state.absorb(ad[i..][0..block_length]);
             }
+
             if (ad.len % block_length != 0) {
                 @memset(src[0..], 0);
                 @memcpy(src[0 .. ad.len % block_length], ad[i..][0 .. ad.len % block_length]);
+
                 state.absorb(&src);
             }
+
             i = 0;
+
             while (i + block_length <= m.len) : (i += block_length) {
                 state.dec(m[i..][0..block_length], c[i..][0..block_length]);
             }
+
             if (m.len % block_length != 0) {
                 state.decLast(m[i..], c[i..]);
             }
+
             var computed_tag = state.finalize(tag_bits, ad.len, m.len);
             const verify = crypto.timing_safe.eql([tag_length]u8, computed_tag, tag);
+
             if (!verify) {
                 crypto.secureZero(u8, &computed_tag);
+
                 @memset(m, undefined);
+
                 return error.AuthenticationFailed;
             }
         }
@@ -756,24 +918,33 @@ fn AegisMac(comptime T: type) type {
             self.msg_len += b.len;
 
             const len_partial = @min(b.len, block_length - self.off);
+
             @memcpy(self.buf[self.off..][0..len_partial], b[0..len_partial]);
+
             self.off += len_partial;
+
             if (self.off < block_length) {
                 return;
             }
+
             self.state.absorb(&self.buf);
 
             var i = len_partial;
+
             self.off = 0;
+
             while (i + block_length * 2 <= b.len) : (i += block_length * 2) {
                 self.state.absorb(b[i..][0..block_length]);
                 self.state.absorb(b[i..][block_length .. block_length * 2]);
             }
+
             while (i + block_length <= b.len) : (i += block_length) {
                 self.state.absorb(b[i..][0..block_length]);
             }
+
             if (i != b.len) {
                 self.off = b.len - i;
+
                 @memcpy(self.buf[0..self.off], b[i..]);
             }
         }
@@ -782,15 +953,19 @@ fn AegisMac(comptime T: type) type {
         pub fn final(self: *Mac, out: *[mac_length]u8) void {
             if (self.off > 0) {
                 var pad = [_]u8{0} ** block_length;
+
                 @memcpy(pad[0..self.off], self.buf[0..self.off]);
+
                 self.state.absorb(&pad);
             }
+
             out.* = self.state.finalizeMac(T.tag_length * 8, self.msg_len);
         }
 
         /// Return an authentication tag for a message, a key and a nonce
         pub fn createWithNonce(out: *[mac_length]u8, msg: []const u8, key: *const [key_length]u8, nonce: *const [nonce_length]u8) void {
             var ctx = Mac.initWithNonce(key, nonce);
+
             ctx.update(msg);
             ctx.final(out);
         }
@@ -798,6 +973,7 @@ fn AegisMac(comptime T: type) type {
         /// Return an authentication tag for a message and a key
         pub fn create(out: *[mac_length]u8, msg: []const u8, key: *const [key_length]u8) void {
             var ctx = Mac.init(key);
+
             ctx.update(msg);
             ctx.final(out);
         }
@@ -805,6 +981,7 @@ fn AegisMac(comptime T: type) type {
 }
 
 const htest = @import("test.zig");
+
 const testing = std.testing;
 
 test "Aegis128L test vector 1" {
@@ -812,6 +989,7 @@ test "Aegis128L test vector 1" {
     const nonce: [Aegis128L.nonce_length]u8 = [_]u8{ 0x10, 0x00, 0x02 } ++ [_]u8{0x00} ** 13;
     const ad = [8]u8{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
     const m = [32]u8{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f };
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aegis128L.tag_length]u8 = undefined;
@@ -824,9 +1002,12 @@ test "Aegis128L test vector 1" {
     try htest.assertEqual("cc6f3372f6aa1bb82388d695c3962d9a", &tag);
 
     c[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis128L.decrypt(&m2, &c, tag, &ad, nonce, key));
+
     c[0] -%= 1;
     tag[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis128L.decrypt(&m2, &c, tag, &ad, nonce, key));
 }
 
@@ -835,6 +1016,7 @@ test "Aegis128L test vector 2" {
     const nonce: [Aegis128L.nonce_length]u8 = [_]u8{0x00} ** 16;
     const ad = [_]u8{};
     const m = [_]u8{0x00} ** 16;
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aegis128L.tag_length]u8 = undefined;
@@ -852,6 +1034,7 @@ test "Aegis128L test vector 3" {
     const nonce: [Aegis128L.nonce_length]u8 = [_]u8{0x00} ** 16;
     const ad = [_]u8{};
     const m = [_]u8{};
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aegis128L.tag_length]u8 = undefined;
@@ -866,6 +1049,7 @@ test "Aegis128L test vector 3" {
 test "Aegis128X2 test vector 1" {
     const key: [Aegis128X2.key_length]u8 = [_]u8{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
     const nonce: [Aegis128X2.nonce_length]u8 = [_]u8{ 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f };
+
     var empty = [_]u8{};
     var tag: [Aegis128X2.tag_length]u8 = undefined;
     var tag256: [Aegis128X2_256.tag_length]u8 = undefined;
@@ -874,9 +1058,13 @@ test "Aegis128X2 test vector 1" {
     Aegis128X2_256.encrypt(&empty, &tag256, &empty, &empty, nonce, key);
     try htest.assertEqual("63117dc57756e402819a82e13eca8379", &tag);
     try htest.assertEqual("b92c71fdbd358b8a4de70b27631ace90cffd9b9cfba82028412bac41b4f53759", &tag256);
+
     tag[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis128X2.decrypt(&empty, &empty, tag, &empty, nonce, key));
+
     tag256[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis128X2_256.decrypt(&empty, &empty, tag256, &empty, nonce, key));
 }
 
@@ -885,6 +1073,7 @@ test "Aegis256 test vector 1" {
     const nonce: [Aegis256.nonce_length]u8 = [_]u8{ 0x10, 0x00, 0x02 } ++ [_]u8{0x00} ** 29;
     const ad = [8]u8{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
     const m = [32]u8{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f };
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aegis256.tag_length]u8 = undefined;
@@ -897,9 +1086,12 @@ test "Aegis256 test vector 1" {
     try htest.assertEqual("8d86f91ee606e9ff26a01b64ccbdd91d", &tag);
 
     c[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis256.decrypt(&m2, &c, tag, &ad, nonce, key));
+
     c[0] -%= 1;
     tag[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis256.decrypt(&m2, &c, tag, &ad, nonce, key));
 }
 
@@ -908,6 +1100,7 @@ test "Aegis256 test vector 2" {
     const nonce: [Aegis256.nonce_length]u8 = [_]u8{0x00} ** 32;
     const ad = [_]u8{};
     const m = [_]u8{0x00} ** 16;
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aegis256.tag_length]u8 = undefined;
@@ -925,6 +1118,7 @@ test "Aegis256 test vector 3" {
     const nonce: [Aegis256.nonce_length]u8 = [_]u8{0x00} ** 32;
     const ad = [_]u8{};
     const m = [_]u8{};
+
     var c: [m.len]u8 = undefined;
     var m2: [m.len]u8 = undefined;
     var tag: [Aegis256.tag_length]u8 = undefined;
@@ -939,6 +1133,7 @@ test "Aegis256 test vector 3" {
 test "Aegis256X4 test vector 1" {
     const key: [Aegis256X4.key_length]u8 = [_]u8{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f };
     const nonce: [Aegis256X4.nonce_length]u8 = [_]u8{ 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f };
+
     var empty = [_]u8{};
     var tag: [Aegis256X4.tag_length]u8 = undefined;
     var tag256: [Aegis256X4_256.tag_length]u8 = undefined;
@@ -947,18 +1142,24 @@ test "Aegis256X4 test vector 1" {
     Aegis256X4_256.encrypt(&empty, &tag256, &empty, &empty, nonce, key);
     try htest.assertEqual("3b7fee6cee7bf17888ad11ed2397beb4", &tag);
     try htest.assertEqual("6093a1a8aab20ec635dc1ca71745b01b5bec4fc444c9ffbebd710d4a34d20eaf", &tag256);
+
     tag[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis256X4.decrypt(&empty, &empty, tag, &empty, nonce, key));
+
     tag256[0] +%= 1;
+
     try testing.expectError(error.AuthenticationFailed, Aegis256X4_256.decrypt(&empty, &empty, tag256, &empty, nonce, key));
 }
 
 test "Aegis MAC" {
     const key = [_]u8{0x00} ** Aegis128LMac.key_length;
     var msg: [64]u8 = undefined;
+
     for (&msg, 0..) |*m, i| {
         m.* = @as(u8, @truncate(i));
     }
+
     const st_init = Aegis128LMac.init(&key);
     var st = st_init;
     var tag: [Aegis128LMac.mac_length]u8 = undefined;
@@ -969,12 +1170,14 @@ test "Aegis MAC" {
     try htest.assertEqual("f5eb88d90b7d31c9a679eb94ed1374cd14816b19cdb77930d1a5158f8595983b", &tag);
 
     st = st_init;
+
     st.update(msg[0..31]);
     st.update(msg[31..]);
     st.final(&tag);
     try htest.assertEqual("f5eb88d90b7d31c9a679eb94ed1374cd14816b19cdb77930d1a5158f8595983b", &tag);
 
     st = st_init;
+
     st.update(msg[0..14]);
     st.update(msg[14..30]);
     st.update(msg[30..]);
@@ -983,6 +1186,7 @@ test "Aegis MAC" {
 
     // An update whose size is not a multiple of the block size
     st = st_init;
+
     st.update(msg[0..33]);
     st.final(&tag);
     try htest.assertEqual("07b3ba5ad9ceee5ef1906e3396f0fa540fbcd2f33833ef97c35bdc2ae9ae0535", &tag);
@@ -991,8 +1195,11 @@ test "Aegis MAC" {
 test "AEGISMAC-128* test vectors" {
     const key = [_]u8{ 0x10, 0x01 } ++ [_]u8{0x00} ** (16 - 2);
     const nonce = [_]u8{ 0x10, 0x00, 0x02 } ++ [_]u8{0x00} ** (16 - 3);
+
     var msg: [35]u8 = undefined;
+
     for (&msg, 0..) |*byte, i| byte.* = @truncate(i);
+
     var mac128: [16]u8 = undefined;
     var mac256: [32]u8 = undefined;
 
@@ -1015,8 +1222,11 @@ test "AEGISMAC-128* test vectors" {
 test "AEGISMAC-256* test vectors" {
     const key = [_]u8{ 0x10, 0x01 } ++ [_]u8{0x00} ** (32 - 2);
     const nonce = [_]u8{ 0x10, 0x00, 0x02 } ++ [_]u8{0x00} ** (32 - 3);
+
     var msg: [35]u8 = undefined;
+
     for (&msg, 0..) |*byte, i| byte.* = @truncate(i);
+
     var mac128: [16]u8 = undefined;
     var mac256: [32]u8 = undefined;
 

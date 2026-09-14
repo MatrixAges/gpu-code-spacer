@@ -106,9 +106,11 @@ const KT256Variant = KangarooVariant(
 /// Rotate left for u64 vector
 inline fn rol64Vec(comptime N: usize, v: @Vector(N, u64), comptime n: u6) @Vector(N, u64) {
     if (n == 0) return v;
+
     const left: @Vector(N, u64) = @splat(n);
     const right_shift: u64 = 64 - @as(u64, n);
     const right: @Vector(N, u64) = @splat(right_shift);
+
     return (v << left) | (v >> right);
 }
 
@@ -139,6 +141,7 @@ fn rightEncode(x: usize) RightEncoded {
     if (x == 0) {
         result.bytes[0] = 0;
         result.len = 1;
+
         return result;
     }
 
@@ -148,6 +151,7 @@ fn rightEncode(x: usize) RightEncoded {
 
     while (val > 0) : (val /= 256) {
         temp[len] = @intCast(val % 256);
+
         len += 1;
     }
 
@@ -155,6 +159,7 @@ fn rightEncode(x: usize) RightEncoded {
     for (0..len) |i| {
         result.bytes[i] = temp[len - 1 - i];
     }
+
     result.bytes[len] = @intCast(len);
     result.len = @intCast(len + 1);
 
@@ -189,6 +194,7 @@ const MultiSliceView = struct {
                 return self.slices[i][pos - self.offsets[i]];
             }
         }
+
         unreachable;
     }
 
@@ -198,17 +204,21 @@ const MultiSliceView = struct {
             if (start >= self.offsets[i] and end <= self.offsets[i + 1]) {
                 const local_start = start - self.offsets[i];
                 const local_end = end - self.offsets[i];
+
                 return self.slices[i][local_start..local_end];
             }
         }
+
         return null;
     }
 
     /// Copy range [start..end) to buffer (used when slice spans boundaries)
     fn copyRange(self: *const MultiSliceView, start: usize, end: usize, buffer: []u8) void {
         var pos: usize = 0;
+
         for (start..end) |i| {
             buffer[pos] = self.getByte(i);
+
             pos += 1;
         }
     }
@@ -223,26 +233,34 @@ fn keccakP1600timesN(comptime N: usize, states: *[5][5]@Vector(N, u64)) void {
         var offsets: [24]u6 = undefined;
         var px: usize = 1;
         var py: usize = 0;
+
         for (0..24) |t| {
             const rot_amount = ((t + 1) * (t + 2) / 2) % 64;
+
             offsets[t] = @intCast(rot_amount);
+
             const temp_x = py;
+
             py = (2 * px + 3 * py) % 5;
             px = temp_x;
         }
+
         break :blk offsets;
     };
 
     var round: usize = 0;
+
     while (round < 12) : (round += 2) {
         inline for (0..2) |i| {
             // θ (theta)
             var C: [5]@Vector(N, u64) = undefined;
+
             inline for (0..5) |x| {
                 C[x] = states[x][0] ^ states[x][1] ^ states[x][2] ^ states[x][3] ^ states[x][4];
             }
 
             var D: [5]@Vector(N, u64) = undefined;
+
             inline for (0..5) |x| {
                 D[x] = C[(x + 4) % 5] ^ rol64Vec(N, C[(x + 1) % 5], 1);
             }
@@ -260,10 +278,13 @@ fn keccakP1600timesN(comptime N: usize, states: *[5][5]@Vector(N, u64)) void {
             var current = states[1][0];
             var px: usize = 1;
             var py: usize = 0;
+
             inline for (rho_offsets) |rot| {
                 const next_y = (2 * px + 3 * py) % 5;
                 const next = states[py][next_y];
+
                 states[py][next_y] = rol64Vec(N, current, rot);
+
                 current = next;
                 px = py;
                 py = next_y;
@@ -286,6 +307,7 @@ fn keccakP1600timesN(comptime N: usize, states: *[5][5]@Vector(N, u64)) void {
 
             // ι (iota)
             const rc_splat: @Vector(N, u64) = @splat(RC[round + i]);
+
             states[0][0] ^= rc_splat;
         }
     }
@@ -299,7 +321,6 @@ fn addLanesAll(
     lane_count: usize,
     lane_offset: usize,
 ) void {
-
     // Process lanes (at most 25 lanes in Keccak state)
     inline for (0..25) |xy| {
         if (xy < lane_count) {
@@ -307,9 +328,11 @@ fn addLanesAll(
             const y = xy / 5;
 
             var loaded_data: @Vector(N, u64) = undefined;
+
             inline for (0..N) |i| {
                 loaded_data[i] = load64(data[8 * (i * lane_offset + xy) ..]);
             }
+
             states[x][y] ^= loaded_data;
         }
     }
@@ -318,6 +341,7 @@ fn addLanesAll(
 /// Apply Keccak-p[1600,12] to a single state (byte representation)
 fn keccakP(state: *[200]u8) void {
     @setEvalBranchQuota(10000);
+
     var lanes: [5][5]u64 = undefined;
 
     // Load state into lanes
@@ -329,17 +353,22 @@ fn keccakP(state: *[200]u8) void {
 
     // Apply 12 rounds
     var round: usize = 0;
+
     while (round < 12) : (round += 2) {
         inline for (0..2) |i| {
             // θ
             var C: [5]u64 = undefined;
+
             inline for (0..5) |x| {
                 C[x] = lanes[x][0] ^ lanes[x][1] ^ lanes[x][2] ^ lanes[x][3] ^ lanes[x][4];
             }
+
             var D: [5]u64 = undefined;
+
             inline for (0..5) |x| {
                 D[x] = C[(x + 4) % 5] ^ std.math.rotl(u64, C[(x + 1) % 5], 1);
             }
+
             inline for (0..5) |x| {
                 inline for (0..5) |y| {
                     lanes[x][y] ^= D[x];
@@ -350,12 +379,17 @@ fn keccakP(state: *[200]u8) void {
             var current = lanes[1][0];
             var px: usize = 1;
             var py: usize = 0;
+
             inline for (0..24) |t| {
                 const temp = lanes[py][(2 * px + 3 * py) % 5];
                 const rot_amount = ((t + 1) * (t + 2) / 2) % 64;
+
                 lanes[py][(2 * px + 3 * py) % 5] = std.math.rotl(u64, current, @as(u6, @intCast(rot_amount)));
+
                 current = temp;
+
                 const temp_x = py;
+
                 py = (2 * px + 3 * py) % 5;
                 px = temp_x;
             }
@@ -363,6 +397,7 @@ fn keccakP(state: *[200]u8) void {
             // χ
             inline for (0..5) |y| {
                 const T = [5]u64{ lanes[0][y], lanes[1][y], lanes[2][y], lanes[3][y], lanes[4][y] };
+
                 inline for (0..5) |x| {
                     lanes[x][y] = T[x] ^ (~T[(x + 1) % 5] & T[(x + 2) % 5]);
                 }
@@ -389,13 +424,17 @@ fn keccakPLanes(lanes: *[25]u64) void {
     inline for (RC) |rc| {
         // θ
         var C: [5]u64 = undefined;
+
         inline for (0..5) |x| {
             C[x] = lanes[x] ^ lanes[x + 5] ^ lanes[x + 10] ^ lanes[x + 15] ^ lanes[x + 20];
         }
+
         var D: [5]u64 = undefined;
+
         inline for (0..5) |x| {
             D[x] = C[(x + 4) % 5] ^ std.math.rotl(u64, C[(x + 1) % 5], 1);
         }
+
         inline for (0..5) |x| {
             inline for (0..5) |y| {
                 lanes[x + 5 * y] ^= D[x];
@@ -406,12 +445,15 @@ fn keccakPLanes(lanes: *[25]u64) void {
         var current = lanes[1];
         var px: usize = 1;
         var py: usize = 0;
+
         inline for (0..24) |t| {
             const next_y = (2 * px + 3 * py) % 5;
             const next_idx = py + 5 * next_y;
             const temp = lanes[next_idx];
             const rot_amount = ((t + 1) * (t + 2) / 2) % 64;
+
             lanes[next_idx] = std.math.rotl(u64, current, @as(u6, @intCast(rot_amount)));
+
             current = temp;
             px = py;
             py = next_y;
@@ -421,6 +463,7 @@ fn keccakPLanes(lanes: *[25]u64) void {
         inline for (0..5) |y| {
             const idx = 5 * y;
             const T = [5]u64{ lanes[idx], lanes[idx + 1], lanes[idx + 2], lanes[idx + 3], lanes[idx + 4] };
+
             inline for (0..5) |x| {
                 lanes[idx + x] = T[x] ^ (~T[(x + 1) % 5] & T[(x + 2) % 5]);
             }
@@ -444,13 +487,16 @@ fn turboShakeMultiSliceToBuffer(
     // Absorb all bytes from the multi-slice view
     const total = view.totalLen();
     var pos: usize = 0;
+
     while (pos < total) {
         state[state_pos] ^= view.getByte(pos);
+
         state_pos += 1;
         pos += 1;
 
         if (state_pos == rate) {
             keccakP(&state);
+
             state_pos = 0;
         }
     }
@@ -458,14 +504,19 @@ fn turboShakeMultiSliceToBuffer(
     // Add separation byte and padding
     state[state_pos] ^= separation_byte;
     state[rate - 1] ^= 0x80;
+
     keccakP(&state);
 
     // Squeeze
     var out_offset: usize = 0;
+
     while (out_offset < output.len) {
         const chunk = @min(rate, output.len - out_offset);
+
         @memcpy(output[out_offset..][0..chunk], state[0..chunk]);
+
         out_offset += chunk;
+
         if (out_offset < output.len) {
             keccakP(&state);
         }
@@ -481,7 +532,9 @@ fn turboShakeMultiSlice(
     output_len: usize,
 ) ![]u8 {
     const output = try allocator.alloc(u8, output_len);
+
     turboShakeMultiSliceToBuffer(rate, view, separation_byte, output);
+
     return output;
 }
 
@@ -536,6 +589,7 @@ fn processLeaves(
 
     // Initialize N all-zero states with cache alignment
     var states: [5][5]@Vector(N, u64) align(cache_line_size) = undefined;
+
     inline for (0..5) |x| {
         inline for (0..5) |y| {
             states[x][y] = @splat(0);
@@ -544,6 +598,7 @@ fn processLeaves(
 
     // Process complete blocks
     var j: usize = 0;
+
     while (j + rate_in_bytes <= chunk_size) : (j += rate_in_bytes) {
         addLanesAll(N, &states, data[j..], rate_in_lanes, chunk_size / 8);
         keccakP1600timesN(N, &states);
@@ -551,6 +606,7 @@ fn processLeaves(
 
     // Process last incomplete block
     const remaining_lanes = (chunk_size - j) / 8;
+
     if (remaining_lanes > 0) {
         addLanesAll(N, &states, data[j..], remaining_lanes, chunk_size / 8);
     }
@@ -560,8 +616,11 @@ fn processLeaves(
     const padding_pos = Variant.padding_pos;
 
     const suffix_splat: @Vector(N, u64) = @splat(0x0B);
+
     states[suffix_pos.x][suffix_pos.y] ^= suffix_splat;
+
     const padding_splat: @Vector(N, u64) = @splat(0x8000000000000000);
+
     states[padding_pos.x][padding_pos.y] ^= padding_splat;
 
     keccakP1600timesN(N, &states);
@@ -569,9 +628,11 @@ fn processLeaves(
     // Extract chaining values from each state
     const lanes_to_extract = cv_size / 8;
     comptime var lane_idx: usize = 0;
+
     inline while (lane_idx < lanes_to_extract) : (lane_idx += 1) {
         const x = lane_idx % 5;
         const y = lane_idx / 5;
+
         inline for (0..N) |i| {
             store64(states[x][y][i], result[i * cv_size + lane_idx * 8 ..]);
         }
@@ -598,16 +659,22 @@ inline fn processNLeaves(
     output: []align(@alignOf(u64)) u8,
 ) void {
     const cv_size = Variant.cv_size;
+
     comptime std.debug.assert(cv_size % @sizeOf(u64) == 0);
 
     if (view.tryGetSlice(j, j + N * chunk_size)) |leaf_data| {
         var leaf_cvs: [N * cv_size]u8 = undefined;
+
         processLeaves(Variant, N, leaf_data, &leaf_cvs);
+
         @memcpy(output[0..leaf_cvs.len], &leaf_cvs);
     } else {
         view.copyRange(j, j + N * chunk_size, leaf_buffer[0 .. N * chunk_size]);
+
         var leaf_cvs: [N * cv_size]u8 = undefined;
+
         processLeaves(Variant, N, leaf_buffer[0 .. N * chunk_size], &leaf_cvs);
+
         @memcpy(output[0..leaf_cvs.len], &leaf_cvs);
     }
 }
@@ -625,6 +692,7 @@ fn processLeafBatch(comptime Variant: type, ctx: LeafBatchContext) void {
     inline for ([_]usize{ 8, 4, 2 }) |batch_size| {
         while (optimal_vector_len >= batch_size and j + batch_size * chunk_size <= batch_end) {
             processNLeaves(Variant, batch_size, ctx.view, j, leaf_buffer, @alignCast(ctx.output_cvs[cvs_offset..]));
+
             cvs_offset += batch_size * cv_size;
             j += batch_size * chunk_size;
         }
@@ -633,14 +701,19 @@ fn processLeafBatch(comptime Variant: type, ctx: LeafBatchContext) void {
     // Process remaining single leaves
     while (j < batch_end) {
         const chunk_len = @min(chunk_size, batch_end - j);
+
         if (ctx.view.tryGetSlice(j, j + chunk_len)) |leaf_data| {
             const cv_slice = MultiSliceView.init(leaf_data, &[_]u8{}, &[_]u8{});
+
             Variant.turboShakeToBuffer(&cv_slice, 0x0B, ctx.output_cvs[cvs_offset..][0..cv_size]);
         } else {
             ctx.view.copyRange(j, j + chunk_len, leaf_buffer[0..chunk_len]);
+
             const cv_slice = MultiSliceView.init(leaf_buffer[0..chunk_len], &[_]u8{}, &[_]u8{});
+
             Variant.turboShakeToBuffer(&cv_slice, 0x0B, ctx.output_cvs[cvs_offset..][0..cv_size]);
         }
+
         cvs_offset += cv_size;
         j += chunk_len;
     }
@@ -658,14 +731,20 @@ inline fn processAndAbsorbNLeaves(
     final_state: anytype,
 ) void {
     const cv_size = Variant.cv_size;
+
     if (view.tryGetSlice(j, j + N * chunk_size)) |leaf_data| {
         var leaf_cvs: [N * cv_size]u8 align(cache_line_size) = undefined;
+
         processLeaves(Variant, N, leaf_data, &leaf_cvs);
+
         final_state.update(&leaf_cvs);
     } else {
         view.copyRange(j, j + N * chunk_size, leaf_buffer[0 .. N * chunk_size]);
+
         var leaf_cvs: [N * cv_size]u8 align(cache_line_size) = undefined;
+
         processLeaves(Variant, N, leaf_buffer[0 .. N * chunk_size], &leaf_cvs);
+
         final_state.update(&leaf_cvs);
     }
 }
@@ -680,6 +759,7 @@ fn ktSingleThreaded(comptime Variant: type, view: *const MultiSliceView, total_l
 
     // Absorb first B bytes from input
     var first_b_buffer: [chunk_size]u8 = undefined;
+
     if (view.tryGetSlice(0, chunk_size)) |first_chunk| {
         final_state.update(first_chunk);
     } else {
@@ -689,6 +769,7 @@ fn ktSingleThreaded(comptime Variant: type, view: *const MultiSliceView, total_l
 
     // Absorb padding bytes (8 bytes: 0x03 followed by 7 zeros)
     const padding = [_]u8{ 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
     final_state.update(&padding);
 
     var j: usize = chunk_size;
@@ -702,6 +783,7 @@ fn ktSingleThreaded(comptime Variant: type, view: *const MultiSliceView, total_l
     inline for ([_]usize{ 8, 4, 2 }) |batch_size| {
         while (optimal_vector_len >= batch_size and j + batch_size * chunk_size <= total_len) {
             processAndAbsorbNLeaves(Variant, batch_size, view, j, &leaf_buffer, &final_state);
+
             j += batch_size * chunk_size;
             n += batch_size;
         }
@@ -710,24 +792,32 @@ fn ktSingleThreaded(comptime Variant: type, view: *const MultiSliceView, total_l
     // Process remaining leaves one at a time
     while (j < total_len) {
         const chunk_len = @min(chunk_size, total_len - j);
+
         if (view.tryGetSlice(j, j + chunk_len)) |leaf_data| {
             const cv_slice = MultiSliceView.init(leaf_data, &[_]u8{}, &[_]u8{});
+
             Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
             final_state.update(cv_buffer[0..cv_size]); // Absorb CV immediately
         } else {
             view.copyRange(j, j + chunk_len, leaf_buffer[0..chunk_len]);
+
             const cv_slice = MultiSliceView.init(leaf_buffer[0..chunk_len], &[_]u8{}, &[_]u8{});
+
             Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
             final_state.update(cv_buffer[0..cv_size]);
         }
+
         j += chunk_size;
         n += 1;
     }
 
     // Absorb right_encode(n) and terminator
     const n_enc = rightEncode(n);
+
     final_state.update(n_enc.slice());
+
     const terminator = [_]u8{ 0xFF, 0xFF };
+
     final_state.update(&terminator);
 
     // Finalize and squeeze output
@@ -768,17 +858,24 @@ fn SelectLeafContext(comptime Variant: type) type {
             var byte_offset = ctx.start_offset;
             var cv_offset: usize = 0;
             const simd_batch_bytes = optimal_vector_len * chunk_size;
+
             while (leaves_processed + optimal_vector_len <= ctx.num_leaves) {
                 if (ctx.view.tryGetSlice(byte_offset, byte_offset + simd_batch_bytes)) |leaf_data| {
                     var leaf_cvs: [optimal_vector_len * Variant.cv_size]u8 = undefined;
+
                     processLeaves(Variant, optimal_vector_len, leaf_data, &leaf_cvs);
+
                     @memcpy(result.cvs[cv_offset..][0..leaf_cvs.len], &leaf_cvs);
                 } else {
                     ctx.view.copyRange(byte_offset, byte_offset + simd_batch_bytes, leaf_buffer[0..simd_batch_bytes]);
+
                     var leaf_cvs: [optimal_vector_len * Variant.cv_size]u8 = undefined;
+
                     processLeaves(Variant, optimal_vector_len, leaf_buffer[0..simd_batch_bytes], &leaf_cvs);
+
                     @memcpy(result.cvs[cv_offset..][0..leaf_cvs.len], &leaf_cvs);
                 }
+
                 leaves_processed += optimal_vector_len;
                 byte_offset += optimal_vector_len * chunk_size;
                 cv_offset += optimal_vector_len * cv_size;
@@ -790,12 +887,16 @@ fn SelectLeafContext(comptime Variant: type) type {
 
                 if (ctx.view.tryGetSlice(byte_offset, leaf_end)) |leaf_data| {
                     const cv_slice = MultiSliceView.init(leaf_data, &[_]u8{}, &[_]u8{});
+
                     Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
                 } else {
                     ctx.view.copyRange(byte_offset, leaf_end, leaf_buffer[0..chunk_size]);
+
                     const cv_slice = MultiSliceView.init(leaf_buffer[0..chunk_size], &[_]u8{}, &[_]u8{});
+
                     Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
                 }
+
                 @memcpy(result.cvs[cv_offset..][0..cv_size], cv_buffer[0..cv_size]);
 
                 leaves_processed += 1;
@@ -822,12 +923,16 @@ fn FinalLeafContext(comptime Variant: type) type {
 
             if (ctx.view.tryGetSlice(ctx.start_offset, ctx.start_offset + ctx.leaf_len)) |leaf_data| {
                 const cv_slice = MultiSliceView.init(leaf_data, &[_]u8{}, &[_]u8{});
+
                 Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
             } else {
                 ctx.view.copyRange(ctx.start_offset, ctx.start_offset + ctx.leaf_len, leaf_buffer[0..ctx.leaf_len]);
+
                 const cv_slice = MultiSliceView.init(leaf_buffer[0..ctx.leaf_len], &[_]u8{}, &[_]u8{});
+
                 Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
             }
+
             @memcpy(ctx.output_cv[0..cv_size], cv_buffer[0..cv_size]);
         }
     };
@@ -852,6 +957,7 @@ fn ktMultiThreaded(
     var final_state = StateType.init(.{});
 
     var first_chunk_buffer: [chunk_size]u8 = undefined;
+
     if (view.tryGetSlice(0, chunk_size)) |first_chunk| {
         final_state.update(first_chunk);
     } else {
@@ -860,6 +966,7 @@ fn ktMultiThreaded(
     }
 
     const padding = [_]u8{ 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
     final_state.update(&padding);
 
     const full_leaves = remaining_bytes / chunk_size;
@@ -875,11 +982,14 @@ fn ktMultiThreaded(
         const Select = Io.Select(SelectResult);
 
         const select_buf = try allocator.alloc(SelectResult, max_concurrent);
+
         defer allocator.free(select_buf);
 
         // Buffer for out-of-order results (select_buf slots get reused)
         const pending_cv_buf = try allocator.alloc([leaves_per_batch * cv_size]u8, max_concurrent);
+
         defer allocator.free(pending_cv_buf);
+
         var pending_cv_lens: [256]usize = .{0} ** 256;
 
         var select: Select = .init(io, select_buf);
@@ -898,6 +1008,7 @@ fn ktMultiThreaded(
                     .start_offset = start_offset,
                     .num_leaves = batch_leaves,
                 }});
+
                 batches_spawned += 1;
             }
 
@@ -907,20 +1018,25 @@ fn ktMultiThreaded(
 
             if (batch.batch_idx == next_to_process) {
                 final_state.update(batch.cvs[0..batch.cv_len]);
+
                 next_to_process += 1;
 
                 // Drain pending batches that are now ready
                 while (next_to_process < total_batches) {
                     const pending_slot = next_to_process % max_concurrent;
                     const pending_len = pending_cv_lens[pending_slot];
+
                     if (pending_len == 0) break;
 
                     final_state.update(pending_cv_buf[pending_slot][0..pending_len]);
+
                     pending_cv_lens[pending_slot] = 0;
+
                     next_to_process += 1;
                 }
             } else {
                 @memcpy(pending_cv_buf[slot][0..batch.cv_len], batch.cvs[0..batch.cv_len]);
+
                 pending_cv_lens[slot] = batch.cv_len;
             }
         }
@@ -933,20 +1049,28 @@ fn ktMultiThreaded(
         var leaf_buffer: [chunk_size]u8 = undefined;
 
         const start_offset = chunk_size + full_leaves * chunk_size;
+
         if (view.tryGetSlice(start_offset, start_offset + partial_leaf_size)) |leaf_data| {
             const cv_slice = MultiSliceView.init(leaf_data, &[_]u8{}, &[_]u8{});
+
             Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
         } else {
             view.copyRange(start_offset, start_offset + partial_leaf_size, leaf_buffer[0..partial_leaf_size]);
+
             const cv_slice = MultiSliceView.init(leaf_buffer[0..partial_leaf_size], &[_]u8{}, &[_]u8{});
+
             Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
         }
+
         final_state.update(cv_buffer[0..cv_size]);
     }
 
     const n_enc = rightEncode(total_leaves);
+
     final_state.update(n_enc.slice());
+
     const terminator = [_]u8{ 0xFF, 0xFF };
+
     final_state.update(&terminator);
 
     final_state.final(output);
@@ -1021,6 +1145,7 @@ fn KTHash(
         /// - Composite Keys: concatenation of secret key + context string
         pub fn init(options: Options) Self {
             const custom = options.customization orelse &[_]u8{};
+
             return .{
                 .buffer = undefined,
                 .buffer_len = 0,
@@ -1045,16 +1170,21 @@ fn KTHash(
                 inline for ([_]usize{ 8, 4, 2 }) |batch_size| {
                     if (optimal_vector_len >= batch_size and self.pending_count >= batch_size) {
                         var leaf_cvs: [batch_size * cv_size]u8 align(cache_line_size) = undefined;
+
                         processLeaves(Variant, batch_size, self.pending_chunks[0 .. batch_size * chunk_size], &leaf_cvs);
+
                         self.final_state.?.update(&leaf_cvs);
+
                         self.num_leaves += batch_size;
                         self.pending_count -= batch_size;
 
                         // Shift remaining chunks to the front
                         if (self.pending_count > 0) {
                             const remaining_bytes = self.pending_count * chunk_size;
+
                             @memcpy(self.pending_chunks[0..remaining_bytes], self.pending_chunks[batch_size * chunk_size ..][0..remaining_bytes]);
                         }
+
                         break; // Continue outer loop to try next batch
                     }
                 }
@@ -1063,10 +1193,13 @@ fn KTHash(
                 if (self.pending_count > 0 and self.pending_count < 2) {
                     var cv_buffer: [64]u8 = undefined;
                     const cv_slice = MultiSliceView.init(self.pending_chunks[0..chunk_size], &[_]u8{}, &[_]u8{});
+
                     Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
                     self.final_state.?.update(cv_buffer[0..cv_size]);
+
                     self.num_leaves += 1;
                     self.pending_count -= 1;
+
                     break; // No more chunks to process
                 }
             }
@@ -1085,8 +1218,10 @@ fn KTHash(
 
                 // Copy data into buffer
                 @memcpy(self.buffer[self.buffer_len..][0..to_copy], remaining[0..to_copy]);
+
                 self.buffer_len += to_copy;
                 self.message_len += to_copy;
+
                 remaining = remaining[to_copy..];
 
                 // If buffer is full, process it
@@ -1094,6 +1229,7 @@ fn KTHash(
                     if (self.first_chunk == null) {
                         // First time buffer fills - initialize tree mode
                         self.first_chunk = self.buffer;
+
                         self.final_state = StateType.init(.{});
 
                         // Absorb first chunk into final state
@@ -1101,10 +1237,12 @@ fn KTHash(
 
                         // Absorb padding (8 bytes: 0x03 followed by 7 zeros)
                         const padding = [_]u8{ 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
                         self.final_state.?.update(&padding);
                     } else {
                         // Add chunk to pending buffer for SIMD batch processing
                         @memcpy(self.pending_chunks[self.pending_count * chunk_size ..][0..chunk_size], &self.buffer);
+
                         self.pending_count += 1;
 
                         // Flush when we have enough chunks for optimal SIMD batch
@@ -1113,12 +1251,15 @@ fn KTHash(
                             if (optimal_vector_len >= 8) break :blk 8;
                             if (optimal_vector_len >= 4) break :blk 4;
                             if (optimal_vector_len >= 2) break :blk 2;
+
                             break :blk 1;
                         };
+
                         if (self.pending_count >= optimal_batch_size) {
                             self.flushPendingChunks();
                         }
                     }
+
                     self.buffer_len = 0;
                 }
             }
@@ -1142,12 +1283,15 @@ fn KTHash(
             if (total_len <= chunk_size) {
                 // Build the complete input: buffer + customization + encoded length
                 var single_chunk: [chunk_size]u8 = undefined;
+
                 @memcpy(single_chunk[0..self.buffer_len], self.buffer[0..self.buffer_len]);
                 @memcpy(single_chunk[self.buffer_len..][0..self.customization.len], self.customization);
                 @memcpy(single_chunk[self.buffer_len + self.customization.len ..][0..self.custom_len_enc.len], self.custom_len_enc.slice());
 
                 const view = MultiSliceView.init(single_chunk[0..total_len], &[_]u8{}, &[_]u8{});
+
                 singleChunkFn(&view, 0x07, out);
+
                 return;
             }
 
@@ -1160,6 +1304,7 @@ fn KTHash(
                 self.customization,
                 self.custom_len_enc.slice(),
             );
+
             const remaining_len = remaining_view.totalLen();
 
             var final_leaves = self.num_leaves;
@@ -1171,18 +1316,21 @@ fn KTHash(
 
                 // Absorb first chunk (up to chunk_size bytes from remaining data)
                 const first_chunk_len = @min(chunk_size, remaining_len);
+
                 if (remaining_view.tryGetSlice(0, first_chunk_len)) |first_chunk| {
                     // Data is contiguous, use it directly
                     self.final_state.?.update(first_chunk);
                 } else {
                     // Data spans boundaries, copy to buffer
                     var first_chunk_buf: [chunk_size]u8 = undefined;
+
                     remaining_view.copyRange(0, first_chunk_len, first_chunk_buf[0..first_chunk_len]);
                     self.final_state.?.update(first_chunk_buf[0..first_chunk_len]);
                 }
 
                 // Absorb padding (8 bytes: 0x03 followed by 7 zeros)
                 const padding = [_]u8{ 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
                 self.final_state.?.update(&padding);
 
                 // Process remaining data as leaves
@@ -1191,31 +1339,43 @@ fn KTHash(
 
             // Process all remaining data as leaves (starting from leaf_start)
             var offset = leaf_start;
+
             while (offset < remaining_len) {
                 const leaf_end = @min(offset + chunk_size, remaining_len);
                 const leaf_size = leaf_end - offset;
 
                 var cv_buffer: [64]u8 = undefined;
+
                 if (remaining_view.tryGetSlice(offset, leaf_end)) |leaf_data| {
                     // Data is contiguous, use it directly
                     const cv_slice = MultiSliceView.init(leaf_data, &[_]u8{}, &[_]u8{});
+
                     Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
                 } else {
                     // Data spans boundaries, copy to buffer
                     var leaf_buf: [chunk_size]u8 = undefined;
+
                     remaining_view.copyRange(offset, leaf_end, leaf_buf[0..leaf_size]);
+
                     const cv_slice = MultiSliceView.init(leaf_buf[0..leaf_size], &[_]u8{}, &[_]u8{});
+
                     Variant.turboShakeToBuffer(&cv_slice, 0x0B, cv_buffer[0..cv_size]);
                 }
+
                 self.final_state.?.update(cv_buffer[0..cv_size]);
+
                 final_leaves += 1;
+
                 offset = leaf_end;
             }
 
             // Absorb right_encode(num_leaves) and terminator
             const n_enc = rightEncode(final_leaves);
+
             self.final_state.?.update(n_enc.slice());
+
             const terminator = [_]u8{ 0xFF, 0xFF };
+
             self.final_state.?.update(&terminator);
 
             // Squeeze output
@@ -1241,6 +1401,7 @@ fn KTHash(
             // Single chunk case - zero-copy absorption!
             if (total_len <= chunk_size) {
                 singleChunkFn(&view, 0x07, out);
+
                 return;
             }
 
@@ -1261,12 +1422,14 @@ fn KTHash(
             // Single chunk case
             if (total_len <= chunk_size) {
                 singleChunkFn(&view, 0x07, out);
+
                 return;
             }
 
             // Use single-threaded processing if below threshold
             if (total_len < large_file_threshold) {
                 ktSingleThreaded(Variant, &view, total_len, out);
+
                 return;
             }
 
@@ -1317,6 +1480,7 @@ test "KT128 sequential and parallel produce same output for small inputs" {
 
     for (test_sizes) |size| {
         const input = try allocator.alloc(u8, size);
+
         defer allocator.free(input);
 
         // Fill with random data
@@ -1352,6 +1516,7 @@ test "KT128 sequential and parallel produce same output for large inputs" {
 
     for (test_sizes) |size| {
         const input = try allocator.alloc(u8, size);
+
         defer allocator.free(input);
 
         // Fill with random data
@@ -1385,6 +1550,7 @@ test "KT128 sequential and parallel produce same output for many random lengths"
         const length = random.intRangeAtMost(usize, 0, max_length);
 
         const input = try allocator.alloc(u8, length);
+
         defer allocator.free(input);
 
         random.bytes(input);
@@ -1408,6 +1574,7 @@ test "KT128 sequential and parallel produce same output with customization" {
 
     const input_size = 5 * 512 * 1024; // 2.5MB
     const input = try allocator.alloc(u8, input_size);
+
     defer allocator.free(input);
 
     // Fill with random data
@@ -1439,6 +1606,7 @@ test "KT256 sequential and parallel produce same output for small inputs" {
 
     for (test_sizes) |size| {
         const input = try allocator.alloc(u8, size);
+
         defer allocator.free(input);
 
         // Fill with random data
@@ -1474,6 +1642,7 @@ test "KT256 sequential and parallel produce same output for large inputs" {
 
     for (test_sizes) |size| {
         const input = try allocator.alloc(u8, size);
+
         defer allocator.free(input);
 
         // Fill with random data
@@ -1502,6 +1671,7 @@ test "KT256 sequential and parallel produce same output with customization" {
 
     const input_size = 5 * 512 * 1024; // 2.5MB
     const input = try allocator.alloc(u8, input_size);
+
     defer allocator.free(input);
 
     // Fill with random data
@@ -1524,266 +1694,347 @@ test "KT256 sequential and parallel produce same output with customization" {
 /// Helper: Generate pattern data where data[i] = (i % 251)
 fn generatePattern(allocator: Allocator, len: usize) ![]u8 {
     const data = try allocator.alloc(u8, len);
+
     for (data, 0..) |*byte, i| {
         byte.* = @intCast(i % 251);
     }
+
     return data;
 }
 
 test "KT128: empty message, empty customization, 32 bytes" {
     var output: [32]u8 = undefined;
+
     try KT128.hash(&[_]u8{}, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "1AC2D450FC3B4205D19DA7BFCA1B37513C0803577AC7167F06FE2CE1F0EF39E5");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: empty message, empty customization, 64 bytes" {
     var output: [64]u8 = undefined;
+
     try KT128.hash(&[_]u8{}, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "1AC2D450FC3B4205D19DA7BFCA1B37513C0803577AC7167F06FE2CE1F0EF39E54269C056B8C82E48276038B6D292966CC07A3D4645272E31FF38508139EB0A71");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: empty message, empty customization, 10032 bytes (last 32)" {
     const allocator = std.testing.allocator;
     const output = try allocator.alloc(u8, 10032);
+
     defer allocator.free(output);
 
     try KT128.hash(&[_]u8{}, output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "E8DC563642F7228C84684C898405D3A834799158C079B12880277A1D28E2FF6D");
+
     try std.testing.expectEqualSlices(u8, &expected, output[10000..]);
 }
 
 test "KT128: pattern message (1 byte), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 1);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "2BDA92450E8B147F8A7CB629E784A058EFCA7CF7D8218E02D345DFAA65244A1F");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: pattern message (17 bytes), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 17);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "6BF75FA2239198DB4772E36478F8E19B0F371205F6A9A93A273F51DF37122888");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: pattern message (289 bytes), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 289);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "0C315EBCDEDBF61426DE7DCF8FB725D1E74675D7F5327A5067F367B108ECB67C");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: 0xFF message (1 byte), pattern customization (1 byte), 32 bytes" {
     const allocator = std.testing.allocator;
     const customization = try generatePattern(allocator, 1);
+
     defer allocator.free(customization);
 
     const message = [_]u8{0xFF};
     var output: [32]u8 = undefined;
+
     try KT128.hash(&message, &output, .{ .customization = customization });
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "A20B92B251E3D62443EC286E4B9B470A4E8315C156EEB24878B038ABE20650BE");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: pattern message (8191 bytes), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 8191);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "1B577636F723643E990CC7D6A659837436FD6A103626600EB8301CD1DBE553D6");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: pattern message (8192 bytes), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 8192);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "48F256F6772F9EDFB6A8B661EC92DC93B95EBD05A08A17B39AE3490870C926C3");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: empty message, empty customization, 64 bytes" {
     var output: [64]u8 = undefined;
+
     try KT256.hash(&[_]u8{}, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "B23D2E9CEA9F4904E02BEC06817FC10CE38CE8E93EF4C89E6537076AF8646404E3E8B68107B8833A5D30490AA33482353FD4ADC7148ECB782855003AAEBDE4A9");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: empty message, empty customization, 128 bytes" {
     var output: [128]u8 = undefined;
+
     try KT256.hash(&[_]u8{}, &output, .{});
 
     var expected: [128]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "B23D2E9CEA9F4904E02BEC06817FC10CE38CE8E93EF4C89E6537076AF8646404E3E8B68107B8833A5D30490AA33482353FD4ADC7148ECB782855003AAEBDE4A9B0925319D8EA1E121A609821EC19EFEA89E6D08DAEE1662B69C840289F188BA860F55760B61F82114C030C97E5178449608CCD2CD2D919FC7829FF69931AC4D0");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: pattern message (1 byte), empty customization, 64 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 1);
+
     defer allocator.free(message);
 
     var output: [64]u8 = undefined;
+
     try KT256.hash(message, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "0D005A194085360217128CF17F91E1F71314EFA5564539D444912E3437EFA17F82DB6F6FFE76E781EAA068BCE01F2BBF81EACB983D7230F2FB02834A21B1DDD0");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: pattern message (17 bytes), empty customization, 64 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 17);
+
     defer allocator.free(message);
 
     var output: [64]u8 = undefined;
+
     try KT256.hash(message, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "1BA3C02B1FC514474F06C8979978A9056C8483F4A1B63D0DCCEFE3A28A2F323E1CDCCA40EBF006AC76EF0397152346837B1277D3E7FAA9C9653B19075098527B");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: pattern message (8191 bytes), empty customization, 64 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 8191);
+
     defer allocator.free(message);
 
     var output: [64]u8 = undefined;
+
     try KT256.hash(message, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "3081434D93A4108D8D8A3305B89682CEBEDC7CA4EA8A3CE869FBB73CBE4A58EEF6F24DE38FFC170514C70E7AB2D01F03812616E863D769AFB3753193BA045B20");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: pattern message (8192 bytes), empty customization, 64 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 8192);
+
     defer allocator.free(message);
 
     var output: [64]u8 = undefined;
+
     try KT256.hash(message, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "C6EE8E2AD3200C018AC87AAA031CDAC22121B412D07DC6E0DCCBB53423747E9A1C18834D99DF596CF0CF4B8DFAFB7BF02D139D0C9035725ADC1A01B7230A41FA");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: pattern message (8193 bytes), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 8193);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "BB66FE72EAEA5179418D5295EE1344854D8AD7F3FA17EFCB467EC152341284CF");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: pattern message (16384 bytes), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 16384);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "82778F7F7234C83352E76837B721FBDBB5270B88010D84FA5AB0B61EC8CE0956");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT128: pattern message (16385 bytes), empty customization, 32 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 16385);
+
     defer allocator.free(message);
 
     var output: [32]u8 = undefined;
+
     try KT128.hash(message, &output, .{});
 
     var expected: [32]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "5F8D2B943922B451842B4E82740D02369E2D5F9F33C5123509A53B955FE177B2");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: pattern message (8193 bytes), empty customization, 64 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 8193);
+
     defer allocator.free(message);
 
     var output: [64]u8 = undefined;
+
     try KT256.hash(message, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "65FF03335900E5197ACBD5F41B797F0E7E36AD4FF7D89C09FA6F28AE58D1E8BC2DF1779B86F988C3B13690172914EA172423B23EF4057255BB0836AB3A99836E");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: pattern message (16384 bytes), empty customization, 64 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 16384);
+
     defer allocator.free(message);
 
     var output: [64]u8 = undefined;
+
     try KT256.hash(message, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "74604239A14847CB79069B4FF0E51070A93034C9AC4DFF4D45E0F2C5DA81D930DE6055C2134B4DF4E49F27D1B2C66E95491858B182A924BD0504DA5976BC516D");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
 test "KT256: pattern message (16385 bytes), empty customization, 64 bytes" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 16385);
+
     defer allocator.free(message);
 
     var output: [64]u8 = undefined;
+
     try KT256.hash(message, &output, .{});
 
     var expected: [64]u8 = undefined;
+
     _ = try std.fmt.hexToBytes(&expected, "C814F23132DADBFD55379F18CB988CB39B751F119322823FD982644A897485397B9F40EB11C6E416359B8AE695A5CE0FA79D1ADA1EEC745D82E0A5AB08A9F014");
+
     try std.testing.expectEqualSlices(u8, &expected, &output);
 }
 
@@ -1794,6 +2045,7 @@ test "KT128 incremental: empty message matches one-shot" {
     try KT128.hash(&[_]u8{}, &output_oneshot, .{});
 
     var hasher = KT128.init(.{});
+
     hasher.final(&output_incremental);
 
     try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);
@@ -1808,6 +2060,7 @@ test "KT128 incremental: small message matches one-shot" {
     try KT128.hash(message, &output_oneshot, .{});
 
     var hasher = KT128.init(.{});
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -1824,11 +2077,13 @@ test "KT128 incremental: multiple updates match single update" {
 
     // Single update
     var hasher1 = KT128.init(.{});
+
     hasher1.update(part1 ++ part2 ++ part3);
     hasher1.final(&output_single);
 
     // Multiple updates
     var hasher2 = KT128.init(.{});
+
     hasher2.update(part1);
     hasher2.update(part2);
     hasher2.update(part3);
@@ -1840,7 +2095,9 @@ test "KT128 incremental: multiple updates match single update" {
 test "KT128 incremental: exactly chunk_size matches one-shot" {
     const allocator = std.testing.allocator;
     const message = try allocator.alloc(u8, 8192);
+
     defer allocator.free(message);
+
     @memset(message, 0xAB);
 
     var output_oneshot: [32]u8 = undefined;
@@ -1849,6 +2106,7 @@ test "KT128 incremental: exactly chunk_size matches one-shot" {
     try KT128.hash(message, &output_oneshot, .{});
 
     var hasher = KT128.init(.{});
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -1858,6 +2116,7 @@ test "KT128 incremental: exactly chunk_size matches one-shot" {
 test "KT128 incremental: larger than chunk_size matches one-shot" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 16384);
+
     defer allocator.free(message);
 
     var output_oneshot: [32]u8 = undefined;
@@ -1866,6 +2125,7 @@ test "KT128 incremental: larger than chunk_size matches one-shot" {
     try KT128.hash(message, &output_oneshot, .{});
 
     var hasher = KT128.init(.{});
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -1882,6 +2142,7 @@ test "KT128 incremental: with customization matches one-shot" {
     try KT128.hash(message, &output_oneshot, .{ .customization = customization });
 
     var hasher = KT128.init(.{ .customization = customization });
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -1891,7 +2152,9 @@ test "KT128 incremental: with customization matches one-shot" {
 test "KT128 incremental: large message with customization" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 20000);
+
     defer allocator.free(message);
+
     const customization = "test domain";
 
     var output_oneshot: [48]u8 = undefined;
@@ -1900,6 +2163,7 @@ test "KT128 incremental: large message with customization" {
     try KT128.hash(message, &output_oneshot, .{ .customization = customization });
 
     var hasher = KT128.init(.{ .customization = customization });
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -1909,6 +2173,7 @@ test "KT128 incremental: large message with customization" {
 test "KT128 incremental: streaming chunks matches one-shot" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 25000);
+
     defer allocator.free(message);
 
     var output_oneshot: [32]u8 = undefined;
@@ -1920,11 +2185,15 @@ test "KT128 incremental: streaming chunks matches one-shot" {
 
     // Feed in 1KB chunks
     var offset: usize = 0;
+
     while (offset < message.len) {
         const chunk_size_local = @min(1024, message.len - offset);
+
         hasher.update(message[offset..][0..chunk_size_local]);
+
         offset += chunk_size_local;
     }
+
     hasher.final(&output_incremental);
 
     try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);
@@ -1937,6 +2206,7 @@ test "KT256 incremental: empty message matches one-shot" {
     try KT256.hash(&[_]u8{}, &output_oneshot, .{});
 
     var hasher = KT256.init(.{});
+
     hasher.final(&output_incremental);
 
     try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);
@@ -1951,6 +2221,7 @@ test "KT256 incremental: small message matches one-shot" {
     try KT256.hash(message, &output_oneshot, .{});
 
     var hasher = KT256.init(.{});
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -1960,6 +2231,7 @@ test "KT256 incremental: small message matches one-shot" {
 test "KT256 incremental: large message matches one-shot" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 30000);
+
     defer allocator.free(message);
 
     var output_oneshot: [64]u8 = undefined;
@@ -1968,6 +2240,7 @@ test "KT256 incremental: large message matches one-shot" {
     try KT256.hash(message, &output_oneshot, .{});
 
     var hasher = KT256.init(.{});
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -1977,7 +2250,9 @@ test "KT256 incremental: large message matches one-shot" {
 test "KT256 incremental: with customization matches one-shot" {
     const allocator = std.testing.allocator;
     const message = try generatePattern(allocator, 15000);
+
     defer allocator.free(message);
+
     const customization = "KT256 custom domain";
 
     var output_oneshot: [80]u8 = undefined;
@@ -1986,6 +2261,7 @@ test "KT256 incremental: with customization matches one-shot" {
     try KT256.hash(message, &output_oneshot, .{ .customization = customization });
 
     var hasher = KT256.init(.{ .customization = customization });
+
     hasher.update(message);
     hasher.final(&output_incremental);
 
@@ -2002,7 +2278,9 @@ test "KT128 incremental: random small message with random chunk sizes" {
 
     for (test_sizes) |total_size| {
         const message = try allocator.alloc(u8, total_size);
+
         defer allocator.free(message);
+
         random.bytes(message);
 
         var output_oneshot: [32]u8 = undefined;
@@ -2019,8 +2297,10 @@ test "KT128 incremental: random small message with random chunk sizes" {
             const chunk_size_local = if (max_chunk == 1) 1 else random.intRangeAtMost(usize, 1, max_chunk);
 
             hasher.update(message[offset..][0..chunk_size_local]);
+
             offset += chunk_size_local;
         }
+
         hasher.final(&output_incremental);
 
         try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);
@@ -2035,7 +2315,9 @@ test "KT128 incremental: random large message (1MB) with random chunk sizes" {
 
     const total_size: usize = 1024 * 1024; // 1 MB
     const message = try allocator.alloc(u8, total_size);
+
     defer allocator.free(message);
+
     random.bytes(message);
 
     var output_oneshot: [32]u8 = undefined;
@@ -2052,8 +2334,10 @@ test "KT128 incremental: random large message (1MB) with random chunk sizes" {
         const chunk_size_local = if (max_chunk == 1) 1 else random.intRangeAtMost(usize, 1, max_chunk);
 
         hasher.update(message[offset..][0..chunk_size_local]);
+
         offset += chunk_size_local;
     }
+
     hasher.final(&output_incremental);
 
     try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);
@@ -2070,7 +2354,9 @@ test "KT256 incremental: random small message with random chunk sizes" {
     for (test_sizes) |total_size| {
         // Generate random message
         const message = try allocator.alloc(u8, total_size);
+
         defer allocator.free(message);
+
         random.bytes(message);
 
         var output_oneshot: [64]u8 = undefined;
@@ -2087,8 +2373,10 @@ test "KT256 incremental: random small message with random chunk sizes" {
             const chunk_size_local = if (max_chunk == 1) 1 else random.intRangeAtMost(usize, 1, max_chunk);
 
             hasher.update(message[offset..][0..chunk_size_local]);
+
             offset += chunk_size_local;
         }
+
         hasher.final(&output_incremental);
 
         try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);
@@ -2103,7 +2391,9 @@ test "KT256 incremental: random large message (1MB) with random chunk sizes" {
 
     const total_size: usize = 1024 * 1024; // 1 MB
     const message = try allocator.alloc(u8, total_size);
+
     defer allocator.free(message);
+
     random.bytes(message);
 
     var output_oneshot: [64]u8 = undefined;
@@ -2120,8 +2410,10 @@ test "KT256 incremental: random large message (1MB) with random chunk sizes" {
         const chunk_size_local = if (max_chunk == 1) 1 else random.intRangeAtMost(usize, 1, max_chunk);
 
         hasher.update(message[offset..][0..chunk_size_local]);
+
         offset += chunk_size_local;
     }
+
     hasher.final(&output_incremental);
 
     try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);
@@ -2135,7 +2427,9 @@ test "KT128 incremental: random message with customization and random chunks" {
 
     const total_size: usize = 50000;
     const message = try allocator.alloc(u8, total_size);
+
     defer allocator.free(message);
+
     random.bytes(message);
 
     const customization = "random test domain";
@@ -2154,8 +2448,10 @@ test "KT128 incremental: random message with customization and random chunks" {
         const chunk_size_local = if (max_chunk == 1) 1 else random.intRangeAtMost(usize, 1, max_chunk);
 
         hasher.update(message[offset..][0..chunk_size_local]);
+
         offset += chunk_size_local;
     }
+
     hasher.final(&output_incremental);
 
     try std.testing.expectEqualSlices(u8, &output_oneshot, &output_incremental);

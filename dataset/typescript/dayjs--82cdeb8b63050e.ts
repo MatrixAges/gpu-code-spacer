@@ -7,6 +7,7 @@ export namespace DayJS {
 		weekdaysShort?: string[]
 		monthsShort?: string[]
 		weekdaysMin?: string[]
+
 		formats: Partial<{
 			LT: string
 			LTS: string
@@ -15,6 +16,7 @@ export namespace DayJS {
 			LLL: string
 			LLLL: string
 		}>
+
 		relativeTime: Partial<{
 			future: string
 			past: string
@@ -30,6 +32,7 @@ export namespace DayJS {
 			y: string
 			yy: string
 		}>
+
 		ordinal?: (n: number, period?: string) => number | string
 		meridiem?: (hour: number, minute: number) => string
 	}

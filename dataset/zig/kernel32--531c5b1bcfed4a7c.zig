@@ -444,6 +444,7 @@ extern "kernel32" fn K32GetModuleFileNameExW(
     lpFilename: LPWSTR,
     nSize: DWORD,
 ) callconv(.winapi) DWORD;
+
 pub const GetModuleFileNameExW = K32GetModuleFileNameExW;
 
 // TODO: Wrapper around ntdll.LdrGetDllHandle, which is a wrapper around LdrGetDllHandleEx

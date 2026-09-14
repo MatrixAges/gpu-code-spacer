@@ -14,15 +14,18 @@ const maxInt = std.math.maxInt;
 /// TODO Decide if all this logic should be implemented directly in the @sqrt builtin function.
 pub fn sqrt(x: anytype) Sqrt(@TypeOf(x)) {
     const T = @TypeOf(x);
+
     switch (@typeInfo(T)) {
         .float, .comptime_float => return @sqrt(x),
         .comptime_int => comptime {
             if (x > maxInt(u128)) {
                 @compileError("sqrt not implemented for comptime_int greater than 128 bits");
             }
+
             if (x < 0) {
                 @compileError("sqrt on negative number");
             }
+
             return @as(T, sqrt_int(u128, x));
         },
         .int => |IntType| switch (IntType.signedness) {
@@ -40,6 +43,7 @@ fn sqrt_int(comptime T: type, value: T) Sqrt(T) {
         const bits = @typeInfo(T).int.bits;
         const max = math.maxInt(T);
         const minustwo = (@as(T, 2) ^ max) + 1; // unsigned int cannot represent -2
+
         var op = value;
         var res: T = 0;
         var one: T = 1 << ((bits - 1) & minustwo); // highest power of four that fits into T
@@ -51,9 +55,13 @@ fn sqrt_int(comptime T: type, value: T) Sqrt(T) {
 
         while (one != 0) {
             const c = op >= res + one;
+
             if (c) op -= res + one;
+
             res >>= 1;
+
             if (c) res += one;
+
             one >>= 2;
         }
 
@@ -68,7 +76,6 @@ test sqrt_int {
     try expect(sqrt_int(u32, 8) == 2);
     try expect(sqrt_int(u32, 9) == 3);
     try expect(sqrt_int(u32, 10) == 3);
-
     try expect(sqrt_int(u0, 0) == 0);
     try expect(sqrt_int(u1, 1) == 1);
     try expect(sqrt_int(u2, 3) == 1);

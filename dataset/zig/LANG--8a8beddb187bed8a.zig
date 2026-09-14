@@ -59,10 +59,8 @@ pub const Odin = 0x003b;
 pub const Ruby = 0x0040;
 pub const Move = 0x0041;
 pub const Hylo = 0x0042;
-
 pub const lo_user = 0x8000;
 pub const hi_user = 0xffff;
-
 pub const Mips_Assembler = 0x8001;
 pub const Upc = 0x8765;
 pub const HP_Bliss = 0x8003;

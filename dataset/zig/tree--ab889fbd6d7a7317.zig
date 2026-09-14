@@ -115,6 +115,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
 
             const value_count_limit =
                 options.batch_value_count_limit * constants.lsm_compaction_ops;
+
             assert(value_count_limit > 0);
             assert(value_count_limit <= TreeTable.value_count_max);
 
@@ -132,20 +133,25 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             try tree.table_mutable.init(allocator, radix_buffer, .mutable, config.name, .{
                 .value_count_limit = value_count_limit,
             });
+
             errdefer tree.table_mutable.deinit(allocator);
 
             try tree.table_immutable.init(allocator, radix_buffer, .immutable, config.name, .{
                 .value_count_limit = value_count_limit,
             });
+
             errdefer tree.table_immutable.deinit(allocator);
 
             try tree.manifest.init(allocator, node_pool, config, grid.trace);
+
             errdefer tree.manifest.deinit(allocator);
 
             for (0..tree.compactions.len) |i| {
                 errdefer for (tree.compactions[0..i]) |*c| c.deinit();
+
                 tree.compactions[i] = Compaction.init(tree, grid, @intCast(i));
             }
+
             errdefer for (tree.compactions) |*c| c.deinit();
         }
 
@@ -177,6 +183,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
         /// or discarded. Only one scope can be active at a time.
         pub fn scope_open(tree: *Tree) void {
             assert(tree.active_scope == null);
+
             tree.active_scope = .{
                 .value_context = tree.table_mutable.value_context,
                 .key_range = tree.key_range,
@@ -185,6 +192,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
 
         pub fn scope_close(tree: *Tree, mode: ScopeCloseMode) void {
             assert(tree.active_scope != null);
+
             assert(tree.active_scope.?.value_context.count <=
                 tree.table_mutable.value_context.count);
 
@@ -221,6 +229,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             // TODO We currently assume that the snapshot passed in is the latest snapshot.
             // This must be changed when persistent snapshots are implemented.
             assert(snapshot < snapshot_latest);
+
             return tree.key_range != null and
                 tree.key_range.?.key_min <= key and
                 key <= tree.key_range.?.key_max;
@@ -235,6 +244,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             comptime assert(constants.verify);
 
             tree.table_mutable.sort();
+
             return tree.table_mutable.get(key) orelse tree.table_immutable.get(key);
         }
 
@@ -259,6 +269,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             }
 
             var iterator = tree.manifest.lookup(snapshot, key, 0);
+
             while (iterator.next()) |table| {
                 const index_block = tree.grid.read_block_from_cache(
                     table.address,
@@ -271,6 +282,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
                 };
 
                 const key_blocks = Table.index_blocks_for_key(index_block, key) orelse continue;
+
                 switch (tree.cached_value_block_search(
                     key_blocks.value_block_address,
                     key_blocks.value_block_checksum,
@@ -293,6 +305,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
                     .block_not_in_cache => return .{ .possible = iterator.level - 1 },
                 }
             }
+
             // Key not present in the Manifest.
             return .negative;
         }
@@ -350,12 +363,14 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             var index_block_checksums: [constants.lsm_levels]u128 = undefined;
             var index_block_keys_min: [constants.lsm_levels]Key = undefined;
             var index_block_keys_max: [constants.lsm_levels]Key = undefined;
+
             {
                 var it = tree.manifest.lookup(
                     parameters.snapshot,
                     parameters.key,
                     parameters.level_min,
                 );
+
                 while (it.next()) |table| : (index_block_count += 1) {
                     assert(table.visible(parameters.snapshot));
                     assert(table.key_min <= parameters.key);
@@ -370,6 +385,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
 
             if (index_block_count == 0) {
                 parameters.callback(parameters.context, null);
+
                 return;
             }
 
@@ -399,6 +415,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             /// This value is an index into the index_block_addresses/checksums arrays.
             index_block: u8 = 0,
             index_block_count: u8,
+
             index_block_addresses: [constants.lsm_levels]u64,
             index_block_checksums: [constants.lsm_levels]u128,
             index_block_keys_min: [constants.lsm_levels]Key,
@@ -430,22 +447,26 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
 
             fn read_index_block_callback(completion: *Read, index_block: BlockPtrConst) void {
                 const context: *LookupContext = @fieldParentPtr("completion", completion);
+
                 assert(context.value_block == null);
                 assert(context.index_block < context.index_block_count);
                 assert(context.index_block_count > 0);
                 assert(context.index_block_count <= constants.lsm_levels);
+
                 _ = Table.index.from_block_with_schema(index_block, context.tree.config.id);
 
                 const keys_min = Table.index_value_keys_used(index_block, .key_min);
                 const keys_max = Table.index_value_keys_used(index_block, .key_max);
 
                 assert(keys_min[0] == context.index_block_keys_min[context.index_block]);
+
                 assert(keys_max[keys_max.len - 1] ==
                     context.index_block_keys_max[context.index_block]);
 
                 const blocks = Table.index_blocks_for_key(index_block, context.key) orelse {
                     // The key is not present in this table, check the next level.
                     context.advance_to_next_level();
+
                     return;
                 };
 
@@ -467,15 +488,18 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
 
             fn read_value_block_callback(completion: *Read, value_block: BlockPtrConst) void {
                 const context: *LookupContext = @fieldParentPtr("completion", completion);
+
                 assert(context.value_block != null);
                 assert(context.index_block < context.index_block_count);
                 assert(context.index_block_count > 0);
                 assert(context.index_block_count <= constants.lsm_levels);
+
                 Table.data.assert_matching_block_schema(value_block, context.tree.config.id);
 
                 const values = Table.value_block_values_used(value_block);
                 const values_key_min = Table.key_from_value(&values[0]);
                 const values_key_max = Table.key_from_value(&values[values.len - 1]);
+
                 assert(values_key_min >= context.index_block_keys_min[context.index_block]);
                 assert(values_key_max <= context.index_block_keys_max[context.index_block]);
                 assert(values_key_min == context.value_block.?.key_min);
@@ -499,13 +523,17 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
                 maybe(context.value_block == null);
 
                 context.index_block += 1;
+
                 if (context.index_block == context.index_block_count) {
                     context.callback(context, null);
+
                     return;
                 }
+
                 assert(context.index_block < context.index_block_count);
 
                 context.value_block = null;
+
                 context.read_index_block();
             }
         };
@@ -532,6 +560,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             assert(tree.key_range == null);
 
             const tree_table = Manifest.TreeTableInfo.decode(table);
+
             tree.manifest.levels[table.label.level].insert_table(
                 tree.manifest.node_pool,
                 &tree_table,
@@ -543,11 +572,14 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             assert(tree.key_range == null);
 
             tree.compaction_op = tree.grid.superblock.working.vsr_state.checkpoint.header.op;
+
             tree.key_range = tree.manifest.key_range();
 
             tree.manifest.verify(snapshot_latest, tree.config.id);
+
             assert(tree.compaction_op.? == 0 or
                 (tree.compaction_op.? + 1) % constants.lsm_compaction_ops == 0);
+
             maybe(tree.key_range == null);
         }
 
@@ -557,6 +589,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             tree.grid.trace.start(.{ .compact_mutable_suffix = .{
                 .tree = @enumFromInt(tree.config.id),
             } });
+
             defer tree.grid.trace.stop(.{ .compact_mutable_suffix = .{
                 .tree = @enumFromInt(tree.config.id),
             } });
@@ -576,6 +609,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
             tree.grid.trace.start(.{ .compact_mutable = .{
                 .tree = @enumFromInt(tree.config.id),
             } });
+
             defer tree.grid.trace.stop(.{ .compact_mutable = .{
                 .tree = @enumFromInt(tree.config.id),
             } });
@@ -593,6 +627,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
                 // The immutable table wasn't flushed because there is enough room left over for the
                 // mutable table's values, allowing us to skip some compaction work.
                 tree.table_immutable.absorb(&tree.table_mutable, snapshot_min);
+
                 assert(tree.table_mutable.value_context.count == 0);
             }
 
@@ -627,6 +662,7 @@ pub fn TreeType(comptime TreeTable: type, comptime Storage: type) type {
         // Inline function, so it can be fully resolved at comptime.
         pub inline fn tree_name() []const u8 {
             const name_full = @typeName(Value);
+
             if (comptime std.mem.lastIndexOfScalar(u8, name_full, '.')) |offset| {
                 return name_full[offset + 1 ..];
             } else {
@@ -646,9 +682,11 @@ pub fn table_count_max_for_tree(growth_factor: u32, levels_count: u32) u32 {
 
     var count: u32 = 0;
     var level: u32 = 0;
+
     while (level < levels_count) : (level += 1) {
         count += table_count_max_for_level(growth_factor, level);
     }
+
     return count;
 }
 
@@ -670,7 +708,6 @@ test "table_count_max_for_level/tree" {
     try expectEqual(@as(u32, 32768), table_count_max_for_level(8, 4));
     try expectEqual(@as(u32, 262144), table_count_max_for_level(8, 5));
     try expectEqual(@as(u32, 2097152), table_count_max_for_level(8, 6));
-
     try expectEqual(@as(u32, 8 + 64), table_count_max_for_tree(8, 2));
     try expectEqual(@as(u32, 72 + 512), table_count_max_for_tree(8, 3));
     try expectEqual(@as(u32, 584 + 4096), table_count_max_for_tree(8, 4));

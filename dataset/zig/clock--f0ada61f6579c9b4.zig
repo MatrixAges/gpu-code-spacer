@@ -140,24 +140,30 @@ const Epoch = struct {
 
     fn reset(epoch: *Epoch, clock: *Clock) void {
         @memset(epoch.sources, null);
+
         // A replica always has zero clock offset and network delay to its own system time
         // reading:
         epoch.sources[clock.replica] = Sample{
             .clock_offset = 0,
             .one_way_delay = 0,
         };
+
         epoch.samples = 1;
+
         epoch.monotonic = clock.monotonic().ns;
         epoch.realtime = clock.realtime();
+
         epoch.synchronized = null;
         epoch.learned = false;
     }
 
     fn sources_sampled(epoch: *Epoch) usize {
         var count: usize = 0;
+
         for (epoch.sources) |sampled| {
             if (sampled != null) count += 1;
         }
+
         return count;
     }
 };
@@ -202,18 +208,24 @@ pub fn init(
     assert(options.replica < options.replica_count);
     assert(options.quorum > 0);
     assert(options.quorum <= options.replica_count);
+
     if (options.replica_count > 1) assert(options.quorum > 1);
 
     var epoch: Epoch = undefined;
+
     epoch.sources = try allocator.alloc(?Sample, options.replica_count);
+
     errdefer allocator.free(epoch.sources);
 
     var window: Epoch = undefined;
+
     window.sources = try allocator.alloc(?Sample, options.replica_count);
+
     errdefer allocator.free(window.sources);
 
     // There are two Marzullo tuple bounds (lower and upper) per source clock offset sample:
     const marzullo_tuples = try allocator.alloc(Marzullo.Tuple, options.replica_count * 2);
+
     errdefer allocator.free(marzullo_tuples);
 
     var self = Clock{
@@ -261,6 +273,7 @@ pub fn learn(self: *Clock, replica: u8, m0: u64, t1: i64, m2: u64) void {
     // This condition should never be true. Reject this as a bad sample:
     if (m0 > m2) {
         log.warn("{}: learn: m0={} > m2={}", .{ self.replica, m0, m2 });
+
         return;
     }
 
@@ -271,17 +284,21 @@ pub fn learn(self: *Clock, replica: u8, m0: u64, t1: i64, m2: u64) void {
             m0,
             self.window.monotonic,
         });
+
         return;
     }
+
     assert(m2 >= self.window.monotonic); // Guaranteed by monotonicity of our local Time.
 
     const elapsed: u64 = m2 - self.window.monotonic;
+
     if (elapsed > window_max) {
         log.warn("{}: learn: elapsed={} > window_max={}", .{
             self.replica,
             elapsed,
             window_max,
         });
+
         return;
     }
 
@@ -289,11 +306,13 @@ pub fn learn(self: *Clock, replica: u8, m0: u64, t1: i64, m2: u64) void {
     const one_way_delay: u64 = round_trip_time / 2;
     const t2: i64 = self.window.realtime + @as(i64, @intCast(elapsed));
     const clock_offset: i64 = t1 + @as(i64, @intCast(one_way_delay)) - t2;
+
     const asymmetric_delay = self.estimate_asymmetric_delay(
         replica,
         one_way_delay,
         clock_offset,
     );
+
     const clock_offset_corrected = clock_offset + asymmetric_delay;
 
     log.debug("{}: learn: replica={} m0={} t1={} m2={} t2={} one_way_delay={} " ++
@@ -349,6 +368,7 @@ pub fn realtime_synchronized(self: *Clock) ?i64 {
         return self.realtime();
     } else if (self.epoch.synchronized) |interval| {
         const elapsed = @as(i64, @intCast(self.epoch.elapsed(self)));
+
         return std.math.clamp(
             self.realtime(),
             self.epoch.realtime + elapsed + interval.lower_bound,
@@ -362,6 +382,7 @@ pub fn realtime_synchronized(self: *Clock) ?i64 {
 pub fn round_trip_time_median_ns(self: *const Clock) ?u64 {
     // +1 to allow for the standby.
     var one_way_delays = stdx.BoundedArrayType(u64, constants.replicas_max + 1){};
+
     for (self.window.sources, 0..) |source, replica_index| {
         if (self.replica != replica_index) {
             if (source) |sampled| {
@@ -374,8 +395,10 @@ pub fn round_trip_time_median_ns(self: *const Clock) ?u64 {
         return null;
     } else {
         std.mem.sort(u64, one_way_delays.slice(), {}, std.sort.asc(u64));
+
         const one_way_delay_median =
             one_way_delays.get(@divFloor(one_way_delays.count(), 2));
+
         return one_way_delay_median * 2;
     }
 }
@@ -384,7 +407,9 @@ pub fn tick(self: *Clock) void {
     self.time.tick();
 
     if (self.synchronization_disabled) return;
+
     self.synchronize();
+
     // Expire the current epoch if successive windows failed to synchronize:
     // Gradual clock drift prevents us from using an epoch for more than a few seconds.
     if (self.epoch.elapsed(self) >= epoch_max) {
@@ -392,6 +417,7 @@ pub fn tick(self: *Clock) void {
             "{}: no agreement on cluster time (partitioned or too many clock faults)",
             .{self.replica},
         );
+
         self.epoch.reset(self);
     }
 }
@@ -450,10 +476,13 @@ fn synchronize(self: *Clock) void {
 
     // Wait until the window has enough accurate samples:
     const elapsed = self.window.elapsed(self);
+
     if (elapsed < window_min) return;
+
     if (elapsed >= window_max) {
         // We took too long to synchronize the window, expire stale samples...
         const sources_sampled = self.window.sources_sampled();
+
         if (sources_sampled <= @divTrunc(self.window.sources.len, 2)) {
             log.warn("{}: synchronization failed, partitioned (sources={} samples={})", .{
                 self.replica,
@@ -467,11 +496,14 @@ fn synchronize(self: *Clock) void {
                 self.window.samples,
             });
         }
+
         self.window.reset(self);
+
         return;
     }
 
     if (!self.window.learned) return;
+
     // Do not reset `learned` any earlier than this (before we have attempted to synchronize).
     self.window.learned = false;
 
@@ -480,12 +512,15 @@ fn synchronize(self: *Clock) void {
     var tolerance: u64 = clock_offset_tolerance_max;
     var terminate = false;
     var rounds: usize = 0;
+
     // Do at least one round if tolerance=0 and cap the number of rounds to avoid runaway loops.
     while (!terminate and rounds < 64) : (tolerance /= 2) {
         if (tolerance == 0) terminate = true;
+
         rounds += 1;
 
         const interval = Marzullo.smallest_interval(self.window_tuples(tolerance));
+
         if (interval.sources_true < self.quorum) break;
 
         // The new interval may reduce the number of `sources_true` while also decreasing error. In
@@ -500,6 +535,7 @@ fn synchronize(self: *Clock) void {
     // operator, as the counterpoint to `no agreement on cluster time`.
     if (self.epoch.synchronized == null and self.window.synchronized != null) {
         const new_interval = self.window.synchronized.?;
+
         log.info("{}: synchronized: accuracy={}", .{
             self.replica,
             fmt.fmtDurationSigned(new_interval.upper_bound - new_interval.lower_bound),
@@ -507,7 +543,9 @@ fn synchronize(self: *Clock) void {
     }
 
     var new_window = self.epoch;
+
     new_window.reset(self);
+
     self.epoch = self.window;
     self.window = new_window;
 
@@ -538,10 +576,12 @@ fn after_synchronization(self: *Clock) void {
     // Warn at 50ms, since that's a reasonable amount of NTP clock skew, and ensure that 50ms is a
     // reasonable (sub 1%) portion of `clock_offset_tolerance_max`.
     const delta_warning = 50 * std.time.ns_per_ms;
+
     comptime assert(delta_warning < @divFloor(clock_offset_tolerance_max, 100));
 
     if (system == cluster) {} else if (system < lower) {
         const delta = lower - system;
+
         if (self.trace) |trace| trace.gauge(.clock_delta_ns, delta);
 
         if (delta < delta_warning) {
@@ -560,6 +600,7 @@ fn after_synchronization(self: *Clock) void {
         }
     } else {
         const delta = system - upper;
+
         if (self.trace) |trace| trace.gauge(.clock_delta_ns, delta);
 
         if (delta < delta_warning) {
@@ -579,7 +620,9 @@ fn after_synchronization(self: *Clock) void {
 fn window_tuples(self: *Clock, tolerance: u64) []Marzullo.Tuple {
     assert(self.window.sources[self.replica].?.clock_offset == 0);
     assert(self.window.sources[self.replica].?.one_way_delay == 0);
+
     var count: usize = 0;
+
     for (self.window.sources, 0..) |sampled, source| {
         if (sampled) |sample| {
             self.marzullo_tuples[count] = Marzullo.Tuple{
@@ -588,16 +631,20 @@ fn window_tuples(self: *Clock, tolerance: u64) []Marzullo.Tuple {
                     @as(i64, @intCast(sample.one_way_delay + tolerance)),
                 .bound = .lower,
             };
+
             count += 1;
+
             self.marzullo_tuples[count] = Marzullo.Tuple{
                 .source = @intCast(source),
                 .offset = sample.clock_offset +
                     @as(i64, @intCast(sample.one_way_delay + tolerance)),
                 .bound = .upper,
             };
+
             count += 1;
         }
     }
+
     return self.marzullo_tuples[0..count];
 }
 
@@ -605,6 +652,7 @@ fn minimum_one_way_delay(a: ?Sample, b: ?Sample) ?Sample {
     if (a == null) return b;
     if (b == null) return a;
     if (a.?.one_way_delay < b.?.one_way_delay) return a;
+
     // Choose B if B's one way delay is less or the same (we assume B is the newer sample):
     return b;
 }
@@ -662,8 +710,10 @@ const ClockUnitTestContainer = struct {
         tick: u64,
         expected_offset: i64,
     };
+
     pub fn ticks_to_perform_assertions(self: *ClockUnitTestContainer) [3]AssertionPoint {
         var ret: [3]AssertionPoint = undefined;
+
         switch (self.time.offset_type) {
             .linear => {
                 // For the first (OWD/drift per tick) ticks, the offset < OWD. This means that the
@@ -675,14 +725,17 @@ const ClockUnitTestContainer = struct {
                 // bound. Therefore the `clock.realtime_synchronized` will be offset by the OWD.
                 const threshold = self.owd /
                     @as(u64, @intCast(self.time.offset_coefficient_A));
+
                 ret[0] = .{
                     .tick = threshold,
                     .expected_offset = self.time.offset(threshold - self.learn_interval),
                 };
+
                 ret[1] = .{
                     .tick = threshold + 100,
                     .expected_offset = @intCast(self.owd),
                 };
+
                 ret[2] = .{
                     .tick = threshold + 200,
                     .expected_offset = @intCast(self.owd),
@@ -693,10 +746,12 @@ const ClockUnitTestContainer = struct {
                     .tick = @intCast(@divTrunc(self.time.offset_coefficient_B, 4)),
                     .expected_offset = @intCast(self.owd),
                 };
+
                 ret[1] = .{
                     .tick = @intCast(@divTrunc(self.time.offset_coefficient_B, 2)),
                     .expected_offset = 0,
                 };
+
                 ret[2] = .{
                     .tick = @intCast(@divTrunc(self.time.offset_coefficient_B * 3, 4)),
                     .expected_offset = -@as(i64, @intCast(self.owd)),
@@ -707,10 +762,12 @@ const ClockUnitTestContainer = struct {
                     .tick = @intCast(self.time.offset_coefficient_B - 10),
                     .expected_offset = 0,
                 };
+
                 ret[1] = .{
                     .tick = @intCast(self.time.offset_coefficient_B + 10),
                     .expected_offset = -@as(i64, @intCast(self.owd)),
                 };
+
                 ret[2] = .{
                     .tick = @intCast(self.time.offset_coefficient_B + 10),
                     .expected_offset = -@as(i64, @intCast(self.owd)),
@@ -726,24 +783,31 @@ const ClockUnitTestContainer = struct {
 test "ideal clocks get clamped to cluster time" {
     // Silence all clock logs.
     const level = std.testing.log_level;
+
     std.testing.log_level = std.log.Level.err;
+
     defer std.testing.log_level = level;
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
 
     const allocator = arena.allocator();
 
     var ideal_constant_drift_clock: ClockUnitTestContainer = undefined;
+
     try ideal_constant_drift_clock.init(
         allocator,
         OffsetType.linear,
         std.time.ns_per_ms, // loses 1ms per tick
         0,
     );
+
     const linear_clock_assertion_points = ideal_constant_drift_clock.ticks_to_perform_assertions();
+
     for (linear_clock_assertion_points) |point| {
         ideal_constant_drift_clock.run_till_tick(point.tick);
+
         try testing.expectEqual(
             point.expected_offset,
             @as(i64, @intCast(ideal_constant_drift_clock.clock.monotonic().ns)) -
@@ -752,16 +816,20 @@ test "ideal clocks get clamped to cluster time" {
     }
 
     var ideal_periodic_drift_clock: ClockUnitTestContainer = undefined;
+
     try ideal_periodic_drift_clock.init(
         allocator,
         OffsetType.periodic,
         std.time.ns_per_s, // loses up to 1s
         200, // period of 200 ticks
     );
+
     const ideal_periodic_drift_clock_assertion_points =
         ideal_periodic_drift_clock.ticks_to_perform_assertions();
+
     for (ideal_periodic_drift_clock_assertion_points) |point| {
         ideal_periodic_drift_clock.run_till_tick(point.tick);
+
         try testing.expectEqual(
             point.expected_offset,
             @as(i64, @intCast(ideal_periodic_drift_clock.clock.monotonic().ns)) -
@@ -770,15 +838,19 @@ test "ideal clocks get clamped to cluster time" {
     }
 
     var ideal_jumping_clock: ClockUnitTestContainer = undefined;
+
     try ideal_jumping_clock.init(
         allocator,
         OffsetType.step,
         -5 * std.time.ns_per_day, // jumps 5 days ahead.
         49, // after 49 ticks
     );
+
     const ideal_jumping_clock_assertion_points = ideal_jumping_clock.ticks_to_perform_assertions();
+
     for (ideal_jumping_clock_assertion_points) |point| {
         ideal_jumping_clock.run_till_tick(point.tick);
+
         try testing.expectEqual(
             point.expected_offset,
             @as(i64, @intCast(ideal_jumping_clock.clock.monotonic().ns)) -
@@ -791,6 +863,7 @@ const PacketSimulatorOptions = @import("../testing/packet_simulator.zig").Packet
 const PacketSimulatorType = @import("../testing/packet_simulator.zig").PacketSimulatorType;
 const Path = @import("../testing/packet_simulator.zig").Path;
 const Command = @import("../vsr.zig").Command;
+
 const ClockSimulator = struct {
     const Packet = struct {
         m0: u64,
@@ -820,12 +893,15 @@ const ClockSimulator = struct {
             .packet_deinit = &packet_deinit,
             .packet_deliver = &packet_deliver,
         });
+
         errdefer network.deinit(allocator);
 
         var times = try allocator.alloc(TimeSim, options.clock_count);
+
         errdefer allocator.free(times);
 
         var clocks = try allocator.alloc(Clock, options.clock_count);
+
         errdefer allocator.free(clocks);
 
         var prng = stdx.PRNG.from_seed(options.network_options.seed);
@@ -835,8 +911,10 @@ const ClockSimulator = struct {
 
             const amplitude = (@as(i64, @intCast(prng.int_inclusive(u64, 10))) - 10) *
                 std.time.ns_per_s;
+
             const phase = @as(i64, @intCast(prng.range_inclusive(u64, 100, 1000))) +
                 @as(i64, @intFromFloat(std.Random.init(&prng, stdx.PRNG.fill).floatNorm(f64) * 50));
+
             times[replica] = .{
                 .resolution = std.time.ns_per_s / 2, // delta_t = 0.5s
                 .offset_type = OffsetType.non_ideal,
@@ -850,8 +928,10 @@ const ClockSimulator = struct {
                 .replica = @intCast(replica),
                 .quorum = @divFloor(options.clock_count, 2) + 1,
             });
+
             errdefer clock.deinit(allocator);
         }
+
         errdefer for (clocks) |*clock| clock.deinit(allocator);
 
         return ClockSimulator{
@@ -866,6 +946,7 @@ const ClockSimulator = struct {
 
     pub fn deinit(self: *ClockSimulator) void {
         for (self.clocks) |*clock| clock.deinit(self.allocator);
+
         self.allocator.free(self.clocks);
         self.allocator.free(self.times);
         self.network.deinit(self.allocator);
@@ -873,7 +954,9 @@ const ClockSimulator = struct {
 
     pub fn tick(self: *ClockSimulator) void {
         self.ticks += 1;
+
         self.network.tick();
+
         for (self.clocks) |*clock| {
             clock.tick();
         }
@@ -881,6 +964,7 @@ const ClockSimulator = struct {
         for (self.clocks, self.times) |*clock, *time| {
             if (time.ticks % self.options.ping_timeout == 0) {
                 const m0 = clock.monotonic().ns;
+
                 for (self.clocks, 0..) |_, target| {
                     if (target != clock.replica) {
                         self.network.submit_packet(
@@ -939,23 +1023,28 @@ const ClockSimulator = struct {
 test "clock: fuzz test" {
     // Silence all clock logs.
     const level = std.testing.log_level;
+
     std.testing.log_level = std.log.Level.err;
+
     defer std.testing.log_level = level;
 
     const ticks_max: u64 = 1_000_000;
     const clock_count: u8 = 3;
     const SystemTime = @import("../testing/time.zig").TimeSim;
+
     var system_time = SystemTime{
         .resolution = constants.tick_ms * std.time.ns_per_ms,
         .offset_type = .linear,
         .offset_coefficient_A = 0,
         .offset_coefficient_B = 0,
     };
+
     const seed: u64 = @intCast(system_time.time().realtime());
     var min_sync_error: u64 = 1_000_000_000;
     var max_sync_error: u64 = 0;
     var max_clock_offset: u64 = 0;
     var min_clock_offset: u64 = 1_000_000_000;
+
     var simulator = try ClockSimulator.init(std.testing.allocator, .{
         .network_options = .{
             .node_count = clock_count,
@@ -979,30 +1068,37 @@ test "clock: fuzz test" {
         .clock_count = clock_count,
         .ping_timeout = 20,
     });
+
     defer simulator.deinit();
 
     var clock_ticks_without_synchronization: [clock_count]u32 = @splat(0);
+
     while (simulator.ticks < ticks_max) {
         simulator.tick();
 
         for (simulator.clocks, 0..) |*clock, index| {
             const offset = simulator.times[index].offset(simulator.ticks);
             const abs_offset: u64 = if (offset >= 0) @intCast(offset) else @intCast(-offset);
+
             max_clock_offset = if (abs_offset > max_clock_offset) abs_offset else max_clock_offset;
             min_clock_offset = if (abs_offset < min_clock_offset) abs_offset else min_clock_offset;
 
             const synced_time = clock.realtime_synchronized() orelse {
                 clock_ticks_without_synchronization[index] += 1;
+
                 continue;
             };
 
             for (simulator.clocks, 0..) |*other_clock, other_clock_index| {
                 if (index == other_clock_index) continue;
+
                 const other_clock_sync_time = other_clock.realtime_synchronized() orelse {
                     continue;
                 };
+
                 const err: i64 = synced_time - other_clock_sync_time;
                 const abs_err: u64 = if (err >= 0) @intCast(err) else @intCast(-err);
+
                 max_sync_error = if (abs_err > max_sync_error) abs_err else max_sync_error;
                 min_sync_error = if (abs_err < min_sync_error) abs_err else min_sync_error;
             }
@@ -1014,12 +1110,14 @@ test "clock: fuzz test" {
         ticks_max,
         clock_count,
     });
+
     log.info("absolute clock offsets with respect to test time:\n", .{});
     log.info("maximum={}\n", .{fmt.fmtDurationSigned(@as(i64, @intCast(max_clock_offset)))});
     log.info("minimum={}\n", .{fmt.fmtDurationSigned(@as(i64, @intCast(min_clock_offset)))});
     log.info("\nabsolute synchronization errors between clocks:\n", .{});
     log.info("maximum={}\n", .{fmt.fmtDurationSigned(@as(i64, @intCast(max_sync_error)))});
     log.info("minimum={}\n", .{fmt.fmtDurationSigned(@as(i64, @intCast(min_sync_error)))});
+
     log.info("clock ticks without synchronization={d}\n", .{
         clock_ticks_without_synchronization,
     });

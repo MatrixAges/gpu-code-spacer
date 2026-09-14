@@ -18,6 +18,7 @@ func MakePermalink(host, plink string) *url.URL {
 	}
 
 	base.Path = path.Join(base.Path, p.Path)
+
 	base.Fragment = p.Fragment
 	base.RawQuery = p.RawQuery
 

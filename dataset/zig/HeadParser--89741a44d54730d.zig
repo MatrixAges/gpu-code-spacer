@@ -106,6 +106,7 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
                     }
 
                     index += 4;
+
                     continue;
                 },
                 else => {
@@ -124,6 +125,7 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
                     const matches_or: SizeVector = matches_r | matches_n;
 
                     const matches = @reduce(.Add, matches_or);
+
                     switch (matches) {
                         0 => {},
                         1 => switch (chunk[vector_len - 1]) {
@@ -178,9 +180,11 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
 
                                 if (b32 == int32("\r\n\r\n")) {
                                     p.state = .finished;
+
                                     return index + i + 4;
                                 } else if (b16 == int16("\n\n")) {
                                     p.state = .finished;
+
                                     return index + i + 2;
                                 }
                             }
@@ -210,6 +214,7 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
                     }
 
                     index += vector_len;
+
                     continue;
                 },
             },
@@ -222,6 +227,7 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
                     }
 
                     index += 1;
+
                     continue;
                 },
             },
@@ -278,6 +284,7 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
                     }
 
                     index += 3;
+
                     continue;
                 },
             },
@@ -309,6 +316,7 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
                     }
 
                     index += 2;
+
                     continue;
                 },
             },
@@ -321,6 +329,7 @@ pub fn feed(p: *HeadParser, bytes: []const u8) usize {
                     }
 
                     index += 1;
+
                     continue;
                 },
             },
@@ -358,6 +367,7 @@ test feed {
 
     for (0..36) |i| {
         var p: HeadParser = .{};
+
         try std.testing.expectEqual(i, p.feed(data[0..i]));
         try std.testing.expectEqual(35 - i, p.feed(data[i..]));
     }

@@ -65,7 +65,9 @@ pub const SingleThreadedRwLock = struct {
         switch (rwl.state) {
             .unlocked => {
                 assert(rwl.shared_count == 0);
+
                 rwl.state = .locked_exclusive;
+
                 return true;
             },
             .locked_exclusive, .locked_shared => return false,
@@ -76,6 +78,7 @@ pub const SingleThreadedRwLock = struct {
     pub fn lock(rwl: *SingleThreadedRwLock) void {
         assert(rwl.state == .unlocked); // deadlock detected
         assert(rwl.shared_count == 0); // corrupted state detected
+
         rwl.state = .locked_exclusive;
     }
 
@@ -84,6 +87,7 @@ pub const SingleThreadedRwLock = struct {
     pub fn unlock(rwl: *SingleThreadedRwLock) void {
         assert(rwl.state == .locked_exclusive);
         assert(rwl.shared_count == 0); // corrupted state detected
+
         rwl.state = .unlocked;
     }
 
@@ -93,12 +97,16 @@ pub const SingleThreadedRwLock = struct {
         switch (rwl.state) {
             .unlocked => {
                 rwl.state = .locked_shared;
+
                 assert(rwl.shared_count == 0);
+
                 rwl.shared_count = 1;
+
                 return true;
             },
             .locked_shared => {
                 rwl.shared_count += 1;
+
                 return true;
             },
             .locked_exclusive => return false,
@@ -110,7 +118,9 @@ pub const SingleThreadedRwLock = struct {
         switch (rwl.state) {
             .unlocked => {
                 rwl.state = .locked_shared;
+
                 assert(rwl.shared_count == 0);
+
                 rwl.shared_count = 1;
             },
             .locked_shared => {
@@ -127,6 +137,7 @@ pub const SingleThreadedRwLock = struct {
             .locked_exclusive => unreachable, // exclusively held lock
             .locked_shared => {
                 rwl.shared_count -= 1;
+
                 if (rwl.shared_count == 0) {
                     rwl.state = .unlocked;
                 }
@@ -144,11 +155,13 @@ pub const PthreadRwLock = struct {
 
     pub fn lock(rwl: *PthreadRwLock) void {
         const rc = std.c.pthread_rwlock_wrlock(&rwl.rwlock);
+
         assert(rc == .SUCCESS);
     }
 
     pub fn unlock(rwl: *PthreadRwLock) void {
         const rc = std.c.pthread_rwlock_unlock(&rwl.rwlock);
+
         assert(rc == .SUCCESS);
     }
 
@@ -158,11 +171,13 @@ pub const PthreadRwLock = struct {
 
     pub fn lockShared(rwl: *PthreadRwLock) void {
         const rc = std.c.pthread_rwlock_rdlock(&rwl.rwlock);
+
         assert(rc == .SUCCESS);
     }
 
     pub fn unlockShared(rwl: *PthreadRwLock) void {
         const rc = std.c.pthread_rwlock_unlock(&rwl.rwlock);
+
         assert(rc == .SUCCESS);
     }
 };
@@ -182,8 +197,10 @@ pub const DefaultRwLock = struct {
     pub fn tryLock(rwl: *DefaultRwLock) bool {
         if (rwl.mutex.tryLock()) {
             const state = @atomicLoad(usize, &rwl.state, .seq_cst);
+
             if (state & READER_MASK == 0) {
                 _ = @atomicRmw(usize, &rwl.state, .Or, IS_WRITING, .seq_cst);
+
                 return true;
             }
 
@@ -195,20 +212,24 @@ pub const DefaultRwLock = struct {
 
     pub fn lock(rwl: *DefaultRwLock) void {
         _ = @atomicRmw(usize, &rwl.state, .Add, WRITER, .seq_cst);
+
         rwl.mutex.lock();
 
         const state = @atomicRmw(usize, &rwl.state, .Add, IS_WRITING -% WRITER, .seq_cst);
+
         if (state & READER_MASK != 0)
             rwl.semaphore.wait();
     }
 
     pub fn unlock(rwl: *DefaultRwLock) void {
         _ = @atomicRmw(usize, &rwl.state, .And, ~IS_WRITING, .seq_cst);
+
         rwl.mutex.unlock();
     }
 
     pub fn tryLockShared(rwl: *DefaultRwLock) bool {
         const state = @atomicLoad(usize, &rwl.state, .seq_cst);
+
         if (state & (IS_WRITING | WRITER_MASK) == 0) {
             _ = @cmpxchgStrong(
                 usize,
@@ -222,7 +243,9 @@ pub const DefaultRwLock = struct {
 
         if (rwl.mutex.tryLock()) {
             _ = @atomicRmw(usize, &rwl.state, .Add, READER, .seq_cst);
+
             rwl.mutex.unlock();
+
             return true;
         }
 
@@ -231,6 +254,7 @@ pub const DefaultRwLock = struct {
 
     pub fn lockShared(rwl: *DefaultRwLock) void {
         var state = @atomicLoad(usize, &rwl.state, .seq_cst);
+
         while (state & (IS_WRITING | WRITER_MASK) == 0) {
             state = @cmpxchgWeak(
                 usize,
@@ -243,7 +267,9 @@ pub const DefaultRwLock = struct {
         }
 
         rwl.mutex.lock();
+
         _ = @atomicRmw(usize, &rwl.state, .Add, READER, .seq_cst);
+
         rwl.mutex.unlock();
     }
 
@@ -273,24 +299,20 @@ test "smoke test" {
     try testing.expect(!rwl.tryLock());
     try testing.expect(!rwl.tryLockShared());
     rwl.unlock();
-
     try testing.expect(rwl.tryLock());
     try testing.expect(!rwl.tryLock());
     try testing.expect(!rwl.tryLockShared());
     rwl.unlock();
-
     rwl.lockShared();
     try testing.expect(!rwl.tryLock());
     try testing.expect(rwl.tryLockShared());
     rwl.unlockShared();
     rwl.unlockShared();
-
     try testing.expect(rwl.tryLockShared());
     try testing.expect(!rwl.tryLock());
     try testing.expect(rwl.tryLockShared());
     rwl.unlockShared();
     rwl.unlockShared();
-
     rwl.lock();
     rwl.unlock();
 }
@@ -317,11 +339,14 @@ test "concurrent access" {
         fn reader(run: *Runner, thread_idx: usize) !void {
             var prng = std.Random.DefaultPrng.init(thread_idx);
             const rnd = prng.random();
+
             while (true) {
                 run.rwl.lockShared();
+
                 defer run.rwl.unlockShared();
 
                 try testing.expect(run.writes <= num_writes);
+
                 if (run.reads.fetchAdd(1, .monotonic) >= num_reads) break;
 
                 // We use `volatile` accesses so that we can make sure the memory is accessed either
@@ -330,8 +355,11 @@ test "concurrent access" {
                 const b_ptr: *const volatile usize = &run.val_b;
 
                 const old_a = a_ptr.*;
+
                 if (rnd.boolean()) try std.Thread.yield();
+
                 const old_b = b_ptr.*;
+
                 try testing.expect(old_a == old_b);
             }
         }
@@ -339,11 +367,14 @@ test "concurrent access" {
         fn writer(run: *Runner, thread_idx: usize) !void {
             var prng = std.Random.DefaultPrng.init(thread_idx);
             const rnd = prng.random();
+
             while (true) {
                 run.rwl.lock();
+
                 defer run.rwl.unlock();
 
                 try testing.expect(run.writes <= num_writes);
+
                 if (run.writes == num_writes) break;
 
                 // We use `volatile` accesses so that we can make sure the memory is accessed either
@@ -352,12 +383,16 @@ test "concurrent access" {
                 const b_ptr: *volatile usize = &run.val_b;
 
                 const new_val = rnd.int(usize);
-
                 const old_a = a_ptr.*;
+
                 a_ptr.* = new_val;
+
                 if (rnd.boolean()) try std.Thread.yield();
+
                 const old_b = b_ptr.*;
+
                 b_ptr.* = new_val;
+
                 try testing.expect(old_a == old_b);
 
                 run.writes += 1;
@@ -372,12 +407,12 @@ test "concurrent access" {
         .val_a = 0,
         .val_b = 0,
     };
+
     var write_threads: [num_writers]std.Thread = undefined;
     var read_threads: [num_readers]std.Thread = undefined;
 
     for (&write_threads, 0..) |*t, i| t.* = try .spawn(.{}, Runner.writer, .{ &run, i });
     for (&read_threads, num_writers..) |*t, i| t.* = try .spawn(.{}, Runner.reader, .{ &run, i });
-
     for (write_threads) |t| t.join();
     for (read_threads) |t| t.join();
 

@@ -17,6 +17,7 @@ export default class Index {
 	observer = null as unknown as ResizeObserver
 	columns = [] as Stack.Columns
 	focus = { column: -1, view: -1 } as Stack.Position
+
 	container_width = 0
 	resizing = false
 
@@ -36,7 +37,6 @@ export default class Index {
 		this.utils.acts = [setStorageWhenChange(['columns', 'focus'], this), ...useInstanceWatch(this)]
 
 		this.getObserver()
-
 		this.on()
 	}
 
@@ -113,6 +113,7 @@ export default class Index {
 
 	remove(position: Stack.Position) {
 		const { column, view } = position
+
 		const target_views = this.columns[column].views
 		const target_view = target_views[view]
 		const target_view_id = target_view.id
@@ -177,6 +178,7 @@ export default class Index {
 
 	click(position: Stack.Position, ignore_columns?: boolean) {
 		const { column, view } = position
+
 		const target_views = this.columns[column].views
 
 		if (!target_views[view].active) {
@@ -310,6 +312,7 @@ export default class Index {
 		const total = this.columns[column].width + this.columns[column - 1].width
 
 		this.columns[column].width = percent
+
 		this.columns[column - 1].width = Decimal.sub(total, percent).toNumber()
 
 		this.columns = $copy(this.columns)
@@ -387,7 +390,6 @@ export default class Index {
 	off() {
 		this.observer?.disconnect()
 		this.utils.off()
-
 		$app.Event.off('global.stack.find', this.find)
 		$app.Event.off('global.stack.add', this.add)
 		$app.Event.off('global.stack.addMiniApp', this.addMiniApp)

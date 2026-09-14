@@ -24,11 +24,14 @@ const ROOT_FILES = [
 // yarn: https://classic.yarnpkg.com/en/docs/workspaces/#toc-how-to-use-it
 function hasWorkspacePackageJSON(root: string): boolean {
   const path = join(root, 'package.json')
+
   if (!isFileReadable(path)) {
     return false
   }
+
   try {
     const content = JSON.parse(fs.readFileSync(path, 'utf-8')) || {}
+
     return !!content.workspaces
   } catch {
     return false
@@ -39,17 +42,21 @@ function hasWorkspacePackageJSON(root: string): boolean {
 function hasWorkspaceDenoJSON(root: string): boolean {
   for (const name of ['deno.json', 'deno.jsonc']) {
     const path = join(root, name)
+
     if (!isFileReadable(path)) {
       continue
     }
+
     try {
       const content = JSON.parse(fs.readFileSync(path, 'utf-8')) || {}
+
       if (content.workspace) return true
     } catch {
       // deno.jsonc is only detected when it is also valid JSON. Full
       // JSONC parsing would require an additional parser.
     }
   }
+
   return false
 }
 
@@ -59,6 +66,7 @@ function hasRootFile(root: string): boolean {
 
 function hasPackageJSON(root: string) {
   const path = join(root, 'package.json')
+
   return fs.existsSync(path)
 }
 
@@ -72,6 +80,7 @@ export function searchForPackageRoot(
   if (hasPackageJSON(current)) return current
 
   const dir = dirname(current)
+
   // reach the fs root
   if (!dir || dir === current) return root
 
@@ -90,6 +99,7 @@ export function searchForWorkspaceRoot(
   if (hasWorkspaceDenoJSON(current)) return current
 
   const dir = dirname(current)
+
   // reach the fs root
   if (!dir || dir === current) return root
 

@@ -3,9 +3,7 @@ const crypto = std.crypto;
 const debug = std.debug;
 const fmt = std.fmt;
 const mem = std.mem;
-
 const Sha512 = crypto.hash.sha2.Sha512;
-
 const EncodingError = crypto.errors.EncodingError;
 const IdentityElementError = crypto.errors.IdentityElementError;
 const NonCanonicalError = crypto.errors.NonCanonicalError;
@@ -20,7 +18,6 @@ pub const Ed25519 = struct {
 
     /// Length (in bytes) of optional random bytes, for non-deterministic signatures.
     pub const noise_length = 32;
-
     const CompressedScalar = Curve.scalar.CompressedScalar;
     const Scalar = Curve.scalar.Scalar;
 
@@ -55,10 +52,12 @@ pub const Ed25519 = struct {
         fn scalarAndPrefix(self: SecretKey) struct { scalar: CompressedScalar, prefix: [32]u8 } {
             var az: [Sha512.digest_length]u8 = undefined;
             var h = Sha512.init(.{});
+
             h.update(&self.seed());
             h.final(&az);
 
             var s = az[0..32].*;
+
             Curve.scalar.clamp(&s);
 
             return .{ .scalar = s, .prefix = az[32..].* };
@@ -76,11 +75,13 @@ pub const Ed25519 = struct {
         fn init(scalar: CompressedScalar, nonce: CompressedScalar, public_key: PublicKey) (IdentityElementError || KeyMismatchError || NonCanonicalError || WeakPublicKeyError)!Signer {
             const r = try Curve.basePoint.mul(nonce);
             const r_bytes = r.toBytes();
-
             var t: [64]u8 = undefined;
+
             t[0..32].* = r_bytes;
             t[32..].* = public_key.bytes;
+
             var h = Sha512.init(.{});
+
             h.update(&t);
 
             return Signer{ .h = h, .scalar = scalar, .nonce = nonce, .r_bytes = r_bytes };
@@ -94,9 +95,10 @@ pub const Ed25519 = struct {
         /// Compute a signature over the entire message.
         pub fn finalize(self: *Signer) Signature {
             var hram64: [Sha512.digest_length]u8 = undefined;
-            self.h.final(&hram64);
-            const hram = Curve.scalar.reduce64(hram64);
 
+            self.h.final(&hram64);
+
+            const hram = Curve.scalar.reduce64(hram64);
             const s = Curve.scalar.mulAdd(hram, self.scalar, self.nonce);
 
             return Signature{ .r = self.r_bytes, .s = s };
@@ -113,6 +115,7 @@ pub const Ed25519 = struct {
         /// Create a public key from raw bytes.
         pub fn fromBytes(bytes: [encoded_length]u8) NonCanonicalError!PublicKey {
             try Curve.rejectNonCanonical(bytes);
+
             return PublicKey{ .bytes = bytes };
         }
 
@@ -123,18 +126,24 @@ pub const Ed25519 = struct {
 
         fn signWithNonce(public_key: PublicKey, msg: []const u8, scalar: CompressedScalar, nonce: CompressedScalar) (IdentityElementError || NonCanonicalError || KeyMismatchError || WeakPublicKeyError)!Signature {
             var st = try Signer.init(scalar, nonce, public_key);
+
             st.update(msg);
+
             return st.finalize();
         }
 
         fn computeNonceAndSign(public_key: PublicKey, msg: []const u8, noise: ?[noise_length]u8, scalar: CompressedScalar, prefix: []const u8) (IdentityElementError || NonCanonicalError || KeyMismatchError || WeakPublicKeyError)!Signature {
             var h = Sha512.init(.{});
+
             if (noise) |*z| {
                 h.update(z);
             }
+
             h.update(prefix);
             h.update(msg);
+
             var nonce64: [64]u8 = undefined;
+
             h.final(&nonce64);
 
             const nonce = Curve.scalar.reduce64(nonce64);
@@ -156,14 +165,20 @@ pub const Ed25519 = struct {
         fn init(sig: Signature, public_key: PublicKey) InitError!Verifier {
             const r = sig.r;
             const s = sig.s;
+
             try Curve.scalar.rejectNonCanonical(s);
+
             const a = try Curve.fromBytes(public_key.bytes);
+
             try a.rejectIdentity();
             try Curve.rejectNonCanonical(r);
+
             const expected_r = try Curve.fromBytes(r);
+
             try expected_r.rejectIdentity();
 
             var h = Sha512.init(.{});
+
             h.update(&r);
             h.update(&public_key.bytes);
 
@@ -191,14 +206,19 @@ pub const Ed25519 = struct {
         /// or SignatureVerificationError if the signature is invalid for the given message and key.
         pub fn verify(self: *Verifier) VerifyError!void {
             var hram64: [Sha512.digest_length]u8 = undefined;
+
             self.h.final(&hram64);
+
             const hram = Curve.scalar.reduce64(hram64);
+
             const sb_ah = (try Curve.basePoint.mulDoubleBasePublic(
                 Curve.scalar.mul8(self.s),
                 self.a.clearCofactor().neg(),
                 hram,
             ));
+
             const check = sb_ah.sub(self.expected_r.clearCofactor());
+
             if (!isIdentity(check)) {
                 return error.SignatureVerificationFailed;
             }
@@ -217,14 +237,19 @@ pub const Ed25519 = struct {
         /// or SignatureVerificationError if the signature is invalid for the given message and key.
         pub fn verifyStrict(self: *Verifier) VerifyError!void {
             var hram64: [Sha512.digest_length]u8 = undefined;
+
             self.h.final(&hram64);
+
             const hram = Curve.scalar.reduce64(hram64);
+
             const sb_ah = (try Curve.basePoint.mulDoubleBasePublic(
                 self.s,
                 self.a.neg(),
                 hram,
             ));
+
             const check = sb_ah.sub(self.expected_r);
+
             if (!isIdentity(check)) {
                 return error.SignatureVerificationFailed;
             }
@@ -244,8 +269,10 @@ pub const Ed25519 = struct {
         /// Return the raw signature (r, s) in little-endian format.
         pub fn toBytes(sig: Signature) [encoded_length]u8 {
             var bytes: [encoded_length]u8 = undefined;
+
             bytes[0..Curve.encoded_length].* = sig.r;
             bytes[Curve.encoded_length..].* = sig.s;
+
             return bytes;
         }
 
@@ -274,6 +301,7 @@ pub const Ed25519 = struct {
         /// or SignatureVerificationError if the signature is invalid for the given message and key.
         pub fn verify(sig: Signature, msg: []const u8, public_key: PublicKey) VerifyError!void {
             var st = try sig.verifier(public_key);
+
             st.update(msg);
             try st.verify();
         }
@@ -291,6 +319,7 @@ pub const Ed25519 = struct {
         /// or SignatureVerificationError if the signature is invalid for the given message and key.
         pub fn verifyStrict(sig: Signature, msg: []const u8, public_key: PublicKey) VerifyError!void {
             var st = try sig.verifier(public_key);
+
             st.update(msg);
             try st.verifyStrict();
         }
@@ -319,13 +348,17 @@ pub const Ed25519 = struct {
         pub fn generateDeterministic(seed: [seed_length]u8) IdentityElementError!KeyPair {
             var az: [Sha512.digest_length]u8 = undefined;
             var h = Sha512.init(.{});
+
             h.update(&seed);
             h.final(&az);
+
             const pk_p = Curve.basePoint.clampedMul(az[0..32].*) catch return error.IdentityElement;
             const pk_bytes = pk_p.toBytes();
             var sk_bytes: [SecretKey.encoded_length]u8 = undefined;
+
             sk_bytes[0..seed_length].* = seed;
             sk_bytes[seed_length..].* = pk_bytes;
+
             return KeyPair{
                 .public_key = PublicKey.fromBytes(pk_bytes) catch unreachable,
                 .secret_key = try SecretKey.fromBytes(sk_bytes),
@@ -337,10 +370,13 @@ pub const Ed25519 = struct {
         /// `crypto.random.bytes` must be supported by the target.
         pub fn generate() KeyPair {
             var random_seed: [seed_length]u8 = undefined;
+
             while (true) {
                 crypto.random.bytes(&random_seed);
+
                 return generateDeterministic(random_seed) catch {
                     @branchHint(.unlikely);
+
                     continue;
                 };
             }
@@ -360,10 +396,12 @@ pub const Ed25519 = struct {
             if (std.debug.runtime_safety) {
                 const pk_p = try Curve.fromBytes(secret_key.publicKeyBytes());
                 const recomputed_kp = try generateDeterministic(secret_key.seed());
+
                 if (!mem.eql(u8, &recomputed_kp.public_key.toBytes(), &pk_p.toBytes())) {
                     return error.NonCanonical;
                 }
             }
+
             return KeyPair{
                 .public_key = try PublicKey.fromBytes(secret_key.publicKeyBytes()),
                 .secret_key = secret_key,
@@ -378,7 +416,9 @@ pub const Ed25519 = struct {
             if (!mem.eql(u8, &key_pair.secret_key.publicKeyBytes(), &key_pair.public_key.toBytes())) {
                 return error.KeyMismatch;
             }
+
             const scalar_and_prefix = key_pair.secret_key.scalarAndPrefix();
+
             return key_pair.public_key.computeNonceAndSign(
                 msg,
                 noise,
@@ -395,17 +435,25 @@ pub const Ed25519 = struct {
             if (!mem.eql(u8, &key_pair.secret_key.publicKeyBytes(), &key_pair.public_key.toBytes())) {
                 return error.KeyMismatch;
             }
+
             const scalar_and_prefix = key_pair.secret_key.scalarAndPrefix();
             var h = Sha512.init(.{});
+
             h.update(&scalar_and_prefix.prefix);
+
             var noise2: [noise_length]u8 = undefined;
+
             crypto.random.bytes(&noise2);
             h.update(&noise2);
+
             if (noise) |*z| {
                 h.update(z);
             }
+
             var nonce64: [64]u8 = undefined;
+
             h.final(&nonce64);
+
             const nonce = Curve.scalar.reduce64(nonce64);
 
             return Signer.init(scalar_and_prefix.scalar, nonce, key_pair.public_key);
@@ -429,12 +477,18 @@ pub const Ed25519 = struct {
         for (signature_batch, 0..) |signature, i| {
             const r = signature.sig.r;
             const s = signature.sig.s;
+
             try Curve.scalar.rejectNonCanonical(s);
+
             const a = try Curve.fromBytes(signature.public_key.bytes);
+
             try a.rejectIdentity();
             try Curve.rejectNonCanonical(r);
+
             const expected_r = try Curve.fromBytes(r);
+
             try expected_r.rejectIdentity();
+
             expected_r_batch[i] = expected_r;
             r_batch[i] = r;
             s_batch[i] = s;
@@ -442,38 +496,48 @@ pub const Ed25519 = struct {
         }
 
         var hram_batch: [count]Curve.scalar.CompressedScalar = undefined;
+
         for (signature_batch, 0..) |signature, i| {
             var h = Sha512.init(.{});
+
             h.update(&r_batch[i]);
             h.update(&signature.public_key.bytes);
             h.update(signature.msg);
+
             var hram64: [Sha512.digest_length]u8 = undefined;
+
             h.final(&hram64);
+
             hram_batch[i] = Curve.scalar.reduce64(hram64);
         }
 
         var z_batch: [count]Curve.scalar.CompressedScalar = undefined;
+
         for (&z_batch) |*z| {
             crypto.random.bytes(z[0..16]);
             @memset(z[16..], 0);
         }
 
         var zs_sum = Curve.scalar.zero;
+
         for (z_batch, 0..) |z, i| {
             const zs = Curve.scalar.mul(z, s_batch[i]);
+
             zs_sum = Curve.scalar.add(zs_sum, zs);
         }
+
         zs_sum = Curve.scalar.mul8(zs_sum);
 
         var zhs: [count]Curve.scalar.CompressedScalar = undefined;
+
         for (z_batch, 0..) |z, i| {
             zhs[i] = Curve.scalar.mul(z, hram_batch[i]);
         }
 
         const zr = (try Curve.mulMulti(count, expected_r_batch, z_batch)).clearCofactor();
         const zah = (try Curve.mulMulti(count, a_batch, zhs)).clearCofactor();
-
         const zsb = try Curve.basePoint.mulPublic(zs_sum);
+
         if (zr.add(zah).sub(zsb).rejectIdentity()) |_| {
             return error.SignatureVerificationFailed;
         } else |_| {}
@@ -501,6 +565,7 @@ pub const Ed25519 = struct {
                 const blind_h = blindCtx(blind_seed, ctx);
                 const inv_blind_factor = Scalar.fromBytes(blind_h[0..32].*).invert().toBytes();
                 const pk_p = try (try Curve.fromBytes(blind_public_key.key.bytes)).mul(inv_blind_factor);
+
                 return PublicKey.fromBytes(pk_p.toBytes());
             }
         };
@@ -513,19 +578,21 @@ pub const Ed25519 = struct {
             /// Create an blind key pair from an existing key pair, a blinding seed and a context.
             pub fn init(key_pair: Ed25519.KeyPair, blind_seed: [blind_seed_length]u8, ctx: []const u8) (NonCanonicalError || IdentityElementError)!BlindKeyPair {
                 var h: [Sha512.digest_length]u8 = undefined;
+
                 Sha512.hash(&key_pair.secret_key.seed(), &h, .{});
                 Curve.scalar.clamp(h[0..32]);
-                const scalar = Curve.scalar.reduce(h[0..32].*);
 
+                const scalar = Curve.scalar.reduce(h[0..32].*);
                 const blind_h = blindCtx(blind_seed, ctx);
                 const blind_factor = Curve.scalar.reduce(blind_h[0..32].*);
-
                 const blind_scalar = Curve.scalar.mul(scalar, blind_factor);
+
                 const blind_public_key = BlindPublicKey{
                     .key = try PublicKey.fromBytes((Curve.basePoint.mul(blind_scalar) catch return error.IdentityElement).toBytes()),
                 };
 
                 var prefix: [64]u8 = undefined;
+
                 prefix[0..32].* = h[32..64].*;
                 prefix[32..64].* = blind_h[32..64].*;
 
@@ -534,6 +601,7 @@ pub const Ed25519 = struct {
                     .blind_scalar = blind_scalar,
                     .blind_public_key = blind_public_key,
                 };
+
                 return BlindKeyPair{
                     .blind_public_key = blind_public_key,
                     .blind_secret_key = blind_secret_key,
@@ -556,10 +624,12 @@ pub const Ed25519 = struct {
         fn blindCtx(blind_seed: [blind_seed_length]u8, ctx: []const u8) [Sha512.digest_length]u8 {
             var blind_h: [Sha512.digest_length]u8 = undefined;
             var hx = Sha512.init(.{});
+
             hx.update(&blind_seed);
             hx.update(&[1]u8{0});
             hx.update(ctx);
             hx.final(&blind_h);
+
             return blind_h;
         }
     };
@@ -567,20 +637,25 @@ pub const Ed25519 = struct {
 
 test "key pair creation" {
     var seed: [32]u8 = undefined;
+
     _ = try fmt.hexToBytes(seed[0..], "8052030376d47112be7f73ed7a019293dd12ad910b654455798b4667d73de166");
+
     const key_pair = try Ed25519.KeyPair.generateDeterministic(seed);
     var buf: [256]u8 = undefined;
+
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&buf, "{X}", .{&key_pair.secret_key.toBytes()}), "8052030376D47112BE7F73ED7A019293DD12AD910B654455798B4667D73DE1662D6F7455D97B4A3A10D7293909D1A4F2058CB9A370E43FA8154BB280DB839083");
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&buf, "{X}", .{&key_pair.public_key.toBytes()}), "2D6F7455D97B4A3A10D7293909D1A4F2058CB9A370E43FA8154BB280DB839083");
 }
 
 test "signature" {
     var seed: [32]u8 = undefined;
-    _ = try fmt.hexToBytes(seed[0..], "8052030376d47112be7f73ed7a019293dd12ad910b654455798b4667d73de166");
-    const key_pair = try Ed25519.KeyPair.generateDeterministic(seed);
 
+    _ = try fmt.hexToBytes(seed[0..], "8052030376d47112be7f73ed7a019293dd12ad910b654455798b4667d73de166");
+
+    const key_pair = try Ed25519.KeyPair.generateDeterministic(seed);
     const sig = try key_pair.sign("test", null);
     var buf: [128]u8 = undefined;
+
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&buf, "{X}", .{&sig.toBytes()}), "10A442B4A80CC4225B154F43BEF28D2472CA80221951262EB8E0DF9091575E2687CC486E77263C3418C757522D54F84B0359236ABBBD4ACD20DC297FDCA66808");
     try sig.verify("test", key_pair.public_key);
     try std.testing.expectError(error.SignatureVerificationFailed, sig.verify("TEST", key_pair.public_key));
@@ -591,10 +666,13 @@ test "batch verification" {
         const key_pair = Ed25519.KeyPair.generate();
         var msg1: [32]u8 = undefined;
         var msg2: [32]u8 = undefined;
+
         crypto.random.bytes(&msg1);
         crypto.random.bytes(&msg2);
+
         const sig1 = try key_pair.sign(&msg1, null);
         const sig2 = try key_pair.sign(&msg2, null);
+
         var signature_batch = [_]Ed25519.BatchElement{
             Ed25519.BatchElement{
                 .sig = sig1,
@@ -607,9 +685,11 @@ test "batch verification" {
                 .public_key = key_pair.public_key,
             },
         };
+
         try Ed25519.verifyBatch(2, signature_batch);
 
         signature_batch[1].sig = sig1;
+
         try std.testing.expectError(error.SignatureVerificationFailed, Ed25519.verifyBatch(signature_batch.len, signature_batch));
     }
 }
@@ -696,19 +776,29 @@ test "test vectors" {
             .expected = error.IdentityElement, // 11 - small-order A
         },
     };
+
     for (entries) |entry| {
         var msg: [64 / 2]u8 = undefined;
         const msg_len = entry.msg_hex.len / 2;
+
         _ = try fmt.hexToBytes(msg[0..msg_len], entry.msg_hex);
+
         var public_key_bytes: [32]u8 = undefined;
+
         _ = try fmt.hexToBytes(&public_key_bytes, entry.public_key_hex);
+
         const public_key = Ed25519.PublicKey.fromBytes(public_key_bytes) catch |err| {
             try std.testing.expectEqual(entry.expected.?, err);
+
             continue;
         };
+
         var sig_bytes: [64]u8 = undefined;
+
         _ = try fmt.hexToBytes(&sig_bytes, entry.sig_hex);
+
         const sig = Ed25519.Signature.fromBytes(sig_bytes);
+
         if (entry.expected) |error_type| {
             try std.testing.expectError(error_type, sig.verify(msg[0..msg_len], public_key));
         } else {
@@ -725,6 +815,7 @@ test "with blind keys" {
 
     // Create a random blinding seed
     var blind: [32]u8 = undefined;
+
     crypto.random.bytes(&blind);
 
     // Blind the key pair
@@ -733,24 +824,28 @@ test "with blind keys" {
     // Sign a message and check that it can be verified with the blind public key
     const msg = "test";
     const sig = try blind_kp.sign(msg, null);
+
     try sig.verify(msg, blind_kp.blind_public_key.key);
 
     // Unblind the public key
     const pk = try blind_kp.blind_public_key.unblind(blind, "ctx");
+
     try std.testing.expectEqualSlices(u8, &pk.toBytes(), &kp.public_key.toBytes());
 }
 
 test "signatures with streaming" {
     const kp = Ed25519.KeyPair.generate();
-
     var signer = try kp.signer(null);
+
     signer.update("mes");
     signer.update("sage");
+
     const sig = signer.finalize();
 
     try sig.verify("message", kp.public_key);
 
     var verifier = try sig.verifier(kp.public_key);
+
     verifier.update("mess");
     verifier.update("age");
     try verifier.verify();
@@ -759,6 +854,7 @@ test "signatures with streaming" {
 test "key pair from secret key" {
     const kp = Ed25519.KeyPair.generate();
     const kp2 = try Ed25519.KeyPair.fromSecretKey(kp.secret_key);
+
     try std.testing.expectEqualSlices(u8, &kp.secret_key.toBytes(), &kp2.secret_key.toBytes());
     try std.testing.expectEqualSlices(u8, &kp.public_key.toBytes(), &kp2.public_key.toBytes());
 }
@@ -767,16 +863,19 @@ test "cofactored vs cofactorless verification" {
     const msg_hex = "65643235353139766563746f72732033";
     const public_key_hex = "86e72f5c2a7215151059aa151c0ee6f8e2155d301402f35d7498f078629a8f79";
     const sig_hex = "fa9dde274f4820efb19a890f8ba2d8791710a4303ceef4aedf9dddc4e81a1f11701a598b9a02ae60505dd0c2938a1a0c2d6ffd4676cfb49125b19e9cb358da06";
-
     var msg: [16]u8 = undefined;
+
     _ = try fmt.hexToBytes(&msg, msg_hex);
 
     var pk_bytes: [32]u8 = undefined;
-    _ = try fmt.hexToBytes(&pk_bytes, public_key_hex);
-    const pk = try Ed25519.PublicKey.fromBytes(pk_bytes);
 
+    _ = try fmt.hexToBytes(&pk_bytes, public_key_hex);
+
+    const pk = try Ed25519.PublicKey.fromBytes(pk_bytes);
     var sig_bytes: [64]u8 = undefined;
+
     _ = try fmt.hexToBytes(&sig_bytes, sig_hex);
+
     const sig = Ed25519.Signature.fromBytes(sig_bytes);
 
     try sig.verify(&msg, pk);
@@ -791,6 +890,7 @@ test "regular signature verifies with both verify and verifyStrict" {
     const kp = Ed25519.KeyPair.generate();
     const msg = "test message";
     const sig = try kp.sign(msg, null);
+
     try sig.verify(msg, kp.public_key);
     try sig.verifyStrict(msg, kp.public_key);
 }

@@ -13,7 +13,9 @@ export function createRunnableDevEnvironment(
   context: RunnableDevEnvironmentContext = {},
 ): RunnableDevEnvironment {
   context.transport ??= createServerHotChannel()
+
   context.hot ??= true
+
   return new RunnableDevEnvironment(name, config, context)
 }
 
@@ -25,6 +27,7 @@ export interface RunnableDevEnvironmentContext extends Omit<
     environment: RunnableDevEnvironment,
     options?: ServerModuleRunnerOptions,
   ) => ModuleRunner
+
   runnerOptions?: ServerModuleRunnerOptions
   hot?: boolean
 }
@@ -37,12 +40,14 @@ export function isRunnableDevEnvironment(
 
 class RunnableDevEnvironment extends DevEnvironment {
   private _runner: ModuleRunner | undefined
+
   private _runnerFactory:
     | ((
         environment: RunnableDevEnvironment,
         options?: ServerModuleRunnerOptions,
       ) => ModuleRunner)
     | undefined
+
   private _runnerOptions: ServerModuleRunnerOptions | undefined
 
   constructor(
@@ -51,6 +56,7 @@ class RunnableDevEnvironment extends DevEnvironment {
     context: RunnableDevEnvironmentContext,
   ) {
     super(name, config, context as DevEnvironmentContext)
+
     this._runnerFactory = context.runner
     this._runnerOptions = context.runnerOptions
   }
@@ -59,13 +65,17 @@ class RunnableDevEnvironment extends DevEnvironment {
     if (this._runner) {
       return this._runner
     }
+
     const factory = this._runnerFactory || createServerModuleRunner
+
     this._runner = factory(this, this._runnerOptions)
+
     return this._runner
   }
 
   override async close(): Promise<void> {
     await super.close()
+
     if (this._runner) {
       await this._runner.close()
     }

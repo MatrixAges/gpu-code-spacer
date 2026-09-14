@@ -1,4 +1,5 @@
 import to from 'await-to-js'
+
 import {
 	$getNodeByKey,
 	$getSelection,
@@ -6,6 +7,7 @@ import {
 	COMMAND_PRIORITY_LOW,
 	SELECTION_CHANGE_COMMAND
 } from 'lexical'
+
 import { makeAutoObservable } from 'mobx'
 import { injectable } from 'tsyringe'
 
@@ -23,13 +25,19 @@ import type { BundledLanguage } from 'shiki'
 @injectable()
 export default class Index {
 	id = ''
+
 	editor = null as unknown as LexicalEditor
+
 	key = ''
+
 	resize_observer = null as unknown as ResizeObserver
 
 	lang = '' as BundledLanguage
+
 	formatable = false
+
 	position = { left: 0, top: 0 }
+
 	visible = false
 
 	watch = {
@@ -49,6 +57,7 @@ export default class Index {
 				if (container) this.resize_observer.unobserve(container)
 
 				this.resize_observer.disconnect()
+
 				this.resize_observer = null as unknown as ResizeObserver
 			}
 		}
@@ -75,7 +84,9 @@ export default class Index {
 		this.key = ''
 		this.lang = '' as BundledLanguage
 		this.formatable = false
+
 		this.position = { left: 0, top: 0 }
+
 		this.visible = false
 	}
 
@@ -112,6 +123,7 @@ export default class Index {
 
 		this.key = node.__key
 		this.lang = node.__lang
+
 		this.formatable = prettier_langs[node.__lang] ? true : false
 		this.visible = true
 
@@ -128,6 +140,7 @@ export default class Index {
 			target.__lang = v
 
 			this.lang = v
+
 			this.formatable = prettier_langs[v] ? true : false
 		})
 	}

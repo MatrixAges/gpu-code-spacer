@@ -1,10 +1,12 @@
 import { pathToFileURL } from 'node:url'
 import type { FetchResult } from 'vite/module-runner'
 import type { EnvironmentModuleNode, TransformResult } from '..'
+
 import {
   MODULE_RUNNER_SOURCEMAPPING_SOURCE,
   SOURCEMAPPING_URL,
 } from '../../shared/constants'
+
 import { unwrapId } from '../../shared/utils'
 import { tryNodeResolve } from '../plugins/resolve'
 import type { DevEnvironment } from '../server/environment'
@@ -45,6 +47,7 @@ export async function fetchModule(
   // entry points are always internalized
   if (!isFileUrl && importer && url[0] !== '.' && url[0] !== '/') {
     const { isProduction, root } = environment.config
+
     const { externalConditions, dedupe, preserveSymlinks } =
       environment.config.resolve
 
@@ -64,17 +67,23 @@ export async function fetchModule(
       packageCache: environment.config.packageCache,
       builtins: environment.config.resolve.builtins,
     })
+
     if (!resolved) {
       const err: any = new Error(
         `Cannot find module '${url}' imported from '${importer}'`,
       )
+
       err.code = 'ERR_MODULE_NOT_FOUND'
+
       throw err
     }
+
     const file = pathToFileURL(resolved.id).toString()
+
     const type = isFilePathESM(resolved.id, environment.config.packageCache)
       ? 'module'
       : 'commonjs'
+
     return { externalize: file, type }
   }
 
@@ -137,6 +146,7 @@ function inlineSourceMap(
 
   // to reduce the payload size, we only inline vite node source map, because it's also the only one we use
   OTHER_SOURCE_MAP_REGEXP.lastIndex = 0
+
   if (OTHER_SOURCE_MAP_REGEXP.test(code))
     code = code.replace(OTHER_SOURCE_MAP_REGEXP, '')
 
@@ -146,6 +156,7 @@ function inlineSourceMap(
         mappings: ';'.repeat(startOffset) + map.mappings,
       }
     : map
+
   result.code = `${code.trimEnd()}\n//# sourceURL=${
     mod.id
   }\n${MODULE_RUNNER_SOURCEMAPPING_SOURCE}\n//# ${SOURCEMAPPING_URL}=${genSourceMapUrl(sourceMap)}\n`

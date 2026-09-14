@@ -79,10 +79,12 @@ const fuzz1_case: Case = .{
 
 test "run test cases" {
     try testCase(gnu_case);
+
     try testCase(.{
         .data = @embedFile("testdata/sparse-formats.tar"),
         .err = error.TarUnsupportedHeader,
     });
+
     try testCase(.{
         .data = @embedFile("testdata/star.tar"),
         .files = &[_]Case.File{
@@ -102,6 +104,7 @@ test "run test cases" {
             "c65bd2e50a56a2138bf1716f2fd56fe9",
         },
     });
+
     try testCase(.{
         .data = @embedFile("testdata/v7.tar"),
         .files = &[_]Case.File{
@@ -121,6 +124,7 @@ test "run test cases" {
             "c65bd2e50a56a2138bf1716f2fd56fe9",
         },
     });
+
     try testCase(.{
         .data = @embedFile("testdata/pax.tar"),
         .files = &[_]Case.File{
@@ -141,11 +145,13 @@ test "run test cases" {
             "3c382e8f5b6631aa2db52643912ffd4a",
         },
     });
+
     try testCase(.{
         // pax attribute don't end with \n
         .data = @embedFile("testdata/pax-bad-hdr-file.tar"),
         .err = error.PaxInvalidAttributeEnd,
     });
+
     try testCase(.{
         // size is in pax attribute
         .data = @embedFile("testdata/pax-pos-size-file.tar"),
@@ -161,6 +167,7 @@ test "run test cases" {
             "0afb597b283fe61b5d4879669a350556",
         },
     });
+
     try testCase(.{
         // has pax records which we are not interested in
         .data = @embedFile("testdata/pax-records.tar"),
@@ -170,6 +177,7 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(.{
         // has global records which we are ignoring
         .data = @embedFile("testdata/pax-global-records.tar"),
@@ -188,6 +196,7 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(.{
         .data = @embedFile("testdata/nil-uid.tar"),
         .files = &[_]Case.File{
@@ -202,6 +211,7 @@ test "run test cases" {
             "08d504674115e77a67244beac19668f5",
         },
     });
+
     try testCase(.{
         // has xattrs and pax records which we are ignoring
         .data = @embedFile("testdata/xattrs.tar"),
@@ -224,12 +234,15 @@ test "run test cases" {
             "c65bd2e50a56a2138bf1716f2fd56fe9",
         },
     });
+
     try testCase(gnu_multi_headers_case);
+
     try testCase(.{
         // has gnu type D (directory) and S (sparse) blocks
         .data = @embedFile("testdata/gnu-incremental.tar"),
         .err = error.TarUnsupportedHeader,
     });
+
     try testCase(.{
         // should use values only from last pax header
         .data = @embedFile("testdata/pax-multi-hdrs.tar"),
@@ -241,6 +254,7 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(.{
         .data = @embedFile("testdata/gnu-long-nul.tar"),
         .files = &[_]Case.File{
@@ -250,6 +264,7 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(.{
         .data = @embedFile("testdata/gnu-utf8.tar"),
         .files = &[_]Case.File{
@@ -259,6 +274,7 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(.{
         .data = @embedFile("testdata/gnu-not-utf8.tar"),
         .files = &[_]Case.File{
@@ -268,31 +284,38 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(.{
         // null in pax key
         .data = @embedFile("testdata/pax-nul-xattrs.tar"),
         .err = error.PaxNullInKeyword,
     });
+
     try testCase(.{
         .data = @embedFile("testdata/pax-nul-path.tar"),
         .err = error.PaxNullInValue,
     });
+
     try testCase(.{
         .data = @embedFile("testdata/neg-size.tar"),
         .err = error.TarHeader,
     });
+
     try testCase(.{
         .data = @embedFile("testdata/issue10968.tar"),
         .err = error.TarHeader,
     });
+
     try testCase(.{
         .data = @embedFile("testdata/issue11169.tar"),
         .err = error.TarHeader,
     });
+
     try testCase(.{
         .data = @embedFile("testdata/issue12435.tar"),
         .err = error.TarHeaderChksum,
     });
+
     try testCase(.{
         // has magic with space at end instead of null
         .data = @embedFile("testdata/invalid-go17.tar"),
@@ -302,6 +325,7 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(.{
         .data = @embedFile("testdata/ustar-file-devs.tar"),
         .files = &[_]Case.File{
@@ -311,7 +335,9 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(trailing_slash_case);
+
     try testCase(.{
         // Has size in gnu extended format. To represent size bigger than 8 GB.
         .data = @embedFile("testdata/writer-big.tar"),
@@ -324,8 +350,10 @@ test "run test cases" {
             },
         },
     });
+
     try testCase(writer_big_long_case);
     try testCase(fuzz1_case);
+
     try testCase(.{
         .data = @embedFile("testdata/fuzz2.tar"),
         .err = error.PaxSizeAttrOverflow,
@@ -337,20 +365,25 @@ fn testCase(case: Case) !void {
     var link_name_buffer: [std.fs.max_path_bytes]u8 = undefined;
 
     var br: std.Io.Reader = .fixed(case.data);
+
     var it: tar.Iterator = .init(&br, .{
         .file_name_buffer = &file_name_buffer,
         .link_name_buffer = &link_name_buffer,
     });
+
     var i: usize = 0;
+
     while (it.next() catch |err| {
         if (case.err) |e| {
             try testing.expectEqual(e, err);
+
             return;
         } else {
             return err;
         }
     }) |actual| : (i += 1) {
         const expected = case.files[i];
+
         try testing.expectEqualStrings(expected.name, actual.name);
         try testing.expectEqual(expected.size, actual.size);
         try testing.expectEqual(expected.kind, actual.kind);
@@ -359,9 +392,13 @@ fn testCase(case: Case) !void {
 
         if (case.chksums.len > i) {
             var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
+
             defer aw.deinit();
+
             try it.streamRemaining(actual, &aw.writer);
+
             const chksum = std.fmt.bytesToHex(std.crypto.hash.Md5.hashResult(aw.written()), .lower);
+
             try testing.expectEqualStrings(case.chksums[i], &chksum);
         } else {
             if (expected.truncated) {
@@ -369,12 +406,14 @@ fn testCase(case: Case) !void {
             }
         }
     }
+
     try testing.expectEqual(case.files.len, i);
 }
 
 test "pax/gnu long names with small buffer" {
     try testLongNameCase(gnu_multi_headers_case);
     try testLongNameCase(trailing_slash_case);
+
     try testLongNameCase(.{
         .data = @embedFile("testdata/fuzz1.tar"),
         .err = error.TarInsufficientBuffer,
@@ -388,14 +427,17 @@ fn testLongNameCase(case: Case) !void {
     var min_link_name_buffer: [100]u8 = undefined;
 
     var br: std.Io.Reader = .fixed(case.data);
+
     var iter: tar.Iterator = .init(&br, .{
         .file_name_buffer = &min_file_name_buffer,
         .link_name_buffer = &min_link_name_buffer,
     });
 
     var iter_err: ?anyerror = null;
+
     while (iter.next() catch |err| brk: {
         iter_err = err;
+
         break :brk null;
     }) |_| {}
 
@@ -408,14 +450,17 @@ test "insufficient buffer in Header name filed" {
     var min_link_name_buffer: [100]u8 = undefined;
 
     var br: std.Io.Reader = .fixed(gnu_case.data);
+
     var iter: tar.Iterator = .init(&br, .{
         .file_name_buffer = &min_file_name_buffer,
         .link_name_buffer = &min_link_name_buffer,
     });
 
     var iter_err: ?anyerror = null;
+
     while (iter.next() catch |err| brk: {
         iter_err = err;
+
         break :brk null;
     }) |_| {}
 
@@ -466,7 +511,9 @@ test "should not overwrite existing file" {
 
     // Unpack with strip_components = 1 should fail
     var root = std.testing.tmpDir(.{});
+
     defer root.cleanup();
+
     try testing.expectError(
         error.PathAlreadyExists,
         tar.pipeToFileSystem(root.dir, &r, .{ .mode_mode = .ignore, .strip_components = 1 }),
@@ -474,8 +521,11 @@ test "should not overwrite existing file" {
 
     // Unpack with strip_components = 0 should pass
     r = .fixed(data);
+
     var root2 = std.testing.tmpDir(.{});
+
     defer root2.cleanup();
+
     try tar.pipeToFileSystem(root2.dir, &r, .{ .mode_mode = .ignore, .strip_components = 0 });
 }
 
@@ -493,11 +543,13 @@ test "case sensitivity" {
     var r: std.Io.Reader = .fixed(data);
 
     var root = std.testing.tmpDir(.{});
+
     defer root.cleanup();
 
     tar.pipeToFileSystem(root.dir, &r, .{ .mode_mode = .ignore, .strip_components = 1 }) catch |err| {
         // on case insensitive fs we fail on overwrite existing file
         try testing.expectEqual(error.PathAlreadyExists, err);
+
         return;
     };
 

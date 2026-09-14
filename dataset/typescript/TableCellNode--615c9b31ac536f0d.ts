@@ -70,6 +70,7 @@ export default class TableCellNode extends ElementNode {
 
 	exportDOM(editor: LexicalEditor): DOMExportOutput {
 		const { element } = super.exportDOM(editor)
+
 		const el = element as HTMLTableCellElement
 
 		if (this.__row_span > 1) el.rowSpan = this.__row_span

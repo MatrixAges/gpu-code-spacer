@@ -42,6 +42,7 @@ pub const Curve25519 = struct {
     /// Multiply a point by the cofactor, returning WeakPublicKey if the element is in a small-order group.
     pub fn clearCofactor(p: Curve25519) WeakPublicKeyError!Curve25519 {
         const cofactor = [_]u8{8} ++ [_]u8{0} ** 31;
+
         return ladder(p, cofactor, 4) catch return error.WeakPublicKey;
     }
 
@@ -53,30 +54,43 @@ pub const Curve25519 = struct {
         var z3 = Fe.one;
         var swap: u8 = 0;
         var pos: usize = bits - 1;
+
         while (true) : (pos -= 1) {
             const bit = (s[pos >> 3] >> @as(u3, @truncate(pos))) & 1;
+
             swap ^= bit;
+
             Fe.cSwap2(&x2, &x3, &z2, &z3, swap);
+
             swap = bit;
+
             const a = x2.add(z2);
             const b = x2.sub(z2);
             const aa = a.sq();
             const bb = b.sq();
+
             x2 = aa.mul(bb);
+
             const e = aa.sub(bb);
             const da = x3.sub(z3).mul(a);
             const cb = x3.add(z3).mul(b);
+
             x3 = da.add(cb).sq();
             z3 = x1.mul(da.sub(cb).sq());
             z2 = e.mul(bb.add(e.mul32(121666)));
+
             if (pos == 0) break;
         }
+
         Fe.cSwap2(&x2, &x3, &z2, &z3, swap);
+
         z2 = z2.invert();
         x2 = x2.mul(z2);
+
         if (x2.isZero()) {
             return error.IdentityElement;
         }
+
         return Curve25519{ .x = x2 };
     }
 
@@ -88,7 +102,9 @@ pub const Curve25519 = struct {
     /// the identity element.
     pub fn clampedMul(p: Curve25519, s: [32]u8) IdentityElementError!Curve25519 {
         var t: [32]u8 = s;
+
         scalar.clamp(&t);
+
         return try ladder(p, t, 255);
     }
 
@@ -98,6 +114,7 @@ pub const Curve25519 = struct {
     /// key is a low-order point.
     pub fn mul(p: Curve25519, s: [32]u8) (IdentityElementError || WeakPublicKeyError)!Curve25519 {
         _ = try p.clearCofactor();
+
         return try ladder(p, s, 256);
     }
 
@@ -112,9 +129,11 @@ pub const Curve25519 = struct {
     /// on the input point before calling this function.
     pub fn fromEdwards25519(p: crypto.ecc.Edwards25519) IdentityElementError!Curve25519 {
         try p.clearCofactor().rejectIdentity();
+
         const one = crypto.ecc.Edwards25519.Fe.one;
         const py = p.y.mul(p.z.invert());
         const x = one.add(py).mul(one.sub(py).invert()); // xMont=(1+yEd)/(1-yEd)
+
         return Curve25519{ .x = x };
     }
 };
@@ -122,31 +141,43 @@ pub const Curve25519 = struct {
 test "curve25519" {
     var s = [32]u8{ 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8 };
     const p = try Curve25519.basePoint.clampedMul(s);
+
     try p.rejectIdentity();
+
     var buf: [128]u8 = undefined;
+
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&buf, "{X}", .{&p.toBytes()}), "E6F2A4D1C28EE5C7AD0329268255A468AD407D2672824C0C0EB30EA6EF450145");
+
     const q = try p.clampedMul(s);
+
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&buf, "{X}", .{&q.toBytes()}), "3614E119FFE55EC55B87D6B19971A9F4CBC78EFE80BEC55B96392BABCC712537");
 
     try Curve25519.rejectNonCanonical(s);
+
     s[31] |= 0x80;
+
     try std.testing.expectError(error.NonCanonical, Curve25519.rejectNonCanonical(s));
 }
 
 test "non-affine edwards25519 to curve25519 projection" {
     const skh = "90e7595fc89e52fdfddce9c6a43d74dbf6047025ee0462d2d172e8b6a2841d6e";
     var sk: [32]u8 = undefined;
+
     _ = std.fmt.hexToBytes(&sk, skh) catch unreachable;
+
     const edp = try crypto.ecc.Edwards25519.basePoint.mul(sk);
     const xp = try Curve25519.fromEdwards25519(edp);
     const expected_hex = "cc4f2cdb695dd766f34118eb67b98652fed1d8bc49c330b119bbfa8a64989378";
     var expected: [32]u8 = undefined;
+
     _ = std.fmt.hexToBytes(&expected, expected_hex) catch unreachable;
+
     try std.testing.expectEqualSlices(u8, &xp.toBytes(), &expected);
 }
 
 test "small order check" {
     var s: [32]u8 = [_]u8{1} ++ [_]u8{0} ** 31;
+
     const small_order_ss: [7][32]u8 = .{
         .{
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0 (order 4)
@@ -170,15 +201,22 @@ test "small order check" {
             0xee, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f, // p+1 (=1, order 1)
         },
     };
+
     for (small_order_ss) |small_order_s| {
         try std.testing.expectError(error.WeakPublicKey, Curve25519.fromBytes(small_order_s).clearCofactor());
         try std.testing.expectError(error.WeakPublicKey, Curve25519.fromBytes(small_order_s).mul(s));
+
         var extra = small_order_s;
+
         extra[31] ^= 0x80;
+
         try std.testing.expectError(error.WeakPublicKey, Curve25519.fromBytes(extra).mul(s));
+
         var valid = small_order_s;
+
         valid[31] = 0x40;
         s[0] = 0;
+
         try std.testing.expectError(error.IdentityElement, Curve25519.fromBytes(valid).mul(s));
     }
 }

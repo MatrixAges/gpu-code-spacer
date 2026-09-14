@@ -29,17 +29,22 @@ type UpdateState = null | HasUpdate | Downloading | { type: 'downloaded' }
 @injectable()
 export default class Index {
 	apps = apps_home_page
+
 	visible_app_menu = false
 	visible_homepage = false
 	switch_index = 0
 	update_silence = true
+
 	update_status = null as UpdateState
 	homepage_tab = 'apps' as 'latest' | 'star' | 'apps'
 	homepage_active = 'todo' as App.ModuleType
+
 	latest_ids = new LRUMapWithDelete<string, null>(18)
 	star_ids = new LRUMapWithDelete<string, null>(18)
+
 	latest_files = [] as DirTree.Items
 	star_files = [] as DirTree.Items
+
 	latest_watcher = null as Subscription | null
 	star_watcher = null as Subscription | null
 
@@ -120,6 +125,7 @@ export default class Index {
 				switch (args.type) {
 					case 'can_update':
 						this.update_status = { type: 'has_update', version: args.value }
+
 						break
 					case 'cant_update':
 						if (!this.update_silence) $message.info($t('setting.Update.no_update'))

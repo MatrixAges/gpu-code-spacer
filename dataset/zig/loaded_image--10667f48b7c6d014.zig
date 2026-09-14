@@ -22,6 +22,7 @@ pub const LoadedImage = extern struct {
     image_size: u64,
     image_code_type: MemoryType,
     image_data_type: MemoryType,
+
     _unload: *const fn (*LoadedImage, Handle) callconv(cc) Status,
 
     pub const UnloadError = uefi.UnexpectedError || error{InvalidParameter};

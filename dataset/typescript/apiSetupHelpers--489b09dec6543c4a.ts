@@ -8,6 +8,7 @@ import {
   isFunction,
   isPromise,
 } from '@vue/shared'
+
 import {
   type Data,
   type SetupContext,
@@ -18,19 +19,23 @@ import {
   setInSSRSetupState,
   unsetCurrentInstance,
 } from './component'
+
 import type { EmitFn, EmitsOptions, ObjectEmitsOptions } from './componentEmits'
+
 import type {
   ComponentOptionsBase,
   ComponentOptionsMixin,
   ComputedOptions,
   MethodOptions,
 } from './componentOptions'
+
 import type {
   ComponentObjectPropsOptions,
   ComponentPropsOptions,
   ExtractPropTypes,
   PropOptions,
 } from './componentProps'
+
 import { warn } from './warning'
 import type { SlotsType, StrictUnwrapSlotsType } from './componentSlots'
 import type { Ref } from '@vue/reactivity'
@@ -79,20 +84,24 @@ const warnRuntimeUsage = (method: string) =>
 export function defineProps<PropNames extends string = string>(
   props: PropNames[],
 ): Prettify<Readonly<{ [key in PropNames]?: any }>>
+
 // overload 2: runtime props w/ object
 export function defineProps<
   PP extends ComponentObjectPropsOptions = ComponentObjectPropsOptions,
 >(props: PP): Prettify<Readonly<ExtractPropTypes<PP>>>
+
 // overload 3: typed-based declaration
 export function defineProps<TypeProps>(): DefineProps<
   LooseRequired<TypeProps>,
   BooleanKey<TypeProps>
 >
+
 // implementation
 export function defineProps() {
   if (__DEV__) {
     warnRuntimeUsage(`defineProps`)
   }
+
   return null as any
 }
 
@@ -138,19 +147,23 @@ type BooleanKey<T, K extends keyof T = keyof T> = K extends any
 export function defineEmits<EE extends string = string>(
   emitOptions: EE[],
 ): EmitFn<EE[]>
+
 export function defineEmits<E extends EmitsOptions = EmitsOptions>(
   emitOptions: E,
 ): EmitFn<E>
+
 export function defineEmits<T extends ComponentTypeEmits>(): T extends (
   ...args: any[]
 ) => any
   ? T
   : ShortEmits<T>
+
 // implementation
 export function defineEmits() {
   if (__DEV__) {
     warnRuntimeUsage(`defineEmits`)
   }
+
   return null as any
 }
 
@@ -256,6 +269,7 @@ export function defineSlots<
   if (__DEV__) {
     warnRuntimeUsage(`defineSlots`)
   }
+
   return null as any
 }
 
@@ -335,6 +349,7 @@ export function defineModel(): any {
 }
 
 type NotUndefined<T> = T extends undefined ? never : T
+
 type MappedOmit<T, K extends keyof any> = {
   [P in keyof T as P extends K ? never : P]: T[P]
 }
@@ -402,6 +417,7 @@ export function withDefaults<
   if (__DEV__) {
     warnRuntimeUsage(`withDefaults`)
   }
+
   return null as any
 }
 
@@ -415,9 +431,11 @@ export function useAttrs(): SetupContext['attrs'] {
 
 function getContext(calledFunctionName: string): SetupContext {
   const i = getCurrentInstance()!
+
   if (__DEV__ && !i) {
     warn(`${calledFunctionName}() called without active instance.`)
   }
+
   return i.setupContext || (i.setupContext = createSetupContext(i))
 }
 
@@ -445,9 +463,12 @@ export function mergeDefaults(
   defaults: Record<string, any>,
 ): ComponentObjectPropsOptions {
   const props = normalizePropsOrEmits(raw)
+
   for (const key in defaults) {
     if (key.startsWith('__skip')) continue
+
     let opt = props[key]
+
     if (opt) {
       if (isArray(opt) || isFunction(opt)) {
         opt = props[key] = { type: opt, default: defaults[key] }
@@ -459,10 +480,12 @@ export function mergeDefaults(
     } else if (__DEV__) {
       warn(`props default key "${key}" has no corresponding declaration.`)
     }
+
     if (opt && defaults[`__skip_${key}`]) {
       opt.skipFactory = true
     }
   }
+
   return props
 }
 
@@ -477,6 +500,7 @@ export function mergeModels(
 ): ComponentPropsOptions | EmitsOptions {
   if (!a || !b) return a || b
   if (isArray(a) && isArray(b)) return a.concat(b)
+
   return extend({}, normalizePropsOrEmits(a), normalizePropsOrEmits(b))
 }
 
@@ -490,6 +514,7 @@ export function createPropsRestProxy(
   excludedKeys: string[],
 ): Record<string, any> {
   const ret: Record<string, any> = {}
+
   for (const key in props) {
     if (!excludedKeys.includes(key)) {
       Object.defineProperty(ret, key, {
@@ -498,6 +523,7 @@ export function createPropsRestProxy(
       })
     }
   }
+
   return ret
 }
 
@@ -522,20 +548,25 @@ export function createPropsRestProxy(
 export function withAsyncContext(getAwaitable: () => any): [any, () => void] {
   const ctx = getCurrentInstance()!
   const inSSRSetup = isInSSRComponentSetup
+
   if (__DEV__ && !ctx) {
     warn(
       `withAsyncContext called without active current instance. ` +
         `This is likely a bug.`,
     )
   }
+
   let awaitable = getAwaitable()
+
   unsetCurrentInstance()
+
   if (inSSRSetup) {
     setInSSRSetupState(false)
   }
 
   const restore = () => {
     setCurrentInstance(ctx)
+
     if (inSSRSetup) {
       setInSSRSetupState(true)
     }
@@ -547,7 +578,9 @@ export function withAsyncContext(getAwaitable: () => any): [any, () => void] {
   // then clear global currentInstance for user microtasks.
   const cleanup = () => {
     if (getCurrentInstance() !== ctx) ctx.scope.off()
+
     unsetCurrentInstance()
+
     if (inSSRSetup) {
       setInSSRSetupState(false)
     }
@@ -556,16 +589,20 @@ export function withAsyncContext(getAwaitable: () => any): [any, () => void] {
   if (isPromise(awaitable)) {
     awaitable = awaitable.catch(e => {
       restore()
+
       // Defer cleanup so the async function's catch continuation
       // still runs with the restored instance.
       Promise.resolve().then(() => Promise.resolve().then(cleanup))
+
       throw e
     })
   }
+
   return [
     awaitable,
     () => {
       restore()
+
       // Keep instance for the current continuation, then cleanup.
       Promise.resolve().then(cleanup)
     },

@@ -1,9 +1,11 @@
 import type { AppConfig } from '../apiCreateApp'
+
 import {
   DeprecationTypes,
   softAssertCompatEnabled,
   warnDeprecation,
 } from './compatConfig'
+
 import { isCopyingConfig } from './global'
 import { internalOptionMergeStrats } from '../componentOptions'
 
@@ -47,6 +49,7 @@ export function installLegacyConfigWarnings(config: AppConfig): void {
 
   Object.keys(legacyConfigOptions).forEach(key => {
     let val = (config as any)[key]
+
     Object.defineProperty(config, key, {
       enumerable: true,
       get() {
@@ -56,6 +59,7 @@ export function installLegacyConfigWarnings(config: AppConfig): void {
         if (!isCopyingConfig) {
           warnDeprecation(legacyConfigOptions[key], null)
         }
+
         val = newVal
       },
     })
@@ -68,6 +72,7 @@ export function installLegacyOptionMergeStrats(config: AppConfig): void {
       if (key in target) {
         return target[key]
       }
+
       if (
         key in internalOptionMergeStrats &&
         softAssertCompatEnabled(

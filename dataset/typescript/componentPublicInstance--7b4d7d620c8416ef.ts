@@ -6,13 +6,16 @@ import {
   getComponentPublicInstance,
   isStatefulComponent,
 } from './component'
+
 import { nextTick, queueJob } from './scheduler'
+
 import {
   type OnCleanup,
   type WatchOptions,
   type WatchStopHandle,
   instanceWatch,
 } from './apiWatch'
+
 import {
   EMPTY_OBJ,
   type IfAny,
@@ -26,6 +29,7 @@ import {
   isGloballyAllowed,
   isString,
 } from '@vue/shared'
+
 import {
   ReactiveFlags,
   type ShallowUnwrapRef,
@@ -35,6 +39,7 @@ import {
   toRaw,
   track,
 } from '@vue/reactivity'
+
 import {
   type ComponentInjectOptions,
   type ComponentOptionsBase,
@@ -50,6 +55,7 @@ import {
   resolveMergedOptions,
   shouldCacheAccess,
 } from './componentOptions'
+
 import type { EmitFn, EmitsOptions } from './componentEmits'
 import type { SlotsType, UnwrapSlotsType } from './componentSlots'
 import { filterSingleRoot, markAttrsAccessed } from './componentRenderUtils'
@@ -306,9 +312,11 @@ export type ComponentPublicInstance<
 > = {
   $: ComponentInternalInstance
   $data: D
+
   $props: MakeDefaultsOptional extends true
     ? Partial<Defaults> & Omit<Prettify<P> & PublicProps, keyof Defaults>
     : Prettify<P> & PublicProps
+
   $attrs: Attrs
   $refs: Data & TypeRefs
   $slots: UnwrapSlotsType<S>
@@ -320,6 +328,7 @@ export type ComponentPublicInstance<
   $options: Options & MergedComponentOptionsOverride
   $forceUpdate: () => void
   $nextTick: typeof nextTick
+
   $watch<T extends string | ((...args: any) => any)>(
     source: T,
     cb: T extends (...args: any) => infer R
@@ -357,6 +366,7 @@ const getPublicInstance = (
 ): ComponentPublicInstance | ComponentInternalInstance['exposed'] | null => {
   if (!i) return null
   if (isStatefulComponent(i)) return getComponentPublicInstance(i)
+
   return getPublicInstance(i.parent)
 }
 
@@ -369,23 +379,30 @@ const resolveDevRootEl = (vnode: VNode): VNode['el'] | undefined => {
   while (true) {
     if (vnode.patchFlag > 0 && vnode.patchFlag & PatchFlags.DEV_ROOT_FRAGMENT) {
       const root = filterSingleRoot(vnode.children as VNodeArrayChildren)
+
       if (!root) {
         return
       }
+
       vnode = root
       found = true
+
       continue
     }
 
     const component = vnode.component
+
     if (component && component.subTree) {
       vnode = component.subTree
+
       continue
     }
 
     const suspense = vnode.suspense
+
     if (suspense && suspense.activeBranch) {
       vnode = suspense.activeBranch
+
       continue
     }
 
@@ -395,6 +412,7 @@ const resolveDevRootEl = (vnode: VNode): VNode['el'] | undefined => {
 
 const getDevRootFragmentEl = (i: ComponentInternalInstance) => {
   const el = i.subTree && resolveDevRootEl(i.subTree)
+
   return el === undefined ? i.vnode.el : el
 }
 
@@ -468,6 +486,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     // prototype) to memoize what access type a key corresponds to.
     if (key[0] !== '$') {
       const n = accessCache![key]
+
       if (n !== undefined) {
         switch (n) {
           case AccessTypes.SETUP:
@@ -482,6 +501,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
         }
       } else if (hasSetupBinding(setupState, key)) {
         accessCache![key] = AccessTypes.SETUP
+
         return setupState[key]
       } else if (
         __FEATURE_OPTIONS_API__ &&
@@ -489,12 +509,15 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
         hasOwn(data, key)
       ) {
         accessCache![key] = AccessTypes.DATA
+
         return data[key]
       } else if (hasOwn(props, key)) {
         accessCache![key] = AccessTypes.PROPS
+
         return props![key]
       } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
         accessCache![key] = AccessTypes.CONTEXT
+
         return ctx[key]
       } else if (!__FEATURE_OPTIONS_API__ || shouldCacheAccess) {
         accessCache![key] = AccessTypes.OTHER
@@ -502,16 +525,20 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     }
 
     const publicGetter = publicPropertiesMap[key]
+
     let cssModule, globalProperties
+
     // public $xxx properties
     if (publicGetter) {
       if (key === '$attrs') {
         track(instance.attrs, TrackOpTypes.GET, '')
+
         __DEV__ && markAttrsAccessed()
       } else if (__DEV__ && key === '$slots') {
         // for HMR only
         track(instance, TrackOpTypes.GET, key)
       }
+
       return publicGetter(instance)
     } else if (
       // css module (injected by vue-loader)
@@ -522,6 +549,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
       // user may set custom properties to `this` that start with `$`
       accessCache![key] = AccessTypes.CONTEXT
+
       return ctx[key]
     } else if (
       // global properties
@@ -530,10 +558,12 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     ) {
       if (__COMPAT__) {
         const desc = Object.getOwnPropertyDescriptor(globalProperties, key)!
+
         if (desc.get) {
           return desc.get.call(instance.proxy)
         } else {
           const val = globalProperties[key]
+
           return isFunction(val) ? extend(val.bind(instance.proxy), val) : val
         }
       } else {
@@ -569,8 +599,10 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     value: any,
   ): boolean {
     const { data, setupState, ctx } = instance
+
     if (hasSetupBinding(setupState, key)) {
       setupState[key] = value
+
       return true
     } else if (
       __DEV__ &&
@@ -578,6 +610,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       hasOwn(setupState, key)
     ) {
       warn(`Cannot mutate <script setup> binding "${key}" from Options API.`)
+
       return false
     } else if (
       __FEATURE_OPTIONS_API__ &&
@@ -585,17 +618,21 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       hasOwn(data, key)
     ) {
       data[key] = value
+
       return true
     } else if (hasOwn(instance.props, key)) {
       __DEV__ && warn(`Attempting to mutate prop "${key}". Props are readonly.`)
+
       return false
     }
+
     if (key[0] === '$' && key.slice(1) in instance) {
       __DEV__ &&
         warn(
           `Attempting to mutate public property "${key}". ` +
             `Properties starting with $ are reserved and readonly.`,
         )
+
       return false
     } else {
       if (__DEV__ && key in instance.appContext.config.globalProperties) {
@@ -608,6 +645,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
         ctx[key] = value
       }
     }
+
     return true
   },
 
@@ -618,6 +656,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     key: string,
   ) {
     let cssModules
+
     return !!(
       accessCache![key] ||
       (__FEATURE_OPTIONS_API__ &&
@@ -644,6 +683,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     } else if (hasOwn(descriptor, 'value')) {
       this.set!(target, key, descriptor.value, null)
     }
+
     return Reflect.defineProperty(target, key, descriptor)
   },
 }
@@ -654,6 +694,7 @@ if (__DEV__ && !__TEST__) {
       `Avoid app logic that relies on enumerating keys on a component instance. ` +
         `The keys will be empty in production mode to avoid performance overhead.`,
     )
+
     return Reflect.ownKeys(target)
   }
 }
@@ -665,10 +706,12 @@ export const RuntimeCompiledPublicInstanceProxyHandlers: ProxyHandler<any> =
       if ((key as any) === Symbol.unscopables) {
         return
       }
+
       return PublicInstanceProxyHandlers.get!(target, key, target)
     },
     has(_: ComponentRenderContext, key: string) {
       const has = key[0] !== '_' && !isGloballyAllowed(key)
+
       if (__DEV__ && !has && PublicInstanceProxyHandlers.has!(_, key)) {
         warn(
           `Property ${JSON.stringify(
@@ -676,6 +719,7 @@ export const RuntimeCompiledPublicInstanceProxyHandlers: ProxyHandler<any> =
           )} should not start with _ which is a reserved prefix for Vue internals.`,
         )
       }
+
       return has
     },
   })
@@ -717,6 +761,7 @@ export function exposePropsOnRenderContext(
     ctx,
     propsOptions: [propsOptions],
   } = instance
+
   if (propsOptions) {
     Object.keys(propsOptions).forEach(key => {
       Object.defineProperty(ctx, key, {
@@ -734,6 +779,7 @@ export function exposeSetupStateOnRenderContext(
   instance: ComponentInternalInstance,
 ): void {
   const { ctx, setupState } = instance
+
   Object.keys(toRaw(setupState)).forEach(key => {
     if (!setupState.__isScriptSetup) {
       if (isReservedPrefix(key[0])) {
@@ -743,8 +789,10 @@ export function exposeSetupStateOnRenderContext(
           )} should not start with "$" or "_" ` +
             `which are reserved prefixes for Vue internals.`,
         )
+
         return
       }
+
       Object.defineProperty(ctx, key, {
         enumerable: true,
         configurable: true,

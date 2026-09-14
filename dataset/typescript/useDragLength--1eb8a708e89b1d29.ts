@@ -13,9 +13,12 @@ interface Args {
 
 export default (args: Args) => {
 	const { day_index, angle_row_id, step, timeblock_index, changeTimeBlockLength } = args
+
 	const ref = useRef<HTMLDivElement>(null)
 	const changed = useRef(0)
+
 	const [changing, setChanging] = useState(false)
+
 	const timeline = angle_row_id !== undefined
 
 	useEffect(() => {

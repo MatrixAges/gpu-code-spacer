@@ -47,11 +47,13 @@ pub fn UniqueKeyType(comptime _Key: type) type {
 
         comptime {
             assert(@sizeOf(UniqueKey) == 2 * @sizeOf(Key));
+
             assert(@sizeOf(UniqueKey) == switch (Key) {
                 u64 => @sizeOf(u128),
                 u128 => @sizeOf(u256),
                 else => unreachable,
             });
+
             assert(@alignOf(UniqueKey) == @alignOf(Key));
             assert(stdx.no_padding(UniqueKey));
         }
@@ -64,6 +66,7 @@ pub fn is_unique_key(comptime Value: type) bool {
         @hasField(Value, "timestamp"))
     {
         const Field = @FieldType(Value, "field");
+
         return switch (Field) {
             u64, u128 => Value == UniqueKeyType(Field),
             else => false,
@@ -78,10 +81,10 @@ comptime {
     assert(is_unique_key(UniqueKeyType(u128)));
 
     const CompositeKeyType = @import("composite_key.zig").CompositeKeyType;
+
     assert(!is_unique_key(CompositeKeyType(void)));
     assert(!is_unique_key(CompositeKeyType(u64)));
     assert(!is_unique_key(CompositeKeyType(u128)));
-
     assert(!is_unique_key(u64));
     assert(!is_unique_key(u128));
     assert(!is_unique_key(struct { field: u64, timestamp: u64 }));
@@ -95,12 +98,14 @@ test "unique_key - u64 and u128" {
         {
             const a = UniqueKey.key_from_value(&.{ .field = 1, .timestamp = 100 });
             const b = UniqueKey.key_from_value(&.{ .field = 1, .timestamp = 101 });
+
             try std.testing.expect(a == b);
         }
 
         {
             const a = UniqueKey.key_from_value(&.{ .field = 1, .timestamp = 100 });
             const b = UniqueKey.key_from_value(&.{ .field = 2, .timestamp = 100 });
+
             try std.testing.expect(a < b);
         }
     }

@@ -19,6 +19,7 @@ pub fn log(comptime T: type, base: T, x: T) T {
     }
 
     const float_base = math.lossyCast(f64, base);
+
     switch (@typeInfo(T)) {
         .comptime_float => {
             return @as(comptime_float, @log(@as(f64, x)) / @log(float_base));
@@ -66,7 +67,6 @@ test "log float" {
 test "log float_special" {
     try expect(log(f32, 2, 0.2301974) == math.log2(@as(f32, 0.2301974)));
     try expect(log(f32, 10, 0.2301974) == math.log10(@as(f32, 0.2301974)));
-
     try expect(log(f64, 2, 213.23019799993) == math.log2(@as(f64, 213.23019799993)));
     try expect(log(f64, 10, 213.23019799993) == math.log10(@as(f64, 213.23019799993)));
 }

@@ -18,8 +18,11 @@ window.$app = {
 }
 
 window.$t = (() => {}) as any
+
 window.$copy = rfdc({ proto: true })
+
 window.$cx = cx
+
 window.$navigate = (() => {}) as any
 
 window.$stack_offs = new Map()

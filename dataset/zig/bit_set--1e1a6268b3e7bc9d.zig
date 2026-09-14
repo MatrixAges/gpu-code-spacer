@@ -81,6 +81,7 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// Returns the number of bits in this bit set
         pub inline fn capacity(self: Self) usize {
             _ = self;
+
             return bit_length;
         }
 
@@ -88,6 +89,7 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// is present in the set, false otherwise.
         pub fn isSet(self: Self, index: usize) bool {
             assert(index < bit_length);
+
             return (self.mask & maskBit(index)) != 0;
         }
 
@@ -100,15 +102,19 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// set to match the passed boolean.
         pub fn setValue(self: *Self, index: usize, value: bool) void {
             assert(index < bit_length);
+
             if (MaskInt == u0) return;
+
             const bit = maskBit(index);
             const new_bit = bit & std.math.boolMask(MaskInt, value);
+
             self.mask = (self.mask & ~bit) | new_bit;
         }
 
         /// Adds a specific bit to the bit set
         pub fn set(self: *Self, index: usize) void {
             assert(index < bit_length);
+
             self.mask |= maskBit(index);
         }
 
@@ -117,37 +123,47 @@ pub fn IntegerBitSet(comptime size: u16) type {
         pub fn setRangeValue(self: *Self, range: Range, value: bool) void {
             assert(range.end <= bit_length);
             assert(range.start <= range.end);
+
             if (range.start == range.end) return;
             if (MaskInt == u0) return;
 
             const start_bit = @as(ShiftInt, @intCast(range.start));
 
             var mask = std.math.boolMask(MaskInt, true) << start_bit;
+
             if (range.end != bit_length) {
                 const end_bit = @as(ShiftInt, @intCast(range.end));
+
                 mask &= std.math.boolMask(MaskInt, true) >> @as(ShiftInt, @truncate(@as(usize, @bitSizeOf(MaskInt)) - @as(usize, end_bit)));
             }
+
             self.mask &= ~mask;
 
             mask = std.math.boolMask(MaskInt, value) << start_bit;
+
             if (range.end != bit_length) {
                 const end_bit = @as(ShiftInt, @intCast(range.end));
+
                 mask &= std.math.boolMask(MaskInt, value) >> @as(ShiftInt, @truncate(@as(usize, @bitSizeOf(MaskInt)) - @as(usize, end_bit)));
             }
+
             self.mask |= mask;
         }
 
         /// Removes a specific bit from the bit set
         pub fn unset(self: *Self, index: usize) void {
             assert(index < bit_length);
+
             // Workaround for #7953
             if (MaskInt == u0) return;
+
             self.mask &= ~maskBit(index);
         }
 
         /// Flips a specific bit in the bit set
         pub fn toggle(self: *Self, index: usize) void {
             assert(index < bit_length);
+
             self.mask ^= maskBit(index);
         }
 
@@ -180,7 +196,9 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// If no bits are set, returns null.
         pub fn findFirstSet(self: Self) ?usize {
             const mask = self.mask;
+
             if (mask == 0) return null;
+
             return @ctz(mask);
         }
 
@@ -188,7 +206,9 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// If no bits are set, returns null.
         pub fn findLastSet(self: Self) ?usize {
             const mask = self.mask;
+
             if (mask == 0) return null;
+
             return bit_length - @clz(mask) - 1;
         }
 
@@ -196,9 +216,13 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// If no bits are set, returns null.
         pub fn toggleFirstSet(self: *Self) ?usize {
             const mask = self.mask;
+
             if (mask == 0) return null;
+
             const index = @ctz(mask);
+
             self.mask = mask & (mask - 1);
+
             return index;
         }
 
@@ -224,7 +248,9 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// are set if the corresponding bits were not set.
         pub fn complement(self: Self) Self {
             var result = self;
+
             result.toggleAll();
+
             return result;
         }
 
@@ -233,7 +259,9 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// in either input.
         pub fn unionWith(self: Self, other: Self) Self {
             var result = self;
+
             result.setUnion(other);
+
             return result;
         }
 
@@ -242,7 +270,9 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// set in both inputs.
         pub fn intersectWith(self: Self, other: Self) Self {
             var result = self;
+
             result.setIntersection(other);
+
             return result;
         }
 
@@ -251,7 +281,9 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// not the same in both inputs.
         pub fn xorWith(self: Self, other: Self) Self {
             var result = self;
+
             result.toggleSet(other);
+
             return result;
         }
 
@@ -260,7 +292,9 @@ pub fn IntegerBitSet(comptime size: u16) type {
         /// set in the second set.
         pub fn differenceWith(self: Self, other: Self) Self {
             var result = self;
+
             result.setIntersection(other.complement());
+
             return result;
         }
 
@@ -284,6 +318,7 @@ pub fn IntegerBitSet(comptime size: u16) type {
         fn SingleWordIterator(comptime direction: IteratorOptions.Direction) type {
             return struct {
                 const IterSelf = @This();
+
                 // all bits which have not yet been iterated over
                 bits_remain: MaskInt,
 
@@ -295,13 +330,17 @@ pub fn IntegerBitSet(comptime size: u16) type {
                     switch (direction) {
                         .forward => {
                             const next_index = @ctz(self.bits_remain);
+
                             self.bits_remain &= self.bits_remain - 1;
+
                             return next_index;
                         },
                         .reverse => {
                             const leading_zeroes = @clz(self.bits_remain);
                             const top_bit = (@bitSizeOf(MaskInt) - 1) - leading_zeroes;
+
                             self.bits_remain &= (@as(MaskInt, 1) << @as(ShiftInt, @intCast(top_bit))) - 1;
+
                             return top_bit;
                         },
                     }
@@ -311,10 +350,13 @@ pub fn IntegerBitSet(comptime size: u16) type {
 
         fn maskBit(index: usize) MaskInt {
             if (MaskInt == u0) return 0;
+
             return @as(MaskInt, 1) << @as(ShiftInt, @intCast(index));
         }
+
         fn boolMaskBit(index: usize, value: bool) MaskInt {
             if (MaskInt == u0) return 0;
+
             return @as(MaskInt, @intFromBool(value)) << @as(ShiftInt, @intCast(index));
         }
     };
@@ -342,8 +384,11 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
     // This operation requires that the mask has an exact power of two number of bits.
     if (!std.math.isPowerOfTwo(@bitSizeOf(MaskIntType))) {
         var desired_bits = std.math.ceilPowerOfTwoAssert(usize, @bitSizeOf(MaskIntType));
+
         if (desired_bits < byte_size) desired_bits = byte_size;
+
         const FixedMaskType = std.meta.Int(.unsigned, desired_bits);
+
         @compileError("ArrayBitSet was passed integer type " ++ @typeName(MaskIntType) ++
             ", which is not a power of two.  Please round this up to a power of two integer size (i.e. " ++ @typeName(FixedMaskType) ++ ").");
     }
@@ -353,8 +398,11 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
     // This case may be hit with small powers of two, like u4.
     if (@bitSizeOf(MaskIntType) != @sizeOf(MaskIntType) * byte_size) {
         var desired_bits = @sizeOf(MaskIntType) * byte_size;
+
         desired_bits = std.math.ceilPowerOfTwoAssert(usize, desired_bits);
+
         const FixedMaskType = std.meta.Int(.unsigned, desired_bits);
+
         @compileError("ArrayBitSet was passed integer type " ++ @typeName(MaskIntType) ++
             ", which contains padding bits.  Please round this up to an unpadded integer size (i.e. " ++ @typeName(FixedMaskType) ++ ").");
     }
@@ -404,6 +452,7 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// Returns the number of bits in this bit set
         pub inline fn capacity(self: Self) usize {
             _ = self;
+
             return bit_length;
         }
 
@@ -411,16 +460,20 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// is present in the set, false otherwise.
         pub fn isSet(self: Self, index: usize) bool {
             assert(index < bit_length);
+
             if (num_masks == 0) return false; // doesn't compile in this case
+
             return (self.masks[maskIndex(index)] & maskBit(index)) != 0;
         }
 
         /// Returns the total number of set bits in this bit set.
         pub fn count(self: Self) usize {
             var total: usize = 0;
+
             for (self.masks) |mask| {
                 total += @popCount(mask);
             }
+
             return total;
         }
 
@@ -428,17 +481,22 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// set to match the passed boolean.
         pub fn setValue(self: *Self, index: usize, value: bool) void {
             assert(index < bit_length);
+
             if (num_masks == 0) return; // doesn't compile in this case
+
             const bit = maskBit(index);
             const mask_index = maskIndex(index);
             const new_bit = bit & std.math.boolMask(MaskInt, value);
+
             self.masks[mask_index] = (self.masks[mask_index] & ~bit) | new_bit;
         }
 
         /// Adds a specific bit to the bit set
         pub fn set(self: *Self, index: usize) void {
             assert(index < bit_length);
+
             if (num_masks == 0) return; // doesn't compile in this case
+
             self.masks[maskIndex(index)] |= maskBit(index);
         }
 
@@ -447,6 +505,7 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         pub fn setRangeValue(self: *Self, range: Range, value: bool) void {
             assert(range.end <= bit_length);
             assert(range.start <= range.end);
+
             if (range.start == range.end) return;
             if (num_masks == 0) return;
 
@@ -459,6 +518,7 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
             if (start_mask_index == end_mask_index) {
                 var mask1 = std.math.boolMask(MaskInt, true) << start_bit;
                 var mask2 = std.math.boolMask(MaskInt, true) >> (mask_len - 1) - (end_bit - 1);
+
                 self.masks[start_mask_index] &= ~(mask1 & mask2);
 
                 mask1 = std.math.boolMask(MaskInt, value) << start_bit;
@@ -466,10 +526,12 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
                 self.masks[start_mask_index] |= mask1 & mask2;
             } else {
                 var bulk_mask_index: usize = undefined;
+
                 if (start_bit > 0) {
                     self.masks[start_mask_index] =
                         (self.masks[start_mask_index] & ~(std.math.boolMask(MaskInt, true) << start_bit)) |
                         (std.math.boolMask(MaskInt, value) << start_bit);
+
                     bulk_mask_index = start_mask_index + 1;
                 } else {
                     bulk_mask_index = start_mask_index;
@@ -490,14 +552,18 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// Removes a specific bit from the bit set
         pub fn unset(self: *Self, index: usize) void {
             assert(index < bit_length);
+
             if (num_masks == 0) return; // doesn't compile in this case
+
             self.masks[maskIndex(index)] &= ~maskBit(index);
         }
 
         /// Flips a specific bit in the bit set
         pub fn toggle(self: *Self, index: usize) void {
             assert(index < bit_length);
+
             if (num_masks == 0) return; // doesn't compile in this case
+
             self.masks[maskIndex(index)] ^= maskBit(index);
         }
 
@@ -543,10 +609,13 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// If no bits are set, returns null.
         pub fn findFirstSet(self: Self) ?usize {
             var offset: usize = 0;
+
             const mask = for (self.masks) |mask| {
                 if (mask != 0) break mask;
+
                 offset += @bitSizeOf(MaskInt);
             } else return null;
+
             return offset + @ctz(mask);
         }
 
@@ -554,17 +623,24 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// If no bits are set, returns null.
         pub fn findLastSet(self: Self) ?usize {
             if (bit_length == 0) return null;
+
             const bs = @bitSizeOf(MaskInt);
             var len = bit_length / bs;
+
             if (bit_length % bs != 0) len += 1;
+
             var offset: usize = len * bs;
             var idx: usize = len - 1;
+
             while (self.masks[idx] == 0) : (idx -= 1) {
                 offset -= bs;
+
                 if (idx == 0) return null;
             }
+
             offset -= @clz(self.masks[idx]);
             offset -= 1;
+
             return offset;
         }
 
@@ -572,12 +648,17 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// If no bits are set, returns null.
         pub fn toggleFirstSet(self: *Self) ?usize {
             var offset: usize = 0;
+
             const mask = for (&self.masks) |*mask| {
                 if (mask.* != 0) break mask;
+
                 offset += @bitSizeOf(MaskInt);
             } else return null;
+
             const index = @ctz(mask.*);
+
             mask.* &= (mask.* - 1);
+
             return offset + index;
         }
 
@@ -585,6 +666,7 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// bit sets are the same.
         pub fn eql(self: Self, other: Self) bool {
             var i: usize = 0;
+
             return while (i < num_masks) : (i += 1) {
                 if (self.masks[i] != other.masks[i]) {
                     break false;
@@ -608,7 +690,9 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// are set if the corresponding bits were not set.
         pub fn complement(self: Self) Self {
             var result = self;
+
             result.toggleAll();
+
             return result;
         }
 
@@ -617,7 +701,9 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// in either input.
         pub fn unionWith(self: Self, other: Self) Self {
             var result = self;
+
             result.setUnion(other);
+
             return result;
         }
 
@@ -626,7 +712,9 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// set in both inputs.
         pub fn intersectWith(self: Self, other: Self) Self {
             var result = self;
+
             result.setIntersection(other);
+
             return result;
         }
 
@@ -635,7 +723,9 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// not the same in both inputs.
         pub fn xorWith(self: Self, other: Self) Self {
             var result = self;
+
             result.toggleSet(other);
+
             return result;
         }
 
@@ -644,7 +734,9 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         /// set in the second set.
         pub fn differenceWith(self: Self, other: Self) Self {
             var result = self;
+
             result.setIntersection(other.complement());
+
             return result;
         }
 
@@ -663,9 +755,11 @@ pub fn ArrayBitSet(comptime MaskIntType: type, comptime size: usize) type {
         fn maskBit(index: usize) MaskInt {
             return @as(MaskInt, 1) << @as(ShiftInt, @truncate(index));
         }
+
         fn maskIndex(index: usize) usize {
             return index >> @bitSizeOf(ShiftInt);
         }
+
         fn boolMaskBit(index: usize, value: bool) MaskInt {
             return @as(MaskInt, @intFromBool(value)) << @as(ShiftInt, @intCast(index));
         }
@@ -705,7 +799,9 @@ pub const DynamicBitSetUnmanaged = struct {
     /// If bit_length is not zero, deinit must eventually be called.
     pub fn initEmpty(allocator: Allocator, bit_length: usize) !Self {
         var self = Self{};
+
         try self.resize(allocator, bit_length, false);
+
         return self;
     }
 
@@ -713,7 +809,9 @@ pub const DynamicBitSetUnmanaged = struct {
     /// If bit_length is not zero, deinit must eventually be called.
     pub fn initFull(allocator: Allocator, bit_length: usize) !Self {
         var self = Self{};
+
         try self.resize(allocator, bit_length, true);
+
         return self;
     }
 
@@ -730,9 +828,12 @@ pub const DynamicBitSetUnmanaged = struct {
 
         if (new_masks == 0) {
             assert(new_len == 0);
+
             allocator.free(old_allocation);
+
             self.masks = empty_masks_ptr;
             self.bit_length = 0;
+
             return;
         }
 
@@ -745,6 +846,7 @@ pub const DynamicBitSetUnmanaged = struct {
             // this allocation properly.
             const new_allocation = allocator.realloc(old_allocation, new_masks + 1) catch |err| {
                 if (new_masks + 1 > old_allocation.len) return err;
+
                 break :realloc;
             };
 
@@ -759,12 +861,14 @@ pub const DynamicBitSetUnmanaged = struct {
             if (fill and old_masks > 0) {
                 const old_padding_bits = old_masks * @bitSizeOf(MaskInt) - old_len;
                 const old_mask = (~@as(MaskInt, 0)) >> @as(ShiftInt, @intCast(old_padding_bits));
+
                 self.masks[old_masks - 1] |= ~old_mask;
             }
 
             // fill in any new masks
             if (new_masks > old_masks) {
                 const fill_value = std.math.boolMask(MaskInt, fill);
+
                 @memset(self.masks[old_masks..new_masks], fill_value);
             }
         }
@@ -773,6 +877,7 @@ pub const DynamicBitSetUnmanaged = struct {
         if (new_len > 0) {
             const padding_bits = new_masks * @bitSizeOf(MaskInt) - new_len;
             const last_item_mask = (~@as(MaskInt, 0)) >> @as(ShiftInt, @intCast(padding_bits));
+
             self.masks[new_masks - 1] &= last_item_mask;
         }
 
@@ -791,8 +896,11 @@ pub const DynamicBitSetUnmanaged = struct {
     pub fn clone(self: *const Self, new_allocator: Allocator) !Self {
         const num_masks = numMasks(self.bit_length);
         var copy = Self{};
+
         try copy.resize(new_allocator, self.bit_length, false);
+
         @memcpy(copy.masks[0..num_masks], self.masks[0..num_masks]);
+
         return copy;
     }
 
@@ -805,6 +913,7 @@ pub const DynamicBitSetUnmanaged = struct {
     /// is present in the set, false otherwise.
     pub fn isSet(self: Self, index: usize) bool {
         assert(index < self.bit_length);
+
         return (self.masks[maskIndex(index)] & maskBit(index)) != 0;
     }
 
@@ -812,10 +921,12 @@ pub const DynamicBitSetUnmanaged = struct {
     pub fn count(self: Self) usize {
         const num_masks = (self.bit_length + (@bitSizeOf(MaskInt) - 1)) / @bitSizeOf(MaskInt);
         var total: usize = 0;
+
         for (self.masks[0..num_masks]) |mask| {
             // Note: This is where we depend on padding bits being zero
             total += @popCount(mask);
         }
+
         return total;
     }
 
@@ -823,15 +934,18 @@ pub const DynamicBitSetUnmanaged = struct {
     /// set to match the passed boolean.
     pub fn setValue(self: *Self, index: usize, value: bool) void {
         assert(index < self.bit_length);
+
         const bit = maskBit(index);
         const mask_index = maskIndex(index);
         const new_bit = bit & std.math.boolMask(MaskInt, value);
+
         self.masks[mask_index] = (self.masks[mask_index] & ~bit) | new_bit;
     }
 
     /// Adds a specific bit to the bit set
     pub fn set(self: *Self, index: usize) void {
         assert(index < self.bit_length);
+
         self.masks[maskIndex(index)] |= maskBit(index);
     }
 
@@ -840,6 +954,7 @@ pub const DynamicBitSetUnmanaged = struct {
     pub fn setRangeValue(self: *Self, range: Range, value: bool) void {
         assert(range.end <= self.bit_length);
         assert(range.start <= range.end);
+
         if (range.start == range.end) return;
 
         const start_mask_index = maskIndex(range.start);
@@ -851,6 +966,7 @@ pub const DynamicBitSetUnmanaged = struct {
         if (start_mask_index == end_mask_index) {
             var mask1 = std.math.boolMask(MaskInt, true) << start_bit;
             var mask2 = std.math.boolMask(MaskInt, true) >> (@bitSizeOf(MaskInt) - 1) - (end_bit - 1);
+
             self.masks[start_mask_index] &= ~(mask1 & mask2);
 
             mask1 = std.math.boolMask(MaskInt, value) << start_bit;
@@ -858,10 +974,12 @@ pub const DynamicBitSetUnmanaged = struct {
             self.masks[start_mask_index] |= mask1 & mask2;
         } else {
             var bulk_mask_index: usize = undefined;
+
             if (start_bit > 0) {
                 self.masks[start_mask_index] =
                     (self.masks[start_mask_index] & ~(std.math.boolMask(MaskInt, true) << start_bit)) |
                     (std.math.boolMask(MaskInt, value) << start_bit);
+
                 bulk_mask_index = start_mask_index + 1;
             } else {
                 bulk_mask_index = start_mask_index;
@@ -882,24 +1000,28 @@ pub const DynamicBitSetUnmanaged = struct {
     /// Removes a specific bit from the bit set
     pub fn unset(self: *Self, index: usize) void {
         assert(index < self.bit_length);
+
         self.masks[maskIndex(index)] &= ~maskBit(index);
     }
 
     /// Set all bits to 0.
     pub fn unsetAll(self: *Self) void {
         const masks_len = numMasks(self.bit_length);
+
         @memset(self.masks[0..masks_len], 0);
     }
 
     /// Set all bits to 1.
     pub fn setAll(self: *Self) void {
         const masks_len = numMasks(self.bit_length);
+
         @memset(self.masks[0..masks_len], std.math.maxInt(MaskInt));
     }
 
     /// Flips a specific bit in the bit set
     pub fn toggle(self: *Self, index: usize) void {
         assert(index < self.bit_length);
+
         self.masks[maskIndex(index)] ^= maskBit(index);
     }
 
@@ -908,7 +1030,9 @@ pub const DynamicBitSetUnmanaged = struct {
     /// same bit_length.
     pub fn toggleSet(self: *Self, toggles: Self) void {
         assert(toggles.bit_length == self.bit_length);
+
         const num_masks = numMasks(self.bit_length);
+
         for (self.masks[0..num_masks], 0..) |*mask, i| {
             mask.* ^= toggles.masks[i];
         }
@@ -917,16 +1041,19 @@ pub const DynamicBitSetUnmanaged = struct {
     /// Flips every bit in the bit set.
     pub fn toggleAll(self: *Self) void {
         const bit_length = self.bit_length;
+
         // avoid underflow if bit_length is zero
         if (bit_length == 0) return;
 
         const num_masks = numMasks(self.bit_length);
+
         for (self.masks[0..num_masks]) |*mask| {
             mask.* = ~mask.*;
         }
 
         const padding_bits = num_masks * @bitSizeOf(MaskInt) - bit_length;
         const last_item_mask = (~@as(MaskInt, 0)) >> @as(ShiftInt, @intCast(padding_bits));
+
         self.masks[num_masks - 1] &= last_item_mask;
     }
 
@@ -936,7 +1063,9 @@ pub const DynamicBitSetUnmanaged = struct {
     /// The two sets must both be the same bit_length.
     pub fn setUnion(self: *Self, other: Self) void {
         assert(other.bit_length == self.bit_length);
+
         const num_masks = numMasks(self.bit_length);
+
         for (self.masks[0..num_masks], 0..) |*mask, i| {
             mask.* |= other.masks[i];
         }
@@ -948,7 +1077,9 @@ pub const DynamicBitSetUnmanaged = struct {
     /// The two sets must both be the same bit_length.
     pub fn setIntersection(self: *Self, other: Self) void {
         assert(other.bit_length == self.bit_length);
+
         const num_masks = numMasks(self.bit_length);
+
         for (self.masks[0..num_masks], 0..) |*mask, i| {
             mask.* &= other.masks[i];
         }
@@ -959,11 +1090,14 @@ pub const DynamicBitSetUnmanaged = struct {
     pub fn findFirstSet(self: Self) ?usize {
         var offset: usize = 0;
         var mask = self.masks;
+
         while (offset < self.bit_length) {
             if (mask[0] != 0) break;
+
             mask += 1;
             offset += @bitSizeOf(MaskInt);
         } else return null;
+
         return offset + @ctz(mask[0]);
     }
 
@@ -971,17 +1105,24 @@ pub const DynamicBitSetUnmanaged = struct {
     /// If no bits are set, returns null.
     pub fn findLastSet(self: Self) ?usize {
         if (self.bit_length == 0) return null;
+
         const bs = @bitSizeOf(MaskInt);
         var len = self.bit_length / bs;
+
         if (self.bit_length % bs != 0) len += 1;
+
         var offset: usize = len * bs;
         var idx: usize = len - 1;
+
         while (self.masks[idx] == 0) : (idx -= 1) {
             offset -= bs;
+
             if (idx == 0) return null;
         }
+
         offset -= @clz(self.masks[idx]);
         offset -= 1;
+
         return offset;
     }
 
@@ -990,13 +1131,18 @@ pub const DynamicBitSetUnmanaged = struct {
     pub fn toggleFirstSet(self: *Self) ?usize {
         var offset: usize = 0;
         var mask = self.masks;
+
         while (offset < self.bit_length) {
             if (mask[0] != 0) break;
+
             mask += 1;
             offset += @bitSizeOf(MaskInt);
         } else return null;
+
         const index = @ctz(mask[0]);
+
         mask[0] &= (mask[0] - 1);
+
         return offset + index;
     }
 
@@ -1006,8 +1152,10 @@ pub const DynamicBitSetUnmanaged = struct {
         if (self.bit_length != other.bit_length) {
             return false;
         }
+
         const num_masks = numMasks(self.bit_length);
         var i: usize = 0;
+
         return while (i < num_masks) : (i += 1) {
             if (self.masks[i] != other.masks[i]) {
                 break false;
@@ -1021,8 +1169,10 @@ pub const DynamicBitSetUnmanaged = struct {
         if (self.bit_length != other.bit_length) {
             return false;
         }
+
         const num_masks = numMasks(self.bit_length);
         var i: usize = 0;
+
         return while (i < num_masks) : (i += 1) {
             if (self.masks[i] & other.masks[i] != self.masks[i]) {
                 break false;
@@ -1036,8 +1186,10 @@ pub const DynamicBitSetUnmanaged = struct {
         if (self.bit_length != other.bit_length) {
             return false;
         }
+
         const num_masks = numMasks(self.bit_length);
         var i: usize = 0;
+
         return while (i < num_masks) : (i += 1) {
             if (self.masks[i] & other.masks[i] != other.masks[i]) {
                 break false;
@@ -1054,6 +1206,7 @@ pub const DynamicBitSetUnmanaged = struct {
         const num_masks = numMasks(self.bit_length);
         const padding_bits = num_masks * @bitSizeOf(MaskInt) - self.bit_length;
         const last_item_mask = (~@as(MaskInt, 0)) >> @as(ShiftInt, @intCast(padding_bits));
+
         return Iterator(options).init(self.masks[0..num_masks], last_item_mask);
     }
 
@@ -1064,12 +1217,15 @@ pub const DynamicBitSetUnmanaged = struct {
     fn maskBit(index: usize) MaskInt {
         return @as(MaskInt, 1) << @as(ShiftInt, @truncate(index));
     }
+
     fn maskIndex(index: usize) usize {
         return index >> @bitSizeOf(ShiftInt);
     }
+
     fn boolMaskBit(index: usize, value: bool) MaskInt {
         return @as(MaskInt, @intFromBool(value)) << @as(ShiftInt, @intCast(index));
     }
+
     fn numMasks(bit_length: usize) usize {
         return (bit_length + (@bitSizeOf(MaskInt) - 1)) / @bitSizeOf(MaskInt);
     }
@@ -1262,6 +1418,7 @@ fn BitSetIterator(comptime MaskInt: type, comptime options: IteratorOptions) typ
     const ShiftInt = std.math.Log2Int(MaskInt);
     const kind = options.kind;
     const direction = options.direction;
+
     return struct {
         const Self = @This();
 
@@ -1289,7 +1446,9 @@ fn BitSetIterator(comptime MaskInt: type, comptime options: IteratorOptions) typ
                     .last_word_mask = last_word_mask,
                     .bit_offset = if (direction == .forward) 0 else (masks.len - 1) * @bitSizeOf(MaskInt),
                 };
+
                 result.nextWord(true);
+
                 return result;
             }
         }
@@ -1299,7 +1458,9 @@ fn BitSetIterator(comptime MaskInt: type, comptime options: IteratorOptions) typ
         pub fn next(self: *Self) ?usize {
             while (self.bits_remain == 0) {
                 if (self.words_remain.len == 0) return null;
+
                 self.nextWord(false);
+
                 switch (direction) {
                     .forward => self.bit_offset += @bitSizeOf(MaskInt),
                     .reverse => self.bit_offset -= @bitSizeOf(MaskInt),
@@ -1309,14 +1470,18 @@ fn BitSetIterator(comptime MaskInt: type, comptime options: IteratorOptions) typ
             switch (direction) {
                 .forward => {
                     const next_index = @ctz(self.bits_remain) + self.bit_offset;
+
                     self.bits_remain &= self.bits_remain - 1;
+
                     return next_index;
                 },
                 .reverse => {
                     const leading_zeroes = @clz(self.bits_remain);
                     const top_bit = (@bitSizeOf(MaskInt) - 1) - leading_zeroes;
                     const no_top_bit_mask = (@as(MaskInt, 1) << @as(ShiftInt, @intCast(top_bit))) - 1;
+
                     self.bits_remain &= no_top_bit_mask;
+
                     return top_bit + self.bit_offset;
                 },
             }
@@ -1331,10 +1496,12 @@ fn BitSetIterator(comptime MaskInt: type, comptime options: IteratorOptions) typ
                 .forward => self.words_remain[0],
                 .reverse => self.words_remain[self.words_remain.len - 1],
             };
+
             switch (kind) {
                 .set => {},
                 .unset => {
                     word = ~word;
+
                     if ((direction == .reverse and is_first_word) or
                         (direction == .forward and self.words_remain.len == 1))
                     {
@@ -1342,10 +1509,12 @@ fn BitSetIterator(comptime MaskInt: type, comptime options: IteratorOptions) typ
                     }
                 },
             }
+
             switch (direction) {
                 .forward => self.words_remain = self.words_remain[1..],
                 .reverse => self.words_remain.len -= 1,
             }
+
             self.bits_remain = word;
         }
     };
@@ -1366,6 +1535,7 @@ const testing = std.testing;
 fn testEql(empty: anytype, full: anytype, len: usize) !void {
     try testing.expect(empty.eql(empty));
     try testing.expect(full.eql(full));
+
     switch (len) {
         0 => {
             try testing.expect(empty.eql(full));
@@ -1382,6 +1552,7 @@ fn testSubsetOf(empty: anytype, full: anytype, even: anytype, odd: anytype, len:
     try testing.expect(empty.subsetOf(empty));
     try testing.expect(empty.subsetOf(full));
     try testing.expect(full.subsetOf(full));
+
     switch (len) {
         0 => {
             try testing.expect(even.subsetOf(odd));
@@ -1402,6 +1573,7 @@ fn testSupersetOf(empty: anytype, full: anytype, even: anytype, odd: anytype, le
     try testing.expect(full.supersetOf(full));
     try testing.expect(full.supersetOf(empty));
     try testing.expect(empty.supersetOf(empty));
+
     switch (len) {
         0 => {
             try testing.expect(even.supersetOf(odd));
@@ -1424,6 +1596,7 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
 
     {
         var i: usize = 0;
+
         while (i < len) : (i += 1) {
             a.setValue(i, i & 1 == 0);
             b.setValue(i, i & 2 == 0);
@@ -1436,20 +1609,26 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
     {
         var iter = a.iterator(.{});
         var i: usize = 0;
+
         while (i < len) : (i += 2) {
             try testing.expectEqual(@as(?usize, i), iter.next());
         }
+
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
     }
+
     a.toggleAll();
+
     {
         var iter = a.iterator(.{});
         var i: usize = 1;
+
         while (i < len) : (i += 2) {
             try testing.expectEqual(@as(?usize, i), iter.next());
         }
+
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
@@ -1458,12 +1637,15 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
     {
         var iter = b.iterator(.{ .kind = .unset });
         var i: usize = 2;
+
         while (i < len) : (i += 4) {
             try testing.expectEqual(@as(?usize, i), iter.next());
+
             if (i + 1 < len) {
                 try testing.expectEqual(@as(?usize, i + 1), iter.next());
             }
         }
+
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
@@ -1471,6 +1653,7 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
 
     {
         var i: usize = 0;
+
         while (i < len) : (i += 1) {
             try testing.expectEqual(i & 1 != 0, a.isSet(i));
             try testing.expectEqual(i & 2 == 0, b.isSet(i));
@@ -1478,24 +1661,30 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
     }
 
     a.setUnion(b.*);
+
     {
         var i: usize = 0;
+
         while (i < len) : (i += 1) {
             try testing.expectEqual(i & 1 != 0 or i & 2 == 0, a.isSet(i));
             try testing.expectEqual(i & 2 == 0, b.isSet(i));
         }
 
         i = len;
+
         var set = a.iterator(.{ .direction = .reverse });
         var unset = a.iterator(.{ .kind = .unset, .direction = .reverse });
+
         while (i > 0) {
             i -= 1;
+
             if (i & 1 != 0 or i & 2 == 0) {
                 try testing.expectEqual(@as(?usize, i), set.next());
             } else {
                 try testing.expectEqual(@as(?usize, i), unset.next());
             }
         }
+
         try testing.expectEqual(@as(?usize, null), set.next());
         try testing.expectEqual(@as(?usize, null), set.next());
         try testing.expectEqual(@as(?usize, null), set.next());
@@ -1505,13 +1694,16 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
     }
 
     a.toggleSet(b.*);
+
     {
         try testing.expectEqual(len / 4, a.count());
 
         var i: usize = 0;
+
         while (i < len) : (i += 1) {
             try testing.expectEqual(i & 1 != 0 and i & 2 != 0, a.isSet(i));
             try testing.expectEqual(i & 2 == 0, b.isSet(i));
+
             if (i & 1 == 0) {
                 a.set(i);
             } else {
@@ -1521,10 +1713,12 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
     }
 
     a.setIntersection(b.*);
+
     {
         try testing.expectEqual((len + 3) / 4, a.count());
 
         var i: usize = 0;
+
         while (i < len) : (i += 1) {
             try testing.expectEqual(i & 1 == 0 and i & 2 == 0, a.isSet(i));
             try testing.expectEqual(i & 2 == 0, b.isSet(i));
@@ -1532,15 +1726,19 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
     }
 
     a.toggleSet(a.*);
+
     {
         var iter = a.iterator(.{});
+
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(usize, 0), a.count());
     }
+
     {
         var iter = a.iterator(.{ .direction = .reverse });
+
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
         try testing.expectEqual(@as(?usize, null), iter.next());
@@ -1551,6 +1749,7 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
         0,  1,  2,   3,   4,   5,    6, 7, 9, 10, 11, 22, 31, 32, 63, 64,
         66, 95, 127, 160, 192, 1000,
     };
+
     for (test_bits) |i| {
         if (i < a.capacity()) {
             a.set(i);
@@ -1563,6 +1762,7 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
             try testing.expectEqual(@as(?usize, i), a.toggleFirstSet());
         }
     }
+
     try testing.expectEqual(@as(?usize, null), a.findFirstSet());
     try testing.expectEqual(@as(?usize, null), a.findLastSet());
     try testing.expectEqual(@as(?usize, null), a.toggleFirstSet());
@@ -1620,6 +1820,7 @@ fn testBitSet(a: anytype, b: anytype, len: usize) !void {
 
 fn fillEven(set: anytype, len: usize) void {
     var i: usize = 0;
+
     while (i < len) : (i += 1) {
         set.setValue(i, i & 1 == 0);
     }
@@ -1627,6 +1828,7 @@ fn fillEven(set: anytype, len: usize) void {
 
 fn fillOdd(set: anytype, len: usize) void {
     var i: usize = 0;
+
     while (i < len) : (i += 1) {
         set.setValue(i, i & 1 == 1);
     }
@@ -1638,13 +1840,17 @@ fn testPureBitSet(comptime Set: type) !void {
 
     const even = even: {
         var bit_set = Set.initEmpty();
+
         fillEven(&bit_set, Set.bit_length);
+
         break :even bit_set;
     };
 
     const odd = odd: {
         var bit_set = Set.initEmpty();
+
         fillOdd(&bit_set, Set.bit_length);
+
         break :odd bit_set;
     };
 
@@ -1688,6 +1894,7 @@ fn testPureBitSet(comptime Set: type) !void {
 fn testStaticBitSet(comptime Set: type) !void {
     var a = Set.initEmpty();
     var b = Set.initFull();
+
     try testing.expectEqual(@as(usize, 0), a.count());
     try testing.expectEqual(@as(usize, Set.bit_length), b.count());
 
@@ -1724,18 +1931,25 @@ test ArrayBitSet {
 test DynamicBitSetUnmanaged {
     const allocator = std.testing.allocator;
     var a = try DynamicBitSetUnmanaged.initEmpty(allocator, 300);
+
     try testing.expectEqual(@as(usize, 0), a.count());
     a.deinit(allocator);
 
     a = try DynamicBitSetUnmanaged.initEmpty(allocator, 0);
+
     defer a.deinit(allocator);
+
     for ([_]usize{ 1, 2, 31, 32, 33, 0, 65, 64, 63, 500, 254, 3000 }) |size| {
         const old_len = a.capacity();
 
         var empty = try a.clone(allocator);
+
         defer empty.deinit(allocator);
+
         try testing.expectEqual(old_len, empty.capacity());
+
         var i: usize = 0;
+
         while (i < old_len) : (i += 1) {
             try testing.expectEqual(a.isSet(i), empty.isSet(i));
         }
@@ -1751,25 +1965,34 @@ test DynamicBitSetUnmanaged {
         } else {
             try testing.expectEqual(@as(usize, 0), a.count());
         }
+
         try testing.expectEqual(@as(usize, 0), empty.count());
 
         var full = try DynamicBitSetUnmanaged.initFull(allocator, size);
+
         defer full.deinit(allocator);
+
         try testing.expectEqual(@as(usize, size), full.count());
 
         try testEql(empty, full, size);
+
         {
             var even = try DynamicBitSetUnmanaged.initEmpty(allocator, size);
+
             defer even.deinit(allocator);
+
             fillEven(&even, size);
 
             var odd = try DynamicBitSetUnmanaged.initEmpty(allocator, size);
+
             defer odd.deinit(allocator);
+
             fillOdd(&odd, size);
 
             try testSubsetOf(empty, full, even, odd, size);
             try testSupersetOf(empty, full, even, odd, size);
         }
+
         try testBitSet(&a, &full, size);
     }
 }
@@ -1777,18 +2000,25 @@ test DynamicBitSetUnmanaged {
 test DynamicBitSet {
     const allocator = std.testing.allocator;
     var a = try DynamicBitSet.initEmpty(allocator, 300);
+
     try testing.expectEqual(@as(usize, 0), a.count());
     a.deinit();
 
     a = try DynamicBitSet.initEmpty(allocator, 0);
+
     defer a.deinit();
+
     for ([_]usize{ 1, 2, 31, 32, 33, 0, 65, 64, 63, 500, 254, 3000 }) |size| {
         const old_len = a.capacity();
 
         var tmp = try a.clone(allocator);
+
         defer tmp.deinit();
+
         try testing.expectEqual(old_len, tmp.capacity());
+
         var i: usize = 0;
+
         while (i < old_len) : (i += 1) {
             try testing.expectEqual(a.isSet(i), tmp.isSet(i));
         }
@@ -1804,10 +2034,13 @@ test DynamicBitSet {
         } else {
             try testing.expectEqual(@as(usize, 0), a.count());
         }
+
         try testing.expectEqual(@as(usize, 0), tmp.count());
 
         var b = try DynamicBitSet.initFull(allocator, size);
+
         defer b.deinit();
+
         try testing.expectEqual(@as(usize, size), b.count());
 
         try testEql(tmp, b, size);

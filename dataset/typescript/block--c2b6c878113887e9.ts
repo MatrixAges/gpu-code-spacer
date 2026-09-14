@@ -10,6 +10,7 @@ import {
 	KEY_DELETE_COMMAND,
 	KEY_ENTER_COMMAND
 } from 'lexical'
+
 import { makeAutoObservable } from 'mobx'
 import { injectable } from 'tsyringe'
 
@@ -24,7 +25,9 @@ import type { MouseEvent } from 'react'
 @injectable()
 export default class Index {
 	editor = null as unknown as LexicalEditor
+
 	key = ''
+
 	ref = null as unknown as HTMLElement
 
 	selected = false
@@ -57,6 +60,7 @@ export default class Index {
 	) {
 		this.editor = editor
 		this.key = key
+
 		this.ref = this.editor.getElementByKey(this.key)!
 
 		this.setSelected = setSelected

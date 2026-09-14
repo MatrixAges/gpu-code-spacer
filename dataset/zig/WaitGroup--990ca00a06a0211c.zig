@@ -15,16 +15,19 @@ pub fn start(self: *WaitGroup) void {
 
 pub fn startStateless(state: *std.atomic.Value(usize)) void {
     const prev_state = state.fetchAdd(one_pending, .monotonic);
+
     assert((prev_state / one_pending) < (std.math.maxInt(usize) / one_pending));
 }
 
 pub fn startMany(self: *WaitGroup, n: usize) void {
     const state = self.state.fetchAdd(one_pending * n, .monotonic);
+
     assert((state / one_pending) < (std.math.maxInt(usize) / one_pending));
 }
 
 pub fn finish(self: *WaitGroup) void {
     const state = self.state.fetchSub(one_pending, .acq_rel);
+
     assert((state / one_pending) > 0);
 
     if (state == (one_pending | is_waiting)) {
@@ -34,7 +37,9 @@ pub fn finish(self: *WaitGroup) void {
 
 pub fn finishStateless(state: *std.atomic.Value(usize), event: *std.Thread.ResetEvent) void {
     const prev_state = state.fetchSub(one_pending, .acq_rel);
+
     assert((prev_state / one_pending) > 0);
+
     if (prev_state == (one_pending | is_waiting)) event.set();
 }
 
@@ -44,7 +49,9 @@ pub fn wait(wg: *WaitGroup) void {
 
 pub fn waitStateless(state: *std.atomic.Value(usize), event: *std.Thread.ResetEvent) void {
     const prev_state = state.fetchAdd(is_waiting, .acquire);
+
     assert(prev_state & is_waiting == 0);
+
     if ((prev_state / one_pending) > 0) event.wait();
 }
 
@@ -55,6 +62,7 @@ pub fn reset(self: *WaitGroup) void {
 
 pub fn isDone(wg: *WaitGroup) bool {
     const state = wg.state.load(.acquire);
+
     assert(state & is_waiting == 0);
 
     return (state / one_pending) == 0;
@@ -73,15 +81,21 @@ pub fn spawnManager(
 ) void {
     if (builtin.single_threaded) {
         @call(.auto, func, args);
+
         return;
     }
+
     const Manager = struct {
         fn run(wg_inner: *WaitGroup, args_inner: @TypeOf(args)) void {
             defer wg_inner.finish();
+
             @call(.auto, func, args_inner);
         }
     };
+
     wg.start();
+
     const t = std.Thread.spawn(.{}, Manager.run, .{ wg, args }) catch return Manager.run(wg, args);
+
     t.detach();
 }

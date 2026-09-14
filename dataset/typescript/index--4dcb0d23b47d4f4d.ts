@@ -60,6 +60,7 @@ const _ssrConfigDefaults = Object.freeze({
   optimizeDeps: {},
   // resolve
 } satisfies SSROptions)
+
 export const ssrConfigDefaults: Readonly<Partial<SSROptions>> =
   _ssrConfigDefaults
 
@@ -70,5 +71,6 @@ export function resolveSSROptions(
   const defaults = mergeWithDefaults(_ssrConfigDefaults, {
     optimizeDeps: { esbuildOptions: { preserveSymlinks } },
   } satisfies SSROptions)
+
   return mergeWithDefaults(defaults, ssr ?? {})
 }

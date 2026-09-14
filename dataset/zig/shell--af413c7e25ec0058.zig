@@ -65,20 +65,25 @@ zig_exe: ?[]const u8,
 
 pub fn create(gpa: std.mem.Allocator) !*Shell {
     var arena = std.heap.ArenaAllocator.init(gpa);
+
     errdefer arena.deinit();
 
     var project_root = try discover_project_root();
+
     errdefer project_root.close();
 
     var cwd = try project_root.openDir(".", .{});
+
     errdefer cwd.close();
 
     var env = try std.process.getEnvMap(gpa);
+
     errdefer env.deinit();
 
     const ci = env.get("CI") != null;
 
     const result = try gpa.create(Shell);
+
     errdefer gpa.destroy(result);
 
     result.* = Shell{
@@ -127,16 +132,20 @@ pub fn echo(shell: *Shell, comptime format: []const u8, format_args: anytype) vo
         if (format[pos] == '{') {
             for (std.meta.fieldNames(@TypeOf(ansi))) |field_name| {
                 const tag = "{ansi-" ++ field_name ++ "}";
+
                 if (std.mem.startsWith(u8, format[pos..], tag)) {
                     format_ansi = format_ansi ++ format[pos_start..pos] ++ @field(ansi, field_name);
                     pos += tag.len;
                     pos_start = pos;
+
                     continue :next_pos;
                 }
             }
         }
+
         pos += 1;
     };
+
     comptime assert(pos == format.len);
 
     format_ansi = format_ansi ++ format[pos_start..pos] ++ "\n";
@@ -173,10 +182,13 @@ const Section = struct {
 
     pub fn close(section: *Section) void {
         const elapsed_ns = section.timer.lap();
+
         std.debug.print("{s}: {}\n", .{ section.name, std.fmt.fmtDuration(elapsed_ns) });
+
         if (section.ci) {
             std.io.getStdOut().writer().print("::endgroup::\n", .{}) catch {};
         }
+
         section.* = undefined;
     }
 };
@@ -229,6 +241,7 @@ pub fn pushd_dir(shell: *Shell, dir: std.fs.Dir) !void {
 
 pub fn popd(shell: *Shell) void {
     shell.cwd.close();
+
     shell.cwd_stack_count -= 1;
     shell.cwd = shell.cwd_stack[shell.cwd_stack_count];
 }
@@ -245,12 +258,14 @@ pub fn dir_exists(shell: *Shell, path: []const u8) !bool {
 /// Note: this api is prone to TOCTOU and exists primarily for assertions.
 pub fn file_exists(shell: *Shell, path: []const u8) bool {
     const stat = shell.cwd.statFile(path) catch return false;
+
     return stat.kind == .file;
 }
 
 pub fn file_make_executable(shell: *Shell, path: []const u8) !void {
     if (builtin.os.tag != .windows) {
         const fd = try shell.cwd.openFile(path, .{ .mode = .read_write });
+
         defer fd.close();
 
         try fd.chmod(0o755);
@@ -275,6 +290,7 @@ pub fn file_ensure_content(
 ) !enum { unchanged, updated } {
     const max_bytes = 1 * MiB;
     const content_current = shell.cwd.readFileAlloc(shell.gpa, path, max_bytes) catch null;
+
     defer if (content_current) |slice| shell.gpa.free(slice);
 
     if (content_current != null and std.mem.eql(u8, content_current.?, content)) {
@@ -282,6 +298,7 @@ pub fn file_ensure_content(
     }
 
     try shell.cwd.writeFile(.{ .sub_path = path, .data = content, .flags = create_flags });
+
     return .updated;
 }
 
@@ -294,12 +311,16 @@ pub fn create_tmp_dir(
     shell: *Shell,
 ) ![]const u8 {
     const root = try shell.project_root.realpathAlloc(shell.arena.allocator(), ".");
+
     const tmp_absolute = try shell.fmt("{s}/.zig-cache/tmp/{}", .{
         root,
         std.crypto.random.int(u64),
     });
+
     assert(!try shell.dir_exists(tmp_absolute));
+
     try shell.project_root.makePath(tmp_absolute);
+
     return tmp_absolute;
 }
 
@@ -316,9 +337,11 @@ pub fn find(shell: *Shell, options: FindOptions) ![]const []const u8 {
     if (options.extension != null and options.extensions != null) {
         @panic("conflicting extension filters");
     }
+
     if (options.extension) |extension| {
         assert(extension[0] == '.');
     }
+
     if (options.extensions) |extensions| {
         for (extensions) |extension| {
             assert(extension[0] == '.');
@@ -329,15 +352,18 @@ pub fn find(shell: *Shell, options: FindOptions) ![]const []const u8 {
 
     for (options.where) |base_path| {
         var base_dir = try shell.cwd.openDir(base_path, .{ .iterate = true });
+
         defer base_dir.close();
 
         var walker = try base_dir.walk(shell.gpa);
+
         defer walker.deinit();
 
         while (try walker.next()) |entry| {
             if (entry.kind == .file and find_filter_path(entry.path, options)) {
                 const full_path =
                     try std.fs.path.join(shell.arena.allocator(), &.{ base_path, entry.path });
+
                 try result.append(full_path);
             }
         }
@@ -358,6 +384,7 @@ fn find_filter_path(path: []const u8, options: FindOptions) bool {
         for (extensions) |extension| {
             if (std.mem.endsWith(u8, path, extension)) return true;
         }
+
         return false;
     }
 
@@ -374,9 +401,11 @@ pub fn copy_path(
     errdefer {
         log.warn("failed to copy {s} to {s}", .{ src_path, dst_path });
     }
+
     if (std.fs.path.dirname(dst_path)) |dir| {
         try dst_dir.makePath(dir);
     }
+
     try src_dir.copyFile(src_path, dst_dir, dst_path, .{});
 }
 
@@ -393,6 +422,7 @@ pub fn copy_path(
 /// ```
 pub fn exec(shell: *Shell, comptime cmd: []const u8, cmd_args: anytype) !void {
     var argv = try Argv.expand(shell.gpa, cmd, cmd_args);
+
     defer argv.deinit();
 
     return exec_inner(shell, argv.slice(), .{});
@@ -408,6 +438,7 @@ pub fn exec_options(
     cmd_args: anytype,
 ) !void {
     var argv = try Argv.expand(shell.gpa, cmd, cmd_args);
+
     defer argv.deinit();
 
     return exec_inner(shell, argv.slice(), .{
@@ -420,12 +451,15 @@ pub fn exec_options(
 /// If the output is a single line, the final newline is stripped.
 pub fn exec_stdout(shell: *Shell, comptime cmd: []const u8, cmd_args: anytype) ![]const u8 {
     var argv = try Argv.expand(shell.gpa, cmd, cmd_args);
+
     defer argv.deinit();
 
     var captured_stdout: []const u8 = &.{};
+
     try exec_inner(shell, argv.slice(), .{
         .capture_stdout = &captured_stdout,
     });
+
     return captured_stdout;
 }
 
@@ -434,14 +468,17 @@ pub fn exec_stdout_stderr(shell: *Shell, comptime cmd: []const u8, cmd_args: any
     []const u8,
 } {
     var argv = try Argv.expand(shell.gpa, cmd, cmd_args);
+
     defer argv.deinit();
 
     var captured_stdout: []const u8 = &.{};
     var captured_stderr: []const u8 = &.{};
+
     try exec_inner(shell, argv.slice(), .{
         .capture_stdout = &captured_stdout,
         .capture_stderr = &captured_stderr,
     });
+
     return .{ captured_stdout, captured_stderr };
 }
 
@@ -455,14 +492,17 @@ pub fn exec_stdout_options(
     cmd_args: anytype,
 ) ![]const u8 {
     var argv = try Argv.expand(shell.gpa, cmd, cmd_args);
+
     defer argv.deinit();
 
     var captured_stdout: []const u8 = &.{};
+
     try exec_inner(shell, argv.slice(), .{
         .stdin_slice = options.stdin_slice,
         .capture_stdout = &captured_stdout,
         .timeout = options.timeout,
     });
+
     return captured_stdout;
 }
 
@@ -482,9 +522,11 @@ pub fn exec_zig_options(
     cmd_args: anytype,
 ) !void {
     var argv = Argv.init(shell.gpa);
+
     defer argv.deinit();
 
     try argv.append_new_arg("{s}", .{shell.zig_exe.?});
+
     try expand_argv(&argv, cmd, cmd_args);
 
     return shell.exec_inner(argv.slice(), .{
@@ -509,17 +551,21 @@ fn exec_inner(
     },
 ) !void {
     const argv_formatted = try std.mem.join(shell.gpa, " ", argv);
+
     defer shell.gpa.free(argv_formatted);
 
     var stdin_writer: ?std.Thread = null;
+
     defer if (stdin_writer) |thread| thread.join();
 
     const Streams = enum { stdout, stderr };
     var poller: ?std.io.Poller(Streams) = null;
+
     defer if (poller) |*p| p.deinit();
 
     errdefer |err| {
         log.err("process failed with {s}: {s}", .{ @errorName(err), argv_formatted });
+
         if (poller) |*p| {
             inline for (comptime std.enums.values(Streams)) |stream| {
                 if (p.fifo(stream).count > 0) {
@@ -533,12 +579,16 @@ fn exec_inner(
     }
 
     var child = std.process.Child.init(argv, shell.gpa);
+
     child.cwd = try shell.cwd.realpath(".", &shell.cwd_path_buffer);
+
     child.env_map = &shell.env;
     child.stdin_behavior = if (options.stdin_slice != null) .Pipe else .Ignore;
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Pipe;
+
     try child.spawn();
+
     errdefer {
         _ = child.kill() catch {};
     }
@@ -558,12 +608,16 @@ fn exec_inner(
         };
 
         var timer = try std.time.Timer.start();
+
         for (0..1_000_000) |_| {
             const timeout_remaining = options.timeout.ns -| timer.read();
+
             if (timeout_remaining == 0) {
                 return error.ExecTimeout;
             }
+
             if (!try poller.?.pollTimeout(@intCast(timeout_remaining))) break;
+
             inline for (comptime std.enums.values(Streams)) |stream| {
                 if (poller.?.fifo(stream).count > options.output_limit_bytes) {
                     return error.StdoutStreamTooLong;
@@ -573,6 +627,7 @@ fn exec_inner(
     }
 
     const term = try child.wait();
+
     switch (term) {
         .Exited => |code| if (code != 0) return error.ExecNonZeroExitStatus,
         else => return error.ExecFailed,
@@ -584,11 +639,14 @@ fn exec_inner(
     ) |capture_destination, capture_stream| {
         if (capture_destination) |destination| {
             const stream = poller.?.fifo(capture_stream).readableSlice(0);
+
             const trailing_newline = if (std.mem.indexOfScalar(u8, stream, '\n')) |first_newline|
                 first_newline == stream.len - 1
             else
                 false;
+
             const len_without_newline = stream.len - @intFromBool(trailing_newline);
+
             destination.* = try shell.arena.allocator().dupe(u8, stream[0..len_without_newline]);
         }
     }
@@ -596,6 +654,7 @@ fn exec_inner(
 
 fn write_stdin(child: *std.process.Child, stdin: []const u8) !std.Thread {
     assert(child.stdin != null);
+
     defer child.stdin = null;
 
     // Spawn a thread to avoid deadlock between us writing to stdin and reading from stdout.
@@ -620,6 +679,7 @@ pub fn exec_raw(
     cmd_args: anytype,
 ) !std.process.Child.RunResult {
     var argv = try Argv.expand(shell.gpa, cmd, cmd_args);
+
     defer argv.deinit();
 
     return try std.process.Child.run(.{
@@ -643,6 +703,7 @@ pub fn spawn(
     cmd_args: anytype,
 ) !std.process.Child {
     var argv = try Argv.expand(shell.gpa, cmd, cmd_args);
+
     defer argv.deinit();
 
     return shell.spawn_argv(options, &argv);
@@ -655,10 +716,13 @@ pub fn spawn_zig(
     cmd_args: anytype,
 ) !std.process.Child {
     var argv = Argv.init(shell.gpa);
+
     defer argv.deinit();
 
     try argv.append_new_arg("{s}", .{shell.zig_exe.?});
+
     try expand_argv(&argv, cmd, cmd_args);
+
     return shell.spawn_argv(options, &argv);
 }
 
@@ -668,12 +732,16 @@ fn spawn_argv(
     argv: *const Argv,
 ) !std.process.Child {
     var child = std.process.Child.init(argv.slice(), shell.gpa);
+
     child.cwd = try shell.cwd.realpath(".", &shell.cwd_path_buffer);
+
     child.env_map = &shell.env;
     child.stdin_behavior = options.stdin_behavior;
     child.stdout_behavior = options.stdout_behavior;
     child.stderr_behavior = options.stderr_behavior;
+
     try child.spawn();
+
     return child;
 }
 
@@ -685,6 +753,7 @@ pub fn git_env_setup(shell: *Shell, options: struct { use_hostname: bool }) !voi
         if (builtin.target.os.tag != .linux) {
             @panic("use_hostname only supported on linux");
         }
+
         var hostname_buffer: [std.posix.HOST_NAME_MAX]u8 = @splat(0);
         const hostname = try std.posix.gethostname(&hostname_buffer);
 
@@ -703,6 +772,7 @@ pub fn git_commit_timestamp(shell: *Shell, sha: []const u8) !stdx.InstantUnix {
     assert(sha.len == 40);
 
     const timestamp_s = try shell.exec_stdout("git show -s --format=%ct {sha}", .{ .sha = sha });
+
     return stdx.InstantUnix.from_timestamp_s(
         try stdx.parse_int(u64, timestamp_s, .{}),
     );
@@ -717,13 +787,17 @@ const Argv = struct {
 
     fn expand(gpa: std.mem.Allocator, comptime cmd: []const u8, cmd_args: anytype) !Argv {
         var result = Argv.init(gpa);
+
         errdefer result.deinit();
+
         try expand_argv(&result, cmd, cmd_args);
+
         return result;
     }
 
     fn deinit(argv: *Argv) void {
         for (argv.args.items) |arg| argv.args.allocator.free(arg);
+
         argv.args.deinit();
     }
 
@@ -737,6 +811,7 @@ const Argv = struct {
             arg_fmt,
             arg,
         );
+
         errdefer argv.args.allocator.free(arg_owned);
 
         try argv.args.append(arg_owned);
@@ -744,12 +819,15 @@ const Argv = struct {
 
     fn extend_last_arg(argv: *Argv, comptime arg_fmt: []const u8, arg: anytype) !void {
         assert(argv.args.items.len > 0);
+
         const arg_allocated = try std.fmt.allocPrint(
             argv.args.allocator,
             "{s}" ++ arg_fmt,
             .{argv.args.items[argv.args.items.len - 1]} ++ arg,
         );
+
         argv.args.allocator.free(argv.args.items[argv.args.items.len - 1]);
+
         argv.args.items[argv.args.items.len - 1] = arg_allocated;
     }
 };
@@ -772,14 +850,17 @@ fn expand_argv(argv: *Argv, comptime cmd: []const u8, cmd_args: anytype) !void {
 
     const arg_count = std.meta.fields(@TypeOf(cmd_args)).len;
     comptime var args_used: stdx.BitSetType(arg_count) = .{};
+
     comptime assert(std.mem.indexOfScalar(u8, cmd, '\'') == null); // Intentionally unsupported.
     comptime assert(std.mem.indexOfScalar(u8, cmd, '"') == null);
+
     inline while (pos < cmd.len) {
         inline while (pos < cmd.len and (cmd[pos] == ' ' or cmd[pos] == '\n')) {
             pos += 1;
         }
 
         const pos_start = pos;
+
         inline while (pos < cmd.len) : (pos += 1) {
             switch (cmd[pos]) {
                 ' ', '\n', '{' => break,
@@ -788,9 +869,11 @@ fn expand_argv(argv: *Argv, comptime cmd: []const u8, cmd_args: anytype) !void {
         }
 
         const pos_end = pos;
+
         if (pos_start != pos_end) {
             if (concat_right) {
                 assert(pos_start > 0 and cmd[pos_start - 1] == '}');
+
                 try argv.extend_last_arg("{s}", .{cmd[pos_start..pos_end]});
             } else {
                 try argv.append_new_arg("{s}", .{cmd[pos_start..pos_end]});
@@ -804,22 +887,29 @@ fn expand_argv(argv: *Argv, comptime cmd: []const u8, cmd_args: anytype) !void {
         if (cmd[pos] == ' ' or cmd[pos] == '\n') continue;
 
         comptime assert(cmd[pos] == '{');
+
         concat_left = pos > 0 and cmd[pos - 1] != ' ' and cmd[pos - 1] != '\n';
+
         if (concat_left) assert(argv.slice().len > 0);
+
         pos += 1;
 
         const pos_arg_start = pos;
+
         inline while (pos < cmd.len and cmd[pos] != '}') : (pos += 1) {}
+
         const pos_arg_end = pos;
 
         if (pos >= cmd.len) @compileError("Missing closing }");
 
         comptime assert(cmd[pos] == '}');
+
         concat_right = pos + 1 < cmd.len and cmd[pos + 1] != ' ' and cmd[pos + 1] != '\n';
         pos += 1;
 
         const arg_name = comptime cmd[pos_arg_start..pos_arg_end];
         const arg_or_slice = @field(cmd_args, arg_name);
+
         comptime args_used.set(for (std.meta.fieldNames(@TypeOf(cmd_args)), 0..) |field, index| {
             if (std.mem.eql(u8, field, arg_name)) break index;
         } else unreachable);
@@ -840,6 +930,7 @@ fn expand_argv(argv: *Argv, comptime cmd: []const u8, cmd_args: anytype) !void {
             }
         } else if (std.meta.Elem(T) == []const u8) {
             if (concat_left or concat_right) @compileError("Can't concatenate slices");
+
             for (arg_or_slice) |arg_part| {
                 try argv.append_new_arg("{s}", .{arg_part});
             }
@@ -862,9 +953,11 @@ test "shell: expand_argv" {
             want: Snap,
         ) !void {
             var argv = Argv.init(std.testing.allocator);
+
             defer argv.deinit();
 
             try expand_argv(&argv, cmd, args);
+
             try want.diff_zon(argv.slice());
         }
     };
@@ -872,6 +965,7 @@ test "shell: expand_argv" {
     try T.check("zig version", .{}, snap(@src(),
         \\.{ "zig", "version" }
     ));
+
     try T.check("  zig  version  ", .{}, snap(@src(),
         \\.{ "zig", "version" }
     ));
@@ -908,6 +1002,7 @@ test "shell: expand_argv" {
             \\}
         ),
     );
+
     try T.check(
         "gh pr checkout {pr}",
         .{ .pr = @as(u32, 92) },
@@ -927,6 +1022,7 @@ test "shell: expand_argv" {
 /// Caller is responsible for closing the dir.
 fn discover_project_root() !std.fs.Dir {
     var current = try std.fs.cwd().openDir(".", .{});
+
     errdefer current.close(); // Caller is responsible for closing on success.
 
     for (0..16) |_| {
@@ -935,7 +1031,9 @@ fn discover_project_root() !std.fs.Dir {
         } else |err| switch (err) {
             error.FileNotFound => {
                 const parent = try current.openDir("..", .{});
+
                 current.close();
+
                 current = parent;
             },
             else => return err,
@@ -998,10 +1096,13 @@ fn http_request(
     );
 
     var client = std.http.Client{ .allocator = shell.gpa };
+
     defer client.deinit();
 
     const uri = try std.Uri.parse(url);
+
     var header_buffer: [4 * stdx.KiB]u8 = undefined;
+
     var request = try client.open(
         switch (method) {
             .post => .POST,
@@ -1010,6 +1111,7 @@ fn http_request(
         uri,
         .{ .server_header_buffer = &header_buffer },
     );
+
     defer request.deinit();
 
     if (options.content_type) |content_type| {
@@ -1025,20 +1127,24 @@ fn http_request(
     }
 
     try request.send();
+
     if (method == .post) {
         try request.writeAll(method.post);
     }
+
     try request.finish();
     try request.wait();
 
     // If the response is compressed, content_length is the compressed size, not the decoded size.
     const compressed = request.response.transfer_compression != .identity;
+
     const response_body_buffer_size: usize = blk: {
         if (!compressed) {
             if (request.response.content_length) |response_content_length| {
                 break :blk response_content_length;
             }
         }
+
         break :blk options.response_body_size_max;
     };
 
@@ -1048,7 +1154,9 @@ fn http_request(
 
     const response_body_buffer = try shell.arena.allocator().alloc(u8, response_body_buffer_size);
     const response_body_size = try request.readAll(response_body_buffer);
+
     assert(response_body_size <= options.response_body_size_max);
+
     const response_body = response_body_buffer[0..response_body_size];
 
     if (!compressed) {
@@ -1061,6 +1169,7 @@ fn http_request(
         if (options.log_errors) {
             log.err("response: {s}", .{response_body});
         }
+
         return error.ResponseWrongStatus;
     }
 
@@ -1081,11 +1190,13 @@ pub fn unzip_executable(
     executable_name: []const u8,
 ) !void {
     const zip_file = try shell.cwd.openFile(zip_path, .{});
+
     defer zip_file.close();
 
     try std.zip.extract(shell.cwd, zip_file.seekableStream(), .{});
 
     const zip_extracted = try shell.cwd.openFile(executable_name, .{});
+
     defer zip_extracted.close();
 
     // Zig's std.zip.extract doesn't handle permissions.
@@ -1101,6 +1212,7 @@ pub const DOSTimestamp = struct {
 
 pub fn unix_to_dos_timestamp(instant: stdx.InstantUnix) DOSTimestamp {
     const date_time = instant.date_time();
+
     assert(date_time.year >= 1980 and date_time.year <= 2107);
 
     const time: u16 =
@@ -1134,12 +1246,13 @@ pub fn zip_executable(
         input.executable_name,
         input.max_size,
     );
+
     defer shell.gpa.free(executable);
 
     const executable_mtime_dos = unix_to_dos_timestamp(input.executable_mtime);
     const crc32 = std.hash.Crc32.hash(executable);
-
     const executable_deflated_buffer = try shell.gpa.alloc(u8, input.max_size);
+
     defer shell.gpa.free(executable_deflated_buffer);
 
     const executable_deflated = blk: {
@@ -1152,6 +1265,7 @@ pub fn zip_executable(
             executable_deflated_stream.writer(),
             .{ .level = .best },
         );
+
         assert(executable_stream.pos == executable.len);
 
         break :blk executable_deflated_stream.getWritten();
@@ -1199,8 +1313,10 @@ pub fn zip_executable(
     };
 
     const central_directory_offset = zip_file_writer.bytes_written;
+
     try zip_file_writer.writer().writeStructEndian(central_directory_file_header, .little);
     try zip_file_writer.writer().writeAll(input.executable_name);
+
     const central_directory_end = zip_file_writer.bytes_written;
 
     const end_record: std.zip.EndRecord = .{
@@ -1213,33 +1329,40 @@ pub fn zip_executable(
         .central_directory_offset = @intCast(central_directory_offset),
         .comment_len = 0,
     };
+
     try zip_file_writer.writer().writeStructEndian(end_record, .little);
 }
 
 pub fn sha256sum(shell: *Shell, file_path: []const u8) !u256 {
     const buffer = try shell.gpa.alloc(u8, 512 * stdx.KiB);
+
     defer shell.gpa.free(buffer);
 
     var hasher = std.crypto.hash.sha2.Sha256.init(.{});
-
     const file = try shell.cwd.openFile(file_path, .{});
+
     defer file.close();
 
     const stat = try file.stat();
+
     var bytes_read_total: u64 = 0;
+
     while (bytes_read_total < stat.size) {
         const bytes_read = try file.readAll(buffer);
+
         if (bytes_read == 0) {
             break;
         }
 
         bytes_read_total += bytes_read;
+
         hasher.update(buffer[0..bytes_read]);
     }
 
     assert(stat.size == bytes_read_total);
 
     var output: u256 = undefined;
+
     hasher.final(std.mem.asBytes(&output));
 
     return output;

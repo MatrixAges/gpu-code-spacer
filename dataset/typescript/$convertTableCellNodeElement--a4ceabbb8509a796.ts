@@ -14,7 +14,9 @@ export default (dom: Node): DOMConversionOutput => {
 	})
 
 	const style = el.style
+
 	const text_decoration = style.textDecoration.split(' ')
+
 	const has_bold_font_weight = style.fontWeight === '700' || style.fontWeight === 'bold'
 	const has_italic_font_style = style.fontStyle === 'italic'
 	const has_underline_text_decoration = text_decoration.includes('underline')

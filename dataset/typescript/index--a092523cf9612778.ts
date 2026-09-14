@@ -1,6 +1,7 @@
 // Core API ------------------------------------------------------------------
 
 export const version: string = __VERSION__
+
 export {
   // core
   reactive,
@@ -37,13 +38,16 @@ export {
   getCurrentScope,
   onScopeDispose,
 } from '@vue/reactivity'
+
 export { computed } from './apiComputed'
+
 export {
   watch,
   watchEffect,
   watchPostEffect,
   watchSyncEffect,
 } from './apiWatch'
+
 export {
   onBeforeMount,
   onMounted,
@@ -58,6 +62,7 @@ export {
   onErrorCaptured,
   onServerPrefetch,
 } from './apiLifecycle'
+
 export { provide, inject, hasInjectionContext } from './apiInject'
 export { nextTick } from './scheduler'
 export { defineComponent } from './apiDefineComponent'
@@ -66,6 +71,7 @@ export { useAttrs, useSlots } from './apiSetupHelpers'
 export { useModel } from './helpers/useModel'
 export { useTemplateRef, type TemplateRef } from './helpers/useTemplateRef'
 export { useId } from './helpers/useId'
+
 export {
   hydrateOnIdle,
   hydrateOnVisible,
@@ -115,11 +121,13 @@ export { Fragment, Text, Comment, Static, type VNodeRef } from './vnode'
 export { Teleport, type TeleportProps } from './components/Teleport'
 export { Suspense, type SuspenseProps } from './components/Suspense'
 export { KeepAlive, type KeepAliveProps } from './components/KeepAlive'
+
 export {
   BaseTransition,
   BaseTransitionPropsValidators,
   type BaseTransitionProps,
 } from './components/BaseTransition'
+
 // For using custom directives
 export { withDirectives } from './directives'
 // SSR context
@@ -129,33 +137,41 @@ export { useSSRContext, ssrContextKey } from './helpers/useSsrContext'
 
 export { createRenderer, createHydrationRenderer } from './renderer'
 export { queuePostFlushCb } from './scheduler'
+
 import { warn as _warn } from './warning'
+
 export const warn = (__DEV__ ? _warn : NOOP) as typeof _warn
 
 /** @internal */
 export { assertNumber } from './warning'
+
 export {
   handleError,
   callWithErrorHandling,
   callWithAsyncErrorHandling,
   ErrorCodes,
 } from './errorHandling'
+
 export {
   resolveComponent,
   resolveDirective,
   resolveDynamicComponent,
 } from './helpers/resolveAssets'
+
 // For integration with runtime compiler
 export { registerRuntimeCompiler, isRuntimeOnly } from './component'
+
 export {
   useTransitionState,
   resolveTransitionHooks,
   setTransitionHooks,
   getTransitionRawChildren,
 } from './components/BaseTransition'
+
 export { initCustomFormatter } from './customFormatter'
 
 import { ErrorTypeStrings as _ErrorTypeStrings } from './errorHandling'
+
 /**
  * Runtime error messages. Only exposed in dev or esm builds.
  * @internal
@@ -174,6 +190,7 @@ import {
 export const devtools = (
   __DEV__ || __ESM_BUNDLER__ ? _devtools : undefined
 ) as DevtoolsHook
+
 export const setDevtoolsHook = (
   __DEV__ || __ESM_BUNDLER__ ? _setDevtoolsHook : NOOP
 ) as typeof _setDevtoolsHook
@@ -197,6 +214,7 @@ declare module '@vue/reactivity' {
 }
 
 export { TrackOpTypes, TriggerOpTypes } from '@vue/reactivity'
+
 export type {
   Ref,
   MaybeRef,
@@ -225,6 +243,7 @@ export type {
   Raw,
   Reactive,
 } from '@vue/reactivity'
+
 export type {
   MultiWatchSources,
   WatchEffect,
@@ -235,7 +254,9 @@ export type {
   WatchHandle,
   WatchStopHandle,
 } from './apiWatch'
+
 export type { InjectionKey } from './apiInject'
+
 export type {
   App,
   AppConfig,
@@ -246,6 +267,7 @@ export type {
   CreateAppFunction,
   OptionMergeFunction,
 } from './apiCreateApp'
+
 export type {
   VNode,
   VNodeChild,
@@ -254,6 +276,7 @@ export type {
   VNodeArrayChildren,
   VNodeNormalizedChildren,
 } from './vnode'
+
 export type {
   Component,
   ConcreteComponent,
@@ -269,11 +292,13 @@ export type {
   ComponentInstance,
   ComponentCustomElementInterface,
 } from './component'
+
 export type {
   DefineComponent,
   DefineSetupFnComponent,
   PublicProps,
 } from './apiDefineComponent'
+
 export type {
   ComponentOptions,
   ComponentOptionsMixin,
@@ -290,6 +315,7 @@ export type {
   ComponentOptionsWithArrayProps,
   ComponentOptionsWithObjectProps,
 } from './componentOptions'
+
 export type {
   EmitsOptions,
   ObjectEmitsOptions,
@@ -297,12 +323,14 @@ export type {
   ShortEmitsToObject,
   EmitFn,
 } from './componentEmits'
+
 export type {
   ComponentPublicInstance,
   ComponentCustomProperties,
   CreateComponentPublicInstance,
   CreateComponentPublicInstanceWithMixins,
 } from './componentPublicInstance'
+
 export type {
   Renderer,
   RendererNode,
@@ -312,8 +340,10 @@ export type {
   RootRenderFunction,
   ElementNamespace,
 } from './renderer'
+
 export type { RootHydrateFunction } from './hydration'
 export type { Slot, Slots, SlotsType } from './componentSlots'
+
 export type {
   Prop,
   PropType,
@@ -323,6 +353,7 @@ export type {
   ExtractPublicPropTypes,
   ExtractDefaultPropTypes,
 } from './componentProps'
+
 export type {
   Directive,
   DirectiveBinding,
@@ -332,19 +363,24 @@ export type {
   DirectiveModifiers,
   DirectiveArguments,
 } from './directives'
+
 export type { SuspenseBoundary } from './components/Suspense'
+
 export type {
   TransitionState,
   TransitionHooks,
 } from './components/BaseTransition'
+
 export type {
   AsyncComponentOptions,
   AsyncComponentLoader,
 } from './apiAsyncComponent'
+
 export type {
   HydrationStrategy,
   HydrationStrategyFactory,
 } from './hydrationStrategies'
+
 export type { HMRRuntime } from './hmr'
 
 // Internal API ----------------------------------------------------------------
@@ -360,11 +396,13 @@ export {
   popScopeId,
   withScopeId,
 } from './componentRenderContext'
+
 export { renderList } from './helpers/renderList'
 export { toHandlers } from './helpers/toHandlers'
 export { renderSlot } from './helpers/renderSlot'
 export { createSlots } from './helpers/createSlots'
 export { withMemo, isMemoSame } from './helpers/withMemo'
+
 export {
   openBlock,
   createBlock,
@@ -376,6 +414,7 @@ export {
   createElementBlock,
   guardReactiveProps,
 } from './vnode'
+
 export {
   toDisplayString,
   camelize,
@@ -399,6 +438,7 @@ import {
   getComponentPublicInstance,
   setupComponent,
 } from './component'
+
 import { renderComponentRoot } from './componentRenderUtils'
 import { setCurrentRenderingInstance } from './componentRenderContext'
 import { isVNode, normalizeVNode } from './vnode'
@@ -438,16 +478,19 @@ export const ssrUtils = (__SSR__ ? _ssrUtils : null) as typeof _ssrUtils
 // 2.x COMPAT ------------------------------------------------------------------
 
 import { DeprecationTypes as _DeprecationTypes } from './compat/compatConfig'
+
 export type { CompatVue } from './compat/global'
 export type { LegacyConfig } from './compat/globalConfig'
 
 import { warnDeprecation } from './compat/compatConfig'
 import { createCompatVue } from './compat/global'
+
 import {
   checkCompatEnabled,
   isCompatEnabled,
   softAssertCompatEnabled,
 } from './compat/compatConfig'
+
 import { resolveFilter as _resolveFilter } from './helpers/resolveAssets'
 import { NOOP } from '@vue/shared'
 

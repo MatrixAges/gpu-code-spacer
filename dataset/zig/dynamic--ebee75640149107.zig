@@ -4,12 +4,9 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 const StringArrayHashMap = std.StringArrayHashMap;
 const Allocator = std.mem.Allocator;
 const json = std.json;
-
 const ParseOptions = @import("./static.zig").ParseOptions;
 const ParseError = @import("./static.zig").ParseError;
-
 const isNumberFormattedLikeAnInteger = @import("Scanner.zig").isNumberFormattedLikeAnInteger;
-
 pub const ObjectMap = StringArrayHashMap(Value);
 pub const Array = std.array_list.Managed(Value);
 
@@ -30,12 +27,14 @@ pub const Value = union(enum) {
     pub fn parseFromNumberSlice(s: []const u8) Value {
         if (!isNumberFormattedLikeAnInteger(s)) {
             const f = std.fmt.parseFloat(f64, s) catch unreachable;
+
             if (std.math.isFinite(f)) {
                 return Value{ .float = f };
             } else {
                 return Value{ .number_string = s };
             }
         }
+
         if (std.fmt.parseInt(i64, s, 10)) |i| {
             return Value{ .integer = i };
         } else |e| {
@@ -48,6 +47,7 @@ pub const Value = union(enum) {
 
     pub fn dump(v: Value) void {
         const w, _ = std.debug.lockStderrWriter(&.{});
+
         defer std.debug.unlockStderrWriter();
 
         json.Stringify.value(v, .{}, w) catch return;
@@ -64,11 +64,14 @@ pub const Value = union(enum) {
             .array => |inner| try jws.write(inner.items),
             .object => |inner| {
                 try jws.beginObject();
+
                 var it = inner.iterator();
+
                 while (it.next()) |entry| {
                     try jws.objectField(entry.key_ptr.*);
                     try jws.write(entry.value_ptr.*);
                 }
+
                 try jws.endObject();
             },
         }
@@ -78,6 +81,7 @@ pub const Value = union(enum) {
         // The grammar of the stack is:
         //  (.array | .object .string)*
         var stack = Array.init(allocator);
+
         defer stack.deinit();
 
         while (true) {
@@ -127,17 +131,21 @@ pub const Value = union(enum) {
     pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) !@This() {
         _ = allocator;
         _ = options;
+
         return source;
     }
 };
 
 fn handleCompleteValue(stack: *Array, allocator: Allocator, source: anytype, value_: Value, options: ParseOptions) !?Value {
     if (stack.items.len == 0) return value_;
+
     var value = value_;
+
     while (true) {
         // Assert the stack grammar at the top of the stack.
         debug.assert(stack.items[stack.items.len - 1] == .array or
             (stack.items[stack.items.len - 2] == .object and stack.items[stack.items.len - 1] == .string));
+
         switch (stack.items[stack.items.len - 1]) {
             .string => |key| {
                 // stack: [..., .object, .string]
@@ -145,8 +153,8 @@ fn handleCompleteValue(stack: *Array, allocator: Allocator, source: anytype, val
 
                 // stack: [..., .object]
                 var object = &stack.items[stack.items.len - 1].object;
-
                 const gop = try object.getOrPut(key);
+
                 if (gop.found_existing) {
                     switch (options.duplicate_field_behavior) {
                         .use_first => {},
@@ -165,13 +173,16 @@ fn handleCompleteValue(stack: *Array, allocator: Allocator, source: anytype, val
                     .object_end => {
                         // This object is complete.
                         value = stack.pop().?;
+
                         // Effectively recurse now that we have a complete value.
                         if (stack.items.len == 0) return value;
+
                         continue;
                     },
                     .allocated_string => |next_key| {
                         // We've got another key.
                         try stack.append(Value{ .string = next_key });
+
                         // stack: [..., .object, .string]
                         return null;
                     },
@@ -181,6 +192,7 @@ fn handleCompleteValue(stack: *Array, allocator: Allocator, source: anytype, val
             .array => |*array| {
                 // stack: [..., .array]
                 try array.append(value);
+
                 return null;
             },
             else => unreachable,

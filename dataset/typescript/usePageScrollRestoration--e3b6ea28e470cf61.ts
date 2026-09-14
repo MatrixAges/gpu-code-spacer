@@ -9,6 +9,7 @@ import type { Stack } from '@/types'
 
 export default (id: string, columns: Stack.Columns) => {
 	const { pathname } = useLocation()
+
 	const scroll_key = `_page_scroll_position_${pathname}_${id}`
 
 	const active_ids = useMemo(() => {

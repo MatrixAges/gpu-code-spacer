@@ -68,6 +68,7 @@ comptime {
     //    reached the former checkpoint.
     assert(vsr_checkpoint_ops + lsm_compaction_ops + pipeline_prepare_queue_max * 2 <=
         journal_slot_count);
+
     assert(vsr_checkpoint_ops >= pipeline_prepare_queue_max);
     assert(vsr_checkpoint_ops >= lsm_compaction_ops);
     assert(vsr_checkpoint_ops % lsm_compaction_ops == 0);
@@ -94,6 +95,7 @@ pub fn multiversion_binary_platform_size_max(options: struct { macos: bool, debu
     // {Linux, Windows} get the base value. macOS gets 2x since it has universal binaries. All cases
     // get a further 2x in debug.
     var size_max = config.process.multiversion_binary_platform_size_max;
+
     if (options.macos) size_max *= 2;
     if (options.debug) size_max *= 2;
 
@@ -103,6 +105,7 @@ pub fn multiversion_binary_platform_size_max(options: struct { macos: bool, debu
 /// The maximum size, like above, but for any platform.
 pub const multiversion_binary_size_max =
     config.process.multiversion_binary_platform_size_max * 2 * 2;
+
 comptime {
     assert(multiversion_binary_platform_size_max(.{
         .macos = true,
@@ -309,10 +312,12 @@ comptime {
     assert(view_headers_max > 0);
     assert(view_headers_max >= pipeline_prepare_queue_max + 3);
     assert(view_headers_max <= journal_slot_count);
+
     assert(view_headers_max <= @divFloor(
         message_body_size_max - @sizeOf(vsr.CheckpointState),
         @sizeOf(vsr.Header),
     ));
+
     assert(view_headers_max > view_change_headers_suffix_max);
 }
 
@@ -398,6 +403,7 @@ pub const grid_scrubber_cycle_ticks = config.process.grid_scrubber_cycle.to_ms()
 /// (This is to keep the timeouts from being too extreme when the grid is tiny or huge.)
 pub const grid_scrubber_interval_ticks_min =
     config.process.grid_scrubber_interval_min.to_ms() / tick_ms;
+
 pub const grid_scrubber_interval_ticks_max =
     config.process.grid_scrubber_interval_max.to_ms() / tick_ms;
 
@@ -506,6 +512,7 @@ pub const direct_io = config.process.direct_io;
 
 pub const iops_read_max = journal_iops_read_max + client_replies_iops_read_max +
     grid_iops_read_max + superblock_iops_read_max;
+
 pub const iops_write_max = journal_iops_write_max + client_replies_iops_write_max +
     grid_iops_write_max + superblock_iops_write_max;
 
@@ -676,6 +683,7 @@ pub const lsm_snapshots_max = config.cluster.lsm_snapshots_max;
 pub const lsm_table_value_blocks_max = table_blocks_max: {
     const checksum_size = @sizeOf(u256);
     const address_size = @sizeOf(u64);
+
     break :table_blocks_max @divFloor(
         block_size - @sizeOf(vsr.Header),
         (checksum_size + address_size),
@@ -686,6 +694,7 @@ pub const lsm_table_value_blocks_max = table_blocks_max: {
 pub const lsm_manifest_memory_size_default = lsm_manifest_memory: {
     // TODO Tune this better.
     const lsm_forest_node_count: u32 = 8192;
+
     break :lsm_manifest_memory lsm_forest_node_count * lsm_manifest_node_size;
 };
 
@@ -703,7 +712,9 @@ pub const lsm_manifest_memory_size_min = lsm_manifest_memory_size_multiplier;
 /// to 1MiB so it is a more obvious increment for users.
 pub const lsm_manifest_memory_size_multiplier = lsm_manifest_memory_multiplier: {
     const lsm_manifest_memory_multiplier = 64 * lsm_manifest_node_size;
+
     assert(lsm_manifest_memory_multiplier == MiB);
+
     break :lsm_manifest_memory_multiplier lsm_manifest_memory_multiplier;
 };
 

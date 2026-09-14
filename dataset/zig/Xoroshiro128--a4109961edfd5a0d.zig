@@ -3,7 +3,9 @@
 //! PRNG
 
 const std = @import("std");
+
 const math = std.math;
+
 const Xoroshiro128 = @This();
 
 s: [2]u64,
@@ -12,6 +14,7 @@ pub fn init(init_s: u64) Xoroshiro128 {
     var x = Xoroshiro128{ .s = undefined };
 
     x.seed(init_s);
+
     return x;
 }
 
@@ -25,6 +28,7 @@ pub fn next(self: *Xoroshiro128) u64 {
     const r = s0 +% s1;
 
     s1 ^= s0;
+
     self.s[0] = math.rotl(u64, s0, @as(u8, 55)) ^ s1 ^ (s1 << 14);
     self.s[1] = math.rotl(u64, s1, @as(u8, 36));
 
@@ -43,11 +47,13 @@ pub fn jump(self: *Xoroshiro128) void {
 
     inline for (table) |entry| {
         var b: usize = 0;
+
         while (b < 64) : (b += 1) {
             if ((entry & (@as(u64, 1) << @as(u6, @intCast(b)))) != 0) {
                 s0 ^= self.s[0];
                 s1 ^= self.s[1];
             }
+
             _ = self.next();
         }
     }
@@ -71,9 +77,12 @@ pub fn fill(self: *Xoroshiro128, buf: []u8) void {
     // Complete 8 byte segments.
     while (i < aligned_len) : (i += 8) {
         var n = self.next();
+
         comptime var j: usize = 0;
+
         inline while (j < 8) : (j += 1) {
             buf[i + j] = @as(u8, @truncate(n));
+
             n >>= 8;
         }
     }
@@ -81,8 +90,10 @@ pub fn fill(self: *Xoroshiro128, buf: []u8) void {
     // Remaining. (cuts the stream)
     if (i != buf.len) {
         var n = self.next();
+
         while (i < buf.len) : (i += 1) {
             buf[i] = @as(u8, @truncate(n));
+
             n >>= 8;
         }
     }
@@ -90,6 +101,7 @@ pub fn fill(self: *Xoroshiro128, buf: []u8) void {
 
 test "sequence" {
     var r = Xoroshiro128.init(0);
+
     r.s[0] = 0xaeecf86f7878dd75;
     r.s[1] = 0x01cd153642e72622;
 
@@ -124,6 +136,7 @@ test "sequence" {
 
 test fill {
     var r = Xoroshiro128.init(0);
+
     r.s[0] = 0xaeecf86f7878dd75;
     r.s[1] = 0x01cd153642e72622;
 
@@ -139,6 +152,7 @@ test fill {
     for (seq) |s| {
         var buf0: [8]u8 = undefined;
         var buf1: [7]u8 = undefined;
+
         std.mem.writeInt(u64, &buf0, s, .little);
         r.fill(&buf1);
         try std.testing.expect(std.mem.eql(u8, buf0[0..7], buf1[0..]));

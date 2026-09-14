@@ -17,6 +17,7 @@ export default class Index {
 	prev_layout_nodes = [] as Array<Node>
 	nodes = [] as Array<Node>
 	edges = [] as Array<Edge>
+
 	signal = false
 
 	shadow_handlers = {} as {
@@ -65,6 +66,7 @@ export default class Index {
 
 		this.pure_nodes = nodes
 		this.edges = edges
+
 		this.signal = !this.signal
 	}
 
@@ -83,6 +85,7 @@ export default class Index {
 		}
 
 		this.prev_layout_nodes = v
+
 		this.signal = !this.signal
 	}
 

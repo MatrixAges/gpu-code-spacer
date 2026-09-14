@@ -113,7 +113,6 @@ export default class Index {
 
 	off() {
 		this.unregister()
-
 		this.utils.off()
 	}
 }

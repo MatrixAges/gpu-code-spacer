@@ -92,6 +92,7 @@ export default class TableSelection implements BaseSelection {
 		const anchor_cell_node_rect = $getTableCellNodeRect(anchor_cell_node)!
 		const focus_cell_node = $getNodeByKey(this.focus.key)! as TableCellNode
 		const focus_cell_node_rect = $getTableCellNodeRect(focus_cell_node)!
+
 		const start_x = Math.min(anchor_cell_node_rect.column_index, focus_cell_node_rect.column_index)
 		const start_y = Math.min(anchor_cell_node_rect.row_index, focus_cell_node_rect.row_index)
 		const stop_x = Math.max(anchor_cell_node_rect.column_index, focus_cell_node_rect.column_index)
@@ -102,6 +103,7 @@ export default class TableSelection implements BaseSelection {
 			anchor_cell_node_rect.column_index >= focus_cell_node_rect.column_index
 				? 'focus'
 				: 'anchor'
+
 		return {
 			merge_node_type,
 			from_x: Math.min(start_x, stop_x),
@@ -144,6 +146,7 @@ export default class TableSelection implements BaseSelection {
 
 		let min_column = Math.min(cell_a_map.start_column, cell_b_map.start_column)
 		let min_row = Math.min(cell_a_map.start_row, cell_b_map.start_row)
+
 		let explored_min_column = min_column
 		let explored_min_row = min_row
 		let explored_max_column = min_column
@@ -240,6 +243,7 @@ export default class TableSelection implements BaseSelection {
 
 	getTextContent() {
 		const nodes = this.getNodes()
+
 		let text_content = ''
 
 		for (let i = 0; i < nodes.length; i++) {

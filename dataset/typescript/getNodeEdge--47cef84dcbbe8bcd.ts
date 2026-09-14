@@ -7,6 +7,7 @@ const edge_type = 'smoothstep'
 
 export default (args: Pick<IPropsMindmap, 'file_id' | 'name' | 'kanban_items'>) => {
 	const { file_id, name, kanban_items } = args
+
 	const nodes = [{ id: file_id, data: { label: name }, position, className: 'root_node' }] as Array<Node>
 	const edges = [] as Array<Edge>
 

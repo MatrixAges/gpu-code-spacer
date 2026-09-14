@@ -10,6 +10,7 @@ interface Args {
 	mounted: (args: {
 		setDom: (v: HTMLDivElement) => void
 	}) => void
+
 	unmounted?: () => void
 	deps: DependencyList
 	stack_id?: string
@@ -17,6 +18,7 @@ interface Args {
 
 export default (args: Args) => {
 	const { mounted, unmounted, deps, stack_id } = args
+
 	const ref_dom = useRef<HTMLDivElement | null>(null)
 	const ref_deps = useRef<DependencyList>()
 	const id = useStackId() || stack_id
@@ -50,7 +52,6 @@ export default (args: Args) => {
 						const set = new Set<() => void>()
 
 						set.add(unmounted)
-
 						$stack_offs.set(id, set)
 					}
 				} else {

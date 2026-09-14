@@ -38,6 +38,7 @@ export default async () => {
 		)
 		.map((item): CronJob => {
 			const now = new Date().toISOString()
+
 			const last_status: CronJob['last_status'] =
 				item.last_status === 'success' || item.last_status === 'error' || item.last_status === 'idle'
 					? item.last_status

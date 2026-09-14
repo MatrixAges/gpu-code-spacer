@@ -6,6 +6,7 @@ import {
 	COMMAND_PRIORITY_CRITICAL,
 	FOCUS_COMMAND
 } from 'lexical'
+
 import { injectable } from 'tsyringe'
 
 import { mergeRegister } from '@lexical/utils'
@@ -15,6 +16,7 @@ import type { LexicalEditor } from 'lexical'
 @injectable()
 export default class Index {
 	focus = false
+
 	container = null as unknown as HTMLDivElement
 	editor = null as unknown as LexicalEditor
 
@@ -22,6 +24,7 @@ export default class Index {
 
 	init(id: string, editor: Index['editor']) {
 		this.container = document.getElementById(id) as HTMLDivElement
+
 		this.editor = editor
 
 		this.addListener()

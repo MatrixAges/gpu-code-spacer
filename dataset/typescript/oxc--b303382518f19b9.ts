@@ -2,10 +2,12 @@ import path from 'node:path'
 import colors from 'picocolors'
 import type { RolldownError, RolldownLog, SourceMap } from 'rolldown'
 import { viteTransformPlugin as nativeTransformPlugin } from 'rolldown/experimental'
+
 import type {
   TransformOptions as OxcTransformOptions,
   TransformResult as OxcTransformResult,
 } from 'rolldown/utils'
+
 import { transformSync } from 'rolldown/utils'
 import type { FSWatcher } from '#dep-types/chokidar'
 import type { Environment } from '..'
@@ -21,6 +23,7 @@ import { type ESBuildOptions, getTSConfigResolutionCache } from './esbuild'
 // IIFE content looks like `var MyLib = (function() {` or `this.nested.myLib = (function() {`.
 export const IIFE_BEGIN_RE: RegExp =
   /(?:(?:(?:const|var)\s+[^.\s]+|[^.\s]+\.[^.\s]+\.[^.\s]+)\s*=\s*|^|\n)\(?function\([^()]*\)\s*\{(?:\s*"use strict";)?/
+
 // UMD content looks like `})(this, function(exports, external1, external2) {`.
 export const UMD_BEGIN_RE: RegExp =
   /\}\)\((?:this,\s*)?function\([^()]*\)\s*\{(?:\s*"use strict";)?/
@@ -64,6 +67,7 @@ export function getRollupJsxPresets(
         importSource: 'react',
       }
   }
+
   preset satisfies never
 }
 
@@ -82,30 +86,41 @@ function getErrorMessage(e: RolldownError): string {
   }
 
   let s = ''
+
   if (e.plugin) {
     s += `[plugin ${e.plugin}]`
   }
+
   const id = e.id ?? e.loc?.file
+
   if (id) {
     s += ' ' + id
+
     if (e.loc) {
       s += `:${e.loc.line}:${e.loc.column}`
     }
   }
+
   if (s) {
     s += '\n'
   }
+
   const message = `${e.name ?? 'Error'}: ${e.message}`
+
   s += message
+
   if (e.frame) {
     s = joinNewLine(s, e.frame)
   }
+
   // copy stack since it's important for js plugin error
   if (e.stack) {
     s = joinNewLine(s, e.stack.replace(message, ''))
   }
+
   if (e.cause) {
     s = joinNewLine(s, 'Caused by:')
+
     s = joinNewLine(
       s,
       getErrorMessage(e.cause as any)
@@ -114,6 +129,7 @@ function getErrorMessage(e: RolldownError): string {
         .join('\n'),
     )
   }
+
   return s
 }
 
@@ -126,6 +142,7 @@ export async function transformWithOxc(
   watcher?: FSWatcher,
 ): Promise<Omit<OxcTransformResult, 'errors'>> {
   let lang = options?.lang
+
   if (!lang) {
     // if the id ends with a valid ext, use it (e.g. vue blocks)
     // otherwise, cleanup the query before checking the ext
@@ -157,6 +174,7 @@ export async function transformWithOxc(
       ? getTSConfigResolutionCache(config)
       : undefined,
   )
+
   if (
     watcher &&
     config &&
@@ -171,16 +189,21 @@ export async function transformWithOxc(
   if (result.errors.length > 0) {
     // Copy from rolldown's packages/rolldown/src/utils/errors.ts
     let summary = `Transform failed with ${result.errors.length} error${result.errors.length < 2 ? '' : 's'}:\n`
+
     for (let i = 0; i < result.errors.length; i++) {
       summary += '\n'
+
       if (i >= 5) {
         summary += '...'
+
         break
       }
+
       summary += getErrorMessage(result.errors[i])
     }
 
     const wrapper = new Error(summary)
+
     // expose individual errors as getters so that
     // `console.error(wrapper)` doesn't expand unnecessary details
     // when they are already presented in `wrapper.message`
@@ -195,22 +218,28 @@ export async function transformWithOxc(
           value,
         }),
     })
+
     throw wrapper
   }
+
   return result
 }
 
 const warnedMessages = new Set<string>()
+
 function shouldSkipWarning(warning: RolldownLog): boolean {
   if (warning.code === 'UNSUPPORTED_TSCONFIG_OPTION') {
     if (warnedMessages.has(warning.message)) return true
+
     warnedMessages.add(warning.message)
   }
+
   return false
 }
 
 export function oxcPlugin(config: ResolvedConfig): Plugin {
   const options = config.oxc as OxcOptions
+
   const {
     jsxInject,
     include,
@@ -221,6 +250,7 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
   } = options
 
   const filter = createFilter(include || /\.(m?ts|[jt]sx)$/, exclude || /\.js$/)
+
   const jsxRefreshFilter =
     jsxRefreshInclude || jsxRefreshExclude
       ? createFilter(jsxRefreshInclude, jsxRefreshExclude)
@@ -230,6 +260,7 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
     (typeof oxcTransformOptions.jsx === 'object' &&
       oxcTransformOptions.jsx.importSource) ||
     'react'
+
   const jsxImportRuntime = `${jsxImportSource}/jsx-runtime`
   const jsxImportDevRuntime = `${jsxImportSource}/jsx-dev-runtime`
 
@@ -265,6 +296,7 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
     ) {
       result.jsx = { ...jsxOptions, refresh: false }
     }
+
     if (jsxRefreshFilter?.(id) && !JS_TYPES_RE.test(cleanUrl(id))) {
       result.lang = 'js'
     }
@@ -288,6 +320,7 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
         } = environment.config.oxc as Exclude<OxcOptions, false | undefined>
 
         const transformOptions: OxcTransformOptions = _transformOptions
+
         transformOptions.sourcemap =
           environment.config.mode !== 'build' ||
           !!environment.config.build.sourcemap
@@ -304,6 +337,7 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
           transformOptions,
         })
       }
+
       return true
     },
     configureServer(_server) {
@@ -317,6 +351,7 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
           code,
           this.environment,
         )
+
         const result = await transformWithOxc(
           code,
           id,
@@ -325,14 +360,17 @@ export function oxcPlugin(config: ResolvedConfig): Plugin {
           config,
           server?.watcher,
         )
+
         if (jsxInject && jsxExtensionsRE.test(id)) {
           result.code = jsxInject + ';' + result.code
         }
+
         for (const warning of result.warnings) {
           if (!shouldSkipWarning(warning)) {
             this.warn(warning)
           }
         }
+
         return {
           code: result.code,
           map: result.map,
@@ -366,18 +404,23 @@ export function convertEsbuildConfigToOxcConfig(
     switch (esbuildTransformOptions.jsx) {
       case 'automatic':
         jsxOptions.runtime = 'automatic'
+
         if (esbuildTransformOptions.jsxImportSource) {
           jsxOptions.importSource = esbuildTransformOptions.jsxImportSource
         }
+
         break
       case 'transform':
         jsxOptions.runtime = 'classic'
+
         if (esbuildTransformOptions.jsxFactory) {
           jsxOptions.pragma = esbuildTransformOptions.jsxFactory
         }
+
         if (esbuildTransformOptions.jsxFragment) {
           jsxOptions.pragmaFrag = esbuildTransformOptions.jsxFragment
         }
+
         break
       default:
         break
@@ -386,6 +429,7 @@ export function convertEsbuildConfigToOxcConfig(
     if (esbuildTransformOptions.jsxDev !== undefined) {
       jsxOptions.development = esbuildTransformOptions.jsxDev
     }
+
     if (esbuildTransformOptions.jsxSideEffects !== undefined) {
       jsxOptions.pure = !esbuildTransformOptions.jsxSideEffects
     }
@@ -401,6 +445,7 @@ export function convertEsbuildConfigToOxcConfig(
   if (esbuildTransformOptions.banner) {
     warnDeprecatedShouldBeConvertedToPluginOptions(logger, 'banner')
   }
+
   if (esbuildTransformOptions.footer) {
     warnDeprecatedShouldBeConvertedToPluginOptions(logger, 'footer')
   }

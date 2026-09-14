@@ -208,6 +208,7 @@ export default class TableNode extends ElementNode {
 		if (!table_node) return
 
 		const [table_map, table_node_map] = $computeTableMap(table_node, table_cell_node, null!)
+
 		const { start_row } = table_node_map
 
 		if (table_cell_node.getRowSpan() > 1) return true
@@ -229,6 +230,7 @@ export default class TableNode extends ElementNode {
 		if (!table_node) return
 
 		const [table_map, table_node_map] = $computeTableMap(table_node, table_cell_node, null!)
+
 		const { start_column } = table_node_map
 
 		if (table_cell_node.getColSpan() > 1) return true
@@ -264,6 +266,7 @@ export default class TableNode extends ElementNode {
 				if (!cell) return
 
 				const { el } = cell
+
 				const node = $getNearestNodeFromDOMNode(el)
 
 				return node === table_cell_node

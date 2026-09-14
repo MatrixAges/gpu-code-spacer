@@ -9,16 +9,19 @@ import {
   isVNode,
   setBlockTracking,
 } from './vnode'
+
 import type { Teleport, TeleportProps } from './components/Teleport'
 import type { Suspense, SuspenseProps } from './components/Suspense'
 import { type IfAny, isArray, isObject } from '@vue/shared'
 import type { RawSlots } from './componentSlots'
+
 import type {
   Component,
   ComponentOptions,
   ConcreteComponent,
   FunctionalComponent,
 } from './component'
+
 import type { EmitsOptions } from './componentEmits'
 import type { DefineComponent } from './apiDefineComponent'
 
@@ -85,6 +88,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   type: K,
   children?: RawChildren,
 ): VNode
+
 export function h<K extends keyof HTMLElementTagNameMap>(
   type: K,
   props?: (RawProps & HTMLElementEventHandler) | null,
@@ -93,6 +97,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 
 // custom element
 export function h(type: string, children?: RawChildren): VNode
+
 export function h(
   type: string,
   props?: RawProps | null,
@@ -104,13 +109,16 @@ export function h(
   type: typeof Text | typeof Comment,
   children?: string | number | boolean,
 ): VNode
+
 export function h(
   type: typeof Text | typeof Comment,
   props?: null,
   children?: string | number | boolean,
 ): VNode
+
 // fragment
 export function h(type: typeof Fragment, children?: VNodeArrayChildren): VNode
+
 export function h(
   type: typeof Fragment,
   props?: RawProps | null,
@@ -126,6 +134,7 @@ export function h(
 
 // suspense
 export function h(type: typeof Suspense, children?: RawChildren): VNode
+
 export function h(
   type: typeof Suspense,
   props?: (RawProps & SuspenseProps) | null,
@@ -151,6 +160,7 @@ export function h<P>(
   type: ConcreteComponent | string,
   children?: RawChildren,
 ): VNode
+
 export function h<P>(
   type: ConcreteComponent<P> | string,
   props?: (RawProps & P) | ({} extends P ? null : never),
@@ -173,6 +183,7 @@ export function h<P>(
 
 // fake constructor type returned by `defineComponent` or class component
 export function h(type: Constructor, children?: RawChildren): VNode
+
 export function h<P>(
   type: Constructor<P>,
   props?: (RawProps & P) | ({} extends P ? null : never),
@@ -181,6 +192,7 @@ export function h<P>(
 
 // fake constructor type returned by `defineComponent`
 export function h(type: DefineComponent, children?: RawChildren): VNode
+
 export function h<P>(
   type: DefineComponent<P>,
   props?: (RawProps & P) | ({} extends P ? null : never),
@@ -189,6 +201,7 @@ export function h<P>(
 
 // catch all types
 export function h(type: string | Component, children?: RawChildren): VNode
+
 export function h<P>(
   type: string | Component<P>,
   props?: (RawProps & P) | ({} extends P ? null : never),
@@ -200,13 +213,16 @@ export function h(type: any, propsOrChildren?: any, children?: any): VNode {
   try {
     // #6913 disable tracking block in h function
     setBlockTracking(-1)
+
     const l = arguments.length
+
     if (l === 2) {
       if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
         // single vnode without props
         if (isVNode(propsOrChildren)) {
           return createVNode(type, null, [propsOrChildren])
         }
+
         // props without children
         return createVNode(type, propsOrChildren)
       } else {
@@ -219,6 +235,7 @@ export function h(type: any, propsOrChildren?: any, children?: any): VNode {
       } else if (l === 3 && isVNode(children)) {
         children = [children]
       }
+
       return createVNode(type, propsOrChildren, children)
     }
   } finally {

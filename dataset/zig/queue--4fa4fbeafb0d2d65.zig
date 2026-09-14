@@ -1,6 +1,5 @@
 const std = @import("std");
 const assert = std.debug.assert;
-
 const constants = @import("./constants.zig");
 
 const QueueLink = extern struct {
@@ -32,16 +31,19 @@ pub fn QueueType(comptime T: type) type {
 
         pub inline fn pop(self: *Queue) ?*T {
             const link = self.any.pop() orelse return null;
+
             return @alignCast(@fieldParentPtr("link", link));
         }
 
         pub inline fn peek_last(self: *const Queue) ?*T {
             const link = self.any.peek_last() orelse return null;
+
             return @alignCast(@fieldParentPtr("link", link));
         }
 
         pub inline fn peek(self: *const Queue) ?*T {
             const link = self.any.peek() orelse return null;
+
             return @alignCast(@fieldParentPtr("link", link));
         }
 
@@ -78,6 +80,7 @@ pub fn QueueType(comptime T: type) type {
 
             pub inline fn next(iterator: *@This()) ?*T {
                 const link = iterator.any.next() orelse return null;
+
                 return @alignCast(@fieldParentPtr("link", link));
             }
         };
@@ -101,23 +104,30 @@ const QueueAny = struct {
         if (constants.verify and self.verify_push) assert(!self.contains(link));
 
         assert(link.next == null);
+
         if (self.in) |in| {
             in.next = link;
             self.in = link;
         } else {
             assert(self.out == null);
+
             self.in = link;
             self.out = link;
         }
+
         self.count += 1;
     }
 
     pub fn pop(self: *QueueAny) ?*QueueLink {
         const result = self.out orelse return null;
+
         self.out = result.next;
         result.next = null;
+
         if (self.in == result) self.in = null;
+
         self.count -= 1;
+
         return result;
     }
 
@@ -135,24 +145,31 @@ const QueueAny = struct {
 
     pub fn contains(self: *const QueueAny, needle: *const QueueLink) bool {
         var iterator = self.peek();
+
         while (iterator) |link| : (iterator = link.next) {
             if (link == needle) return true;
         }
+
         return false;
     }
 
     pub fn remove(self: *QueueAny, to_remove: *QueueLink) void {
         if (to_remove == self.out) {
             _ = self.pop();
+
             return;
         }
+
         var it = self.out;
+
         while (it) |link| : (it = link.next) {
             if (to_remove == link.next) {
                 if (to_remove == self.in) self.in = link;
+
                 link.next = to_remove.next;
                 to_remove.next = null;
                 self.count -= 1;
+
                 break;
             }
         } else unreachable;
@@ -176,7 +193,9 @@ const QueueAny = struct {
 
         fn next(iterator: *Iterator) ?*QueueLink {
             const head = iterator.head orelse return null;
+
             iterator.head = head.next;
+
             return head;
         }
     };
@@ -184,9 +203,7 @@ const QueueAny = struct {
 
 test "Queue: push/pop/peek/remove/empty" {
     const testing = @import("std").testing;
-
     const Item = struct { link: QueueType(@This()).Link = .{} };
-
     var one: Item = .{};
     var two: Item = .{};
     var three: Item = .{};
@@ -195,9 +212,11 @@ test "Queue: push/pop/peek/remove/empty" {
         .name = null,
         .verify_push = true,
     });
+
     try testing.expect(fifo.empty());
 
     fifo.push(&one);
+
     try testing.expect(!fifo.empty());
     try testing.expectEqual(@as(?*Item, &one), fifo.peek());
     try testing.expect(fifo.contains(&one));
@@ -206,6 +225,7 @@ test "Queue: push/pop/peek/remove/empty" {
 
     fifo.push(&two);
     fifo.push(&three);
+
     try testing.expect(!fifo.empty());
     try testing.expectEqual(@as(?*Item, &one), fifo.peek());
     try testing.expect(fifo.contains(&one));
@@ -213,6 +233,7 @@ test "Queue: push/pop/peek/remove/empty" {
     try testing.expect(fifo.contains(&three));
 
     fifo.remove(&one);
+
     try testing.expect(!fifo.empty());
     try testing.expectEqual(@as(?*Item, &two), fifo.pop());
     try testing.expectEqual(@as(?*Item, &three), fifo.pop());
@@ -226,6 +247,7 @@ test "Queue: push/pop/peek/remove/empty" {
     fifo.push(&two);
     fifo.push(&three);
     fifo.remove(&two);
+
     try testing.expect(!fifo.empty());
     try testing.expectEqual(@as(?*Item, &one), fifo.pop());
     try testing.expectEqual(@as(?*Item, &three), fifo.pop());
@@ -236,6 +258,7 @@ test "Queue: push/pop/peek/remove/empty" {
     fifo.push(&two);
     fifo.push(&three);
     fifo.remove(&three);
+
     try testing.expect(!fifo.empty());
     try testing.expectEqual(@as(?*Item, &one), fifo.pop());
     try testing.expect(!fifo.empty());
@@ -248,6 +271,7 @@ test "Queue: push/pop/peek/remove/empty" {
     fifo.push(&two);
     fifo.remove(&two);
     fifo.push(&three);
+
     try testing.expectEqual(@as(?*Item, &one), fifo.pop());
     try testing.expectEqual(@as(?*Item, &three), fifo.pop());
     try testing.expectEqual(@as(?*Item, null), fifo.pop());
@@ -262,9 +286,9 @@ test "Queue: fuzz" {
         value: u64,
         link: QueueType(@This()).Link,
     };
+
     const Queue = QueueType(Item);
     const Model = stdx.RingBufferType(u64, .slice);
-
     const gpa = std.testing.allocator;
     var prng = stdx.PRNG.from_seed_testing();
 
@@ -274,14 +298,18 @@ test "Queue: fuzz" {
         var queue = Queue.init(.{
             .name = "fuzz",
         });
+
         var model = try Model.init(gpa, N);
+
         defer model.deinit(gpa);
 
         // Implement "remove" by copy.
         var model_scratch = try Model.init(gpa, N);
+
         defer model_scratch.deinit(gpa);
 
         var items = try gpa.alloc(Item, N);
+
         defer gpa.free(items);
 
         for (items, 0..) |*item, value| {
@@ -289,9 +317,11 @@ test "Queue: fuzz" {
         }
 
         var free: std.ArrayListUnmanaged(usize) = .{};
+
         defer free.deinit(gpa);
 
         try free.ensureTotalCapacity(gpa, N);
+
         for (items, 0..) |_, index| {
             free.appendAssumeCapacity(index);
         }
@@ -300,6 +330,7 @@ test "Queue: fuzz" {
             Queue,
             &.{ .Link, .Iterator, .init, .count, .empty },
         );
+
         const weights = fuzz.random_enum_weights(&prng, Declarations);
 
         for (0..N) |_| {
@@ -307,6 +338,7 @@ test "Queue: fuzz" {
                 .push => {
                     if (free.items.len > 0) {
                         const index = free.swapRemove(prng.index(free.items));
+
                         model.push_assume_capacity(items[index].value);
                         queue.push(&items[index]);
                     }
@@ -316,12 +348,14 @@ test "Queue: fuzz" {
                         assert(queue.pop() == null);
                     } else {
                         const item = queue.pop().?;
+
                         assert(item.value == model.pop().?);
 
                         const index = @divExact(
                             (@intFromPtr(item) - @intFromPtr(items.ptr)),
                             @sizeOf(Item),
                         );
+
                         free.appendAssumeCapacity(index);
                     }
                 },
@@ -344,26 +378,31 @@ test "Queue: fuzz" {
 
                     const model_contains = model_contains: {
                         var it = model.iterator();
+
                         while (it.next()) |v| {
                             if (v == item.value) {
                                 break :model_contains true;
                             }
                         }
+
                         break :model_contains false;
                     };
+
                     assert(model_contains == queue.contains(item));
                 },
                 .remove => {
                     const item = &items[prng.index(items)];
+
                     if (queue.contains(item)) {
                         queue.remove(item);
-
                         assert(model_scratch.empty());
+
                         while (model.pop()) |value| {
                             if (value != item.value) {
                                 model_scratch.push_assume_capacity(value);
                             }
                         }
+
                         std.mem.swap(Model, &model, &model_scratch);
                     }
                 },
@@ -377,12 +416,15 @@ test "Queue: fuzz" {
 
                     while (queue_iterator.next()) |queue_item| {
                         const model_item = model_iterator.next().?;
+
                         assert(queue_item.value == model_item);
                     }
+
                     assert(model_iterator.next() == null);
                     assert(queue_iterator.next() == null);
                 },
             }
+
             assert(queue.count() == model.count);
             assert(queue.empty() == model.empty());
         }

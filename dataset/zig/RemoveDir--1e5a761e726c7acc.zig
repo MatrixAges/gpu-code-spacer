@@ -11,6 +11,7 @@ doomed_path: LazyPath,
 
 pub fn create(owner: *std.Build, doomed_path: LazyPath) *RemoveDir {
     const remove_dir = owner.allocator.create(RemoveDir) catch @panic("OOM");
+
     remove_dir.* = .{
         .step = Step.init(.{
             .id = base_id,
@@ -20,6 +21,7 @@ pub fn create(owner: *std.Build, doomed_path: LazyPath) *RemoveDir {
         }),
         .doomed_path = doomed_path.dupe(owner),
     };
+
     return remove_dir;
 }
 

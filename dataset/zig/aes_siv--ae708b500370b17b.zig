@@ -66,20 +66,27 @@ fn AesSiv(comptime Aes: anytype) type {
             // Special case: single empty string
             if (strings.len == 1 and strings[0].len == 0) {
                 CmacImpl.create(&d, &[_]u8{}, &key);
+
                 iv.* = d;
+
                 return;
             }
 
             // Initialize with CMAC of zero block
             const zero_block: [16]u8 = @splat(0);
+
             CmacImpl.create(&d, &zero_block, &key);
 
             // Process all strings except the last one
             var i: usize = 0;
+
             while (i < strings.len - 1) : (i += 1) {
                 d = dbl(d);
+
                 var tmp: [16]u8 = undefined;
+
                 CmacImpl.create(&tmp, strings[i], &key);
+
                 for (&d, tmp) |*b, t| {
                     b.* ^= t;
                 }
@@ -87,10 +94,12 @@ fn AesSiv(comptime Aes: anytype) type {
 
             // Process the final string
             const sn = strings[strings.len - 1];
+
             if (sn.len >= 16) {
                 // XOR d with the first 16 bytes of Sn
                 var xored_msg_buf: [4096]u8 = undefined;
                 const xored_len = @min(sn.len, xored_msg_buf.len);
+
                 @memcpy(xored_msg_buf[0..xored_len], sn[0..xored_len]);
 
                 for (d, 0..) |b, j| {
@@ -101,12 +110,17 @@ fn AesSiv(comptime Aes: anytype) type {
             } else {
                 // Pad and XOR
                 d = dbl(d);
+
                 var padded: [16]u8 = @splat(0);
+
                 @memcpy(padded[0..sn.len], sn);
+
                 padded[sn.len] = 0x80;
+
                 for (&d, padded) |*b, p| {
                     b.* ^= p;
                 }
+
                 CmacImpl.create(iv, &d, &key);
             }
         }
@@ -124,7 +138,9 @@ fn AesSiv(comptime Aes: anytype) type {
 
             // Write back as big-endian
             var result: [16]u8 = undefined;
+
             mem.writeInt(u128, &result, doubled, .big);
+
             return result;
         }
 
@@ -150,10 +166,12 @@ fn AesSiv(comptime Aes: anytype) type {
                 strings_buf[strings_len] = a;
                 strings_len += 1;
             }
+
             if (nonce) |n| {
                 strings_buf[strings_len] = n;
                 strings_len += 1;
             }
+
             strings_buf[strings_len] = m;
             strings_len += 1;
 
@@ -162,11 +180,13 @@ fn AesSiv(comptime Aes: anytype) type {
 
             // Clear the 31st and 63rd bits for use as CTR IV
             var ctr_iv = tag.*;
+
             ctr_iv[8] &= 0x7f;
             ctr_iv[12] &= 0x7f;
 
             // Encrypt plaintext using CTR mode
             const aes_ctx = Aes.initEnc(k2.*);
+
             modes.ctr(@TypeOf(aes_ctx), aes_ctx, c, m, ctr_iv, .big);
         }
 
@@ -186,11 +206,13 @@ fn AesSiv(comptime Aes: anytype) type {
 
             // Clear the 31st and 63rd bits for use as CTR IV
             var ctr_iv = tag;
+
             ctr_iv[8] &= 0x7f;
             ctr_iv[12] &= 0x7f;
 
             // Decrypt ciphertext using CTR mode
             const aes_ctx = Aes.initEnc(k2.*);
+
             modes.ctr(@TypeOf(aes_ctx), aes_ctx, m, c, ctr_iv, .big);
 
             // Prepare strings for S2V: AD components followed by plaintext
@@ -201,22 +223,28 @@ fn AesSiv(comptime Aes: anytype) type {
                 strings_buf[strings_len] = a;
                 strings_len += 1;
             }
+
             if (nonce) |n| {
                 strings_buf[strings_len] = n;
                 strings_len += 1;
             }
+
             strings_buf[strings_len] = m;
             strings_len += 1;
 
             // Verify synthetic IV using S2V
             var computed_tag: [tag_length]u8 = undefined;
+
             s2v(&computed_tag, k1.*, strings_buf[0..strings_len]);
 
             // Verify tag
             const verify = crypto.timing_safe.eql([tag_length]u8, computed_tag, tag);
+
             if (!verify) {
                 crypto.secureZero(u8, &computed_tag);
+
                 @memset(m, undefined);
+
                 return error.AuthenticationFailed;
             }
         }
@@ -239,6 +267,7 @@ fn AesSiv(comptime Aes: anytype) type {
                 strings_buf[strings_len] = a;
                 strings_len += 1;
             }
+
             strings_buf[strings_len] = m;
             strings_len += 1;
 
@@ -247,11 +276,13 @@ fn AesSiv(comptime Aes: anytype) type {
 
             // Clear the 31st and 63rd bits for use as CTR IV
             var ctr_iv = tag.*;
+
             ctr_iv[8] &= 0x7f;
             ctr_iv[12] &= 0x7f;
 
             // Encrypt plaintext using CTR mode
             const aes_ctx = Aes.initEnc(k2.*);
+
             modes.ctr(@TypeOf(aes_ctx), aes_ctx, c, m, ctr_iv, .big);
         }
 
@@ -267,11 +298,13 @@ fn AesSiv(comptime Aes: anytype) type {
 
             // Clear the 31st and 63rd bits for use as CTR IV
             var ctr_iv = tag;
+
             ctr_iv[8] &= 0x7f;
             ctr_iv[12] &= 0x7f;
 
             // Decrypt ciphertext using CTR mode
             const aes_ctx = Aes.initEnc(k2.*);
+
             modes.ctr(@TypeOf(aes_ctx), aes_ctx, m, c, ctr_iv, .big);
 
             // Prepare strings for S2V: AD components followed by plaintext
@@ -282,18 +315,23 @@ fn AesSiv(comptime Aes: anytype) type {
                 strings_buf[strings_len] = a;
                 strings_len += 1;
             }
+
             strings_buf[strings_len] = m;
             strings_len += 1;
 
             // Verify synthetic IV using S2V
             var computed_tag: [tag_length]u8 = undefined;
+
             s2v(&computed_tag, k1.*, strings_buf[0..strings_len]);
 
             // Verify tag
             const verify = crypto.timing_safe.eql([tag_length]u8, computed_tag, tag);
+
             if (!verify) {
                 crypto.secureZero(u8, &computed_tag);
+
                 @memset(m, undefined);
+
                 return error.AuthenticationFailed;
             }
         }
@@ -311,6 +349,7 @@ test "AES-SIV double operation" {
     const expected = [_]u8{ 0x1c, 0x08, 0x02, 0x04, 0x06, 0x08, 0x0a, 0x0c, 0x0e, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1a, 0x1c };
 
     const result = AesSivTest.dbl(input);
+
     try testing.expectEqualSlices(u8, &expected, &result);
 }
 
@@ -321,6 +360,7 @@ test "AES-SIV double operation with MSB set" {
     const expected = [_]u8{ 0xc0, 0x80, 0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe1, 0x01, 0x21, 0x41, 0x61, 0x81, 0xa1, 0x47 };
 
     const result = AesSivTest.dbl(input);
+
     try testing.expectEqualSlices(u8, &expected, &result);
 }
 
@@ -330,10 +370,12 @@ test "Aes128Siv - RFC 5297 Test Vector A.1" {
         0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8, 0xf7, 0xf6, 0xf5, 0xf4, 0xf3, 0xf2, 0xf1, 0xf0,
         0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff,
     };
+
     const ad = [_]u8{
         0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
         0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
     };
+
     const plaintext = [_]u8{
         0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee,
     };
@@ -343,6 +385,7 @@ test "Aes128Siv - RFC 5297 Test Vector A.1" {
 
     // Test using vector API for RFC compliance
     const ad_components = [_][]const u8{&ad};
+
     Aes128Siv.encryptWithAdVector(&ciphertext, &tag, &plaintext, &ad_components, key);
 
     // Expected values from RFC 5297
@@ -351,6 +394,7 @@ test "Aes128Siv - RFC 5297 Test Vector A.1" {
 
     // Test decryption
     var decrypted: [plaintext.len]u8 = undefined;
+
     try Aes128Siv.decryptWithAdVector(&decrypted, &ciphertext, tag, &ad_components, key);
     try testing.expectEqualSlices(u8, &plaintext, &decrypted);
 }
@@ -366,6 +410,7 @@ test "Aes128Siv - empty plaintext" {
     Aes128Siv.encrypt(&ciphertext, &tag, plaintext, ad, null, key);
 
     var decrypted: [plaintext.len]u8 = undefined;
+
     try Aes128Siv.decrypt(&decrypted, &ciphertext, tag, ad, null, key);
 }
 
@@ -381,6 +426,7 @@ test "Aes128Siv - with nonce" {
     Aes128Siv.encrypt(&ciphertext, &tag, plaintext, ad, &nonce, key);
 
     var decrypted: [plaintext.len]u8 = undefined;
+
     try Aes128Siv.decrypt(&decrypted, &ciphertext, tag, ad, &nonce, key);
     try testing.expectEqualSlices(u8, plaintext, &decrypted);
 }
@@ -396,9 +442,11 @@ test "Aes256Siv - basic functionality" {
 
     // Test with multiple AD components using the vector API
     const ad_components = [_][]const u8{ ad1, ad2 };
+
     Aes256Siv.encryptWithAdVector(&ciphertext, &tag, plaintext, &ad_components, key);
 
     var decrypted: [plaintext.len]u8 = undefined;
+
     try Aes256Siv.decryptWithAdVector(&decrypted, &ciphertext, tag, &ad_components, key);
     try testing.expectEqualSlices(u8, plaintext, &decrypted);
 }
@@ -415,6 +463,7 @@ test "Aes128Siv - demonstrating optional parameters" {
         Aes128Siv.encrypt(&ciphertext, &tag, plaintext, null, null, key);
 
         var decrypted: [plaintext.len]u8 = undefined;
+
         try Aes128Siv.decrypt(&decrypted, &ciphertext, tag, null, null, key);
         try testing.expectEqualSlices(u8, plaintext, &decrypted);
     }
@@ -429,6 +478,7 @@ test "Aes128Siv - demonstrating optional parameters" {
         Aes128Siv.encrypt(&ciphertext, &tag, plaintext, ad, null, key);
 
         var decrypted: [plaintext.len]u8 = undefined;
+
         try Aes128Siv.decrypt(&decrypted, &ciphertext, tag, ad, null, key);
         try testing.expectEqualSlices(u8, plaintext, &decrypted);
     }
@@ -443,6 +493,7 @@ test "Aes128Siv - demonstrating optional parameters" {
         Aes128Siv.encrypt(&ciphertext, &tag, plaintext, null, &nonce, key);
 
         var decrypted: [plaintext.len]u8 = undefined;
+
         try Aes128Siv.decrypt(&decrypted, &ciphertext, tag, null, &nonce, key);
         try testing.expectEqualSlices(u8, plaintext, &decrypted);
     }
@@ -458,6 +509,7 @@ test "Aes128Siv - demonstrating optional parameters" {
         Aes128Siv.encrypt(&ciphertext, &tag, plaintext, ad, &nonce, key);
 
         var decrypted: [plaintext.len]u8 = undefined;
+
         try Aes128Siv.decrypt(&decrypted, &ciphertext, tag, ad, &nonce, key);
         try testing.expectEqualSlices(u8, plaintext, &decrypted);
     }
@@ -477,5 +529,6 @@ test "Aes128Siv - authentication failure" {
     tag[0] ^= 0x01;
 
     var decrypted: [plaintext.len]u8 = undefined;
+
     try testing.expectError(error.AuthenticationFailed, Aes128Siv.decrypt(&decrypted, &ciphertext, tag, ad, null, key));
 }

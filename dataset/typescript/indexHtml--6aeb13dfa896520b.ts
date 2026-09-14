@@ -11,6 +11,7 @@ import { getNodeAssetAttributes } from '../../assetSource'
 import { CLIENT_PUBLIC_PATH, FS_PREFIX } from '../../constants'
 import { getHmrImplementation } from '../../plugins/clientInjections'
 import type { IndexHtmlTransformHook } from '../../plugins/html'
+
 import {
   addToHTMLProxyCache,
   applyHtmlTransforms,
@@ -29,7 +30,9 @@ import {
   resolveHtmlTransforms,
   traverseHtml,
 } from '../../plugins/html'
+
 import { checkPublicFile } from '../../publicDir'
+
 import {
   ensureWatchedFile,
   fsPathFromId,
@@ -44,10 +47,12 @@ import {
   processSrcSetSync,
   stripBase,
 } from '../../utils'
+
 import {
   BasicMinimalPluginContext,
   basePluginContextMeta,
 } from '../pluginContainer'
+
 import { send } from '../send'
 import { getCodeWithSourcemap, injectSourcesContent } from '../sourcemap'
 import { checkLoadingAccess, respondWithAccessDenied } from './static'
@@ -75,6 +80,7 @@ export function createDevHtmlTransformFn(
   const [preHooks, normalHooks, postHooks] = resolveHtmlTransforms(
     config.plugins,
   )
+
   const transformHooks = [
     preImportMapHook(config),
     injectCspNonceMetaTagHook(config),
@@ -86,10 +92,12 @@ export function createDevHtmlTransformFn(
     injectNonceAttributeTagHook(config),
     postImportMapHook(config),
   ]
+
   const pluginContext = new BasicMinimalPluginContext(
     { ...basePluginContextMeta, watchMode: true },
     config.logger,
   )
+
   return (
     server: ViteDevServer,
     url: string,
@@ -178,6 +186,7 @@ const processNodeUrl = (
       const mod = server.environments.client.moduleGraph.urlToModuleMap.get(
         stripBase(preTransformUrl || url, config.decodedBase),
       )
+
       if (mod && mod.lastHMRTimestamp > 0) {
         url = injectQuery(url, `t=${mod.lastHMRTimestamp}`)
       }
@@ -190,6 +199,7 @@ const processNodeUrl = (
         // Malformed uri. Skip pre-transform.
         return url
       }
+
       preTransformRequest(server, preTransformUrl, config.decodedBase)
     }
 
@@ -199,8 +209,10 @@ const processNodeUrl = (
   const processedUrl = useSrcSetReplacer
     ? processSrcSetSync(url, ({ url }) => replacer(url))
     : replacer(url)
+
   return processedUrl
 }
+
 const devHtmlHook: IndexHtmlTransformHook = async (
   html,
   { path: htmlPath, filename, server, originalUrl },
@@ -213,6 +225,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
   let proxyModuleUrl: string
 
   const trailingSlash = htmlPath.endsWith('/')
+
   if (!trailingSlash && fs.existsSync(filename)) {
     // If htmlPath is a /@fs/ URL (e.g. vitest-browser always uses this form
     // for testerHtmlPath), normalise to an absolute FS path so proxyCacheUrl
@@ -226,18 +239,24 @@ const devHtmlHook: IndexHtmlTransformHook = async (
     // Mark the path as virtual in both cases so sourcemaps aren't processed
     // and ids are properly handled
     const validPath = `${htmlPath}${trailingSlash ? 'index.html' : ''}`
+
     proxyModulePath = `\0${validPath}`
+
     proxyModuleUrl = wrapId(proxyModulePath)
   }
+
   proxyModuleUrl = joinUrlSegments(decodedBase, proxyModuleUrl)
 
   const s = new MagicString(html)
+
   let inlineModuleIndex = -1
+
   // The key to the proxyHtml cache is decoded, as it will be compared
   // against decoded URLs by the HTML plugins.
   const proxyCacheUrl = decodeURI(
     cleanUrl(proxyModulePath).replace(normalizePath(config.root), ''),
   )
+
   const styleUrl: AssetNode[] = []
   const inlineStyles: InlineStyleAttribute[] = []
   const inlineModulePaths: string[] = []
@@ -253,6 +272,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
     const code = contentNode.value
 
     let map: SourceMapInput | undefined
+
     if (proxyModulePath[0] !== '\0') {
       map = new MagicString(html)
         .snip(
@@ -260,6 +280,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
           contentNode.sourceCodeLocation!.endOffset,
         )
         .generateMap({ hires: 'boundary' })
+
       map.sources = [filename]
       map.file = filename
     }
@@ -269,6 +290,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
 
     // inline js module. convert to src="proxy" (dev only, base is never relative)
     const modulePath = `${proxyModuleUrl}?html-proxy&index=${inlineModuleIndex}.${ext}`
+
     inlineModulePaths.push(modulePath)
 
     s.update(
@@ -276,6 +298,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
       node.sourceCodeLocation!.endOffset,
       `<script type="module" src="${modulePath}"></script>`,
     )
+
     preTransformRequest(server!, modulePath, decodedBase)
   }
 
@@ -301,6 +324,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
           server,
           !isModule,
         )
+
         if (processedUrl !== src.value) {
           overwriteAttrValue(s, srcSourceCodeLocation!, processedUrl)
         }
@@ -310,6 +334,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
         const scriptNode = node.childNodes.at(
           -1,
         ) as DefaultTreeAdapterMap['textNode']
+
         for (const {
           url,
           start,
@@ -322,6 +347,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
             htmlPath,
             originalUrl,
           )
+
           if (processedUrl !== url) {
             s.update(start, end, processedUrl)
           }
@@ -330,8 +356,10 @@ const devHtmlHook: IndexHtmlTransformHook = async (
     }
 
     const inlineStyle = findNeedTransformStyleAttribute(node)
+
     if (inlineStyle) {
       inlineModuleIndex++
+
       inlineStyles.push({
         index: inlineModuleIndex,
         location: inlineStyle.location!,
@@ -341,6 +369,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
 
     if (node.nodeName === 'style' && node.childNodes.length) {
       const children = node.childNodes[0] as DefaultTreeAdapterMap['textNode']
+
       styleUrl.push({
         start: children.sourceCodeLocation!.startOffset,
         end: children.sourceCodeLocation!.endOffset,
@@ -353,6 +382,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
       node,
       config.html?.additionalAssetSources,
     )
+
     for (const attr of assetAttributes) {
       if (attr.type === 'remove') {
         s.remove(attr.location.startOffset, attr.location.endOffset)
@@ -364,6 +394,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
           htmlPath,
           originalUrl,
         )
+
         if (processedUrl !== attr.value) {
           overwriteAttrValue(s, attr.location, processedUrl)
         }
@@ -373,10 +404,12 @@ const devHtmlHook: IndexHtmlTransformHook = async (
 
   // invalidate the module so the newly cached contents will be served
   const clientModuleGraph = server?.environments.client.moduleGraph
+
   if (clientModuleGraph) {
     await Promise.all(
       inlineModulePaths.map(async (url) => {
         const module = await clientModuleGraph.getModuleByUrl(url)
+
         if (module) {
           clientModuleGraph.invalidateModule(module)
         }
@@ -394,6 +427,7 @@ const devHtmlHook: IndexHtmlTransformHook = async (
           url,
           false,
         )
+
       ensureWatchedFile(watcher, mod.file, config.root)
 
       const result =
@@ -401,15 +435,19 @@ const devHtmlHook: IndexHtmlTransformHook = async (
           code,
           mod.id!,
         )
+
       let content = ''
+
       if (result.map && 'version' in result.map) {
         if (result.map.mappings) {
           await injectSourcesContent(result.map, proxyModulePath, config.logger)
         }
+
         content = getCodeWithSourcemap('css', result.code, result.map)
       } else {
         content = result.code
       }
+
       s.overwrite(start, end, content)
     }),
     ...inlineStyles.map(async ({ index, location, code }) => {
@@ -421,12 +459,14 @@ const devHtmlHook: IndexHtmlTransformHook = async (
           url,
           false,
         )
+
       ensureWatchedFile(watcher, mod.file, config.root)
 
       await server?.environments.client.pluginContainer.transform(code, mod.id!)
 
       const hash = getHash(cleanUrl(mod.id!))
       const result = htmlProxyResult.get(`${hash}_${index}`)
+
       overwriteAttrValue(s, location, result ?? '')
     }),
   ])
@@ -462,23 +502,29 @@ export function indexHtmlMiddleware(
     }
 
     const url = req.url && cleanUrl(req.url)
+
     // htmlFallbackMiddleware appends '.html' to URLs
     if (url?.endsWith('.html') && req.headers['sec-fetch-dest'] !== 'script') {
       if (fullBundle) {
         let pathname
+
         try {
           pathname = decodeURIComponent(url)
         } catch {
           // ignore malformed URI
           return next()
         }
+
         const filePath = pathname.slice(1) // remove first /
 
         let file = fullBundle.memoryFiles.get(filePath)
+
         if (!file && fullBundle.hasBuildOutput) {
           return next()
         }
+
         const secFetchDest = req.headers['sec-fetch-dest']
+
         const isDocumentRequest = [
           'document',
           'iframe',
@@ -487,6 +533,7 @@ export function indexHtmlMiddleware(
           '',
           undefined,
         ].includes(secFetchDest)
+
         if (
           isDocumentRequest &&
           ((await fullBundle.triggerBundleRegenerationIfStale()) ||
@@ -494,6 +541,7 @@ export function indexHtmlMiddleware(
         ) {
           file = { source: await generateFallbackHtml(server as ViteDevServer) }
         }
+
         if (!file) {
           return next()
         }
@@ -502,11 +550,14 @@ export function indexHtmlMiddleware(
           typeof file.source === 'string'
             ? file.source
             : Buffer.from(file.source)
+
         const headers = server.config.server.headers
+
         return send(req, res, html, 'html', { headers, etag: file.etag })
       }
 
       let filePath: string
+
       if (isDev && url.startsWith(FS_PREFIX)) {
         filePath = decodeURIComponent(fsPathFromId(url))
       } else {
@@ -517,12 +568,15 @@ export function indexHtmlMiddleware(
 
       if (isDev) {
         const servingAccessResult = checkLoadingAccess(server.config, filePath)
+
         if (servingAccessResult === 'denied') {
           return respondWithAccessDenied(filePath, server, res)
         }
+
         if (servingAccessResult === 'fallback') {
           return next()
         }
+
         servingAccessResult satisfies 'allowed'
       } else {
         // `server.fs` options does not apply to the preview server.
@@ -539,15 +593,18 @@ export function indexHtmlMiddleware(
 
         try {
           let html = await fsp.readFile(filePath, 'utf-8')
+
           if (isDev) {
             html = await server.transformIndexHtml(url, html, req.originalUrl)
           }
+
           return send(req, res, html, 'html', { headers })
         } catch (e) {
           return next(e)
         }
       }
     }
+
     next()
   }
 }
@@ -563,11 +620,13 @@ function preTransformRequest(
 
   // transform all url as non-ssr as html includes client-side assets only
   decodedUrl = unwrapId(stripBase(decodedUrl, decodedBase))
+
   server.warmupRequest(decodedUrl)
 }
 
 async function generateFallbackHtml(server: ViteDevServer) {
   const hmrRuntime = await getHmrImplementation(server.config)
+
   return /* html */ `
 <!DOCTYPE html>
 <html lang="en">

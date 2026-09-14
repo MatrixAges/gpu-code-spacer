@@ -150,7 +150,9 @@ pub const WriteFileError = File.WriteError || File.OpenError || Io.Cancelable;
 /// Writes content to the file system, using the file creation flags provided.
 pub fn writeFile(dir: Dir, io: Io, options: WriteFileOptions) WriteFileError!void {
     var file = try dir.createFile(io, options.sub_path, options.flags);
+
     defer file.close(io);
+
     try file.writeAll(io, options.data);
 }
 
@@ -182,16 +184,19 @@ pub fn updateFile(
     options: std.fs.Dir.CopyFileOptions,
 ) !PrevStatus {
     var src_file = try source_dir.openFile(io, source_path, .{});
+
     defer src_file.close(io);
 
     const src_stat = try src_file.stat(io);
     const actual_mode = options.override_mode orelse src_stat.mode;
+
     check_dest_stat: {
         const dest_stat = blk: {
             var dest_file = dest_dir.openFile(io, dest_path, .{}) catch |err| switch (err) {
                 error.FileNotFound => break :check_dest_stat,
                 else => |e| return e,
             };
+
             defer dest_file.close(io);
 
             break :blk try dest_file.stat(io);
@@ -210,10 +215,12 @@ pub fn updateFile(
     }
 
     var buffer: [1000]u8 = undefined; // Used only when direct fd-to-fd is not available.
+
     var atomic_file = try std.fs.Dir.atomicFile(.adaptFromNewApi(dest_dir), dest_path, .{
         .mode = actual_mode,
         .write_buffer = &buffer,
     });
+
     defer atomic_file.deinit();
 
     var src_reader: File.Reader = .initSize(src_file, io, &.{}, src_stat.size);
@@ -223,9 +230,11 @@ pub fn updateFile(
         error.ReadFailed => return src_reader.err.?,
         error.WriteFailed => return atomic_file.file_writer.err.?,
     };
+
     try atomic_file.flush();
     try atomic_file.file_writer.file.updateTimes(src_stat.atime, src_stat.mtime);
     try atomic_file.renameIntoPlace();
+
     return .stale;
 }
 
@@ -243,9 +252,11 @@ pub const ReadFileError = File.OpenError || File.Reader.Error;
 /// * On other platforms, `file_path` is an opaque sequence of bytes with no particular encoding.
 pub fn readFile(dir: Dir, io: Io, file_path: []const u8, buffer: []u8) ReadFileError![]u8 {
     var file = try dir.openFile(io, file_path, .{});
+
     defer file.close(io);
 
     var reader = file.reader(io, &.{});
+
     const n = reader.interface.readSliceShort(buffer) catch |err| switch (err) {
         error.ReadFailed => return reader.err.?,
     };
@@ -321,6 +332,7 @@ pub fn makePathStatus(dir: Dir, io: Io, sub_path: []const u8) MakePathError!Make
     var it = std.fs.path.componentIterator(sub_path);
     var status: MakePathStatus = .existed;
     var component = it.last() orelse return error.BadPathName;
+
     while (true) {
         if (makeDir(dir, io, component.path)) |_| {
             status = .created;
@@ -335,15 +347,18 @@ pub fn makePathStatus(dir: Dir, io: Io, sub_path: []const u8) MakePathError!Make
                         error.IsDir => break :check_dir,
                         else => |e| return e,
                     };
+
                     if (fstat.kind != .directory) return error.NotDir;
                 }
             },
             error.FileNotFound => |e| {
                 component = it.previous() orelse return e;
+
                 continue;
             },
             else => |e| return e,
         }
+
         component = it.next() orelse return status;
     }
 }

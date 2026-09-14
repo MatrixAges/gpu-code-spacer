@@ -10,21 +10,25 @@ export function initFeatureFlags(): void {
 
   if (typeof __FEATURE_OPTIONS_API__ !== 'boolean') {
     __DEV__ && needWarn.push(`__VUE_OPTIONS_API__`)
+
     getGlobalThis().__VUE_OPTIONS_API__ = true
   }
 
   if (typeof __FEATURE_PROD_DEVTOOLS__ !== 'boolean') {
     __DEV__ && needWarn.push(`__VUE_PROD_DEVTOOLS__`)
+
     getGlobalThis().__VUE_PROD_DEVTOOLS__ = false
   }
 
   if (typeof __FEATURE_PROD_HYDRATION_MISMATCH_DETAILS__ !== 'boolean') {
     __DEV__ && needWarn.push(`__VUE_PROD_HYDRATION_MISMATCH_DETAILS__`)
+
     getGlobalThis().__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = false
   }
 
   if (__DEV__ && needWarn.length) {
     const multi = needWarn.length > 1
+
     console.warn(
       `Feature flag${multi ? `s` : ``} ${needWarn.join(', ')} ${
         multi ? `are` : `is`

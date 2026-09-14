@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+
 const crypto = std.crypto;
 const aes = crypto.core.aes;
 const assert = std.debug.assert;
@@ -32,28 +33,39 @@ fn AesOcb(comptime Aes: anytype) type {
                 const l_ = mem.readInt(u128, &l, .big);
                 const l_2 = (l_ << 1) ^ (0x87 & -%(l_ >> 127));
                 var l2: Block = undefined;
+
                 mem.writeInt(u128, &l2, l_2, .big);
+
                 return l2;
             }
 
             fn precomp(lx: *Lx, upto: usize) []const Block {
                 const table = &lx.table;
+
                 assert(upto < table.len);
+
                 var i = lx.upto;
+
                 while (i + 1 <= upto) : (i += 1) {
                     table[i + 1] = double(table[i]);
                 }
+
                 lx.upto = upto;
+
                 return lx.table[0 .. upto + 1];
             }
 
             fn init(aes_enc_ctx: EncryptCtx) Lx {
                 const zeros = [_]u8{0} ** 16;
                 var star: Block = undefined;
+
                 aes_enc_ctx.encrypt(&star, &zeros);
+
                 const dol = double(star);
                 var lx = Lx{ .star = star, .dol = dol, .upto = 0 };
+
                 lx.table[0] = double(dol);
+
                 return lx;
             }
         };
@@ -62,42 +74,64 @@ fn AesOcb(comptime Aes: anytype) type {
             const full_blocks: usize = a.len / 16;
             const x_max = if (full_blocks > 0) math.log2_int(usize, full_blocks) else 0;
             const lt = lx.precomp(x_max);
+
             var sum = [_]u8{0} ** 16;
             var offset = [_]u8{0} ** 16;
             var i: usize = 0;
+
             while (i < full_blocks) : (i += 1) {
                 xorWith(&offset, lt[@ctz(i + 1)]);
+
                 var e = xorBlocks(offset, a[i * 16 ..][0..16].*);
+
                 aes_enc_ctx.encrypt(&e, &e);
+
                 xorWith(&sum, e);
             }
+
             const leftover = a.len % 16;
+
             if (leftover > 0) {
                 xorWith(&offset, lx.star);
+
                 var padded = [_]u8{0} ** 16;
+
                 @memcpy(padded[0..leftover], a[i * 16 ..][0..leftover]);
+
                 padded[leftover] = 0x80;
+
                 var e = xorBlocks(offset, padded);
+
                 aes_enc_ctx.encrypt(&e, &e);
+
                 xorWith(&sum, e);
             }
+
             return sum;
         }
 
         fn getOffset(aes_enc_ctx: EncryptCtx, npub: [nonce_length]u8) Block {
             var nx = [_]u8{0} ** 16;
+
             nx[0] = @as(u8, @intCast(@as(u7, @truncate(tag_length * 8)) << 1));
             nx[16 - nonce_length - 1] = 1;
             nx[nx.len - nonce_length ..].* = npub;
 
             const bottom: u6 = @truncate(nx[15]);
+
             nx[15] &= 0xc0;
+
             var ktop_: Block = undefined;
+
             aes_enc_ctx.encrypt(&ktop_, &nx);
+
             const ktop = mem.readInt(u128, &ktop_, .big);
             const stretch = (@as(u192, ktop) << 64) | @as(u192, @as(u64, @truncate(ktop >> 64)) ^ @as(u64, @truncate(ktop >> 56)));
+
             var offset: Block = undefined;
+
             mem.writeInt(u128, &offset, @as(u128, @truncate(stretch >> (64 - @as(u7, bottom)))), .big);
+
             return offset;
         }
 
@@ -117,10 +151,12 @@ fn AesOcb(comptime Aes: anytype) type {
             const aes_enc_ctx = Aes.initEnc(key);
             const full_blocks: usize = m.len / 16;
             const x_max = if (full_blocks > 0) math.log2_int(usize, full_blocks) else 0;
+
             var lx = Lx.init(aes_enc_ctx);
             const lt = lx.precomp(x_max);
 
             var offset = getOffset(aes_enc_ctx, npub);
+
             var sum = [_]u8{0} ** 16;
             var i: usize = 0;
 
@@ -128,43 +164,69 @@ fn AesOcb(comptime Aes: anytype) type {
                 var offsets: [wb]Block align(16) = undefined;
                 var es: [16 * wb]u8 align(16) = undefined;
                 var j: usize = 0;
+
                 while (j < wb) : (j += 1) {
                     xorWith(&offset, lt[@ctz(i + 1 + j)]);
+
                     offsets[j] = offset;
+
                     const p = m[(i + j) * 16 ..][0..16].*;
+
                     es[j * 16 ..][0..16].* = xorBlocks(p, offsets[j]);
+
                     xorWith(&sum, p);
                 }
+
                 aes_enc_ctx.encryptWide(wb, &es, &es);
+
                 j = 0;
+
                 while (j < wb) : (j += 1) {
                     const e = es[j * 16 ..][0..16].*;
+
                     c[(i + j) * 16 ..][0..16].* = xorBlocks(e, offsets[j]);
                 }
             }
+
             while (i < full_blocks) : (i += 1) {
                 xorWith(&offset, lt[@ctz(i + 1)]);
+
                 const p = m[i * 16 ..][0..16].*;
                 var e = xorBlocks(p, offset);
+
                 aes_enc_ctx.encrypt(&e, &e);
+
                 c[i * 16 ..][0..16].* = xorBlocks(e, offset);
+
                 xorWith(&sum, p);
             }
+
             const leftover = m.len % 16;
+
             if (leftover > 0) {
                 xorWith(&offset, lx.star);
+
                 var pad = offset;
+
                 aes_enc_ctx.encrypt(&pad, &pad);
+
                 var e = [_]u8{0} ** 16;
+
                 @memcpy(e[0..leftover], m[i * 16 ..][0..leftover]);
+
                 e[leftover] = 0x80;
+
                 for (m[i * 16 ..], 0..) |x, j| {
                     c[i * 16 + j] = pad[j] ^ x;
                 }
+
                 xorWith(&sum, e);
             }
+
             var e = xorBlocks(xorBlocks(sum, offset), lx.dol);
+
             aes_enc_ctx.encrypt(&e, &e);
+
             tag.* = xorBlocks(e, hash(aes_enc_ctx, &lx, ad));
         }
 
@@ -184,10 +246,12 @@ fn AesOcb(comptime Aes: anytype) type {
             const aes_dec_ctx = DecryptCtx.initFromEnc(aes_enc_ctx);
             const full_blocks: usize = m.len / 16;
             const x_max = if (full_blocks > 0) math.log2_int(usize, full_blocks) else 0;
+
             var lx = Lx.init(aes_enc_ctx);
             const lt = lx.precomp(x_max);
 
             var offset = getOffset(aes_enc_ctx, npub);
+
             var sum = [_]u8{0} ** 16;
             var i: usize = 0;
 
@@ -195,49 +259,79 @@ fn AesOcb(comptime Aes: anytype) type {
                 var offsets: [wb]Block align(16) = undefined;
                 var es: [16 * wb]u8 align(16) = undefined;
                 var j: usize = 0;
+
                 while (j < wb) : (j += 1) {
                     xorWith(&offset, lt[@ctz(i + 1 + j)]);
+
                     offsets[j] = offset;
+
                     const q = c[(i + j) * 16 ..][0..16].*;
+
                     es[j * 16 ..][0..16].* = xorBlocks(q, offsets[j]);
                 }
+
                 aes_dec_ctx.decryptWide(wb, &es, &es);
+
                 j = 0;
+
                 while (j < wb) : (j += 1) {
                     const p = xorBlocks(es[j * 16 ..][0..16].*, offsets[j]);
+
                     m[(i + j) * 16 ..][0..16].* = p;
+
                     xorWith(&sum, p);
                 }
             }
+
             while (i < full_blocks) : (i += 1) {
                 xorWith(&offset, lt[@ctz(i + 1)]);
+
                 const q = c[i * 16 ..][0..16].*;
                 var e = xorBlocks(q, offset);
+
                 aes_dec_ctx.decrypt(&e, &e);
+
                 const p = xorBlocks(e, offset);
+
                 m[i * 16 ..][0..16].* = p;
+
                 xorWith(&sum, p);
             }
+
             const leftover = m.len % 16;
+
             if (leftover > 0) {
                 xorWith(&offset, lx.star);
+
                 var pad = offset;
+
                 aes_enc_ctx.encrypt(&pad, &pad);
+
                 for (c[i * 16 ..], 0..) |x, j| {
                     m[i * 16 + j] = pad[j] ^ x;
                 }
+
                 var e = [_]u8{0} ** 16;
+
                 @memcpy(e[0..leftover], m[i * 16 ..][0..leftover]);
+
                 e[leftover] = 0x80;
+
                 xorWith(&sum, e);
             }
+
             var e = xorBlocks(xorBlocks(sum, offset), lx.dol);
+
             aes_enc_ctx.encrypt(&e, &e);
+
             var computed_tag = xorBlocks(e, hash(aes_enc_ctx, &lx, ad));
             const verify = crypto.timing_safe.eql([tag_length]u8, computed_tag, tag);
+
             if (!verify) {
                 crypto.secureZero(u8, &computed_tag);
+
                 @memset(m, undefined);
+
                 return error.AuthenticationFailed;
             }
         }
@@ -246,9 +340,11 @@ fn AesOcb(comptime Aes: anytype) type {
 
 fn xorBlocks(x: Block, y: Block) Block {
     var z: Block = x;
+
     for (&z, 0..) |*v, i| {
         v.* = x[i] ^ y[i];
     }
+
     return z;
 }
 
@@ -267,16 +363,20 @@ test "AesOcb test vector 1" {
     var k: [Aes128Ocb.key_length]u8 = undefined;
     var nonce: [Aes128Ocb.nonce_length]u8 = undefined;
     var tag: [Aes128Ocb.tag_length]u8 = undefined;
+
     _ = try hexToBytes(&k, "000102030405060708090A0B0C0D0E0F");
     _ = try hexToBytes(&nonce, "BBAA99887766554433221100");
 
     var c: [0]u8 = undefined;
+
     Aes128Ocb.encrypt(&c, &tag, "", "", nonce, k);
 
     var expected_tag: [tag.len]u8 = undefined;
+
     _ = try hexToBytes(&expected_tag, "785407BFFFC8AD9EDCC5520AC9111EE6");
 
     var m: [0]u8 = undefined;
+
     try Aes128Ocb.decrypt(&m, "", tag, "", nonce, k);
 }
 
@@ -287,18 +387,23 @@ test "AesOcb test vector 2" {
     var nonce: [Aes128Ocb.nonce_length]u8 = undefined;
     var tag: [Aes128Ocb.tag_length]u8 = undefined;
     var ad: [40]u8 = undefined;
+
     _ = try hexToBytes(&k, "000102030405060708090A0B0C0D0E0F");
     _ = try hexToBytes(&ad, "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F2021222324252627");
     _ = try hexToBytes(&nonce, "BBAA9988776655443322110E");
 
     var c: [0]u8 = undefined;
+
     Aes128Ocb.encrypt(&c, &tag, "", &ad, nonce, k);
 
     var expected_tag: [tag.len]u8 = undefined;
+
     _ = try hexToBytes(&expected_tag, "C5CD9D1850C141E358649994EE701B68");
 
     try testing.expectEqualSlices(u8, &expected_tag, &tag);
+
     var m: [0]u8 = undefined;
+
     try Aes128Ocb.decrypt(&m, &c, tag, &ad, nonce, k);
 }
 
@@ -310,6 +415,7 @@ test "AesOcb test vector 3" {
     var tag: [Aes128Ocb.tag_length]u8 = undefined;
     var m: [40]u8 = undefined;
     var c: [m.len]u8 = undefined;
+
     _ = try hexToBytes(&k, "000102030405060708090A0B0C0D0E0F");
     _ = try hexToBytes(&m, "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F2021222324252627");
     _ = try hexToBytes(&nonce, "BBAA9988776655443322110F");
@@ -318,13 +424,17 @@ test "AesOcb test vector 3" {
 
     var expected_c: [c.len]u8 = undefined;
     var expected_tag: [tag.len]u8 = undefined;
+
     _ = try hexToBytes(&expected_tag, "479AD363AC366B95A98CA5F3000B1479");
     _ = try hexToBytes(&expected_c, "4412923493C57D5DE0D700F753CCE0D1D2D95060122E9F15A5DDBFC5787E50B5CC55EE507BCB084E");
 
     try testing.expectEqualSlices(u8, &expected_tag, &tag);
     try testing.expectEqualSlices(u8, &expected_c, &c);
+
     var m2: [m.len]u8 = undefined;
+
     try Aes128Ocb.decrypt(&m2, &c, tag, "", nonce, k);
+
     assert(mem.eql(u8, &m, &m2));
 }
 
@@ -336,22 +446,28 @@ test "AesOcb test vector 4" {
     var tag: [Aes128Ocb.tag_length]u8 = undefined;
     var m: [40]u8 = undefined;
     var c: [m.len]u8 = undefined;
+
     _ = try hexToBytes(&k, "000102030405060708090A0B0C0D0E0F");
     _ = try hexToBytes(&m, "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F2021222324252627");
     _ = try hexToBytes(&nonce, "BBAA9988776655443322110D");
+
     const ad = m;
 
     Aes128Ocb.encrypt(&c, &tag, &m, &ad, nonce, k);
 
     var expected_c: [c.len]u8 = undefined;
     var expected_tag: [tag.len]u8 = undefined;
+
     _ = try hexToBytes(&expected_tag, "ED07BA06A4A69483A7035490C5769E60");
     _ = try hexToBytes(&expected_c, "D5CA91748410C1751FF8A2F618255B68A0A12E093FF454606E59F9C1D0DDC54B65E8628E568BAD7A");
 
     try testing.expectEqualSlices(u8, &expected_tag, &tag);
     try testing.expectEqualSlices(u8, &expected_c, &c);
+
     var m2: [m.len]u8 = undefined;
+
     try Aes128Ocb.decrypt(&m2, &c, tag, &ad, nonce, k);
+
     assert(mem.eql(u8, &m, &m2));
 }
 
@@ -363,9 +479,11 @@ test "AesOcb in-place encryption-decryption" {
     var tag: [Aes128Ocb.tag_length]u8 = undefined;
     var m: [40]u8 = undefined;
     var original_m: [m.len]u8 = undefined;
+
     _ = try hexToBytes(&k, "000102030405060708090A0B0C0D0E0F");
     _ = try hexToBytes(&m, "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F2021222324252627");
     _ = try hexToBytes(&nonce, "BBAA9988776655443322110D");
+
     const ad = m;
 
     @memcpy(&original_m, &m);
@@ -374,6 +492,7 @@ test "AesOcb in-place encryption-decryption" {
 
     var expected_c: [m.len]u8 = undefined;
     var expected_tag: [tag.len]u8 = undefined;
+
     _ = try hexToBytes(&expected_tag, "ED07BA06A4A69483A7035490C5769E60");
     _ = try hexToBytes(&expected_c, "D5CA91748410C1751FF8A2F618255B68A0A12E093FF454606E59F9C1D0DDC54B65E8628E568BAD7A");
 

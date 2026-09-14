@@ -71,6 +71,7 @@ pub const default_accuracy_log = struct {
     pub const match = 6;
     pub const offset = 5;
 };
+
 pub const table_size_max = struct {
     pub const literal = 1 << table_accuracy_log_max.literal;
     pub const match = 1 << table_accuracy_log_max.match;
@@ -79,10 +80,12 @@ pub const table_size_max = struct {
 
 fn testDecompress(gpa: std.mem.Allocator, compressed: []const u8) ![]u8 {
     var out: std.Io.Writer.Allocating = .init(gpa);
+
     defer out.deinit();
 
     var in: std.Io.Reader = .fixed(compressed);
     var zstd_stream: Decompress = .init(&in, &.{}, .{});
+
     _ = try zstd_stream.reader.streamRemaining(&out.writer);
 
     return out.toOwnedSlice();
@@ -91,7 +94,9 @@ fn testDecompress(gpa: std.mem.Allocator, compressed: []const u8) ![]u8 {
 fn testExpectDecompress(uncompressed: []const u8, compressed: []const u8) !void {
     const gpa = std.testing.allocator;
     const result = try testDecompress(gpa, compressed);
+
     defer gpa.free(result);
+
     try std.testing.expectEqualSlices(u8, uncompressed, result);
 }
 
@@ -99,14 +104,17 @@ fn testExpectDecompressError(err: anyerror, compressed: []const u8) !void {
     const gpa = std.testing.allocator;
 
     var out: std.Io.Writer.Allocating = .init(gpa);
+
     defer out.deinit();
 
     var in: std.Io.Reader = .fixed(compressed);
     var zstd_stream: Decompress = .init(&in, &.{}, .{});
+
     try std.testing.expectError(
         error.ReadFailed,
         zstd_stream.reader.streamRemaining(&out.writer),
     );
+
     try std.testing.expectError(err, zstd_stream.err orelse {});
 }
 
@@ -122,6 +130,7 @@ test Decompress {
 test "partial magic number" {
     const input_raw =
         "\x28\xb5\x2f"; // 3 bytes of the 4-byte zstandard frame magic number
+
     try testExpectDecompressError(error.BadMagic, input_raw);
 }
 
@@ -130,6 +139,7 @@ test "zero sized raw block" {
         "\x28\xb5\x2f\xfd" ++ // zstandard frame magic number
         "\x20\x00" ++ // frame header: only single_segment_flag set, frame_content_size zero
         "\x01\x00\x00"; // block header with: last_block set, block_type raw, block_size zero
+
     try testExpectDecompress("", input_raw);
 }
 
@@ -139,6 +149,7 @@ test "zero sized rle block" {
         "\x20\x00" ++ // frame header: only single_segment_flag set, frame_content_size zero
         "\x03\x00\x00" ++ // block header with: last_block set, block_type rle, block_size zero
         "\xaa"; // block_content
+
     try testExpectDecompress("", input_rle);
 }
 

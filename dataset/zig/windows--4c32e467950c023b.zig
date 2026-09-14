@@ -29,6 +29,7 @@ pub extern "kernel32" fn GetProcessWorkingSetSize(
 
 pub const LOCKFILE_EXCLUSIVE_LOCK = 0x2;
 pub const LOCKFILE_FAIL_IMMEDIATELY = 0x1;
+
 pub extern "kernel32" fn LockFileEx(
     hFile: windows.HANDLE,
     dwFlags: windows.DWORD,

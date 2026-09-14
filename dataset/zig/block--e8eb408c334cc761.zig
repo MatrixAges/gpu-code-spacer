@@ -32,6 +32,7 @@ const Iterator = struct {
     fn init(size2: usize, min_level: usize) Iterator {
         const power_of_two = math.floorPowerOfTwo(usize, size2);
         const denominator = power_of_two / min_level;
+
         return Iterator{
             .numerator = 0,
             .decimal = 0,
@@ -53,6 +54,7 @@ const Iterator = struct {
 
         self.decimal += self.decimal_step;
         self.numerator += self.numerator_step;
+
         if (self.numerator >= self.denominator) {
             self.numerator -= self.denominator;
             self.decimal += 1;
@@ -71,6 +73,7 @@ const Iterator = struct {
     fn nextLevel(self: *Iterator) bool {
         self.decimal_step += self.decimal_step;
         self.numerator_step += self.numerator_step;
+
         if (self.numerator_step >= self.denominator) {
             self.numerator_step -= self.denominator;
             self.decimal_step += 1;
@@ -107,7 +110,9 @@ pub fn block(
         fn lessThan(ctx: @TypeOf(context), lhs: T, rhs: T) bool {
             const lt = lessThanFn(ctx, lhs, rhs);
             const gt = lessThanFn(ctx, rhs, lhs);
+
             std.debug.assert(!(lt and gt));
+
             return lt;
         }
     }.lessThan else lessThanFn;
@@ -119,13 +124,16 @@ pub fn block(
         if (items.len == 3) {
             // hard coded insertion sort
             if (lessThan(context, items[1], items[0])) mem.swap(T, &items[0], &items[1]);
+
             if (lessThan(context, items[2], items[1])) {
                 mem.swap(T, &items[1], &items[2]);
+
                 if (lessThan(context, items[1], items[0])) mem.swap(T, &items[0], &items[1]);
             }
         } else if (items.len == 2) {
             if (lessThan(context, items[1], items[0])) mem.swap(T, &items[0], &items[1]);
         }
+
         return;
     }
 
@@ -133,11 +141,13 @@ pub fn block(
     // but keep track of the original item orders to force it to be stable
     // http://pages.ripco.net/~jgamble/nw.html
     var iterator = Iterator.init(items.len, 4);
+
     while (!iterator.finished()) {
         var order = [_]u8{ 0, 1, 2, 3, 4, 5, 6, 7 };
         const range = iterator.nextRange();
 
         const sliced_items = items[range.start..];
+
         switch (range.length()) {
             8 => {
                 swap(T, sliced_items, &order, 0, 1, context, lessThan);
@@ -213,6 +223,7 @@ pub fn block(
             else => {},
         }
     }
+
     if (items.len < 8) return;
 
     // then merge sort the higher levels, which can be 8-15, 16-31, 32-63, 64-127, etc.
@@ -227,6 +238,7 @@ pub fn block(
             // then merge the two merged subarrays from the cache back into the original array
             if ((iterator.length() + 1) * 4 <= cache.len and iterator.length() * 4 <= items.len) {
                 iterator.begin();
+
                 while (!iterator.finished()) {
                     // merge A1 and B1 into the cache
                     var A1 = iterator.nextRange();
@@ -237,8 +249,11 @@ pub fn block(
                     if (lessThan(context, items[B1.end - 1], items[A1.start])) {
                         // the two ranges are in reverse order, so copy them in reverse order into the cache
                         const a1_items = items[A1.start..A1.end];
+
                         @memcpy(cache[B1.length()..][0..a1_items.len], a1_items);
+
                         const b1_items = items[B1.start..B1.end];
+
                         @memcpy(cache[0..b1_items.len], b1_items);
                     } else if (lessThan(context, items[B1.start], items[A1.end - 1])) {
                         // these two ranges weren't already in order, so merge them into the cache
@@ -249,18 +264,25 @@ pub fn block(
 
                         // copy A1 and B1 into the cache in the same order
                         const a1_items = items[A1.start..A1.end];
+
                         @memcpy(cache[0..a1_items.len], a1_items);
+
                         const b1_items = items[B1.start..B1.end];
+
                         @memcpy(cache[A1.length()..][0..b1_items.len], b1_items);
                     }
+
                     A1 = Range.init(A1.start, B1.end);
 
                     // merge A2 and B2 into the cache
                     if (lessThan(context, items[B2.end - 1], items[A2.start])) {
                         // the two ranges are in reverse order, so copy them in reverse order into the cache
                         const a2_items = items[A2.start..A2.end];
+
                         @memcpy(cache[A1.length() + B2.length() ..][0..a2_items.len], a2_items);
+
                         const b2_items = items[B2.start..B2.end];
+
                         @memcpy(cache[A1.length()..][0..b2_items.len], b2_items);
                     } else if (lessThan(context, items[B2.start], items[A2.end - 1])) {
                         // these two ranges weren't already in order, so merge them into the cache
@@ -268,10 +290,14 @@ pub fn block(
                     } else {
                         // copy A2 and B2 into the cache in the same order
                         const a2_items = items[A2.start..A2.end];
+
                         @memcpy(cache[A1.length()..][0..a2_items.len], a2_items);
+
                         const b2_items = items[B2.start..B2.end];
+
                         @memcpy(cache[A1.length() + A2.length() ..][0..b2_items.len], b2_items);
                     }
+
                     A2 = Range.init(A2.start, B2.end);
 
                     // merge A1 and A2 from the cache into the items
@@ -281,8 +307,11 @@ pub fn block(
                     if (lessThan(context, cache[B3.end - 1], cache[A3.start])) {
                         // the two ranges are in reverse order, so copy them in reverse order into the items
                         const a3_items = cache[A3.start..A3.end];
+
                         @memcpy(items[A1.start + A2.length() ..][0..a3_items.len], a3_items);
+
                         const b3_items = cache[B3.start..B3.end];
+
                         @memcpy(items[A1.start..][0..b3_items.len], b3_items);
                     } else if (lessThan(context, cache[B3.start], cache[A3.end - 1])) {
                         // these two ranges weren't already in order, so merge them back into the items
@@ -290,8 +319,11 @@ pub fn block(
                     } else {
                         // copy A3 and B3 into the items in the same order
                         const a3_items = cache[A3.start..A3.end];
+
                         @memcpy(items[A1.start..][0..a3_items.len], a3_items);
+
                         const b3_items = cache[B3.start..B3.end];
+
                         @memcpy(items[A1.start + A1.length() ..][0..b3_items.len], b3_items);
                     }
                 }
@@ -301,6 +333,7 @@ pub fn block(
                 _ = iterator.nextLevel();
             } else {
                 iterator.begin();
+
                 while (!iterator.finished()) {
                     const A = iterator.nextRange();
                     const B = iterator.nextRange();
@@ -311,7 +344,9 @@ pub fn block(
                     } else if (lessThan(context, items[B.start], items[A.end - 1])) {
                         // these two ranges weren't already in order, so we'll need to merge them!
                         const a_items = items[A.start..A.end];
+
                         @memcpy(cache[0..a_items.len], a_items);
+
                         mergeExternal(T, items, A, B, cache[0..], context, lessThan);
                     }
                 }
@@ -340,6 +375,7 @@ pub fn block(
             var find: usize = 0;
             var start: usize = 0;
             var pull_index: usize = 0;
+
             var pull = [_]Pull{
                 Pull{
                     .from = 0,
@@ -360,6 +396,7 @@ pub fn block(
 
             // find two internal buffers of size 'buffer_size' each
             find = buffer_size + buffer_size;
+
             var find_separately = false;
 
             if (block_size <= cache.len) {
@@ -379,6 +416,7 @@ pub fn block(
             // in the case where it couldn't find a single buffer of at least √A unique values,
             // all of the Merge steps must be replaced by a different merge algorithm (MergeInPlace)
             iterator.begin();
+
             while (!iterator.finished()) {
                 A = iterator.nextRange();
                 B = iterator.nextRange();
@@ -390,13 +428,16 @@ pub fn block(
                 // these values will be pulled out to the start of A
                 last = A.start;
                 count = 1;
+
                 while (count < find) : ({
                     last = index;
                     count += 1;
                 }) {
                     index = findLastForward(T, items, items[last], Range.init(last + 1, A.end), find - count, context, lessThan);
+
                     if (index == A.end) break;
                 }
+
                 index = last;
 
                 if (count >= buffer_size) {
@@ -407,6 +448,7 @@ pub fn block(
                         .from = index,
                         .to = A.start,
                     };
+
                     pull_index = 1;
 
                     if (count == buffer_size + buffer_size) {
@@ -414,28 +456,34 @@ pub fn block(
                         // so this section can be used to contain both of the internal buffers we'll need
                         buffer1 = Range.init(A.start, A.start + buffer_size);
                         buffer2 = Range.init(A.start + buffer_size, A.start + count);
+
                         break;
                     } else if (find == buffer_size + buffer_size) {
                         // we found a buffer that contains at least √A unique values, but did not contain the full 2√A unique values,
                         // so we still need to find a second separate buffer of at least √A unique values
                         buffer1 = Range.init(A.start, A.start + count);
+
                         find = buffer_size;
                     } else if (block_size <= cache.len) {
                         // we found the first and only internal buffer that we need, so we're done!
                         buffer1 = Range.init(A.start, A.start + count);
+
                         break;
                     } else if (find_separately) {
                         // found one buffer, but now find the other one
                         buffer1 = Range.init(A.start, A.start + count);
+
                         find_separately = false;
                     } else {
                         // we found a second buffer in an 'A' subarray containing √A unique values, so we're done!
                         buffer2 = Range.init(A.start, A.start + count);
+
                         break;
                     }
                 } else if (pull_index == 0 and count > buffer1.length()) {
                     // keep track of the largest buffer we were able to find
                     buffer1 = Range.init(A.start, A.start + count);
+
                     pull[pull_index] = Pull{
                         .range = Range.init(A.start, B.end),
                         .count = count,
@@ -448,13 +496,16 @@ pub fn block(
                 // these values will be pulled out to the end of B
                 last = B.end - 1;
                 count = 1;
+
                 while (count < find) : ({
                     last = index - 1;
                     count += 1;
                 }) {
                     index = findFirstBackward(T, items, items[last], Range.init(B.start, last), find - count, context, lessThan);
+
                     if (index == B.start) break;
                 }
+
                 index = last;
 
                 if (count >= buffer_size) {
@@ -465,6 +516,7 @@ pub fn block(
                         .from = index,
                         .to = B.end,
                     };
+
                     pull_index = 1;
 
                     if (count == buffer_size + buffer_size) {
@@ -472,19 +524,23 @@ pub fn block(
                         // so this section can be used to contain both of the internal buffers we'll need
                         buffer1 = Range.init(B.end - count, B.end - buffer_size);
                         buffer2 = Range.init(B.end - buffer_size, B.end);
+
                         break;
                     } else if (find == buffer_size + buffer_size) {
                         // we found a buffer that contains at least √A unique values, but did not contain the full 2√A unique values,
                         // so we still need to find a second separate buffer of at least √A unique values
                         buffer1 = Range.init(B.end - count, B.end);
+
                         find = buffer_size;
                     } else if (block_size <= cache.len) {
                         // we found the first and only internal buffer that we need, so we're done!
                         buffer1 = Range.init(B.end - count, B.end);
+
                         break;
                     } else if (find_separately) {
                         // found one buffer, but now find the other one
                         buffer1 = Range.init(B.end - count, B.end);
+
                         find_separately = false;
                     } else {
                         // buffer2 will be pulled out from a 'B' subarray, so if the first buffer was pulled out from the corresponding 'A' subarray,
@@ -493,11 +549,13 @@ pub fn block(
 
                         // we found a second buffer in an 'B' subarray containing √A unique values, so we're done!
                         buffer2 = Range.init(B.end - count, B.end);
+
                         break;
                     }
                 } else if (pull_index == 0 and count > buffer1.length()) {
                     // keep track of the largest buffer we were able to find
                     buffer1 = Range.init(B.end - count, B.end);
+
                     pull[pull_index] = Pull{
                         .range = Range.init(A.start, B.end),
                         .count = count,
@@ -509,6 +567,7 @@ pub fn block(
 
             // pull out the two ranges so we can use them as internal buffers
             pull_index = 0;
+
             while (pull_index < 2) : (pull_index += 1) {
                 const length = pull[pull_index].count;
 
@@ -516,20 +575,28 @@ pub fn block(
                     // we're pulling the values out to the left, which means the start of an A subarray
                     index = pull[pull_index].from;
                     count = 1;
+
                     while (count < length) : (count += 1) {
                         index = findFirstBackward(T, items, items[index - 1], Range.init(pull[pull_index].to, pull[pull_index].from - (count - 1)), length - count, context, lessThan);
+
                         const range = Range.init(index + 1, pull[pull_index].from + 1);
+
                         mem.rotate(T, items[range.start..range.end], range.length() - count);
+
                         pull[pull_index].from = index + count;
                     }
                 } else if (pull[pull_index].to > pull[pull_index].from) {
                     // we're pulling values out to the right, which means the end of a B subarray
                     index = pull[pull_index].from + 1;
                     count = 1;
+
                     while (count < length) : (count += 1) {
                         index = findLastForward(T, items, items[index], Range.init(index, pull[pull_index].to), length - count, context, lessThan);
+
                         const range = Range.init(pull[pull_index].from, index - 1);
+
                         mem.rotate(T, items[range.start..range.end], count);
+
                         pull[pull_index].from = index - 1 - count;
                     }
                 }
@@ -545,12 +612,14 @@ pub fn block(
 
             // now that the two internal buffers have been created, it's time to merge each A+B combination at this level of the merge sort!
             iterator.begin();
+
             while (!iterator.finished()) {
                 A = iterator.nextRange();
                 B = iterator.nextRange();
 
                 // remove any parts of A or B that are being used by the internal buffers
                 start = A.start;
+
                 if (start == pull[0].range.start) {
                     if (pull[0].from > pull[0].to) {
                         A.start += pull[0].count;
@@ -561,15 +630,19 @@ pub fn block(
                         if (A.length() == 0) continue;
                     } else if (pull[0].from < pull[0].to) {
                         B.end -= pull[0].count;
+
                         if (B.length() == 0) continue;
                     }
                 }
+
                 if (start == pull[1].range.start) {
                     if (pull[1].from > pull[1].to) {
                         A.start += pull[1].count;
+
                         if (A.length() == 0) continue;
                     } else if (pull[1].from < pull[1].to) {
                         B.end -= pull[1].count;
+
                         if (B.length() == 0) continue;
                     }
                 }
@@ -587,7 +660,9 @@ pub fn block(
 
                     // swap the first value of each A block with the value in buffer1
                     var indexA = buffer1.start;
+
                     index = firstA.end;
+
                     while (index < blockA.end) : ({
                         indexA += 1;
                         index += block_size;
@@ -600,6 +675,7 @@ pub fn block(
                     var lastA = firstA;
                     var lastB = Range.init(0, 0);
                     var blockB = Range.init(B.start, B.start + @min(block_size, B.length()));
+
                     blockA.start += firstA.length();
                     indexA = buffer1.start;
 
@@ -607,6 +683,7 @@ pub fn block(
                     // otherwise, if the second buffer is available, block swap the contents into that
                     if (lastA.length() <= cache.len) {
                         const last_a_items = items[lastA.start..lastA.end];
+
                         @memcpy(cache[0..last_a_items.len], last_a_items);
                     } else if (buffer2.length() > 0) {
                         blockSwap(T, items, lastA.start, buffer2.start, lastA.length());
@@ -623,16 +700,20 @@ pub fn block(
 
                                 // swap the minimum A block to the beginning of the rolling A blocks
                                 var minA = blockA.start;
+
                                 findA = minA + block_size;
+
                                 while (findA < blockA.end) : (findA += block_size) {
                                     if (lessThan(context, items[findA], items[minA])) {
                                         minA = findA;
                                     }
                                 }
+
                                 blockSwap(T, items, blockA.start, minA, block_size);
 
                                 // swap the first item of the previous A block back with its original value, which is stored in buffer1
                                 mem.swap(T, &items[blockA.start], &items[indexA]);
+
                                 indexA += 1;
 
                                 // locally merge the previous A block with the B values that follow it
@@ -671,6 +752,7 @@ pub fn block(
 
                                 // if there are no more A blocks remaining, this step is finished!
                                 blockA.start += block_size;
+
                                 if (blockA.length() == 0) break;
                             } else if (blockB.length() < block_size) {
                                 // move the last B block, which is unevenly sized, to before the remaining A blocks, by using a rotation
@@ -678,12 +760,14 @@ pub fn block(
                                 mem.rotate(T, items[blockA.start..blockB.end], blockB.start - blockA.start);
 
                                 lastB = Range.init(blockA.start, blockA.start + blockB.length());
+
                                 blockA.start += blockB.length();
                                 blockA.end += blockB.length();
                                 blockB.end = blockB.start;
                             } else {
                                 // roll the leftmost A block to the end by swapping it with the next B block
                                 blockSwap(T, items, blockA.start, blockB.start, block_size);
+
                                 lastB = Range.init(blockA.start, blockA.start + block_size);
 
                                 blockA.start += block_size;
@@ -722,15 +806,21 @@ pub fn block(
             sort.insertion(T, items[buffer2.start..buffer2.end], context, lessThan);
 
             pull_index = 0;
+
             while (pull_index < 2) : (pull_index += 1) {
                 var unique = pull[pull_index].count * 2;
+
                 if (pull[pull_index].from > pull[pull_index].to) {
                     // the values were pulled out to the left, so redistribute them back to the right
                     var buffer = Range.init(pull[pull_index].range.start, pull[pull_index].range.start + pull[pull_index].count);
+
                     while (buffer.length() > 0) {
                         index = findFirstForward(T, items, items[buffer.start], Range.init(buffer.end, pull[pull_index].range.end), unique, context, lessThan);
+
                         const amount = index - buffer.end;
+
                         mem.rotate(T, items[buffer.start..index], buffer.length());
+
                         buffer.start += (amount + 1);
                         buffer.end += amount;
                         unique -= 2;
@@ -738,10 +828,14 @@ pub fn block(
                 } else if (pull[pull_index].from < pull[pull_index].to) {
                     // the values were pulled out to the right, so redistribute them back to the left
                     var buffer = Range.init(pull[pull_index].range.end - pull[pull_index].count, pull[pull_index].range.end);
+
                     while (buffer.length() > 0) {
                         index = findLastBackward(T, items, items[buffer.end - 1], Range.init(pull[pull_index].range.start, buffer.start), unique, context, lessThan);
+
                         const amount = buffer.start - index;
+
                         mem.rotate(T, items[index..buffer.end], amount);
+
                         buffer.start -= amount;
                         buffer.end -= (amount + 1);
                         unique -= 2;
@@ -754,6 +848,7 @@ pub fn block(
         if (!iterator.nextLevel()) break;
     }
 }
+
 // merge operation without a buffer
 fn mergeInPlace(
     comptime T: type,
@@ -792,13 +887,17 @@ fn mergeInPlace(
 
         // rotate A into place
         const amount = mid - A.end;
+
         mem.rotate(T, items[A.start..mid], A.length());
+
         if (B.end == mid) break;
 
         // calculate the new A and B ranges
         B.start = mid;
+
         A = Range.init(A.start + amount, B.start);
         A.start = binaryLast(T, items, items[A.start], A, context, lessThan);
+
         if (A.length() == 0) break;
     }
 }
@@ -823,13 +922,17 @@ fn mergeInternal(
         while (true) {
             if (!lessThan(context, items[B.start + B_count], items[buffer.start + A_count])) {
                 mem.swap(T, &items[A.start + insert], &items[buffer.start + A_count]);
+
                 A_count += 1;
                 insert += 1;
+
                 if (A_count >= A.length()) break;
             } else {
                 mem.swap(T, &items[A.start + insert], &items[B.start + B_count]);
+
                 B_count += 1;
                 insert += 1;
+
                 if (B_count >= B.length()) break;
             }
         }
@@ -841,6 +944,7 @@ fn mergeInternal(
 
 fn blockSwap(comptime T: type, items: []T, start1: usize, start2: usize, block_size: usize) void {
     var index: usize = 0;
+
     while (index < block_size) : (index += 1) {
         mem.swap(T, &items[start1 + index], &items[start2 + index]);
     }
@@ -858,9 +962,11 @@ fn findFirstForward(
     comptime lessThan: fn (@TypeOf(context), lhs: T, rhs: T) bool,
 ) usize {
     if (range.length() == 0) return range.start;
+
     const skip = @max(range.length() / unique, @as(usize, 1));
 
     var index = range.start + skip;
+
     while (lessThan(context, items[index - 1], value)) : (index += skip) {
         if (index >= range.end - skip) {
             return binaryFirst(T, items, value, Range.init(index, range.end), context, lessThan);
@@ -880,9 +986,11 @@ fn findFirstBackward(
     comptime lessThan: fn (@TypeOf(context), lhs: T, rhs: T) bool,
 ) usize {
     if (range.length() == 0) return range.start;
+
     const skip = @max(range.length() / unique, @as(usize, 1));
 
     var index = range.end - skip;
+
     while (index > range.start and !lessThan(context, items[index - 1], value)) : (index -= skip) {
         if (index < range.start + skip) {
             return binaryFirst(T, items, value, Range.init(range.start, index), context, lessThan);
@@ -902,9 +1010,11 @@ fn findLastForward(
     comptime lessThan: fn (@TypeOf(context), lhs: T, rhs: T) bool,
 ) usize {
     if (range.length() == 0) return range.start;
+
     const skip = @max(range.length() / unique, @as(usize, 1));
 
     var index = range.start + skip;
+
     while (!lessThan(context, value, items[index - 1])) : (index += skip) {
         if (index >= range.end - skip) {
             return binaryLast(T, items, value, Range.init(index, range.end), context, lessThan);
@@ -924,9 +1034,11 @@ fn findLastBackward(
     comptime lessThan: fn (@TypeOf(context), lhs: T, rhs: T) bool,
 ) usize {
     if (range.length() == 0) return range.start;
+
     const skip = @max(range.length() / unique, @as(usize, 1));
 
     var index = range.end - skip;
+
     while (index > range.start and lessThan(context, value, items[index - 1])) : (index -= skip) {
         if (index < range.start + skip) {
             return binaryLast(T, items, value, Range.init(range.start, index), context, lessThan);
@@ -946,16 +1058,21 @@ fn binaryFirst(
 ) usize {
     var curr = range.start;
     var size = range.length();
+
     if (range.start >= range.end) return range.end;
+
     while (size > 0) {
         const offset = size % 2;
 
         size /= 2;
+
         const mid_item = items[curr + size];
+
         if (lessThan(context, mid_item, value)) {
             curr += size + offset;
         }
     }
+
     return curr;
 }
 
@@ -969,16 +1086,21 @@ fn binaryLast(
 ) usize {
     var curr = range.start;
     var size = range.length();
+
     if (range.start >= range.end) return range.end;
+
     while (size > 0) {
         const offset = size % 2;
 
         size /= 2;
+
         const mid_item = items[curr + size];
+
         if (!lessThan(context, value, mid_item)) {
             curr += size + offset;
         }
     }
+
     return curr;
 }
 
@@ -1000,22 +1122,30 @@ fn mergeInto(
     while (true) {
         if (!lessThan(context, from[B_index], from[A_index])) {
             into[insert_index] = from[A_index];
+
             A_index += 1;
             insert_index += 1;
+
             if (A_index == A_last) {
                 // copy the remainder of B into the final array
                 const from_b = from[B_index..B_last];
+
                 @memcpy(into[insert_index..][0..from_b.len], from_b);
+
                 break;
             }
         } else {
             into[insert_index] = from[B_index];
+
             B_index += 1;
             insert_index += 1;
+
             if (B_index == B_last) {
                 // copy the remainder of A into the final array
                 const from_a = from[A_index..A_last];
+
                 @memcpy(into[insert_index..][0..from_a.len], from_a);
+
                 break;
             }
         }
@@ -1042,13 +1172,17 @@ fn mergeExternal(
         while (true) {
             if (!lessThan(context, items[B_index], cache[A_index])) {
                 items[insert_index] = cache[A_index];
+
                 A_index += 1;
                 insert_index += 1;
+
                 if (A_index == A_last) break;
             } else {
                 items[insert_index] = items[B_index];
+
                 B_index += 1;
                 insert_index += 1;
+
                 if (B_index == B_last) break;
             }
         }
@@ -1056,6 +1190,7 @@ fn mergeExternal(
 
     // copy the remainder of A into the final array
     const cache_a = cache[A_index..A_last];
+
     @memcpy(items[insert_index..][0..cache_a.len], cache_a);
 }
 

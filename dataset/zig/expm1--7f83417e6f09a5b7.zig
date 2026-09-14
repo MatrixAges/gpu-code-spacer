@@ -21,6 +21,7 @@ const expectEqual = std.testing.expectEqual;
 ///  - expm1(nan)  = nan
 pub fn expm1(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => expm1_32(x),
         f64 => expm1_64(x),
@@ -55,11 +56,14 @@ fn expm1_32(x_: f32) f32 {
         if (hx > 0x7F800000) {
             return x;
         }
+
         if (sign != 0) {
             return -1;
         }
+
         if (x > o_threshold) {
             x *= 0x1.0p127;
+
             return x;
         }
     }
@@ -76,6 +80,7 @@ fn expm1_32(x_: f32) f32 {
             if (sign == 0) {
                 hi = x - ln2_hi;
                 lo = ln2_lo;
+
                 k = 1;
             } else {
                 hi = x + ln2_hi;
@@ -84,6 +89,7 @@ fn expm1_32(x_: f32) f32 {
             }
         } else {
             var kf = invln2 * x;
+
             if (sign != 0) {
                 kf -= 0.5;
             } else {
@@ -91,7 +97,9 @@ fn expm1_32(x_: f32) f32 {
             }
 
             k = @as(i32, @intFromFloat(kf));
+
             const t = @as(f32, @floatFromInt(k));
+
             hi = x - t * ln2_hi;
             lo = t * ln2_lo;
         }
@@ -104,6 +112,7 @@ fn expm1_32(x_: f32) f32 {
         if (hx < 0x00800000) {
             mem.doNotOptimizeAway(x * x);
         }
+
         return x;
     } else {
         k = 0;
@@ -127,6 +136,7 @@ fn expm1_32(x_: f32) f32 {
     if (k == -1) {
         return 0.5 * (x - e) - 0.5;
     }
+
     if (k == 1) {
         if (x < -0.25) {
             return -2.0 * (e - (x + 0.5));
@@ -139,6 +149,7 @@ fn expm1_32(x_: f32) f32 {
 
     if (k < 0 or k > 56) {
         var y = x - e + 1.0;
+
         if (k == 128) {
             y = y * 2.0 * 0x1.0p127;
         } else {
@@ -149,6 +160,7 @@ fn expm1_32(x_: f32) f32 {
     }
 
     const uf: f32 = @bitCast(@as(u32, @intCast(0x7F -% k)) << 23);
+
     if (k < 23) {
         return (x - e + (1 - uf)) * twopk;
     } else {
@@ -185,12 +197,15 @@ fn expm1_64(x_: f64) f64 {
         if (hx > 0x7FF00000) {
             return x;
         }
+
         // exp1md(-ve) = -1
         if (sign != 0) {
             return -1;
         }
+
         if (x > o_threshold) {
             math.raiseOverflow();
+
             return math.inf(f64);
         }
     }
@@ -207,6 +222,7 @@ fn expm1_64(x_: f64) f64 {
             if (sign == 0) {
                 hi = x - ln2_hi;
                 lo = ln2_lo;
+
                 k = 1;
             } else {
                 hi = x + ln2_hi;
@@ -215,6 +231,7 @@ fn expm1_64(x_: f64) f64 {
             }
         } else {
             var kf = invln2 * x;
+
             if (sign != 0) {
                 kf -= 0.5;
             } else {
@@ -222,7 +239,9 @@ fn expm1_64(x_: f64) f64 {
             }
 
             k = @as(i32, @intFromFloat(kf));
+
             const t = @as(f64, @floatFromInt(k));
+
             hi = x - t * ln2_hi;
             lo = t * ln2_lo;
         }
@@ -235,6 +254,7 @@ fn expm1_64(x_: f64) f64 {
         if (hx < 0x00100000) {
             mem.doNotOptimizeAway(@as(f32, @floatCast(x)));
         }
+
         return x;
     } else {
         k = 0;
@@ -258,6 +278,7 @@ fn expm1_64(x_: f64) f64 {
     if (k == -1) {
         return 0.5 * (x - e) - 0.5;
     }
+
     if (k == 1) {
         if (x < -0.25) {
             return -2.0 * (e - (x + 0.5));
@@ -270,6 +291,7 @@ fn expm1_64(x_: f64) f64 {
 
     if (k < 0 or k > 56) {
         var y = x - e + 1.0;
+
         if (k == 1024) {
             y = y * 2.0 * 0x1.0p1023;
         } else {
@@ -280,6 +302,7 @@ fn expm1_64(x_: f64) f64 {
     }
 
     const uf = @as(f64, @bitCast(@as(u64, @intCast(0x3FF -% k)) << 52));
+
     if (k < 20) {
         return (x - e + (1 - uf)) * twopk;
     } else {

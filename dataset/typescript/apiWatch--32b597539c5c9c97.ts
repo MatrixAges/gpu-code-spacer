@@ -8,14 +8,17 @@ import {
   type WatchSource,
   watch as baseWatch,
 } from '@vue/reactivity'
+
 import { type SchedulerJob, SchedulerJobFlags, queueJob } from './scheduler'
 import { EMPTY_OBJ, NOOP, extend, isFunction, isString } from '@vue/shared'
+
 import {
   type ComponentInternalInstance,
   currentInstance,
   isInSSRComponentSetup,
   setCurrentInstance,
 } from './component'
+
 import { callWithAsyncErrorHandling } from './errorHandling'
 import { queuePostRenderEffect } from './renderer'
 import { warn } from './warning'
@@ -140,6 +143,7 @@ export function watch<T = any, Immediate extends Readonly<boolean> = false>(
         `supports \`watch(source, cb, options?) signature.`,
     )
   }
+
   return doWatch(source as any, cb, options)
 }
 
@@ -157,12 +161,14 @@ function doWatch(
           `watch(source, callback, options?) signature.`,
       )
     }
+
     if (deep !== undefined) {
       warn(
         `watch() "deep" option is only respected when using the ` +
           `watch(source, callback, options?) signature.`,
       )
     }
+
     if (once !== undefined) {
       warn(
         `watch() "once" option is only respected when using the ` +
@@ -177,26 +183,33 @@ function doWatch(
 
   // immediate watcher or watchEffect
   const runsImmediately = (cb && immediate) || (!cb && flush !== 'post')
+
   let ssrCleanup: (() => void)[] | undefined
+
   if (__SSR__ && isInSSRComponentSetup) {
     if (flush === 'sync') {
       const ctx = useSSRContext()!
+
       ssrCleanup = ctx.__watcherHandles || (ctx.__watcherHandles = [])
     } else if (!runsImmediately) {
       const watchStopHandle = () => {}
+
       watchStopHandle.stop = NOOP
       watchStopHandle.resume = NOOP
       watchStopHandle.pause = NOOP
+
       return watchStopHandle
     }
   }
 
   const instance = currentInstance
+
   baseWatchOptions.call = (fn, type, args) =>
     callWithAsyncErrorHandling(fn, instance, type, args)
 
   // scheduler
   let isPre = false
+
   if (flush === 'post') {
     baseWatchOptions.scheduler = job => {
       queuePostRenderEffect(job, instance && instance.suspense)
@@ -204,6 +217,7 @@ function doWatch(
   } else if (flush !== 'sync') {
     // default: 'pre'
     isPre = true
+
     baseWatchOptions.scheduler = (job, isFirstRun) => {
       if (isFirstRun) {
         job()
@@ -219,8 +233,10 @@ function doWatch(
     if (cb) {
       job.flags! |= SchedulerJobFlags.ALLOW_RECURSE
     }
+
     if (isPre) {
       job.flags! |= SchedulerJobFlags.PRE
+
       if (instance) {
         job.id = instance.uid
         ;(job as SchedulerJob).i = instance
@@ -249,21 +265,27 @@ export function instanceWatch(
   options?: WatchOptions,
 ): WatchHandle {
   const publicThis = this.proxy
+
   const getter = isString(source)
     ? source.includes('.')
       ? createPathGetter(publicThis!, source)
       : () => publicThis![source as keyof typeof publicThis]
     : source.bind(publicThis, publicThis)
+
   let cb
+
   if (isFunction(value)) {
     cb = value
   } else {
     cb = value.handler as Function
     options = value
   }
+
   const reset = setCurrentInstance(this)
   const res = doWatch(getter, cb.bind(publicThis), options)
+
   reset()
+
   return res
 }
 
@@ -272,11 +294,14 @@ export function createPathGetter(
   path: string,
 ): () => WatchSource | WatchSource[] | WatchEffect | object {
   const segments = path.split('.')
+
   return (): WatchSource | WatchSource[] | WatchEffect | object => {
     let cur = ctx
+
     for (let i = 0; i < segments.length && cur; i++) {
       cur = cur[segments[i] as keyof typeof cur]
     }
+
     return cur
   }
 }

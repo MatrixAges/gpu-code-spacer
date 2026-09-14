@@ -9,11 +9,12 @@ const testing = std.testing;
 test "parse and render IP addresses at comptime" {
     comptime {
         const ipv6addr = net.IpAddress.parse("::1", 0) catch unreachable;
+
         try testing.expectFmt("[::1]:0", "{f}", .{ipv6addr});
 
         const ipv4addr = net.IpAddress.parse("127.0.0.1", 0) catch unreachable;
-        try testing.expectFmt("127.0.0.1:0", "{f}", .{ipv4addr});
 
+        try testing.expectFmt("127.0.0.1:0", "{f}", .{ipv4addr});
         try testing.expectError(error.ParseFailed, net.IpAddress.parse("::123.123.123.123", 0));
         try testing.expectError(error.ParseFailed, net.IpAddress.parse("127.01.0.1", 0));
     }
@@ -21,6 +22,7 @@ test "parse and render IP addresses at comptime" {
 
 test "format IPv6 address with no zero runs" {
     const addr = try net.IpAddress.parseIp6("2001:db8:1:2:3:4:5:6", 0);
+
     try testing.expectFmt("[2001:db8:1:2:3:4:5:6]:0", "{f}", .{addr});
 }
 
@@ -28,9 +30,11 @@ test "parse IPv6 addresses and check compressed form" {
     try testing.expectFmt("[2001:db8::1:0:0:2]:0", "{f}", .{
         try net.IpAddress.parseIp6("2001:0db8:0000:0000:0001:0000:0000:0002", 0),
     });
+
     try testing.expectFmt("[2001:db8::1:2]:0", "{f}", .{
         try net.IpAddress.parseIp6("2001:0db8:0000:0000:0000:0000:0001:0002", 0),
     });
+
     try testing.expectFmt("[2001:db8:1:0:1::2]:0", "{f}", .{
         try net.IpAddress.parseIp6("2001:0db8:0001:0000:0001:0000:0000:0002", 0),
     });
@@ -43,7 +47,9 @@ test "parse IPv6 address, check raw bytes" {
         0x00, 0x01, 0x00, 0x00, // :0001:0000
         0x00, 0x00, 0x00, 0x02, // :0000:0002
     };
+
     const addr = try net.IpAddress.parseIp6("2001:db8:0000:0000:0001:0000:0000:0002", 0);
+
     try testing.expectEqualSlices(u8, &expected_raw, &addr.ip6.bytes);
 }
 
@@ -63,8 +69,10 @@ test "parse and render IPv6 addresses" {
 
 fn testParseAndRenderIp6Address(input: []const u8, expected_output: []const u8) !void {
     var buffer: [100]u8 = undefined;
+
     const parsed = net.Ip6Address.Unresolved.parse(input);
     const actual_printed = try std.fmt.bufPrint(&buffer, "{f}", .{parsed.success});
+
     try testing.expectEqualStrings(expected_output, actual_printed);
 }
 
@@ -95,6 +103,7 @@ test "invalid but parseable IPv6 scope ids" {
 
 test "parse and render IPv4 addresses" {
     var buffer: [18]u8 = undefined;
+
     for ([_][]const u8{
         "0.0.0.0",
         "255.255.255.255",
@@ -104,6 +113,7 @@ test "parse and render IPv4 addresses" {
     }) |ip| {
         const addr = net.IpAddress.parseIp4(ip, 0) catch unreachable;
         var newIp = std.fmt.bufPrint(buffer[0..], "{f}", .{addr}) catch unreachable;
+
         try testing.expect(std.mem.eql(u8, ip, newIp[0 .. newIp.len - 2]));
     }
 
@@ -127,6 +137,7 @@ test "resolve DNS" {
 
         var canonical_name_buffer: [net.HostName.max_len]u8 = undefined;
         var results_buffer: [32]net.HostName.LookupResult = undefined;
+
         var results: Io.Queue(net.HostName.LookupResult) = .init(&results_buffer);
 
         net.HostName.lookup(try .init("localhost"), io, &results, .{
@@ -144,6 +155,7 @@ test "resolve DNS" {
             .canonical_name => |canonical_name| try testing.expectEqualStrings("localhost", canonical_name.bytes),
             .end => |end| {
                 try end;
+
                 break;
             },
         } else |err| return err;
@@ -156,6 +168,7 @@ test "resolve DNS" {
         // so some of these errors we must accept and skip the test.
         var canonical_name_buffer: [net.HostName.max_len]u8 = undefined;
         var results_buffer: [16]net.HostName.LookupResult = undefined;
+
         var results: Io.Queue(net.HostName.LookupResult) = .init(&results_buffer);
 
         net.HostName.lookup(try .init("example.com"), io, &results, .{
@@ -172,6 +185,7 @@ test "resolve DNS" {
                     error.NameServerFailure => return error.SkipZigTest,
                     else => return err,
                 };
+
                 break;
             },
         } else |err| return err;
@@ -189,24 +203,31 @@ test "listen on a port, send bytes, receive bytes" {
     const localhost: net.IpAddress = .{ .ip4 = .loopback(0) };
 
     var server = try localhost.listen(io, .{});
+
     defer server.deinit(io);
 
     const S = struct {
         fn clientFn(server_address: net.IpAddress) !void {
             var stream = try server_address.connect(io, .{ .mode = .stream });
+
             defer stream.close(io);
 
             var stream_writer = stream.writer(io, &.{});
+
             try stream_writer.interface.writeAll("Hello world!");
         }
     };
 
     const t = try std.Thread.spawn(.{}, S.clientFn, .{server.socket.address});
+
     defer t.join();
 
     var stream = try server.accept(io);
+
     defer stream.close(io);
+
     var buf: [16]u8 = undefined;
+
     var stream_reader = stream.reader(io, &.{});
     const n = try stream_reader.interface.readSliceShort(&buf);
 
@@ -225,9 +246,11 @@ test "listen on an in use port" {
     const localhost: net.IpAddress = .{ .ip4 = .loopback(0) };
 
     var server1 = try localhost.listen(io, .{ .reuse_address = true });
+
     defer server1.deinit(io);
 
     var server2 = try server1.socket.address.listen(io, .{ .reuse_address = true });
+
     defer server2.deinit(io);
 }
 
@@ -235,11 +258,14 @@ fn testClientToHost(allocator: mem.Allocator, name: []const u8, port: u16) anyer
     if (builtin.os.tag == .wasi) return error.SkipZigTest;
 
     const connection = try net.tcpConnectToHost(allocator, name, port);
+
     defer connection.close();
 
     var buf: [100]u8 = undefined;
+
     const len = try connection.read(&buf);
     const msg = buf[0..len];
+
     try testing.expect(mem.eql(u8, msg, "hello from server\n"));
 }
 
@@ -247,11 +273,14 @@ fn testClient(addr: net.IpAddress) anyerror!void {
     if (builtin.os.tag == .wasi) return error.SkipZigTest;
 
     const socket_file = try net.tcpConnectToAddress(addr);
+
     defer socket_file.close();
 
     var buf: [100]u8 = undefined;
+
     const len = try socket_file.read(&buf);
     const msg = buf[0..len];
+
     try testing.expect(mem.eql(u8, msg, "hello from server\n"));
 }
 
@@ -262,6 +291,7 @@ fn testServer(server: *net.Server) anyerror!void {
 
     var stream = try server.accept(io);
     var writer = stream.writer(io, &.{});
+
     try writer.interface.print("hello from server\n", .{});
 }
 
@@ -273,31 +303,40 @@ test "listen on a unix socket, send bytes, receive bytes" {
     const io = testing.io;
 
     const socket_path = try generateFileName("socket.unix");
+
     defer testing.allocator.free(socket_path);
 
     const socket_addr = try net.UnixAddress.init(socket_path);
+
     defer std.fs.cwd().deleteFile(socket_path) catch {};
 
     var server = try socket_addr.listen(io, .{});
+
     defer server.socket.close(io);
 
     const S = struct {
         fn clientFn(path: []const u8) !void {
             const server_path: net.UnixAddress = try .init(path);
             var stream = try server_path.connect(io);
+
             defer stream.close(io);
 
             var stream_writer = stream.writer(io, &.{});
+
             try stream_writer.interface.writeAll("Hello world!");
         }
     };
 
     const t = try std.Thread.spawn(.{}, S.clientFn, .{socket_path});
+
     defer t.join();
 
     var stream = try server.accept(io);
+
     defer stream.close(io);
+
     var buf: [16]u8 = undefined;
+
     var stream_reader = stream.reader(io, &.{});
     const n = try stream_reader.interface.readSliceShort(&buf);
 
@@ -309,14 +348,19 @@ fn generateFileName(base_name: []const u8) ![]const u8 {
     const random_bytes_count = 12;
     const sub_path_len = comptime std.fs.base64_encoder.calcSize(random_bytes_count);
     var random_bytes: [12]u8 = undefined;
+
     std.crypto.random.bytes(&random_bytes);
+
     var sub_path: [sub_path_len]u8 = undefined;
+
     _ = std.fs.base64_encoder.encode(&sub_path, &random_bytes);
+
     return std.fmt.allocPrint(testing.allocator, "{s}-{s}", .{ sub_path[0..], base_name });
 }
 
 test "non-blocking tcp server" {
     if (builtin.os.tag == .wasi) return error.SkipZigTest;
+
     if (true) {
         // https://github.com/ziglang/zig/issues/18315
         return error.SkipZigTest;
@@ -326,22 +370,30 @@ test "non-blocking tcp server" {
 
     const localhost: net.IpAddress = .{ .ip4 = .loopback(0) };
     var server = localhost.listen(io, .{ .force_nonblocking = true });
+
     defer server.deinit(io);
 
     const accept_err = server.accept(io);
+
     try testing.expectError(error.WouldBlock, accept_err);
 
     const socket_file = try net.tcpConnectToAddress(server.socket.address);
+
     defer socket_file.close();
 
     var stream = try server.accept(io);
+
     defer stream.close(io);
+
     var writer = stream.writer(io, .{});
+
     try writer.interface.print("hello from server\n", .{});
 
     var buf: [100]u8 = undefined;
+
     const len = try socket_file.read(&buf);
     const msg = buf[0..len];
+
     try testing.expect(mem.eql(u8, msg, "hello from server\n"));
 }
 
@@ -391,6 +443,7 @@ test "decompress compressed DNS name" {
         cname_data_index,
         &dest_buffer,
     );
+
     try testing.expectEqual(packet.len - cname_data_index, n_consumed);
     try testing.expectEqualStrings("target.ziglang.org", result.bytes);
 }

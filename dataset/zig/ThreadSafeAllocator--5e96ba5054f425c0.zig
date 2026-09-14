@@ -17,7 +17,9 @@ pub fn allocator(self: *ThreadSafeAllocator) Allocator {
 
 fn alloc(ctx: *anyopaque, n: usize, alignment: std.mem.Alignment, ra: usize) ?[*]u8 {
     const self: *ThreadSafeAllocator = @ptrCast(@alignCast(ctx));
+
     self.mutex.lock();
+
     defer self.mutex.unlock();
 
     return self.child_allocator.rawAlloc(n, alignment, ra);
@@ -27,6 +29,7 @@ fn resize(ctx: *anyopaque, buf: []u8, alignment: std.mem.Alignment, new_len: usi
     const self: *ThreadSafeAllocator = @ptrCast(@alignCast(ctx));
 
     self.mutex.lock();
+
     defer self.mutex.unlock();
 
     return self.child_allocator.rawResize(buf, alignment, new_len, ret_addr);
@@ -36,6 +39,7 @@ fn remap(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_le
     const self: *ThreadSafeAllocator = @ptrCast(@alignCast(context));
 
     self.mutex.lock();
+
     defer self.mutex.unlock();
 
     return self.child_allocator.rawRemap(memory, alignment, new_len, return_address);
@@ -45,6 +49,7 @@ fn free(ctx: *anyopaque, buf: []u8, alignment: std.mem.Alignment, ret_addr: usiz
     const self: *ThreadSafeAllocator = @ptrCast(@alignCast(ctx));
 
     self.mutex.lock();
+
     defer self.mutex.unlock();
 
     return self.child_allocator.rawFree(buf, alignment, ret_addr);

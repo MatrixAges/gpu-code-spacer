@@ -80,6 +80,7 @@ pub const Abbrev = struct {
 
     fn deinit(abbrev: *Abbrev, gpa: Allocator) void {
         gpa.free(abbrev.attrs);
+
         abbrev.* = undefined;
     }
 
@@ -99,7 +100,9 @@ pub const Abbrev = struct {
             for (table.abbrevs) |*abbrev| {
                 abbrev.deinit(gpa);
             }
+
             gpa.free(table.abbrevs);
+
             table.* = undefined;
         }
 
@@ -157,7 +160,9 @@ pub const CompileUnit = struct {
                     return std.math.order(context, item);
                 }
             }.order);
+
             if (index == 0) return missing();
+
             return slc.line_table.values()[index - 1];
         }
     };
@@ -214,6 +219,7 @@ pub const Die = struct {
 
     fn deinit(self: *Die, gpa: Allocator) void {
         gpa.free(self.attrs);
+
         self.* = undefined;
     }
 
@@ -221,6 +227,7 @@ pub const Die = struct {
         for (self.attrs) |*attr| {
             if (attr.id == id) return &attr.value;
         }
+
         return null;
     }
 
@@ -232,6 +239,7 @@ pub const Die = struct {
         compile_unit: *const CompileUnit,
     ) error{ InvalidDebugInfo, MissingDebugInfo }!u64 {
         const form_value = self.getAttr(id) orelse return error.MissingDebugInfo;
+
         return switch (form_value.*) {
             .addr => |value| value,
             .addrx => |index| di.readDebugAddr(endian, compile_unit, index),
@@ -241,11 +249,13 @@ pub const Die = struct {
 
     fn getAttrSecOffset(self: *const Die, id: u64) !u64 {
         const form_value = self.getAttr(id) orelse return error.MissingDebugInfo;
+
         return form_value.getUInt(u64);
     }
 
     fn getAttrUnsignedLe(self: *const Die, id: u64) !u64 {
         const form_value = self.getAttr(id) orelse return error.MissingDebugInfo;
+
         return switch (form_value.*) {
             .Const => |value| value.asUnsignedLe(),
             else => bad(),
@@ -254,6 +264,7 @@ pub const Die = struct {
 
     fn getAttrRef(self: *const Die, id: u64, unit_offset: u64, unit_len: u64) !u64 {
         const form_value = self.getAttr(id) orelse return error.MissingDebugInfo;
+
         return switch (form_value.*) {
             .ref => |offset| if (offset < unit_len) unit_offset + offset else bad(),
             .ref_addr => |addr| addr,
@@ -270,23 +281,32 @@ pub const Die = struct {
         compile_unit: *const CompileUnit,
     ) error{ InvalidDebugInfo, MissingDebugInfo }![]const u8 {
         const form_value = self.getAttr(id) orelse return error.MissingDebugInfo;
+
         switch (form_value.*) {
             .string => |value| return value,
             .strp => |offset| return di.getString(offset),
             .strx => |index| {
                 const debug_str_offsets = di.section(.debug_str_offsets) orelse return bad();
+
                 if (compile_unit.str_offsets_base == 0) return bad();
+
                 switch (compile_unit.format) {
                     .@"32" => {
                         const byte_offset = compile_unit.str_offsets_base + 4 * index;
+
                         if (byte_offset + 4 > debug_str_offsets.len) return bad();
+
                         const offset = mem.readInt(u32, debug_str_offsets[@intCast(byte_offset)..][0..4], endian);
+
                         return getStringGeneric(opt_str, offset);
                     },
                     .@"64" => {
                         const byte_offset = compile_unit.str_offsets_base + 8 * index;
+
                         if (byte_offset + 8 > debug_str_offsets.len) return bad();
+
                         const offset = mem.readInt(u64, debug_str_offsets[@intCast(byte_offset)..][0..8], endian);
+
                         return getStringGeneric(opt_str, offset);
                     },
                 }
@@ -328,21 +348,27 @@ pub fn deinit(di: *Dwarf, gpa: Allocator) void {
     for (di.sections) |opt_section| {
         if (opt_section) |s| if (s.owned) gpa.free(s.data);
     }
+
     for (di.abbrev_table_list.items) |*abbrev| {
         abbrev.deinit(gpa);
     }
+
     di.abbrev_table_list.deinit(gpa);
+
     for (di.compile_unit_list.items) |*cu| {
         if (cu.src_loc_cache) |*slc| {
             slc.line_table.deinit(gpa);
             gpa.free(slc.directories);
             gpa.free(slc.files);
         }
+
         cu.die.deinit(gpa);
     }
+
     di.compile_unit_list.deinit(gpa);
     di.func_list.deinit(gpa);
     di.ranges.deinit(gpa);
+
     di.* = undefined;
 }
 
@@ -351,9 +377,12 @@ pub fn getSymbolName(di: *const Dwarf, address: u64) ?[]const u8 {
     // important because `DW_TAG_inlined_subroutine` DIEs will have a range which is a sub-range of
     // their caller, and we want to return the callee's name, not the caller's.
     var i: usize = di.func_list.items.len;
+
     while (i > 0) {
         i -= 1;
+
         const func = &di.func_list.items[i];
+
         if (func.pc_range) |range| {
             if (address >= range.start and address < range.end) {
                 return func.name;
@@ -381,17 +410,23 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
         fr.seek = @intCast(this_unit_offset);
 
         const unit_header = try readUnitHeader(&fr, endian);
+
         if (unit_header.unit_length == 0) return;
+
         const next_offset = unit_header.header_length + unit_header.unit_length;
 
         const version = try fr.takeInt(u16, endian);
+
         if (version < 2 or version > 5) return bad();
 
         var address_size: u8 = undefined;
         var debug_abbrev_offset: u64 = undefined;
+
         if (version >= 5) {
             const unit_type = try fr.takeByte();
+
             if (unit_type != DW.UT.compile) return bad();
+
             address_size = try fr.takeByte();
             debug_abbrev_offset = try readFormatSizedInt(&fr, unit_header.format, endian);
         } else {
@@ -403,8 +438,10 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
 
         var max_attrs: usize = 0;
         var zig_padding_abbrev_code: u7 = 0;
+
         for (abbrev_table.abbrevs) |abbrev| {
             max_attrs = @max(max_attrs, abbrev.attrs.len);
+
             if (cast(u7, abbrev.code)) |code| {
                 if (abbrev.tag_id == DW.TAG.ZIG_padding and
                     !abbrev.has_children and
@@ -414,9 +451,13 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
                 }
             }
         }
+
         const attrs_buf = try gpa.alloc(Die.Attr, max_attrs * 3);
+
         defer gpa.free(attrs_buf);
+
         var attrs_bufs: [3][]Die.Attr = undefined;
+
         for (&attrs_bufs, 0..) |*buf, index| buf.* = attrs_buf[index * max_attrs ..][0..max_attrs];
 
         const next_unit_pos = this_unit_offset + next_offset;
@@ -440,7 +481,9 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
             fr.seek = std.mem.indexOfNonePos(u8, fr.buffer, fr.seek, &.{
                 zig_padding_abbrev_code, 0,
             }) orelse fr.buffer.len;
+
             if (fr.seek >= next_unit_pos) break;
+
             var die_obj = (try parseDie(
                 &fr,
                 attrs_bufs[0],
@@ -454,6 +497,7 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
                 DW.TAG.compile_unit => {
                     compile_unit.die = die_obj;
                     compile_unit.die.attrs = attrs_bufs[1][0..die_obj.attrs.len];
+
                     @memcpy(compile_unit.die.attrs, die_obj.attrs);
 
                     compile_unit.str_offsets_base = if (die_obj.getAttr(AT.str_offsets_base)) |fv| try fv.getUInt(usize) else 0;
@@ -465,17 +509,21 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
                 DW.TAG.subprogram, DW.TAG.inlined_subroutine, DW.TAG.subroutine, DW.TAG.entry_point => {
                     const fn_name = x: {
                         var this_die_obj = die_obj;
+
                         // Prevent endless loops
                         for (0..3) |_| {
                             if (this_die_obj.getAttr(AT.name)) |_| {
                                 break :x try this_die_obj.getAttrString(di, endian, AT.name, di.section(.debug_str), &compile_unit);
                             } else if (this_die_obj.getAttr(AT.abstract_origin)) |_| {
                                 const after_die_offset = fr.seek;
+
                                 defer fr.seek = after_die_offset;
 
                                 // Follow the DIE it points to and repeat
                                 const ref_offset = try this_die_obj.getAttrRef(AT.abstract_origin, this_unit_offset, next_offset);
+
                                 fr.seek = @intCast(ref_offset);
+
                                 this_die_obj = (try parseDie(
                                     &fr,
                                     attrs_bufs[2],
@@ -486,11 +534,14 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
                                 )) orelse return bad();
                             } else if (this_die_obj.getAttr(AT.specification)) |_| {
                                 const after_die_offset = fr.seek;
+
                                 defer fr.seek = after_die_offset;
 
                                 // Follow the DIE it points to and repeat
                                 const ref_offset = try this_die_obj.getAttrRef(AT.specification, this_unit_offset, next_offset);
+
                                 fr.seek = @intCast(ref_offset);
+
                                 this_die_obj = (try parseDie(
                                     &fr,
                                     attrs_bufs[2],
@@ -529,17 +580,20 @@ fn scanAllFunctions(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void {
                         break :blk false;
                     } else |err| blk: {
                         if (err != error.MissingDebugInfo) return err;
+
                         break :blk false;
                     };
 
                     if (die_obj.getAttr(AT.ranges)) |ranges_value| blk: {
                         var iter = DebugRangeIterator.init(ranges_value, di, endian, &compile_unit) catch |err| {
                             if (err != error.MissingDebugInfo) return err;
+
                             break :blk;
                         };
 
                         while (try iter.next()) |range| {
                             range_added = true;
+
                             try di.func_list.append(gpa, .{
                                 .name = fn_name,
                                 .pc_range = .{
@@ -570,23 +624,30 @@ fn scanAllCompileUnits(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!voi
     var this_unit_offset: u64 = 0;
 
     var attrs_buf = std.array_list.Managed(Die.Attr).init(gpa);
+
     defer attrs_buf.deinit();
 
     while (this_unit_offset < fr.buffer.len) {
         fr.seek = @intCast(this_unit_offset);
 
         const unit_header = try readUnitHeader(&fr, endian);
+
         if (unit_header.unit_length == 0) return;
+
         const next_offset = unit_header.header_length + unit_header.unit_length;
 
         const version = try fr.takeInt(u16, endian);
+
         if (version < 2 or version > 5) return bad();
 
         var address_size: u8 = undefined;
         var debug_abbrev_offset: u64 = undefined;
+
         if (version >= 5) {
             const unit_type = try fr.takeByte();
+
             if (unit_type != UT.compile) return bad();
+
             address_size = try fr.takeByte();
             debug_abbrev_offset = try readFormatSizedInt(&fr, unit_header.format, endian);
         } else {
@@ -597,9 +658,11 @@ fn scanAllCompileUnits(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!voi
         const abbrev_table = try di.getAbbrevTable(gpa, debug_abbrev_offset);
 
         var max_attrs: usize = 0;
+
         for (abbrev_table.abbrevs) |abbrev| {
             max_attrs = @max(max_attrs, abbrev.attrs.len);
         }
+
         try attrs_buf.resize(max_attrs);
 
         var compile_unit_die = (try parseDie(
@@ -637,6 +700,7 @@ fn scanAllCompileUnits(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!voi
                         .udata => |offset| low_pc + offset,
                         else => return bad(),
                     };
+
                     break :x PcRange{
                         .start = low_pc,
                         .end = pc_end,
@@ -646,6 +710,7 @@ fn scanAllCompileUnits(di: *Dwarf, gpa: Allocator, endian: Endian) ScanError!voi
                 }
             } else |err| {
                 if (err != error.MissingDebugInfo) return err;
+
                 break :x null;
             }
         };
@@ -666,10 +731,13 @@ pub fn populateRanges(d: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void 
                 .end = range.end,
                 .compile_unit_index = cu_index,
             });
+
             continue;
         }
+
         const ranges_value = cu.die.getAttr(AT.ranges) orelse continue;
         var iter = DebugRangeIterator.init(ranges_value, d, endian, cu) catch continue;
+
         while (try iter.next()) |range| {
             // Not sure why LLVM thinks it's OK to emit these...
             if (range.start == range.end) continue;
@@ -685,6 +753,7 @@ pub fn populateRanges(d: *Dwarf, gpa: Allocator, endian: Endian) ScanError!void 
     std.mem.sortUnstable(Range, d.ranges.items, {}, struct {
         pub fn lessThan(ctx: void, a: Range, b: Range) bool {
             _ = ctx;
+
             return a.start < b.start;
         }
     }.lessThan);
@@ -708,14 +777,20 @@ const DebugRangeIterator = struct {
                 switch (compile_unit.format) {
                     .@"32" => {
                         const offset_loc = compile_unit.rnglists_base + 4 * idx;
+
                         if (offset_loc + 4 > debug_ranges.len) return bad();
+
                         const offset = mem.readInt(u32, debug_ranges[@intCast(offset_loc)..][0..4], endian);
+
                         break :off compile_unit.rnglists_base + offset;
                     },
                     .@"64" => {
                         const offset_loc = compile_unit.rnglists_base + 8 * idx;
+
                         if (offset_loc + 8 > debug_ranges.len) return bad();
+
                         const offset = mem.readInt(u64, debug_ranges[@intCast(offset_loc)..][0..8], endian);
+
                         break :off compile_unit.rnglists_base + offset;
                     },
                 }
@@ -733,6 +808,7 @@ const DebugRangeIterator = struct {
         };
 
         var fr: Reader = .fixed(debug_ranges);
+
         fr.seek = cast(usize, ranges_offset) orelse return bad();
 
         return .{
@@ -749,14 +825,18 @@ const DebugRangeIterator = struct {
     pub fn next(self: *@This()) !?PcRange {
         const endian = self.endian;
         const addr_size_bytes = self.compile_unit.addr_size_bytes;
+
         switch (self.section_type) {
             .debug_rnglists => {
                 const kind = try self.fr.takeByte();
+
                 switch (kind) {
                     RLE.end_of_list => return null,
                     RLE.base_addressx => {
                         const index = try self.fr.takeLeb128(u64);
+
                         self.base_address = try self.di.readDebugAddr(endian, self.compile_unit, index);
+
                         return try self.next();
                     },
                     RLE.startx_endx => {
@@ -795,6 +875,7 @@ const DebugRangeIterator = struct {
                     },
                     RLE.base_address => {
                         self.base_address = try readAddress(&self.fr, endian, addr_size_bytes);
+
                         return try self.next();
                     },
                     RLE.start_end => {
@@ -822,12 +903,15 @@ const DebugRangeIterator = struct {
             .debug_ranges => {
                 const start_addr = try readAddress(&self.fr, endian, addr_size_bytes);
                 const end_addr = try readAddress(&self.fr, endian, addr_size_bytes);
+
                 if (start_addr == 0 and end_addr == 0) return null;
 
                 // The entry with start_addr = max_representable_address selects a new value for the base address
                 const max_representable_address = ~@as(u64, 0) >> @intCast(64 - addr_size_bytes);
+
                 if (start_addr == max_representable_address) {
                     self.base_address = end_addr;
+
                     return try self.next();
                 }
 
@@ -850,6 +934,7 @@ pub fn findCompileUnit(di: *const Dwarf, endian: Endian, target_address: u64) !*
 
         const ranges_value = compile_unit.die.getAttr(AT.ranges) orelse continue;
         var iter = DebugRangeIterator.init(ranges_value, di, endian, compile_unit) catch continue;
+
         while (try iter.next()) |range| {
             if (target_address >= range.start and target_address < range.end) return compile_unit;
         }
@@ -866,38 +951,48 @@ fn getAbbrevTable(di: *Dwarf, gpa: Allocator, abbrev_offset: u64) !*const Abbrev
             return table;
         }
     }
+
     try di.abbrev_table_list.append(
         gpa,
         try di.parseAbbrevTable(gpa, abbrev_offset),
     );
+
     return &di.abbrev_table_list.items[di.abbrev_table_list.items.len - 1];
 }
 
 fn parseAbbrevTable(di: *Dwarf, gpa: Allocator, offset: u64) !Abbrev.Table {
     var fr: Reader = .fixed(di.section(.debug_abbrev).?);
+
     fr.seek = cast(usize, offset) orelse return bad();
 
     var abbrevs = std.array_list.Managed(Abbrev).init(gpa);
+
     defer {
         for (abbrevs.items) |*abbrev| {
             abbrev.deinit(gpa);
         }
+
         abbrevs.deinit();
     }
 
     var attrs = std.array_list.Managed(Abbrev.Attr).init(gpa);
+
     defer attrs.deinit();
 
     while (true) {
         const code = try fr.takeLeb128(u64);
+
         if (code == 0) break;
+
         const tag_id = try fr.takeLeb128(u64);
         const has_children = (try fr.takeByte()) == DW.CHILDREN.yes;
 
         while (true) {
             const attr_id = try fr.takeLeb128(u64);
             const form_id = try fr.takeLeb128(u64);
+
             if (attr_id == 0 and form_id == 0) break;
+
             try attrs.append(.{
                 .id = attr_id,
                 .form_id = form_id,
@@ -931,14 +1026,18 @@ fn parseDie(
     addr_size_bytes: u8,
 ) ScanError!?Die {
     const abbrev_code = try fr.takeLeb128(u64);
+
     if (abbrev_code == 0) return null;
+
     const table_entry = abbrev_table.get(abbrev_code) orelse return bad();
 
     const attrs = attrs_buf[0..table_entry.attrs.len];
+
     for (attrs, table_entry.attrs) |*result_attr, attr| result_attr.* = .{
         .id = attr.id,
         .value = try parseFormValue(fr, attr.form_id, format, endian, addr_size_bytes, attr.payload),
     };
+
     return .{
         .tag_id = table_entry.tag_id,
         .has_children = table_entry.has_children,
@@ -952,14 +1051,17 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
     const line_info_offset = try compile_unit.die.getAttrSecOffset(AT.stmt_list);
 
     var fr: Reader = .fixed(d.section(.debug_line).?);
+
     fr.seek = @intCast(line_info_offset);
 
     const unit_header = try readUnitHeader(&fr, endian);
+
     if (unit_header.unit_length == 0) return missing();
 
     const next_offset = unit_header.header_length + unit_header.unit_length;
 
     const version = try fr.takeInt(u16, endian);
+
     if (version < 2) return bad();
 
     const addr_size_bytes: u8, const seg_size: u8 = if (version >= 5) .{
@@ -969,16 +1071,19 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
         compile_unit.addr_size_bytes,
         0,
     };
+
     if (seg_size != 0) return bad(); // unsupported
 
     const prologue_length = try readFormatSizedInt(&fr, unit_header.format, endian);
     const prog_start_offset = fr.seek + prologue_length;
 
     const minimum_instruction_length = try fr.takeByte();
+
     if (minimum_instruction_length == 0) return bad();
 
     if (version >= 4) {
         const maximum_operations_per_instruction = try fr.takeByte();
+
         _ = maximum_operations_per_instruction;
     }
 
@@ -986,6 +1091,7 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
     const line_base = try fr.takeByteSigned();
 
     const line_range = try fr.takeByte();
+
     if (line_range == 0) return bad();
 
     const opcode_base = try fr.takeByte();
@@ -993,8 +1099,11 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
     const standard_opcode_lengths = try fr.take(opcode_base - 1);
 
     var directories: ArrayList(FileEntry) = .empty;
+
     defer directories.deinit(gpa);
+
     var file_entries: ArrayList(FileEntry) = .empty;
+
     defer file_entries.deinit(gpa);
 
     if (version < 5) {
@@ -1002,16 +1111,21 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
 
         while (true) {
             const dir = try fr.takeSentinel(0);
+
             if (dir.len == 0) break;
+
             try directories.append(gpa, .{ .path = dir });
         }
 
         while (true) {
             const file_name = try fr.takeSentinel(0);
+
             if (file_name.len == 0) break;
+
             const dir_index = try fr.takeLeb128(u32);
             const mtime = try fr.takeLeb128(u64);
             const size = try fr.takeLeb128(u64);
+
             try file_entries.append(gpa, .{
                 .path = file_name,
                 .dir_index = dir_index,
@@ -1024,10 +1138,13 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
             content_type_code: u16,
             form_code: u16,
         };
+
         {
             var dir_ent_fmt_buf: [10]FileEntFmt = undefined;
             const directory_entry_format_count = try fr.takeByte();
+
             if (directory_entry_format_count > dir_ent_fmt_buf.len) return bad();
+
             for (dir_ent_fmt_buf[0..directory_entry_format_count]) |*ent_fmt| {
                 ent_fmt.* = .{
                     .content_type_code = try fr.takeLeb128(u8),
@@ -1039,8 +1156,10 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
 
             for (try directories.addManyAsSlice(gpa, directories_count)) |*e| {
                 e.* = .{ .path = &.{} };
+
                 for (dir_ent_fmt_buf[0..directory_entry_format_count]) |ent_fmt| {
                     const form_value = try parseFormValue(&fr, ent_fmt.form_code, unit_header.format, endian, addr_size_bytes, null);
+
                     switch (ent_fmt.content_type_code) {
                         DW.LNCT.path => e.path = try form_value.getString(d.*),
                         DW.LNCT.directory_index => e.dir_index = try form_value.getUInt(u32),
@@ -1058,7 +1177,9 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
 
         var file_ent_fmt_buf: [10]FileEntFmt = undefined;
         const file_name_entry_format_count = try fr.takeByte();
+
         if (file_name_entry_format_count > file_ent_fmt_buf.len) return bad();
+
         for (file_ent_fmt_buf[0..file_name_entry_format_count]) |*ent_fmt| {
             ent_fmt.* = .{
                 .content_type_code = try fr.takeLeb128(u16),
@@ -1067,12 +1188,15 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
         }
 
         const file_names_count = try fr.takeLeb128(usize);
+
         try file_entries.ensureUnusedCapacity(gpa, file_names_count);
 
         for (try file_entries.addManyAsSlice(gpa, file_names_count)) |*e| {
             e.* = .{ .path = &.{} };
+
             for (file_ent_fmt_buf[0..file_name_entry_format_count]) |ent_fmt| {
                 const form_value = try parseFormValue(&fr, ent_fmt.form_code, unit_header.format, endian, addr_size_bytes, null);
+
                 switch (ent_fmt.content_type_code) {
                     DW.LNCT.path => e.path = try form_value.getString(d.*),
                     DW.LNCT.directory_index => e.dir_index = try form_value.getUInt(u32),
@@ -1090,6 +1214,7 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
 
     var prog = LineNumberProgram.init(default_is_stmt, version);
     var line_table: CompileUnit.SrcLocCache.LineTable = .{};
+
     errdefer line_table.deinit(gpa);
 
     fr.seek = @intCast(prog_start_offset);
@@ -1101,8 +1226,11 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
 
         if (opcode == DW.LNS.extended_op) {
             const op_size = try fr.takeLeb128(u64);
+
             if (op_size < 1) return bad();
+
             const sub_op = try fr.takeByte();
+
             switch (sub_op) {
                 DW.LNE.end_sequence => {
                     // The row being added here is an "end" address, meaning
@@ -1128,6 +1256,7 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
                     const dir_index = try fr.takeLeb128(u32);
                     const mtime = try fr.takeLeb128(u64);
                     const size = try fr.takeLeb128(u64);
+
                     try file_entries.append(gpa, .{
                         .path = path,
                         .dir_index = dir_index,
@@ -1142,30 +1271,38 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
             const adjusted_opcode = opcode - opcode_base;
             const inc_addr = minimum_instruction_length * (adjusted_opcode / line_range);
             const inc_line = @as(i32, line_base) + @as(i32, adjusted_opcode % line_range);
+
             prog.line += inc_line;
             prog.address += inc_addr;
+
             try prog.addRow(gpa, &line_table);
+
             prog.basic_block = false;
         } else {
             switch (opcode) {
                 DW.LNS.copy => {
                     try prog.addRow(gpa, &line_table);
+
                     prog.basic_block = false;
                 },
                 DW.LNS.advance_pc => {
                     const arg = try fr.takeLeb128(u64);
+
                     prog.address += arg * minimum_instruction_length;
                 },
                 DW.LNS.advance_line => {
                     const arg = try fr.takeLeb128(i64);
+
                     prog.line += arg;
                 },
                 DW.LNS.set_file => {
                     const arg = try fr.takeLeb128(usize);
+
                     prog.file = arg;
                 },
                 DW.LNS.set_column => {
                     const arg = try fr.takeLeb128(u64);
+
                     prog.column = arg;
                 },
                 DW.LNS.negate_stmt => {
@@ -1176,15 +1313,18 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
                 },
                 DW.LNS.const_add_pc => {
                     const inc_addr = minimum_instruction_length * ((255 - opcode_base) / line_range);
+
                     prog.address += inc_addr;
                 },
                 DW.LNS.fixed_advance_pc => {
                     const arg = try fr.takeInt(u16, endian);
+
                     prog.address += arg;
                 },
                 DW.LNS.set_prologue_end => {},
                 else => {
                     if (opcode - 1 >= standard_opcode_lengths.len) return bad();
+
                     try fr.discardAll(standard_opcode_lengths[opcode - 1]);
                 },
             }
@@ -1212,6 +1352,7 @@ fn runLineNumberProgram(d: *Dwarf, gpa: Allocator, endian: Endian, compile_unit:
 
 pub fn populateSrcLocCache(d: *Dwarf, gpa: Allocator, endian: Endian, cu: *CompileUnit) ScanError!void {
     if (cu.src_loc_cache != null) return;
+
     cu.src_loc_cache = try d.runLineNumberProgram(gpa, endian, cu);
 }
 
@@ -1223,14 +1364,20 @@ pub fn getLineNumberInfo(
     target_address: u64,
 ) !std.debug.SourceLocation {
     try d.populateSrcLocCache(gpa, endian, compile_unit);
+
     const slc = &compile_unit.src_loc_cache.?;
     const entry = try slc.findSource(target_address);
     const file_index = entry.file - @intFromBool(slc.version < 5);
+
     if (file_index >= slc.files.len) return bad();
+
     const file_entry = &slc.files[file_index];
+
     if (file_entry.dir_index >= slc.directories.len) return bad();
+
     const dir_name = slc.directories[file_entry.dir_index].path;
     const file_name = try std.fs.path.join(gpa, &.{ dir_name, file_entry.path });
+
     return .{
         .line = entry.line,
         .column = entry.column,
@@ -1256,13 +1403,16 @@ fn readDebugAddr(di: Dwarf, endian: Endian, compile_unit: *const CompileUnit, in
     if (compile_unit.addr_base < 8) return bad();
 
     const version = mem.readInt(u16, debug_addr[compile_unit.addr_base - 4 ..][0..2], endian);
+
     if (version != 5) return bad();
 
     const addr_size = debug_addr[compile_unit.addr_base - 2];
     const seg_size = debug_addr[compile_unit.addr_base - 1];
 
     const byte_offset = compile_unit.addr_base + (addr_size + seg_size) * index;
+
     if (byte_offset + addr_size > debug_addr.len) return bad();
+
     return switch (addr_size) {
         1 => debug_addr[@intCast(byte_offset)],
         2 => mem.readInt(u16, debug_addr[@intCast(byte_offset)..][0..2], endian),
@@ -1382,7 +1532,9 @@ const LineNumberProgram = struct {
             //if (debug_debug_mode) @panic("garbage line data");
             return;
         }
+
         if (debug_debug_mode) assert(!table.contains(prog.address));
+
         try table.put(gpa, prog.address, .{
             .line = cast(u32, prog.line) orelse maxInt(u32),
             .column = cast(u32, prog.column) orelse maxInt(u32),
@@ -1522,6 +1674,7 @@ pub fn supportsUnwinding(target: *const std.Target) bool {
 /// into a crash when working on this file.
 pub fn bad() error{InvalidDebugInfo} {
     invalidDebugInfoDetected();
+
     return error.InvalidDebugInfo;
 }
 
@@ -1531,15 +1684,19 @@ pub fn invalidDebugInfoDetected() void {
 
 pub fn missing() error{MissingDebugInfo} {
     if (debug_debug_mode) @panic("missing dwarf");
+
     return error.MissingDebugInfo;
 }
 
 fn getStringGeneric(opt_str: ?[]const u8, offset: u64) ![:0]const u8 {
     const str = opt_str orelse return bad();
+
     if (offset > str.len) return bad();
+
     const casted_offset = cast(usize, offset) orelse return bad();
     // Valid strings always have a terminating zero byte
     const last = std.mem.indexOfScalarPos(u8, str, casted_offset, 0) orelse return bad();
+
     return str[casted_offset..last :0];
 }
 
@@ -1548,6 +1705,7 @@ pub fn getSymbol(di: *Dwarf, gpa: Allocator, endian: Endian, address: u64) !std.
         error.MissingDebugInfo, error.InvalidDebugInfo => return .unknown,
         else => return err,
     };
+
     return .{
         .name = di.getSymbolName(address),
         .compile_unit_name = compile_unit.die.getAttrString(di, endian, std.dwarf.AT.name, di.section(.debug_str), compile_unit) catch |err| switch (err) {

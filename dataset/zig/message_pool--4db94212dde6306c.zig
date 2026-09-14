@@ -45,6 +45,7 @@ pub const Options = union(vsr.ProcessType) {
 
         // This conditions is necessary (but not sufficient) to prevent deadlocks.
         assert(sum > 1);
+
         return sum;
     }
 
@@ -89,6 +90,7 @@ pub const Options = union(vsr.ProcessType) {
                 // The maximum number of simultaneous open connections on the server.
                 // -1 since we never connect to ourself.
                 const connections_max = replica.members_count + pipeline_limit - 1;
+
                 sum += connections_max; // Connection.recv_buffer
                 // Connection.send_queue:
                 sum += connections_max * constants.connection_send_queue_max_replica;
@@ -98,6 +100,7 @@ pub const Options = union(vsr.ProcessType) {
 
         // This conditions is necessary (but not sufficient) to prevent deadlocks.
         assert(sum > constants.replicas_max);
+
         return sum;
     }
 };
@@ -141,6 +144,7 @@ pub const MessagePool = struct {
             assert(message.link.next == null);
 
             message.references += 1;
+
             return message;
         }
 
@@ -164,6 +168,7 @@ pub const MessagePool = struct {
             comptime command: vsr.Command,
         ) ?*CommandMessageType(command) {
             if (message.header.command != command) return null;
+
             return @ptrCast(message);
         }
 
@@ -207,17 +212,21 @@ pub const MessagePool = struct {
             constants.sector_size,
             messages_max,
         );
+
         errdefer allocator.free(buffers);
 
         const messages = try allocator.alloc(Message, messages_max);
+
         errdefer allocator.free(messages);
 
         var free_list = FreeList.init(.{
             .capacity = messages_max,
             .verify_push = false,
         });
+
         for (messages, buffers) |*message, *buffer| {
             message.* = .{ .header = undefined, .buffer = buffer, .link = .{} };
+
             free_list.push(message);
         }
 
@@ -236,8 +245,10 @@ pub const MessagePool = struct {
         assert(pool.free_list.count() == pool.messages_max);
         assert(pool.messages.len == pool.messages_max);
         assert(pool.buffers.len == pool.messages_max);
+
         allocator.free(pool.messages);
         allocator.free(pool.buffers);
+
         pool.* = undefined;
     }
 
@@ -261,11 +272,15 @@ pub const MessagePool = struct {
 
     fn get_message_base(pool: *MessagePool) *Message {
         const message = pool.free_list.pop().?;
+
         assert(message.link.next == null);
+
         message.header = mem.bytesAsValue(Header, message.buffer[0..@sizeOf(Header)]);
+
         assert(message.references == 0);
 
         message.references = 1;
+
         return message;
     }
 
@@ -289,11 +304,14 @@ pub const MessagePool = struct {
         assert(message.link.next == null);
 
         message.references -= 1;
+
         if (message.references == 0) {
             message.header = undefined;
+
             if (constants.verify) {
                 @memset(message.buffer, undefined);
             }
+
             pool.free_list.push(message);
         }
     }
@@ -318,6 +336,7 @@ fn CommandMessageType(comptime command: vsr.Command) type {
             ) |message_field, command_message_field| {
                 assert(std.mem.eql(u8, message_field.name, command_message_field.name));
                 assert(@sizeOf(message_field.type) == @sizeOf(command_message_field.type));
+
                 assert(@offsetOf(Message, message_field.name) ==
                     @offsetOf(CommandMessage, command_message_field.name));
             }

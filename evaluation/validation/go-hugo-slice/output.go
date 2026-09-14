@@ -6,6 +6,7 @@ func Slice(args ...any) any {
 	}
 
 	first := args[0]
+
 	firstType := reflect.TypeOf(first)
 
 	if firstType == nil {

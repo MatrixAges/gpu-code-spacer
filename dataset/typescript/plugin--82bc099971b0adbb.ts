@@ -6,6 +6,7 @@ import type { Plugin as RolldownPlugin } from 'rolldown'
 import type { Plugin as RollupPlugin } from 'rollup'
 import type { ROLLUP_HOOKS } from '../constants'
 import type { Plugin, PluginContextExtension, PluginOption } from '../plugin'
+
 import type {
   GetHookContextMap,
   NonNeverKeys,
@@ -13,6 +14,7 @@ import type {
 } from '../typeUtils'
 
 type EnvironmentPluginHooksContext = GetHookContextMap<Plugin>
+
 type EnvironmentPluginHooksContextMatched = {
   [
     K in keyof EnvironmentPluginHooksContext
@@ -22,6 +24,7 @@ type EnvironmentPluginHooksContextMatched = {
 }
 
 type HooksMissingExtension = NonNeverKeys<EnvironmentPluginHooksContextMatched>
+
 type HooksMissingInConstants = Exclude<
   RollupPluginHooks,
   (typeof ROLLUP_HOOKS)[number]

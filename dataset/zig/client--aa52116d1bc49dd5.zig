@@ -23,6 +23,7 @@ pub fn ClientType(
         const Client = @This();
 
         pub const Operation = StateMachineOperation;
+
         pub const Request = struct {
             pub const Callback = *const fn (
                 user_data: u128,
@@ -38,6 +39,7 @@ pub fn ClientType(
 
             message: *Message.Request,
             user_data: u128,
+
             callback: union(enum) {
                 /// When message.header.operation ≠ .register
                 request: Callback,
@@ -114,6 +116,7 @@ pub fn ClientType(
         prng: stdx.PRNG,
 
         on_reply_context: ?*anyopaque = null,
+
         /// Used for testing. Called for replies to all operations (including `register`).
         on_reply_callback: ?*const fn (
             client: *Client,
@@ -122,6 +125,7 @@ pub fn ClientType(
         ) void = null,
 
         evicted: bool = false,
+
         on_eviction_callback: ?*const fn (
             client: *Client,
             eviction: *const Message.Eviction,
@@ -157,6 +161,7 @@ pub fn ClientType(
                 Client.on_messages,
                 options.message_bus_options,
             );
+
             errdefer message_bus.deinit(allocator);
 
             var self = Client{
@@ -188,6 +193,7 @@ pub fn ClientType(
 
         pub fn deinit(self: *Client, allocator: std.mem.Allocator) void {
             if (self.request_inflight) |inflight| self.release_message(inflight.message.base());
+
             self.message_bus.deinit(allocator);
         }
 
@@ -204,14 +210,18 @@ pub fn ClientType(
 
         pub fn on_messages(message_bus: *MessageBus, buffer: *MessageBuffer) void {
             const self: *Client = @fieldParentPtr("message_bus", message_bus);
+
             while (buffer.next_header()) |header| {
                 const message = buffer.consume_message(self.message_bus.pool, &header);
+
                 defer self.message_bus.unref(message);
 
                 if (message.header.cluster != self.cluster) {
                     buffer.invalidate(.header_cluster);
+
                     return;
                 }
+
                 if (!self.evicted) {
                     self.on_message(message);
                 }
@@ -230,16 +240,20 @@ pub fn ClientType(
 
             if (message.header.invalid()) |reason| {
                 log.debug("{}: on_message: invalid ({s})", .{ self.id, reason });
+
                 return;
             }
+
             if (message.header.cluster != self.cluster) {
                 log.warn("{}: on_message: wrong cluster (cluster should be {}, not {})", .{
                     self.id,
                     self.cluster,
                     message.header.cluster,
                 });
+
                 return;
             }
+
             switch (message.into_any()) {
                 .pong_client => |m| self.on_pong_client(m),
                 .reply => |m| self.on_reply(m),
@@ -249,6 +263,7 @@ pub fn ClientType(
                         self.id,
                         @tagName(message.header.command),
                     });
+
                     return;
                 },
             }
@@ -276,6 +291,7 @@ pub fn ClientType(
             assert(self.request_number == 0);
 
             const message = self.get_message().build(.request);
+
             errdefer self.release_message(message.base());
 
             // We will set parent, session, view and checksums only when sending for the first time:
@@ -302,6 +318,7 @@ pub fn ClientType(
             };
 
             assert(self.request_number == 0);
+
             self.request_number += 1;
 
             log.debug(
@@ -314,6 +331,7 @@ pub fn ClientType(
                 .user_data = user_data,
                 .callback = .{ .register = callback },
             };
+
             self.send_request_for_the_first_time(message);
 
             // Proactively send ping to replicas so they can identify this peer
@@ -335,11 +353,13 @@ pub fn ClientType(
             assert(self.request_number > 0);
 
             const event_size = operation.event_size();
+
             assert(events.len <= constants.message_body_size_max);
             assert(events.len <= self.batch_size_limit.?);
             assert(events.len % event_size == 0);
 
             const message = self.get_message().build(.request);
+
             errdefer self.release_message(message.base());
 
             message.header.* = .{
@@ -388,6 +408,7 @@ pub fn ClientType(
 
             message.header.request = self.request_number;
             self.request_number += 1;
+
             self.request_completion_timer.reset();
 
             log.debug("{}: request: user_data={} request={} size={} {s}", .{
@@ -403,6 +424,7 @@ pub fn ClientType(
                 .user_data = user_data,
                 .callback = .{ .request = callback },
             };
+
             self.send_request_for_the_first_time(message);
         }
 
@@ -431,6 +453,7 @@ pub fn ClientType(
                     self.id,
                     eviction.header.client,
                 });
+
                 return;
             }
 
@@ -439,6 +462,7 @@ pub fn ClientType(
                     self.id,
                     eviction.header.view,
                 });
+
                 return;
             }
 
@@ -453,6 +477,7 @@ pub fn ClientType(
                         "same version as your cluster",
                     else => "",
                 };
+
                 log.err(
                     "{}: session evicted: reason={?s} (cluster_release={}, client_release={}){s}",
                     .{
@@ -466,6 +491,7 @@ pub fn ClientType(
 
                 self.evicted = true;
                 self.on_eviction_callback = null;
+
                 callback(self, eviction);
             } else {
                 std.debug.panic("session evicted: {?s} (cluster_release={})", .{
@@ -485,7 +511,9 @@ pub fn ClientType(
                     self.view,
                     pong.header.view,
                 });
+
                 self.view = pong.header.view;
+
                 // Even if there is a request in flight, don't try to retransmit it immediately
                 // after a view change. Instead, ride the on_request_timeout normally to reduce the
                 // size of thundering herd.
@@ -494,21 +522,26 @@ pub fn ClientType(
 
             const ping_timestamp_monotonic = pong.header.ping_timestamp_monotonic;
             const pong_timestamp_monotonic = self.time.monotonic().ns;
+
             if (ping_timestamp_monotonic <= pong_timestamp_monotonic) {
                 self.replica_round_trip_times_ns[pong.header.replica] =
                     pong_timestamp_monotonic - ping_timestamp_monotonic;
 
                 var round_trip_times_ns = stdx.BoundedArrayType(u64, constants.replicas_max){};
+
                 for (self.replica_round_trip_times_ns) |round_trip_time_ns| {
                     if (round_trip_time_ns) |rtt_ns| {
                         round_trip_times_ns.push(rtt_ns);
                     }
                 }
+
                 std.mem.sort(u64, round_trip_times_ns.slice(), {}, std.sort.asc(u64));
+
                 assert(round_trip_times_ns.count() > 0);
 
                 const rtt_median_ns =
                     round_trip_times_ns.get(@divFloor(round_trip_times_ns.count(), 2));
+
                 self.request_timeout.set_rtt_ns(rtt_median_ns);
             } else {
                 log.debug("{}: on_pong: monotonic timestamp regressed {}..{} replica={}", .{
@@ -533,12 +566,15 @@ pub fn ClientType(
                     self.id,
                     reply.header.client,
                 });
+
                 return;
             }
 
             var inflight = self.request_inflight orelse {
                 assert(reply.header.request < self.request_number);
+
                 log.debug("{}: on_reply: ignoring (no inflight request)", .{self.id});
+
                 return;
             };
 
@@ -551,11 +587,13 @@ pub fn ClientType(
                     reply.header.request,
                     inflight.message.header.request,
                 });
+
                 return;
             }
 
             assert(reply.header.request == inflight.message.header.request);
             assert(reply.header.request_checksum == inflight.message.header.checksum);
+
             const inflight_vsr_operation = inflight.message.header.operation;
             const inflight_request = inflight.message.header.request;
 
@@ -564,9 +602,11 @@ pub fn ClientType(
             } else {
                 assert(inflight_request > 0);
             }
+
             // Consume the inflight request here before invoking callbacks down below in case they
             // wish to queue a new `request_inflight`.
             assert(inflight.message == self.request_inflight.?.message);
+
             self.request_inflight = null;
 
             if (self.on_reply_callback) |on_reply_callback| {
@@ -597,6 +637,7 @@ pub fn ClientType(
                     self.view,
                     reply.header.view,
                 });
+
                 self.view = reply.header.view;
             }
 
@@ -604,6 +645,7 @@ pub fn ClientType(
 
             // Release request message to ensure that inflight's callback can submit a new one.
             self.release_message(inflight.message.base());
+
             inflight.message = undefined;
 
             if (inflight_vsr_operation == .register) {
@@ -617,11 +659,13 @@ pub fn ClientType(
                     vsr.RegisterResult,
                     reply.body_used()[0..@sizeOf(vsr.RegisterResult)],
                 );
+
                 assert(result.batch_size_limit > 0);
                 assert(result.batch_size_limit <= constants.message_body_size_max);
 
                 self.session = reply.header.commit; // The commit number becomes the session number.
                 self.batch_size_limit = result.batch_size_limit;
+
                 inflight.callback.register(inflight.user_data, result);
             } else {
                 // The message is the result of raw_request(), so invoke the user callback.
@@ -658,6 +702,7 @@ pub fn ClientType(
             self.request_timeout.backoff(&self.prng); // Reduce the load.
 
             const message = self.request_inflight.?.message;
+
             assert(message.header.command == .request);
             assert(message.header.request < self.request_number);
             assert(message.header.checksum == self.parent);
@@ -678,9 +723,11 @@ pub fn ClientType(
             assert(header.size == @sizeOf(Header));
 
             const message = self.message_bus.get_message(null);
+
             defer self.message_bus.unref(message);
 
             message.header.* = header.*;
+
             message.header.set_checksum_body(message.body_used());
             message.header.set_checksum();
 
@@ -689,6 +736,7 @@ pub fn ClientType(
 
         fn send_header_to_replicas(self: *Client, header: *const Header) void {
             const message = self.create_message_from_header(header);
+
             defer self.message_bus.unref(message);
 
             self.send_message_to_replicas(message);
@@ -733,12 +781,15 @@ pub fn ClientType(
         // turn is connected to the primary, the request will be processed by the cluster.
         fn send_request_with_hedging(self: *Client, message: *Message.Request) void {
             const primary: u8 = @intCast(self.view % self.replica_count);
+
             self.send_message_to_replica(primary, message.base());
 
             if (self.replica_count > 1) {
                 const offset_random = self.prng.range_inclusive(u8, 1, self.replica_count - 1);
                 const backup_random = (primary + offset_random) % self.replica_count;
+
                 assert(backup_random != primary);
+
                 self.send_message_to_replica(backup_random, message.base());
             }
         }
@@ -763,6 +814,7 @@ pub fn ClientType(
             // to be sent for the first time. However, beyond that, it is not necessary to update
             // the view number again, for example if it should change between now and resending.
             message.header.view = self.view;
+
             message.header.set_checksum_body(message.body_used());
             message.header.set_checksum();
 
@@ -776,6 +828,7 @@ pub fn ClientType(
             });
 
             assert(!self.request_timeout.ticking);
+
             self.request_timeout.start();
 
             self.send_request_with_hedging(message);

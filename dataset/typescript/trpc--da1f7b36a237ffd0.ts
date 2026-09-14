@@ -71,6 +71,7 @@ const trpc = createTRPCProxyClient<Router>({
 					local.token = data
 				} else {
 					local.token = data.token
+
 					local.user = lz.compress(JSON.stringify({ ...user, refresh_token: data.refresh_token }))
 				}
 			}

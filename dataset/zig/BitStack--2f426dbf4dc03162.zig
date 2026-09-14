@@ -17,16 +17,19 @@ pub fn init(allocator: Allocator) @This() {
 
 pub fn deinit(self: *@This()) void {
     self.bytes.deinit();
+
     self.* = undefined;
 }
 
 pub fn ensureTotalCapacity(self: *@This(), bit_capacity: usize) Allocator.Error!void {
     const byte_capacity = (bit_capacity + 7) >> 3;
+
     try self.bytes.ensureTotalCapacity(byte_capacity);
 }
 
 pub fn push(self: *@This(), b: u1) Allocator.Error!void {
     const byte_index = self.bit_len >> 3;
+
     if (self.bytes.items.len <= byte_index) {
         try self.bytes.append(0);
     }
@@ -57,19 +60,24 @@ pub fn pushWithStateAssumeCapacity(buf: []u8, bit_len: *usize, b: u1) void {
 pub fn peekWithState(buf: []const u8, bit_len: usize) u1 {
     const byte_index = (bit_len - 1) >> 3;
     const bit_index = @as(u3, @intCast((bit_len - 1) & 7));
+
     return @as(u1, @intCast((buf[byte_index] >> bit_index) & 1));
 }
 
 /// Standalone function for working with a fixed-size buffer.
 pub fn popWithState(buf: []const u8, bit_len: *usize) u1 {
     const b = peekWithState(buf, bit_len.*);
+
     bit_len.* -= 1;
+
     return b;
 }
 
 const testing = std.testing;
+
 test BitStack {
     var stack = BitStack.init(testing.allocator);
+
     defer stack.deinit();
 
     try stack.push(1);

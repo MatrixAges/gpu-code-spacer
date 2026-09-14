@@ -18,6 +18,7 @@ pub const Range = struct {
     pub fn includesVersion(self: Range, ver: Version) bool {
         if (self.min.order(ver) == .gt) return false;
         if (self.max.order(ver) == .lt) return false;
+
         return true;
     }
 
@@ -26,6 +27,7 @@ pub const Range = struct {
     pub fn isAtLeast(self: Range, ver: Version) ?bool {
         if (self.min.order(ver) != .lt) return true;
         if (self.max.order(ver) == .lt) return false;
+
         return null;
     }
 };
@@ -44,6 +46,7 @@ pub fn order(lhs: Version, rhs: Version) std.math.Order {
     // Iterate over pre-release identifiers until a difference is found.
     var lhs_pre_it = std.mem.splitScalar(u8, lhs.pre.?, '.');
     var rhs_pre_it = std.mem.splitScalar(u8, rhs.pre.?, '.');
+
     while (true) {
         const next_lid = lhs_pre_it.next();
         const next_rid = rhs_pre_it.next();
@@ -61,6 +64,7 @@ pub fn order(lhs: Version, rhs: Version) std.math.Order {
             error.InvalidCharacter => null,
             error.Overflow => unreachable,
         };
+
         const rnum: ?usize = std.fmt.parseUnsigned(usize, rid, 10) catch |err| switch (err) {
             error.InvalidCharacter => null,
             error.Overflow => unreachable,
@@ -77,6 +81,7 @@ pub fn order(lhs: Version, rhs: Version) std.math.Order {
             if (lnum.? > rnum.?) return .gt;
         } else {
             const ord = std.mem.order(u8, lid, rid);
+
             if (ord != .eq) return ord;
         }
     }
@@ -87,19 +92,24 @@ pub fn parse(text: []const u8) !Version {
     const extra_index = std.mem.indexOfAny(u8, text, "-+");
     const required = text[0..(extra_index orelse text.len)];
     var it = std.mem.splitScalar(u8, required, '.');
+
     var ver = Version{
         .major = try parseNum(it.first()),
         .minor = try parseNum(it.next() orelse return error.InvalidVersion),
         .patch = try parseNum(it.next() orelse return error.InvalidVersion),
     };
+
     if (it.next() != null) return error.InvalidVersion;
     if (extra_index == null) return ver;
 
     // Slice optional pre-release or build metadata components.
     const extra: []const u8 = text[extra_index.?..text.len];
+
     if (extra[0] == '-') {
         const build_index = std.mem.indexOfScalar(u8, extra, '+');
+
         ver.pre = extra[1..(build_index orelse extra.len)];
+
         if (build_index) |idx| ver.build = extra[(idx + 1)..];
     } else {
         ver.build = extra[1..];
@@ -109,6 +119,7 @@ pub fn parse(text: []const u8) !Version {
     // See: https://semver.org/#spec-item-9
     if (ver.pre) |pre| {
         it = std.mem.splitScalar(u8, pre, '.');
+
         while (it.next()) |id| {
             // Identifiers MUST NOT be empty.
             if (id.len == 0) return error.InvalidVersion;
@@ -120,6 +131,7 @@ pub fn parse(text: []const u8) !Version {
             const is_num = for (id) |c| {
                 if (!std.ascii.isDigit(c)) break false;
             } else true;
+
             if (is_num) _ = try parseNum(id);
         }
     }
@@ -128,6 +140,7 @@ pub fn parse(text: []const u8) !Version {
     // See: https://semver.org/#spec-item-10
     if (ver.build) |build| {
         it = std.mem.splitScalar(u8, build, '.');
+
         while (it.next()) |id| {
             // Identifiers MUST NOT be empty.
             if (id.len == 0) return error.InvalidVersion;
@@ -152,6 +165,7 @@ fn parseNum(text: []const u8) error{ InvalidVersion, Overflow }!usize {
 
 pub fn format(self: Version, w: *std.Io.Writer) std.Io.Writer.Error!void {
     try w.print("{d}.{d}.{d}", .{ self.major, self.minor, self.patch });
+
     if (self.pre) |pre| try w.print("-{s}", .{pre});
     if (self.build) |build| try w.print("+{s}", .{build});
 }
@@ -261,12 +275,14 @@ test format {
 
     // Valid version string that may overflow.
     const big_valid = "99999999999999999999999.999999999999999999.99999999999999999";
+
     if (parse(big_valid)) |ver| {
         try std.testing.expectFmt(big_valid, "{f}", .{ver});
     } else |err| try expect(err == error.Overflow);
 
     // Invalid version string that may overflow.
     const big_invalid = "99999999999999999999999.999999999999999999.99999999999999999----RC-SNAPSHOT.12.09.1--------------------------------..12";
+
     if (parse(big_invalid)) |ver| std.debug.panic("expected error, found {f}", .{ver}) else |_| {}
 }
 
@@ -296,5 +312,6 @@ test "zig_version" {
 
     // Simulated compatibility check using Zig version.
     const compatible = comptime @import("builtin").zig_version.order(older_version) == .gt;
+
     if (!compatible) @compileError("zig_version test failed");
 }

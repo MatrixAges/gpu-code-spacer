@@ -18,6 +18,7 @@ encountered_types: std.StringHashMapUnmanaged(void),
 
 pub fn create(owner: *std.Build) *Options {
     const options = owner.allocator.create(Options) catch @panic("OOM");
+
     options.* = .{
         .step = .init(.{
             .id = base_id,
@@ -30,6 +31,7 @@ pub fn create(owner: *std.Build) *Options {
         .args = .empty,
         .encountered_types = .empty,
     };
+
     options.generated_file = .{ .step = &options.step };
 
     return options;
@@ -52,6 +54,7 @@ fn printType(
     name: ?[]const u8,
 ) !void {
     const gpa = options.step.owner.allocator;
+
     switch (T) {
         []const []const u8 => {
             if (name) |payload| {
@@ -81,6 +84,7 @@ fn printType(
             } else {
                 try out.print(gpa, "\"{f}\",", .{std.zig.fmtString(value)});
             }
+
             return out.appendSlice(gpa, "\n");
         },
         [:0]const u8 => {
@@ -89,6 +93,7 @@ fn printType(
             } else {
                 try out.print(gpa, "\"{f}\",", .{std.zig.fmtString(value)});
             }
+
             return out.appendSlice(gpa, "\n");
         },
         ?[]const u8 => {
@@ -107,6 +112,7 @@ fn printType(
             } else {
                 try out.appendSlice(gpa, ",\n");
             }
+
             return;
         },
         ?[:0]const u8 => {
@@ -125,6 +131,7 @@ fn printType(
             } else {
                 try out.appendSlice(gpa, ",\n");
             }
+
             return;
         },
         std.SemanticVersion => {
@@ -144,6 +151,7 @@ fn printType(
                 try out.appendNTimes(gpa, ' ', indent);
                 try out.print(gpa, "    .pre = \"{f}\",\n", .{std.zig.fmtString(some)});
             }
+
             if (value.build) |some| {
                 try out.appendNTimes(gpa, ' ', indent);
                 try out.print(gpa, "    .build = \"{f}\",\n", .{std.zig.fmtString(some)});
@@ -154,6 +162,7 @@ fn printType(
             } else {
                 try out.appendSlice(gpa, "},\n");
             }
+
             return;
         },
         else => {},
@@ -166,10 +175,13 @@ fn printType(
             }
 
             try out.print(gpa, "{s} {{\n", .{@typeName(T)});
+
             for (value) |item| {
                 try out.appendNTimes(gpa, ' ', indent + 4);
+
                 try printType(options, out, @TypeOf(item), item, indent + 4, null);
             }
+
             try out.appendNTimes(gpa, ' ', indent);
             try out.appendSlice(gpa, "}");
 
@@ -178,6 +190,7 @@ fn printType(
             } else {
                 try out.appendSlice(gpa, ",\n");
             }
+
             return;
         },
         .pointer => |p| {
@@ -190,10 +203,13 @@ fn printType(
             }
 
             try out.print(gpa, "&[_]{s} {{\n", .{@typeName(p.child)});
+
             for (value) |item| {
                 try out.appendNTimes(gpa, ' ', indent + 4);
+
                 try printType(options, out, @TypeOf(item), item, indent + 4, null);
             }
+
             try out.appendNTimes(gpa, ' ', indent);
             try out.appendSlice(gpa, "}");
 
@@ -202,6 +218,7 @@ fn printType(
             } else {
                 try out.appendSlice(gpa, ",\n");
             }
+
             return;
         },
         .optional => {
@@ -211,6 +228,7 @@ fn printType(
 
             if (value) |inner| {
                 try printType(options, out, @TypeOf(inner), inner, indent + 4, null);
+
                 // Pop the '\n' and ',' chars
                 _ = options.contents.pop();
                 _ = options.contents.pop();
@@ -223,6 +241,7 @@ fn printType(
             } else {
                 try out.appendSlice(gpa, ",\n");
             }
+
             return;
         },
         .void,
@@ -238,6 +257,7 @@ fn printType(
             } else {
                 try out.print(gpa, "{any},\n", .{value});
             }
+
             return;
         },
         .@"enum" => |info| {
@@ -250,6 +270,7 @@ fn printType(
                     std.zig.fmtIdFlags(@tagName(value), .{ .allow_underscore = true, .allow_primitive = true }),
                 });
             }
+
             return;
         },
         .@"struct" => |info| {
@@ -260,8 +281,10 @@ fn printType(
                     std.zig.fmtId(some),
                     std.zig.fmtId(@typeName(T)),
                 });
+
                 try printStructValue(options, out, info, value, indent);
             }
+
             return;
         },
         else => @compileError(std.fmt.comptimePrint("`{s}` are not yet supported as build options", .{@tagName(@typeInfo(T))})),
@@ -289,6 +312,7 @@ fn printEnum(
 ) !void {
     const gpa = options.step.owner.allocator;
     const gop = try options.encountered_types.getOrPut(gpa, @typeName(T));
+
     if (gop.found_existing) return;
 
     try out.appendNTimes(gpa, ' ', indent);
@@ -296,6 +320,7 @@ fn printEnum(
 
     inline for (val.fields) |field| {
         try out.appendNTimes(gpa, ' ', indent);
+
         try out.print(gpa, "    {f} = {d},\n", .{
             std.zig.fmtIdFlags(field.name, .{ .allow_primitive = true }), field.value,
         });
@@ -313,6 +338,7 @@ fn printEnum(
 fn printStruct(options: *Options, out: *std.ArrayList(u8), comptime T: type, comptime val: std.builtin.Type.Struct, indent: u8) !void {
     const gpa = options.step.owner.allocator;
     const gop = try options.encountered_types.getOrPut(gpa, @typeName(T));
+
     if (gop.found_existing) return;
 
     try out.appendNTimes(gpa, ' ', indent);
@@ -346,6 +372,7 @@ fn printStruct(options: *Options, out: *std.ArrayList(u8), comptime T: type, com
 
         if (field.defaultValue()) |default_value| {
             try out.appendSlice(gpa, " = ");
+
             switch (@typeInfo(@TypeOf(default_value))) {
                 .@"enum" => try out.print(gpa, ".{s},\n", .{@tagName(default_value)}),
                 .@"struct" => |info| {
@@ -376,21 +403,25 @@ fn printStructValue(
     indent: u8,
 ) !void {
     const gpa = options.step.owner.allocator;
+
     try out.appendSlice(gpa, ".{\n");
 
     if (struct_val.is_tuple) {
         inline for (struct_val.fields) |field| {
             try out.appendNTimes(gpa, ' ', indent);
+
             try printType(options, out, @TypeOf(@field(val, field.name)), @field(val, field.name), indent, null);
         }
     } else {
         inline for (struct_val.fields) |field| {
             try out.appendNTimes(gpa, ' ', indent);
+
             try out.print(gpa, "    .{f} = ", .{
                 std.zig.fmtIdFlags(field.name, .{ .allow_primitive = true, .allow_underscore = true }),
             });
 
             const field_name = @field(val, field.name);
+
             switch (@typeInfo(@TypeOf(field_name))) {
                 .@"enum" => try out.print(gpa, ".{s},\n", .{@tagName(field_name)}),
                 .@"struct" => |struct_info| {
@@ -417,10 +448,12 @@ pub fn addOptionPath(
     path: LazyPath,
 ) void {
     const arena = options.step.owner.allocator;
+
     options.args.append(arena, .{
         .name = options.step.owner.dupe(name),
         .path = path.dupe(options.step.owner),
     }) catch @panic("OOM");
+
     path.addStepDependencies(&options.step);
 }
 
@@ -450,6 +483,7 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
             item.path.getPath2(b, step),
         );
     }
+
     if (!step.inputs.populated()) for (options.args.items) |item| {
         try step.addWatchInput(item.path);
     };
@@ -458,10 +492,12 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
 
     // Hash contents to file name.
     var hash = b.graph.cache.hash;
+
     // Random bytes to make unique. Refresh this with new random bytes when
     // implementation is modified in a non-backwards-compatible way.
     hash.add(@as(u32, 0xad95e922));
     hash.addBytes(options.contents.items);
+
     const sub_path = "c" ++ fs.path.sep_str ++ hash.final() ++ fs.path.sep_str ++ basename;
 
     options.generated_file.path = try b.cache_root.join(b.allocator, &.{sub_path});
@@ -471,10 +507,12 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
     if (b.cache_root.handle.access(sub_path, .{})) |_| {
         // This is the hot path, success.
         step.result_cached = true;
+
         return;
     } else |outer_err| switch (outer_err) {
         error.FileNotFound => {
             const sub_dirname = fs.path.dirname(sub_path).?;
+
             b.cache_root.handle.makePath(sub_dirname) catch |e| {
                 return step.fail("unable to make path '{f}{s}': {s}", .{
                     b.cache_root, sub_dirname, @errorName(e),
@@ -482,9 +520,11 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
             };
 
             const rand_int = std.crypto.random.int(u64);
+
             const tmp_sub_path = "tmp" ++ fs.path.sep_str ++
                 std.fmt.hex(rand_int) ++ fs.path.sep_str ++
                 basename;
+
             const tmp_sub_path_dirname = fs.path.dirname(tmp_sub_path).?;
 
             b.cache_root.handle.makePath(tmp_sub_path_dirname) catch |err| {
@@ -507,7 +547,9 @@ fn make(step: *Step, make_options: Step.MakeOptions) !void {
                             b.cache_root, tmp_sub_path, @errorName(e),
                         });
                     };
+
                     step.result_cached = true;
+
                     return;
                 },
                 else => {
@@ -536,6 +578,7 @@ test Options {
     const io = std.testing.io;
 
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+
     defer arena.deinit();
 
     var graph: std.Build.Graph = .{
@@ -579,6 +622,7 @@ test Options {
         [2]u16{ 300, 200 },
         [2]u16{ 300, 200 },
     };
+
     const nested_slice: []const []const u16 = &[_][]const u16{ &nested_array[0], &nested_array[1] };
 
     const NormalStruct = struct {
@@ -604,13 +648,16 @@ test Options {
     options.addOption(std.SemanticVersion, "semantic_version", try std.SemanticVersion.parse("0.1.2-foo+bar"));
     options.addOption(NormalEnum, "normal1_enum", NormalEnum.foo);
     options.addOption(NormalEnum, "normal2_enum", NormalEnum.bar);
+
     options.addOption(NormalStruct, "normal1_struct", NormalStruct{
         .hello = "foo",
     });
+
     options.addOption(NormalStruct, "normal2_struct", NormalStruct{
         .hello = null,
         .world = false,
     });
+
     options.addOption(NestedStruct, "nested_struct", NestedStruct{
         .normal_struct = .{ .hello = "bar" },
     });

@@ -24,13 +24,10 @@ pub const ciovec_t = std.posix.iovec_const;
 
 pub extern "wasi_snapshot_preview1" fn args_get(argv: [*][*:0]u8, argv_buf: [*]u8) errno_t;
 pub extern "wasi_snapshot_preview1" fn args_sizes_get(argc: *usize, argv_buf_size: *usize) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn clock_res_get(clock_id: clockid_t, resolution: *timestamp_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn clock_time_get(clock_id: clockid_t, precision: timestamp_t, timestamp: *timestamp_t) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn environ_get(environ: [*][*:0]u8, environ_buf: [*]u8) errno_t;
 pub extern "wasi_snapshot_preview1" fn environ_sizes_get(environ_count: *usize, environ_buf_size: *usize) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn fd_advise(fd: fd_t, offset: filesize_t, len: filesize_t, advice: advice_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_allocate(fd: fd_t, offset: filesize_t, len: filesize_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_close(fd: fd_t) errno_t;
@@ -44,18 +41,14 @@ pub extern "wasi_snapshot_preview1" fn fd_seek(fd: fd_t, offset: filedelta_t, wh
 pub extern "wasi_snapshot_preview1" fn fd_sync(fd: fd_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_tell(fd: fd_t, newoffset: *filesize_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_write(fd: fd_t, iovs: [*]const ciovec_t, iovs_len: usize, nwritten: *usize) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn fd_fdstat_get(fd: fd_t, buf: *fdstat_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_fdstat_set_flags(fd: fd_t, flags: fdflags_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_fdstat_set_rights(fd: fd_t, fs_rights_base: rights_t, fs_rights_inheriting: rights_t) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn fd_filestat_get(fd: fd_t, buf: *filestat_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_filestat_set_size(fd: fd_t, st_size: filesize_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_filestat_set_times(fd: fd_t, st_atim: timestamp_t, st_mtim: timestamp_t, fstflags: fstflags_t) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn fd_prestat_get(fd: fd_t, buf: *prestat_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn fd_prestat_dir_name(fd: fd_t, path: [*]u8, path_len: usize) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn path_create_directory(fd: fd_t, path: [*]const u8, path_len: usize) errno_t;
 pub extern "wasi_snapshot_preview1" fn path_filestat_get(fd: fd_t, flags: lookupflags_t, path: [*]const u8, path_len: usize, buf: *filestat_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn path_filestat_set_times(fd: fd_t, flags: lookupflags_t, path: [*]const u8, path_len: usize, st_atim: timestamp_t, st_mtim: timestamp_t, fstflags: fstflags_t) errno_t;
@@ -66,15 +59,10 @@ pub extern "wasi_snapshot_preview1" fn path_remove_directory(fd: fd_t, path: [*]
 pub extern "wasi_snapshot_preview1" fn path_rename(old_fd: fd_t, old_path: [*]const u8, old_path_len: usize, new_fd: fd_t, new_path: [*]const u8, new_path_len: usize) errno_t;
 pub extern "wasi_snapshot_preview1" fn path_symlink(old_path: [*]const u8, old_path_len: usize, fd: fd_t, new_path: [*]const u8, new_path_len: usize) errno_t;
 pub extern "wasi_snapshot_preview1" fn path_unlink_file(fd: fd_t, path: [*]const u8, path_len: usize) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn poll_oneoff(in: *const subscription_t, out: *event_t, nsubscriptions: usize, nevents: *usize) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn proc_exit(rval: exitcode_t) noreturn;
-
 pub extern "wasi_snapshot_preview1" fn random_get(buf: [*]u8, buf_len: usize) errno_t;
-
 pub extern "wasi_snapshot_preview1" fn sched_yield() errno_t;
-
 pub extern "wasi_snapshot_preview1" fn sock_accept(sock: fd_t, flags: fdflags_t, result_fd: *fd_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn sock_recv(sock: fd_t, ri_data: [*]iovec_t, ri_data_len: usize, ri_flags: riflags_t, ro_datalen: *usize, ro_flags: *roflags_t) errno_t;
 pub extern "wasi_snapshot_preview1" fn sock_send(sock: fd_t, si_data: [*]const ciovec_t, si_data_len: usize, si_flags: siflags_t, so_datalen: *usize) errno_t;
@@ -99,7 +87,6 @@ pub const clockid_t = enum(u32) {
 };
 
 pub const device_t = u64;
-
 pub const dircookie_t = u64;
 pub const DIRCOOKIE_START: dircookie_t = 0;
 
@@ -217,7 +204,6 @@ pub const eventtype_t = enum(u8) {
 };
 
 pub const exitcode_t = u32;
-
 pub const fd_t = i32;
 
 pub const fdflags_t = packed struct(u16) {
@@ -237,7 +223,6 @@ pub const fdstat_t = extern struct {
 };
 
 pub const filedelta_t = i64;
-
 pub const filesize_t = u64;
 
 pub const filestat_t = extern struct {
@@ -272,7 +257,6 @@ pub const fstflags_t = packed struct(u16) {
 };
 
 pub const inode_t = u64;
-
 pub const linkcount_t = u64;
 
 pub const lookupflags_t = packed struct(u32) {
@@ -310,7 +294,6 @@ pub const roflags_t = u16;
 pub const SOCK = struct {
     pub const RECV_PEEK: riflags_t = 0x0001;
     pub const RECV_WAITALL: riflags_t = 0x0002;
-
     pub const RECV_DATA_TRUNCATED: roflags_t = 0x0001;
 };
 
@@ -464,7 +447,6 @@ pub const subscription_u_u_t = extern union {
 
 /// Nanoseconds.
 pub const timestamp_t = u64;
-
 pub const userdata_t = u64;
 
 pub const whence_t = enum(u8) { SET, CUR, END };

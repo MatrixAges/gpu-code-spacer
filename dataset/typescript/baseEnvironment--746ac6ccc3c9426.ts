@@ -12,6 +12,7 @@ const environmentColors = [
 
 export class PartialEnvironment {
   name: string
+
   getTopLevelConfig(): ResolvedConfig {
     return this._topLevelConfig
   }
@@ -41,9 +42,11 @@ export class PartialEnvironment {
         `Invalid environment name "${name}". Environment names must only contain alphanumeric characters and "$", "_".`,
       )
     }
+
     this.name = name
     this._topLevelConfig = topLevelConfig
     this._options = options
+
     this.config = new Proxy(
       options as ResolvedConfig & ResolvedEnvironmentOptions,
       {
@@ -51,18 +54,24 @@ export class PartialEnvironment {
           if (prop === 'logger') {
             return this.logger
           }
+
           if (prop in target) {
             return this._options[prop as keyof ResolvedEnvironmentOptions]
           }
+
           return this._topLevelConfig[prop]
         },
       },
     )
+
     const environment = colors.dim(`(${this.name})`)
+
     const colorIndex =
       [...this.name].reduce((acc, c) => acc + c.charCodeAt(0), 0) %
       environmentColors.length
+
     const infoColor = environmentColors[colorIndex || 0]
+
     this.logger = {
       get hasWarned() {
         return topLevelConfig.logger.hasWarned

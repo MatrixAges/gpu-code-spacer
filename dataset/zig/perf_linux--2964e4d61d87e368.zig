@@ -84,7 +84,9 @@ inline fn cache_event_id(
 
 const EventConfig = struct {
     event_type: PERF.TYPE,
+
     event_id: u64,
+
     event_domain: PerfEventDomain,
 };
 
@@ -94,13 +96,16 @@ const PerfEventCounter = struct {
         time_enabled: u64 = 0,
         time_running: u64 = 0,
     };
+
     count_initial: ?ReadFormat = null,
     count_current: ?ReadFormat = null,
+
     fd: std.posix.fd_t,
 
     fn init(config: EventConfig) !PerfEventCounter {
         // open the file descriptor for this event
         const fd = try PerfEventCounter.register_perf_event_fd(&config);
+
         return .{ .fd = fd };
     }
 
@@ -111,14 +116,18 @@ const PerfEventCounter = struct {
 
         // reset and enable the counter
         const success_reset = std.os.linux.ioctl(counter.fd, PERF.EVENT_IOC.RESET, 0);
+
         if (success_reset > 0) return error.PerfCounterInit;
+
         const success_enable = std.os.linux.ioctl(counter.fd, PERF.EVENT_IOC.ENABLE, 0);
+
         if (success_enable > 0) return error.PerfCounterInit;
 
         // read the start value
         counter.count_initial = PerfEventCounter.read_perf_event_fd(counter.fd) catch {
             return error.PerfCounterRead;
         };
+
         counter.count_current = null;
     }
 
@@ -168,12 +177,15 @@ const PerfEventCounter = struct {
         // than traced performance events
         const count_measured: f64 = @floatFromInt(counter.event_count_raw());
         const count_inferred = count_measured * (time_enabled / time_running);
+
         return count_inferred;
     }
 
     fn deinit(counter: *PerfEventCounter) void {
         assert(counter.fd > 0);
+
         _ = std.posix.system.close(counter.fd);
+
         counter.fd = -1;
     }
 
@@ -191,13 +203,16 @@ const PerfEventCounter = struct {
             },
             .read_format = @bitCast(PerfEventFormat.default()),
         };
+
         return std.posix.perf_event_open(&perf_event_attr, 0, -1, -1, PERF.FLAG.FD_CLOEXEC);
     }
 
     fn read_perf_event_fd(fd: std.posix.fd_t) !PerfEventCounter.ReadFormat {
         var read_format: PerfEventCounter.ReadFormat = undefined;
         const bytes_read = try std.posix.read(fd, std.mem.asBytes(&read_format));
+
         assert(bytes_read == @sizeOf(PerfEventCounter.ReadFormat));
+
         return read_format;
     }
 };
@@ -258,6 +273,7 @@ fn event_config_from_event_type(event_type: CounterType) EventConfig {
 
 pub const PerfCounters = struct {
     counters: std.enums.EnumArray(CounterType, PerfEventCounter),
+
     time: Time = .{},
     timer: ?Instant = null,
 
@@ -271,12 +287,14 @@ pub const PerfCounters = struct {
         inline for (comptime std.enums.values(CounterType)) |event_type| {
             const counter_config = event_config_from_event_type(event_type);
             const counter = try PerfEventCounter.init(counter_config);
+
             counters.set(event_type, counter);
         }
 
         errdefer {
             inline for (comptime std.enums.values(CounterType)) |event_type| {
                 const counter = counters.get(event_type);
+
                 if (counter.fd != -1) counter.deinit();
             }
         }
@@ -294,6 +312,7 @@ pub const PerfCounters = struct {
         for (&perf_counters.counters.values) |*counter| {
             try counter.start();
         }
+
         perf_counters.timer = perf_counters.time.benchmark_monotonic();
     }
 
@@ -303,15 +322,20 @@ pub const PerfCounters = struct {
         for (&perf_counters.counters.values) |*counter| {
             _ = try counter.read();
         }
+
         const elapsed = perf_counters.timer.?.elapsed(perf_counters.time.benchmark_monotonic());
+
         var measurement: PerfMeasurement = .{
             .elapsed = elapsed,
             .counters = undefined,
         };
+
         inline for (comptime std.enums.values(CounterType)) |counter_type| {
             const counter_value = perf_counters.event_count(counter_type);
+
             @field(measurement.counters, @tagName(counter_type)) = counter_value;
         }
+
         return measurement;
     }
 
@@ -319,14 +343,17 @@ pub const PerfCounters = struct {
         assert(perf_counters.timer != null);
 
         const measurement = perf_counters.read();
+
         for (&perf_counters.counters.values) |*counter| {
             counter.start_new_lap();
         }
+
         return measurement;
     }
 
     pub fn event_count(perf_counters: *PerfCounters, event_type: CounterType) f64 {
         const counter = perf_counters.counters.getPtr(event_type);
+
         return counter.event_count();
     }
 };

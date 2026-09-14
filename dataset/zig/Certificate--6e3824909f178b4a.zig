@@ -259,6 +259,7 @@ pub const Parsed = struct {
 
         if (now_sec < parsed_subject.validity.not_before)
             return error.CertificateNotYetValid;
+
         if (now_sec > parsed_subject.validity.not_after)
             return error.CertificateExpired;
 
@@ -310,6 +311,7 @@ pub const Parsed = struct {
         // If the Subject Alternative Names extension is present, this is
         // what to check. Otherwise, only the common name is checked.
         const subject_alt_name = parsed_subject.subjectAltName();
+
         if (subject_alt_name.len == 0) {
             if (checkHostName(host_name, parsed_subject.commonName())) {
                 return;
@@ -320,12 +322,16 @@ pub const Parsed = struct {
 
         const general_names = try der.Element.parse(subject_alt_name, 0);
         var name_i = general_names.slice.start;
+
         while (name_i < general_names.slice.end) {
             const general_name = try der.Element.parse(subject_alt_name, name_i);
+
             name_i = general_name.slice.end;
+
             switch (@as(GeneralNameTag, @enumFromInt(@intFromEnum(general_name.identifier.tag)))) {
                 .dNSName => {
                     const dns_name = subject_alt_name[general_name.slice.start..general_name.slice.end];
+
                     if (checkHostName(host_name, dns_name)) return;
                 },
                 else => {},
@@ -421,10 +427,12 @@ pub fn parse(cert: Certificate) ParseError!Parsed {
     const tbs_certificate = try der.Element.parse(cert_bytes, certificate.slice.start);
     const version_elem = try der.Element.parse(cert_bytes, tbs_certificate.slice.start);
     const version = try parseVersion(cert_bytes, version_elem);
+
     const serial_number = if (@as(u8, @bitCast(version_elem.identifier)) == 0xa0)
         try der.Element.parse(cert_bytes, version_elem.slice.end)
     else
         version_elem;
+
     // RFC 5280, section 4.1.2.3:
     // "This field MUST contain the same algorithm identifier as
     // the signatureAlgorithm field in the sequence Certificate."
@@ -440,6 +448,7 @@ pub fn parse(cert: Certificate) ParseError!Parsed {
     const pub_key_info = try der.Element.parse(cert_bytes, subject.slice.end);
     const pub_key_signature_algorithm = try der.Element.parse(cert_bytes, pub_key_info.slice.start);
     const pub_key_algo_elem = try der.Element.parse(cert_bytes, pub_key_signature_algorithm.slice.start);
+
     const pub_key_algo: Parsed.PubKeyAlgo = switch (try parseAlgorithmCategory(cert_bytes, pub_key_algo_elem)) {
         inline else => |tag| @unionInit(Parsed.PubKeyAlgo, @tagName(tag), {}),
         .X9_62_id_ecPublicKey => pub_key_algo: {
@@ -451,35 +460,45 @@ pub fn parse(cert: Certificate) ParseError!Parsed {
             // }
             const params_elem = try der.Element.parse(cert_bytes, pub_key_algo_elem.slice.end);
             const named_curve = try parseNamedCurve(cert_bytes, params_elem);
+
             break :pub_key_algo .{ .X9_62_id_ecPublicKey = named_curve };
         },
     };
+
     const pub_key_elem = try der.Element.parse(cert_bytes, pub_key_signature_algorithm.slice.end);
     const pub_key = try parseBitString(cert, pub_key_elem);
 
     var common_name = der.Element.Slice.empty;
     var name_i = subject.slice.start;
+
     while (name_i < subject.slice.end) {
         const rdn = try der.Element.parse(cert_bytes, name_i);
         var rdn_i = rdn.slice.start;
+
         while (rdn_i < rdn.slice.end) {
             const atav = try der.Element.parse(cert_bytes, rdn_i);
             var atav_i = atav.slice.start;
+
             while (atav_i < atav.slice.end) {
                 const ty_elem = try der.Element.parse(cert_bytes, atav_i);
                 const val = try der.Element.parse(cert_bytes, ty_elem.slice.end);
+
                 atav_i = val.slice.end;
+
                 const ty = parseAttribute(cert_bytes, ty_elem) catch |err| switch (err) {
                     error.CertificateHasUnrecognizedObjectId => continue,
                     else => |e| return e,
                 };
+
                 switch (ty) {
                     .commonName => common_name = val.slice,
                     else => {},
                 }
             }
+
             rdn_i = atav.slice.end;
         }
+
         name_i = rdn.slice.end;
     }
 
@@ -491,6 +510,7 @@ pub fn parse(cert: Certificate) ParseError!Parsed {
 
     // Extensions
     var subject_alt_name_slice = der.Element.Slice.empty;
+
     ext: {
         if (version == .v1)
             break :ext;
@@ -499,25 +519,33 @@ pub fn parse(cert: Certificate) ParseError!Parsed {
             break :ext;
 
         const outer_extensions = try der.Element.parse(cert_bytes, pub_key_info.slice.end);
+
         if (outer_extensions.identifier.tag != .bitstring)
             break :ext;
 
         const extensions = try der.Element.parse(cert_bytes, outer_extensions.slice.start);
 
         var ext_i = extensions.slice.start;
+
         while (ext_i < extensions.slice.end) {
             const extension = try der.Element.parse(cert_bytes, ext_i);
+
             ext_i = extension.slice.end;
+
             const oid_elem = try der.Element.parse(cert_bytes, extension.slice.start);
+
             const ext_id = parseExtensionId(cert_bytes, oid_elem) catch |err| switch (err) {
                 error.CertificateHasUnrecognizedObjectId => continue,
                 else => |e| return e,
             };
+
             const critical_elem = try der.Element.parse(cert_bytes, oid_elem.slice.end);
+
             const ext_bytes_elem = if (critical_elem.identifier.tag != .boolean)
                 critical_elem
             else
                 try der.Element.parse(cert_bytes, critical_elem.slice.end);
+
             switch (ext_id) {
                 .subject_alt_name => subject_alt_name_slice = ext_bytes_elem.slice,
                 else => continue,
@@ -547,6 +575,7 @@ pub fn parse(cert: Certificate) ParseError!Parsed {
 pub fn verify(subject: Certificate, issuer: Certificate, now_sec: i64) !void {
     const parsed_subject = try subject.parse();
     const parsed_issuer = try issuer.parse();
+
     return parsed_subject.verify(parsed_issuer, now_sec);
 }
 
@@ -559,6 +588,7 @@ pub const ParseBitStringError = error{ CertificateFieldHasWrongDataType, Certifi
 pub fn parseBitString(cert: Certificate, elem: der.Element) !der.Element.Slice {
     if (elem.identifier.tag != .bitstring) return error.CertificateFieldHasWrongDataType;
     if (cert.buffer[elem.slice.start] != 0) return error.CertificateHasInvalidBitString;
+
     return .{ .start = elem.slice.start + 1, .end = elem.slice.end };
 }
 
@@ -567,11 +597,13 @@ pub const ParseTimeError = error{ CertificateTimeInvalid, CertificateFieldHasWro
 /// Returns number of seconds since epoch.
 pub fn parseTime(cert: Certificate, elem: der.Element) ParseTimeError!u64 {
     const bytes = cert.contents(elem);
+
     switch (elem.identifier.tag) {
         .utc_time => {
             // Example: "YYMMDD000000Z"
             if (bytes.len != 13)
                 return error.CertificateTimeInvalid;
+
             if (bytes[12] != 'Z')
                 return error.CertificateTimeInvalid;
 
@@ -591,6 +623,7 @@ pub fn parseTime(cert: Certificate, elem: der.Element) ParseTimeError!u64 {
             // "19920722132100.3Z"
             if (bytes.len < 15)
                 return error.CertificateTimeInvalid;
+
             return Date.toSeconds(.{
                 .year = try parseYear4(bytes[0..4]),
                 .month = try parseTimeDigits(bytes[4..6], 1, 12),
@@ -624,19 +657,23 @@ const Date = struct {
 
         {
             var year: u16 = 1970;
+
             while (year < date.year) : (year += 1) {
                 const days: u64 = std.time.epoch.getDaysInYear(year);
+
                 sec += days * std.time.epoch.secs_per_day;
             }
         }
 
         {
             var month: u4 = 1;
+
             while (month < date.month) : (month += 1) {
                 const days: u64 = std.time.epoch.getDaysInMonth(
                     date.year,
                     @enumFromInt(month),
                 );
+
                 sec += days * std.time.epoch.secs_per_day;
             }
         }
@@ -654,19 +691,24 @@ pub fn parseTimeDigits(text: *const [2]u8, min: u8, max: u8) !u8 {
     const nn: @Vector(2, u16) = .{ text[0], text[1] };
     const zero: @Vector(2, u16) = .{ '0', '0' };
     const mm: @Vector(2, u16) = .{ 10, 1 };
+
     const result = @reduce(.Add, (nn -% zero) *% mm);
+
     if (result < min) return error.CertificateTimeInvalid;
     if (result > max) return error.CertificateTimeInvalid;
+
     return @intCast(result);
 }
 
 test parseTimeDigits {
     const expectEqual = std.testing.expectEqual;
+
     try expectEqual(@as(u8, 0), try parseTimeDigits("00", 0, 99));
     try expectEqual(@as(u8, 99), try parseTimeDigits("99", 0, 99));
     try expectEqual(@as(u8, 42), try parseTimeDigits("42", 0, 99));
 
     const expectError = std.testing.expectError;
+
     try expectError(error.CertificateTimeInvalid, parseTimeDigits("13", 1, 12));
     try expectError(error.CertificateTimeInvalid, parseTimeDigits("00", 1, 12));
     try expectError(error.CertificateTimeInvalid, parseTimeDigits("Di", 0, 99));
@@ -676,18 +718,23 @@ pub fn parseYear4(text: *const [4]u8) !u16 {
     const nnnn: @Vector(4, u32) = .{ text[0], text[1], text[2], text[3] };
     const zero: @Vector(4, u32) = .{ '0', '0', '0', '0' };
     const mmmm: @Vector(4, u32) = .{ 1000, 100, 10, 1 };
+
     const result = @reduce(.Add, (nnnn -% zero) *% mmmm);
+
     if (result > 9999) return error.CertificateTimeInvalid;
+
     return @intCast(result);
 }
 
 test parseYear4 {
     const expectEqual = std.testing.expectEqual;
+
     try expectEqual(@as(u16, 0), try parseYear4("0000"));
     try expectEqual(@as(u16, 9999), try parseYear4("9999"));
     try expectEqual(@as(u16, 1988), try parseYear4("1988"));
 
     const expectError = std.testing.expectError;
+
     try expectError(error.CertificateTimeInvalid, parseYear4("999b"));
     try expectError(error.CertificateTimeInvalid, parseYear4("crap"));
     try expectError(error.CertificateTimeInvalid, parseYear4("r:bQ"));
@@ -718,7 +765,9 @@ pub const ParseEnumError = error{ CertificateFieldHasWrongDataType, CertificateH
 fn parseEnum(comptime E: type, bytes: []const u8, element: der.Element) ParseEnumError!E {
     if (element.identifier.tag != .object_identifier)
         return error.CertificateFieldHasWrongDataType;
+
     const oid_bytes = bytes[element.slice.start..element.slice.end];
+
     return E.map.get(oid_bytes) orelse return error.CertificateHasUnrecognizedObjectId;
 }
 
@@ -752,9 +801,11 @@ fn verifyRsa(
     pub_key: []const u8,
 ) !void {
     if (pub_key_algo != .rsaEncryption) return error.CertificateSignatureAlgorithmMismatch;
+
     const pk_components = try rsa.PublicKey.parseDer(pub_key);
     const exponent = pk_components.exponent;
     const modulus = pk_components.modulus;
+
     if (exponent.len > modulus.len) return error.CertificatePublicKeyInvalid;
     if (sig.len != modulus.len) return error.CertificateSignatureInvalidLength;
 
@@ -762,6 +813,7 @@ fn verifyRsa(
         inline 128, 256, 384, 512 => |modulus_len| {
             const public_key = rsa.PublicKey.fromBytes(exponent, modulus) catch
                 return error.CertificateSignatureInvalid;
+
             rsa.PKCS1v1_5Signature.verify(modulus_len, sig[0..modulus_len].*, msg, public_key, Hash) catch
                 return error.CertificateSignatureInvalid;
         },
@@ -789,14 +841,17 @@ fn verify_ecdsa(
         .secp384r1,
         => |curve| {
             const Ecdsa = crypto.sign.ecdsa.Ecdsa(curve.Curve(), Hash);
+
             const sig = Ecdsa.Signature.fromDer(encoded_sig) catch |err| switch (err) {
                 error.InvalidEncoding => return error.CertificateSignatureInvalid,
             };
+
             const pub_key = Ecdsa.PublicKey.fromSec1(sec1_pub_key) catch |err| switch (err) {
                 error.InvalidEncoding => return error.CertificateSignatureInvalid,
                 error.NonCanonical => return error.CertificateSignatureInvalid,
                 error.NotSquare => return error.CertificateSignatureInvalid,
             };
+
             sig.verify(message, pub_key) catch |err| switch (err) {
                 error.IdentityElement => return error.CertificateSignatureInvalid,
                 error.NonCanonical => return error.CertificateSignatureInvalid,
@@ -813,13 +868,19 @@ fn verifyEd25519(
     encoded_pub_key: []const u8,
 ) !void {
     if (pub_key_algo != .curveEd25519) return error.CertificateSignatureAlgorithmMismatch;
+
     const Ed25519 = crypto.sign.Ed25519;
+
     if (encoded_sig.len != Ed25519.Signature.encoded_length) return error.CertificateSignatureInvalid;
+
     const sig = Ed25519.Signature.fromBytes(encoded_sig[0..Ed25519.Signature.encoded_length].*);
+
     if (encoded_pub_key.len != Ed25519.PublicKey.encoded_length) return error.CertificateSignatureInvalid;
+
     const pub_key = Ed25519.PublicKey.fromBytes(encoded_pub_key[0..Ed25519.PublicKey.encoded_length].*) catch |err| switch (err) {
         error.NonCanonical => return error.CertificateSignatureInvalid,
     };
+
     sig.verify(message, pub_key) catch |err| switch (err) {
         error.IdentityElement => return error.CertificateSignatureInvalid,
         error.NonCanonical => return error.CertificateSignatureInvalid,
@@ -883,9 +944,13 @@ pub const der = struct {
         pub fn parse(bytes: []const u8, index: u32) Element.ParseError!Element {
             var i = index;
             const identifier: Identifier = @bitCast(bytes[i]);
+
             i += 1;
+
             const size_byte = bytes[i];
+
             i += 1;
+
             if ((size_byte >> 7) == 0) {
                 return .{
                     .identifier = identifier,
@@ -897,12 +962,14 @@ pub const der = struct {
             }
 
             const len_size: u7 = @truncate(size_byte);
+
             if (len_size > @sizeOf(u32)) {
                 return error.CertificateFieldHasInvalidLength;
             }
 
             const end_i = i + len_size;
             var long_form_size: u32 = 0;
+
             while (i < end_i) : (i += 1) {
                 long_form_size = (long_form_size << 8) | bytes[i];
             }
@@ -932,8 +999,10 @@ pub const rsa = struct {
     pub const PSSSignature = struct {
         pub fn fromBytes(comptime modulus_len: usize, msg: []const u8) [modulus_len]u8 {
             var result: [modulus_len]u8 = undefined;
+
             @memcpy(result[0..msg.len], msg);
             @memset(result[msg.len..], 0);
+
             return result;
         }
 
@@ -972,13 +1041,17 @@ pub const rsa = struct {
 
             // emLen = \ceil(emBits/8)
             const emLen = ((emBit - 1) / 8) + 1;
+
             std.debug.assert(emLen == em.len);
 
             // 2.   Let mHash = Hash(M), an octet string of length hLen.
             var mHash: [Hash.digest_length]u8 = undefined;
+
             {
                 var hasher: Hash = .init(.{});
+
                 for (msg) |part| hasher.update(part);
+
                 hasher.final(&mHash);
             }
 
@@ -1004,9 +1077,11 @@ pub const rsa = struct {
             const zero_bits = emLen * 8 - emBit;
             var mask: u8 = maskedDB[0];
             var i: usize = 0;
+
             while (i < 8 - zero_bits) : (i += 1) {
                 mask = mask >> 1;
             }
+
             if (mask != 0) {
                 return error.InvalidSignature;
             }
@@ -1014,14 +1089,17 @@ pub const rsa = struct {
             // 7.   Let dbMask = MGF(H, emLen - hLen - 1).
             const mgf_len = emLen - Hash.digest_length - 1;
             var mgf_out_buf: [512]u8 = undefined;
+
             if (mgf_len > mgf_out_buf.len) { // Modulus > 4096 bits
                 return error.InvalidSignature;
             }
+
             const mgf_out = mgf_out_buf[0 .. ((mgf_len - 1) / Hash.digest_length + 1) * Hash.digest_length];
             var dbMask = try MGF1(Hash, mgf_out, h, mgf_len);
 
             // 8.   Let DB = maskedDB \xor dbMask.
             i = 0;
+
             while (i < dbMask.len) : (i += 1) {
                 dbMask[i] = maskedDB[i] ^ dbMask[i];
             }
@@ -1030,10 +1108,12 @@ pub const rsa = struct {
             //      in DB to zero.
             i = 0;
             mask = 0;
+
             while (i < 8 - zero_bits) : (i += 1) {
                 mask = mask << 1;
                 mask += 1;
             }
+
             dbMask[0] = dbMask[0] & mask;
 
             // 10.  If the emLen - hLen - sLen - 2 leftmost octets of DB are not
@@ -1058,14 +1138,17 @@ pub const rsa = struct {
             if (sLen > Hash.digest_length) { // A seed larger than the hash length would be useless
                 return error.InvalidSignature;
             }
+
             var m_p_buf: [8 + Hash.digest_length + Hash.digest_length]u8 = undefined;
             var m_p = m_p_buf[0 .. 8 + Hash.digest_length + sLen];
+
             std.mem.copyForwards(u8, m_p, &([_]u8{0} ** 8));
             std.mem.copyForwards(u8, m_p[8..], &mHash);
             std.mem.copyForwards(u8, m_p[(8 + Hash.digest_length)..], salt);
 
             // 13.  Let H' = Hash(M'), an octet string of length hLen.
             var h_p: [Hash.digest_length]u8 = undefined;
+
             Hash.hash(m_p, &h_p, .{});
 
             // 14.  If H = H', output "consistent".  Otherwise, output
@@ -1083,6 +1166,7 @@ pub const rsa = struct {
             while (idx < len) {
                 std.mem.writeInt(u32, hash[seed.len..][0..4], counter, .big);
                 Hash.hash(&hash, out[idx..][0..Hash.digest_length], .{});
+
                 idx += Hash.digest_length;
                 counter += 1;
             }
@@ -1095,8 +1179,10 @@ pub const rsa = struct {
     pub const PKCS1v1_5Signature = struct {
         pub fn fromBytes(comptime modulus_len: usize, msg: []const u8) [modulus_len]u8 {
             var result: [modulus_len]u8 = undefined;
+
             @memcpy(result[0..msg.len], msg);
             @memset(result[msg.len..], 0);
+
             return result;
         }
 
@@ -1121,6 +1207,7 @@ pub const rsa = struct {
         ) VerifyError!void {
             const em_dec = try encrypt(modulus_len, sig, public_key);
             const em = try EMSA_PKCS1_V1_5_ENCODE(msg, modulus_len, Hash);
+
             if (!std.mem.eql(u8, &em_dec, &em)) return error.InvalidSignature;
         }
 
@@ -1136,8 +1223,11 @@ pub const rsa = struct {
             //    If the hash function outputs "message too long," output "message
             //    too long" and stop.
             var hasher: Hash = .init(.{});
+
             for (msg) |part| hasher.update(part);
+
             em_index -= Hash.digest_length;
+
             hasher.final(em[em_index..]);
 
             // 2. Encode the algorithm ID for the hash function and the hash value
@@ -1181,7 +1271,9 @@ pub const rsa = struct {
                 },
                 else => @compileError("unreachable"),
             };
+
             em_index -= hash_der.len;
+
             @memcpy(em[em_index..][0..hash_der.len], hash_der);
 
             // 3. If emLen < tLen + 11, output "intended encoded message length too
@@ -1191,6 +1283,7 @@ pub const rsa = struct {
             //    with hexadecimal value 0xff.  The length of PS will be at least 8
             //    octets.
             em_index -= 1;
+
             @memset(em[2..em_index], 0xff);
 
             // 5. Concatenate PS, the DER encoding T, and other padding to form the
@@ -1217,6 +1310,7 @@ pub const rsa = struct {
             // 512-bit RSA was factored in 1999, so this limit barely means anything,
             // but establish some limit now to ratchet in what we can.
             const _n = Modulus.fromBytes(modulus_bytes, .big) catch return error.CertificatePublicKeyInvalid;
+
             if (_n.bits() < 512) return error.CertificatePublicKeyInvalid;
 
             // Exponent must be odd and greater than 2.
@@ -1226,9 +1320,13 @@ pub const rsa = struct {
             // Windows commonly does.
             // [1] https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-rsapubkey
             if (pub_bytes.len > 4) return error.CertificatePublicKeyInvalid;
+
             const _e = Fe.fromBytes(_n, pub_bytes, .big) catch return error.CertificatePublicKeyInvalid;
+
             if (!_e.isOdd()) return error.CertificatePublicKeyInvalid;
+
             const e_v = _e.toPrimitive(u32) catch return error.CertificatePublicKeyInvalid;
+
             if (e_v < 2) return error.CertificatePublicKeyInvalid;
 
             return .{
@@ -1241,16 +1339,24 @@ pub const rsa = struct {
 
         pub fn parseDer(pub_key: []const u8) ParseDerError!struct { modulus: []const u8, exponent: []const u8 } {
             const pub_key_seq = try der.Element.parse(pub_key, 0);
+
             if (pub_key_seq.identifier.tag != .sequence) return error.CertificateFieldHasWrongDataType;
+
             const modulus_elem = try der.Element.parse(pub_key, pub_key_seq.slice.start);
+
             if (modulus_elem.identifier.tag != .integer) return error.CertificateFieldHasWrongDataType;
+
             const exponent_elem = try der.Element.parse(pub_key, modulus_elem.slice.end);
+
             if (exponent_elem.identifier.tag != .integer) return error.CertificateFieldHasWrongDataType;
+
             // Skip over meaningless zeroes in the modulus.
             const modulus_raw = pub_key[modulus_elem.slice.start..modulus_elem.slice.end];
+
             const modulus_offset = for (modulus_raw, 0..) |byte, i| {
                 if (byte != 0) break i;
             } else modulus_raw.len;
+
             return .{
                 .modulus = modulus_raw[modulus_offset..],
                 .exponent = pub_key[exponent_elem.slice.start..exponent_elem.slice.end],
@@ -1264,7 +1370,9 @@ pub const rsa = struct {
         const m = Fe.fromBytes(public_key.n, &msg, .big) catch return error.MessageTooLong;
         const e = public_key.n.powPublic(m, public_key.e) catch unreachable;
         var res: [modulus_len]u8 = undefined;
+
         e.toBytes(&res, .big) catch unreachable;
+
         return res;
     }
 };

@@ -22,14 +22,18 @@ export function clientInjectionsPlugin(config: ResolvedConfig): Plugin {
 
   const getDefineReplacer = perEnvironmentState((environment) => {
     const userDefine: Record<string, any> = {}
+
     for (const key in environment.config.define) {
       // import.meta.env.* is handled in `importAnalysis` plugin
       if (!key.startsWith('import.meta.env.')) {
         userDefine[key] = environment.config.define[key]
       }
     }
+
     const serializedDefines = serializeDefine(userDefine)
+
     const definesReplacement = () => serializedDefines
+
     return (code: string) => code.replace(`__DEFINES__`, definesReplacement)
   })
 
@@ -44,8 +48,10 @@ export function clientInjectionsPlugin(config: ResolvedConfig): Plugin {
     transform(code, id) {
       const ssr = this.environment.config.consumer === 'server'
       const cleanId = cleanUrl(id)
+
       if (cleanId === normalizedClientEntry || cleanId === normalizedEnvEntry) {
         const defineReplacer = getDefineReplacer(this)
+
         return defineReplacer(injectConfigValues(code))
       } else if (!ssr && code.includes('process.env.NODE_ENV')) {
         // replace process.env.NODE_ENV instead of defining a global
@@ -54,6 +60,7 @@ export function clientInjectionsPlugin(config: ResolvedConfig): Plugin {
         const nodeEnv =
           this.environment.config.define?.['process.env.NODE_ENV'] ||
           JSON.stringify(process.env.NODE_ENV || config.mode)
+
         return replaceDefine(this.environment, code, id, {
           'process.env.NODE_ENV': nodeEnv,
           'global.process.env.NODE_ENV': nodeEnv,
@@ -66,6 +73,7 @@ export function clientInjectionsPlugin(config: ResolvedConfig): Plugin {
 
 function escapeReplacement(value: string | number | boolean | null) {
   const jsonValue = JSON.stringify(value)
+
   return () => jsonValue
 }
 
@@ -74,6 +82,7 @@ async function createClientConfigValueReplacer(
 ): Promise<(code: string) => string> {
   const resolvedServerHostname = (await resolveHostname(config.server.host))
     .name
+
   const resolvedServerPort = config.server.port!
   const devBase = config.base
 
@@ -92,15 +101,18 @@ async function createClientConfigValueReplacer(
   // ws.clientPort -> ws.port
   // -> (24678 if middleware mode and WS server is not specified) -> new URL(import.meta.url).port
   let port = wsConfig?.clientPort || wsConfig?.port || null
+
   if (config.server.middlewareMode && !isWsServerSpecified) {
     port ||= 24678
   }
 
   let directTarget = wsConfig?.host || resolvedServerHostname
+
   directTarget += `:${wsConfig?.port || resolvedServerPort}`
   directTarget += devBase
 
   let hmrBase = devBase
+
   if (wsConfig?.path) {
     hmrBase = path.posix.join(hmrBase, wsConfig.path)
   }
@@ -117,6 +129,7 @@ async function createClientConfigValueReplacer(
   const hmrEnableOverlayReplacement = escapeReplacement(overlay)
   const hmrConfigNameReplacement = escapeReplacement(hmrConfigName)
   const wsTokenReplacement = escapeReplacement(config.webSocketToken)
+
   const serverForwardConsoleReplacement = escapeReplacement(
     config.server.forwardConsole as any,
   )
@@ -143,6 +156,7 @@ export async function getHmrImplementation(
 ): Promise<string> {
   const content = fs.readFileSync(normalizedBundledDevClientEntry, 'utf-8')
   const replacer = await createClientConfigValueReplacer(config)
+
   return (
     replacer(content)
       // the rolldown runtime cannot import a module

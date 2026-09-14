@@ -51,8 +51,10 @@ pub const tb_log_level = enum(c_int) {
 
     comptime {
         assert(std.enums.values(std.log.Level).len == std.enums.values(tb_log_level).len);
+
         for (std.enums.values(std.log.Level)) |std_level| {
             const level: tb_log_level = @enumFromInt(@intFromEnum(std_level));
+
             assert(std.mem.eql(u8, @tagName(std_level), @tagName(level)));
         }
     }
@@ -61,7 +63,6 @@ pub const tb_log_level = enum(c_int) {
 pub const tb_operation = tb.Operation;
 pub const tb_completion_t = tb.CompletionCallback;
 pub const tb_init_parameters = tb.InitParameters;
-
 pub const tb_account_t = vsr.tigerbeetle.Account;
 pub const tb_transfer_t = vsr.tigerbeetle.Transfer;
 pub const tb_account_flags = vsr.tigerbeetle.AccountFlags;
@@ -103,6 +104,7 @@ pub fn init(
     // `*align(1) const u128`.
     const cluster_id: u128 = blk: {
         var cluster_id: u128 = undefined;
+
         stdx.copy_disjoint(.exact, u8, std.mem.asBytes(&cluster_id), cluster_id_ptr);
 
         break :blk cluster_id;
@@ -116,22 +118,27 @@ pub fn init(
         completion_ctx,
         completion_callback,
     ) catch |err| return init_error_to_status(err);
+
     return .success;
 }
 
 pub fn submit(tb_client: ?*tb_client_t, packet: *tb_packet_t) callconv(.c) tb_client_status {
     const client: *tb.ClientInterface = if (tb_client) |ptr| ptr.cast() else return .invalid;
+
     client.submit(packet) catch |err| switch (err) {
         error.ClientInvalid => return .invalid,
     };
+
     return .ok;
 }
 
 pub fn deinit(tb_client: ?*tb_client_t) callconv(.c) tb_client_status {
     const client: *tb.ClientInterface = if (tb_client) |ptr| ptr.cast() else return .invalid;
+
     client.deinit() catch |err| switch (err) {
         error.ClientInvalid => return .invalid,
     };
+
     return .ok;
 }
 
@@ -140,9 +147,11 @@ pub fn init_parameters(
     out_parameters: *tb_init_parameters,
 ) callconv(.c) tb_client_status {
     const client: *tb.ClientInterface = if (tb_client) |ptr| ptr.cast() else return .invalid;
+
     client.init_parameters(out_parameters) catch |err| switch (err) {
         error.ClientInvalid => return .invalid,
     };
+
     return .ok;
 }
 
@@ -151,9 +160,11 @@ pub fn completion_context(
     completion_ctx_out: *usize,
 ) callconv(.c) tb_client_status {
     const client: *tb.ClientInterface = if (tb_client) |ptr| ptr.cast() else return .invalid;
+
     completion_ctx_out.* = client.completion_context() catch |err| switch (err) {
         error.ClientInvalid => return .invalid,
     };
+
     return .ok;
 }
 
@@ -162,12 +173,14 @@ pub fn register_log_callback(
     debug: bool,
 ) callconv(.c) tb_register_log_callback_status {
     Logging.global.mutex.lock();
+
     defer Logging.global.mutex.unlock();
 
     if (Logging.global.callback == null) {
         if (callback_maybe) |callback| {
             Logging.global.callback = callback;
             Logging.global.debug = debug;
+
             return .success;
         } else {
             return .not_registered;
@@ -176,6 +189,7 @@ pub fn register_log_callback(
         if (callback_maybe == null) {
             Logging.global.callback = null;
             Logging.global.debug = debug;
+
             return .success;
         } else {
             return .already_registered;
@@ -198,7 +212,9 @@ pub const Logging = struct {
 
     callback: ?Callback = null,
     mutex: std.Thread.Mutex = .{},
+
     buffer: [log_line_max]u8 = undefined,
+
     debug: bool = false,
 
     /// A logger which defers to an application provided handler.
@@ -219,18 +235,21 @@ pub const Logging = struct {
         // until client libraries catch up and implement a callback handler.
         if (Logging.global.callback == null and (message_level == .warn or message_level == .err)) {
             std.log.defaultLog(message_level, scope, format, args);
+
             return;
         }
 
         // Protect everything with a mutex - logging can be called from different threads
         // simultaneously, and there's only one buffer for now.
         Logging.global.mutex.lock();
+
         defer Logging.global.mutex.unlock();
 
         const callback = Logging.global.callback orelse return;
 
         const tb_message_level: tb_log_level = @enumFromInt(@intFromEnum(message_level));
         const prefix = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
+
         const output = std.fmt.bufPrint(
             &Logging.global.buffer,
             prefix ++ format,
@@ -240,6 +259,7 @@ pub const Logging = struct {
                 // Print an error indicating the log message has been truncated, before the
                 // truncated log itself.
                 const message = "the following log message has been truncated:";
+
                 callback(tb_message_level, message.ptr, message.len);
 
                 break :blk &Logging.global.buffer;

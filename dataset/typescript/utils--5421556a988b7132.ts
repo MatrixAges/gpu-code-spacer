@@ -14,6 +14,7 @@ export function transformResult<TRouter extends AnyTRPCRouter, TOutput>(
 ) {
 	if ('error' in response) {
 		const error = transformer.deserialize(response.error) as inferRouterError<TRouter>
+
 		return {
 			ok: false,
 			error: {
@@ -30,5 +31,6 @@ export function transformResult<TRouter extends AnyTRPCRouter, TOutput>(
 			data: transformer.deserialize(response.result.data) as unknown
 		})
 	} as TRPCResultMessage<TOutput>['result']
+
 	return { ok: true, result } as const
 }

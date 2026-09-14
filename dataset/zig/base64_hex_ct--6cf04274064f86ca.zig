@@ -24,13 +24,16 @@ pub const hex = struct {
         if (encoded.len / 2 != bin.len) {
             return error.SizeMismatch;
         }
+
         for (bin, 0..) |v, i| {
             const b: u16 = v >> 4;
             const c: u16 = v & 0xf;
             const off = if (case == .upper) 32 else 0;
+
             const x =
                 ((87 - off + c + (((c -% 10) >> 8) & ~@as(u16, 38 - off))) & 0xff) << 8 |
                 ((87 - off + b + (((b -% 10) >> 8) & ~@as(u16, 38 - off))) & 0xff);
+
             encoded[i * 2] = @truncate(x);
             encoded[i * 2 + 1] = @truncate(x >> 8);
         }
@@ -42,9 +45,11 @@ pub const hex = struct {
         if (encoded.len % 2 != 0) {
             return error.InvalidPadding;
         }
+
         if (bin.len < encoded.len / 2) {
             return error.SizeMismatch;
         }
+
         _ = decodeAny(bin, encoded, null) catch |err| {
             switch (err) {
                 error.InvalidCharacter => return error.InvalidCharacter,
@@ -74,12 +79,15 @@ pub const hex = struct {
         /// This operation does not run in constant time, but it aims to avoid leaking information about the underlying hexadecimal string.
         pub fn decodedLenForSlice(decoder: DecoderWithIgnore, encoded: []const u8) !usize {
             var hex_len = encoded.len;
+
             for (encoded) |c| {
                 if (decoder.ignored_chars.isSet(c)) hex_len -= 1;
             }
+
             if (hex_len % 2 != 0) {
                 return error.InvalidPadding;
             }
+
             return hex_len / 2;
         }
 
@@ -94,13 +102,16 @@ pub const hex = struct {
     /// The ignore list must not contain any valid hexadecimal characters.
     pub fn decoderWithIgnore(ignore_chars: []const u8) error{InvalidCharacter}!DecoderWithIgnore {
         var ignored_chars = StaticBitSet(256).initEmpty();
+
         for (ignore_chars) |c| {
             switch (c) {
                 '0'...'9', 'a'...'f', 'A'...'F' => return error.InvalidCharacter,
                 else => if (ignored_chars.isSet(c)) return error.InvalidCharacter,
             }
+
             ignored_chars.set(c);
         }
+
         return DecoderWithIgnore{ .ignored_chars = ignored_chars };
     }
 
@@ -112,34 +123,44 @@ pub const hex = struct {
         var bin_pos: usize = 0;
         var state: bool = false;
         var c_acc: u8 = 0;
+
         for (encoded) |c| {
             const c_num = c ^ 48;
             const c_num0: u8 = @truncate((@as(u16, c_num) -% 10) >> 8);
             const c_alpha: u8 = (c & ~@as(u8, 32)) -% 55;
             const c_alpha0: u8 = @truncate(((@as(u16, c_alpha) -% 10) ^ (@as(u16, c_alpha) -% 16)) >> 8);
+
             if ((c_num0 | c_alpha0) == 0) {
                 if (ignored_chars) |set| {
                     if (set.isSet(c)) {
                         continue;
                     }
                 }
+
                 return error.InvalidCharacter;
             }
+
             const c_val = (c_num0 & c_num) | (c_alpha0 & c_alpha);
+
             if (bin_pos >= bin.len) {
                 return error.NoSpaceLeft;
             }
+
             if (!state) {
                 c_acc = c_val << 4;
             } else {
                 bin[bin_pos] = c_acc | c_val;
+
                 bin_pos += 1;
             }
+
             state = !state;
         }
+
         if (state) {
             return error.InvalidPadding;
         }
+
         return bin[0..bin_pos];
     }
 };
@@ -169,6 +190,7 @@ pub const base64 = struct {
             return (bin_len + 2) / 3 * 4;
         } else {
             const leftover = bin_len % 3;
+
             return bin_len / 3 * 4 + (leftover * 4 + 2) / 3;
         }
     }
@@ -178,12 +200,15 @@ pub const base64 = struct {
     pub fn decodedLen(b64_len: usize, variant: Variant) !usize {
         var result = b64_len / 4 * 3;
         const leftover = b64_len % 4;
+
         if (variant.padding) {
             if (leftover % 4 != 0) return error.InvalidPadding;
         } else {
             if (leftover % 4 == 1) return error.InvalidPadding;
+
             result += leftover * 3 / 4;
         }
+
         return result;
     }
 
@@ -196,30 +221,42 @@ pub const base64 = struct {
         const nibbles = bin.len / 3;
         const remainder = bin.len - 3 * nibbles;
         var b64_len = nibbles * 4;
+
         if (remainder != 0) {
             b64_len += if (variant.padding) 4 else 2 + (remainder >> 1);
         }
+
         if (encoded.len < b64_len) {
             return error.NoSpaceLeft;
         }
+
         const urlsafe = variant.urlsafe_alphabet;
+
         for (bin) |v| {
             acc = (acc << 8) + v;
             acc_len += 8;
+
             while (acc_len >= 6) {
                 acc_len -= 6;
+
                 encoded[b64_pos] = charFromByte(@as(u6, @truncate(acc >> acc_len)), urlsafe);
+
                 b64_pos += 1;
             }
         }
+
         if (acc_len > 0) {
             encoded[b64_pos] = charFromByte(@as(u6, @truncate(acc << (6 - acc_len))), urlsafe);
+
             b64_pos += 1;
         }
+
         while (b64_pos < b64_len) {
             encoded[b64_pos] = '=';
+
             b64_pos += 1;
         }
+
         return encoded[0..b64_pos];
     }
 
@@ -255,9 +292,11 @@ pub const base64 = struct {
         /// This operation does not run in constant time, but it aims to avoid leaking information about the underlying base64 string.
         pub fn decodedLenForSlice(decoder: DecoderWithIgnore, encoded: []const u8, variant: Variant) !usize {
             var b64_len = encoded.len;
+
             for (encoded) |c| {
                 if (decoder.ignored_chars.isSet(c)) b64_len -= 1;
             }
+
             return base64.decodedLen(b64_len, variant);
         }
 
@@ -270,13 +309,16 @@ pub const base64 = struct {
     /// Creates a new decoder that ignores certain characters.
     pub fn decoderWithIgnore(ignore_chars: []const u8) error{InvalidCharacter}!DecoderWithIgnore {
         var ignored_chars = StaticBitSet(256).initEmpty();
+
         for (ignore_chars) |c| {
             switch (c) {
                 'A'...'Z', 'a'...'z', '0'...'9' => return error.InvalidCharacter,
                 else => if (ignored_chars.isSet(c)) return error.InvalidCharacter,
             }
+
             ignored_chars.set(c);
         }
+
         return DecoderWithIgnore{ .ignored_chars = ignored_chars };
     }
 
@@ -313,6 +355,7 @@ pub const base64 = struct {
             (ge(c, 'a') & le(c, 'z') & (c -% 'a' +% 26)) |
             (ge(c, '0') & le(c, '9') & (c -% '0' +% 52)) |
             (eq(c, '+') & 62) | (eq(c, if (urlsafe) '_' else '/') & 63);
+
         return x | (eq(x, 0) & ~eq(c, 'A'));
     }
 
@@ -323,11 +366,14 @@ pub const base64 = struct {
     ) error{InvalidPadding}![]const u8 {
         var b64_pos: usize = 0;
         var i = padding_len;
+
         while (i > 0) {
             if (b64_pos >= encoded.len) {
                 return error.InvalidPadding;
             }
+
             const c = encoded[b64_pos];
+
             if (c == '=') {
                 i -= 1;
             } else if (ignored_chars) |set| {
@@ -335,8 +381,10 @@ pub const base64 = struct {
                     return error.InvalidPadding;
                 }
             }
+
             b64_pos += 1;
         }
+
         return encoded[b64_pos..];
     }
 
@@ -351,36 +399,49 @@ pub const base64 = struct {
         var bin_pos: usize = 0;
         var premature_end: ?usize = null;
         const urlsafe = variant.urlsafe_alphabet;
+
         for (encoded, 0..) |c, b64_pos| {
             const d = byteFromChar(c, urlsafe);
+
             if (d == 0xff) {
                 if (ignored_chars) |set| {
                     if (set.isSet(c)) continue;
                 }
+
                 premature_end = b64_pos;
+
                 break;
             }
+
             acc = (acc << 6) + d;
             acc_len += 6;
+
             if (acc_len >= 8) {
                 acc_len -= 8;
+
                 if (bin_pos >= bin.len) {
                     return error.NoSpaceLeft;
                 }
+
                 bin[bin_pos] = @truncate(acc >> acc_len);
+
                 bin_pos += 1;
             }
         }
+
         if (acc_len > 4 or (acc & ((@as(u16, 1) << acc_len) -% 1)) != 0) {
             return error.InvalidCharacter;
         }
+
         const padding_len = acc_len / 2;
+
         if (premature_end) |pos| {
             const remaining =
                 if (variant.padding)
                     try skipPadding(encoded[pos..], padding_len, ignored_chars)
                 else
                     encoded[pos..];
+
             if (ignored_chars) |set| {
                 for (remaining) |c| {
                     if (!set.isSet(c)) {
@@ -393,6 +454,7 @@ pub const base64 = struct {
         } else if (variant.padding and padding_len != 0) {
             return error.InvalidPadding;
         }
+
         return bin[0..bin_pos];
     }
 };
@@ -401,16 +463,21 @@ test "hex" {
     var default_rng = std.Random.DefaultPrng.init(testing.random_seed);
     var rng = default_rng.random();
     var bin_buf: [1000]u8 = undefined;
+
     rng.bytes(&bin_buf);
+
     var bin2_buf: [bin_buf.len]u8 = undefined;
     var hex_buf: [bin_buf.len * 2]u8 = undefined;
+
     for (0..1000) |_| {
         const bin_len = rng.intRangeAtMost(usize, 0, bin_buf.len);
         const bin = bin_buf[0..bin_len];
         const bin2 = bin2_buf[0..bin_len];
+
         inline for (.{ .lower, .upper }) |case| {
             const hex_len = bin_len * 2;
             const encoded = hex_buf[0..hex_len];
+
             try hex.encode(encoded, bin, case);
             try hex.decode(bin2, encoded);
             try testing.expectEqualSlices(u8, bin, bin2);
@@ -422,13 +489,17 @@ test "base64" {
     var default_rng = std.Random.DefaultPrng.init(testing.random_seed);
     var rng = default_rng.random();
     var bin_buf: [1000]u8 = undefined;
+
     rng.bytes(&bin_buf);
+
     var bin2_buf: [bin_buf.len]u8 = undefined;
     var b64_buf: [(bin_buf.len + 3) / 3 * 4]u8 = undefined;
+
     for (0..1000) |_| {
         const bin_len = rng.intRangeAtMost(usize, 0, bin_buf.len);
         const bin = bin_buf[0..bin_len];
         const bin2 = bin2_buf[0..bin_len];
+
         inline for ([_]base64.Variant{
             .standard,
             .standard_nopad,
@@ -439,6 +510,7 @@ test "base64" {
             const encoded_buf = b64_buf[0..b64_len];
             const encoded = try base64.encode(encoded_buf, bin, variant);
             const decoded = try base64.decode(bin2, encoded, variant);
+
             try testing.expectEqualSlices(u8, bin, decoded);
         }
     }
@@ -448,8 +520,11 @@ test "hex with ignored chars" {
     const encoded = "01020304050607\n08090A0B0C0D0E0F\n";
     const expected = [_]u8{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
     var bin_buf: [encoded.len / 2]u8 = undefined;
+
     try testing.expectError(error.InvalidCharacter, hex.decode(&bin_buf, encoded));
+
     const bin = try (try hex.decoderWithIgnore("\r\n")).decode(&bin_buf, encoded);
+
     try testing.expectEqualSlices(u8, &expected, bin);
 }
 
@@ -457,7 +532,10 @@ test "base64 with ignored chars" {
     const encoded = "dGVzdCBi\r\nYXNlNjQ=\n";
     const expected = "test base64";
     var bin_buf: [base64.DecoderWithIgnore.decodedLenUpperBound(encoded.len)]u8 = undefined;
+
     try testing.expectError(error.InvalidCharacter, base64.decode(&bin_buf, encoded, .standard));
+
     const bin = try (try base64.decoderWithIgnore("\r\n")).decode(&bin_buf, encoded, .standard);
+
     try testing.expectEqualSlices(u8, expected, bin);
 }

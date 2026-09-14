@@ -2,9 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const math = std.math;
 const mem = std.mem;
-
 const stdx = @import("stdx");
-
 const Direction = @import("../direction.zig").Direction;
 const Pending = error{Pending};
 
@@ -76,12 +74,16 @@ pub fn ZigZagMergeIteratorType(
                 // Duplicate values are not expected.
                 assert(it.direction.cmp(previous, .@"<", key));
             }
+
             it.key_popped = key;
 
             const value = stream_pop(it.context, 0);
+
             assert(key_from_value(&value) == key);
+
             for (1..it.streams_count) |stream_index| {
                 const value_other = stream_pop(it.context, @intCast(stream_index));
+
                 assert(key_from_value(&value_other) == key);
 
                 // Differently from K-way merge, there's no precedence between streams
@@ -125,6 +127,7 @@ pub fn ZigZagMergeIteratorType(
 
             // TODO: Find a way to add a safety counter here.
             var tour_index: u32 = 0;
+
             while (tour_total < it.streams_count) //
             : (tour_index = (tour_index + 1) % it.streams_count) {
                 assert(tour_total == tour_equal + tour_pending);
@@ -134,6 +137,7 @@ pub fn ZigZagMergeIteratorType(
                 if (pending.is_set(tour_index)) {
                     tour_total += 1;
                     tour_pending += 1;
+
                     continue;
                 }
 
@@ -141,9 +145,12 @@ pub fn ZigZagMergeIteratorType(
                     switch (err) {
                         error.Pending => {
                             assert(!pending.is_set(tour_index));
+
                             pending.set(tour_index);
+
                             tour_total += 1;
                             tour_pending += 1;
+
                             continue;
                         },
                     }
@@ -154,15 +161,18 @@ pub fn ZigZagMergeIteratorType(
                 if (it.direction.cmp(candidate, .@"<", key)) {
                     // The stream is strictly ahead, restart a tour with a new candidate.
                     candidate = key;
+
                     tour_total = 1;
                     tour_equal = 1;
                     tour_pending = 0;
                 } else {
                     assert(candidate == key);
+
                     tour_total += 1;
                     tour_equal += 1;
                 }
             }
+
             assert(tour_total == tour_equal + tour_pending);
             assert(tour_total == it.streams_count);
             assert(tour_pending == pending.count());
@@ -173,14 +183,17 @@ pub fn ZigZagMergeIteratorType(
             // We minimize probe & peek virtual function calls, keeping IO optimal.
             for (0..it.streams_count) |index_usize| {
                 const stream_index: u32 = @intCast(index_usize);
+
                 if (pending.is_set(stream_index)) {
                     pending.unset(stream_index);
+
                     stream_probe(it.context, stream_index, candidate);
                     assert(stream_peek(it.context, stream_index) == Pending.Pending);
                 } else {
                     assert((stream_peek(it.context, stream_index) catch unreachable) == candidate);
                 }
             }
+
             assert(pending.count() == 0);
 
             if (tour_pending > 0) return error.Pending;
@@ -188,7 +201,9 @@ pub fn ZigZagMergeIteratorType(
             if (it.key_peeked) |key_peeked| {
                 assert(it.direction.cmp(key_peeked, .@"<=", candidate));
             }
+
             it.key_peeked = candidate;
+
             return candidate;
         }
 
@@ -200,15 +215,18 @@ pub fn ZigZagMergeIteratorType(
             assert(stream_index < it.streams_count);
 
             var key = try stream_peek(it.context, stream_index) orelse return null;
+
             if (it.key_peeked) |key_peeked| {
                 assert(it.direction.cmp(key_peeked, .@"<=", key));
             }
 
             if (it.direction.cmp(key, .@"<", candidate)) {
                 stream_probe(it.context, stream_index, candidate);
+
                 key = try stream_peek(it.context, stream_index) orelse return null;
 
                 assert(it.direction.cmp(candidate, .@"<=", key));
+
                 if (it.key_peeked) |key_peeked| {
                     assert(it.direction.cmp(key_peeked, .@"<=", key));
                 }
@@ -242,7 +260,9 @@ fn TestContextType(comptime streams_max: u8) type {
             stream_index: u32,
         ) Pending!?Key {
             const stream = context.streams[stream_index];
+
             if (stream.len == 0) return null;
+
             return switch (context.direction) {
                 .ascending => key_from_value(&stream[0]),
                 .descending => key_from_value(&stream[stream.len - 1]),
@@ -255,10 +275,12 @@ fn TestContextType(comptime streams_max: u8) type {
             switch (context.direction) {
                 .ascending => {
                     context.streams[stream_index] = stream[1..];
+
                     return stream[0];
                 },
                 .descending => {
                     context.streams[stream_index] = stream[0 .. stream.len - 1];
+
                     return stream[stream.len - 1];
                 },
             }
@@ -276,6 +298,7 @@ fn TestContextType(comptime streams_max: u8) type {
                 }) break;
 
                 const value = stream_pop(context, stream_index);
+
                 assert(key == key_from_value(&value));
             }
         }
@@ -297,22 +320,26 @@ fn TestContextType(comptime streams_max: u8) type {
 
             for (std.enums.values(Direction)) |direction| {
                 var actual = std.ArrayList(Value).init(testing.allocator);
+
                 defer actual.deinit();
 
                 var context: TestContext = .{
                     .streams = undefined,
                     .direction = direction,
                 };
+
                 for (streams, 0..) |stream, i| {
                     context.streams[i] = stream;
                 }
 
                 var it = ZigZagMerge.init(&context, @intCast(streams.len), direction);
+
                 while (try it.pop()) |value| {
                     try actual.append(value);
                 }
 
                 if (direction == .descending) std.mem.reverse(Value, actual.items);
+
                 try testing.expectEqualSlices(Value, expect, actual.items);
             }
         }
@@ -322,20 +349,25 @@ fn TestContextType(comptime streams_max: u8) type {
             var streams: [streams_max][]Value = undefined;
 
             const streams_buffer = try allocator.alloc(Value, streams_max * stream_key_count_max);
+
             defer allocator.free(streams_buffer);
 
             const intersection_buffer = try allocator.alloc(Value, stream_key_count_max);
+
             defer allocator.free(intersection_buffer);
 
             const intersection_len_min = 5;
+
             for (2..streams_max + 1) |streams_count| {
                 var stream_len_min: u32 = stream_key_count_max;
+
                 for (0..streams_count) |stream_index| {
                     const len = prng.range_inclusive(
                         u32,
                         intersection_len_min,
                         stream_key_count_max,
                     );
+
                     if (len < stream_len_min) stream_len_min = len;
 
                     streams[stream_index] =
@@ -347,6 +379,7 @@ fn TestContextType(comptime streams_max: u8) type {
                     intersection_len_min,
                     stream_len_min,
                 )];
+
                 assert(intersection.len >= intersection_len_min and
                     intersection.len <= stream_len_min);
 
@@ -363,9 +396,11 @@ fn TestContextType(comptime streams_max: u8) type {
                 {
                     var dummy: [10]Value = .{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
                     const replaced = streams[streams_count - 1];
+
                     defer streams[streams_count - 1] = replaced;
 
                     streams[streams_count - 1] = &dummy;
+
                     try merge(streams[0..streams_count], &.{});
                 }
 
@@ -373,9 +408,11 @@ fn TestContextType(comptime streams_max: u8) type {
                 {
                     const empty: [0]Value = .{};
                     const replaced = streams[streams_count - 1];
+
                     defer streams[streams_count - 1] = replaced;
 
                     streams[streams_count - 1] = &empty;
+
                     try merge(streams[0..streams_count], &.{});
                 }
             }
@@ -394,6 +431,7 @@ fn TestContextType(comptime streams_max: u8) type {
 
             // Starting with the values we want to be the intersection:
             prng.fill(mem.sliceAsBytes(intersection));
+
             std.mem.sort(
                 Value,
                 intersection,
@@ -405,10 +443,13 @@ fn TestContextType(comptime streams_max: u8) type {
             // random values:
             for (streams) |stream| {
                 assert(intersection.len <= stream.len);
+
                 stdx.copy_disjoint(.exact, Value, stream[0..intersection.len], intersection);
+
                 if (stream.len > intersection.len) {
                     prng.fill(mem.sliceAsBytes(stream[intersection.len..]));
                 }
+
                 std.mem.sort(
                     Value,
                     stream,
@@ -480,20 +521,27 @@ test "zig_zag_merge: unit" {
             // {1, 2, 3, ..., 1000}.
             comptime blk: {
                 @setEvalBranchQuota(2_000);
+
                 var array: [1000]Context.Value = undefined;
+
                 for (0..1000) |i| array[i] = @intCast(i + 1);
+
                 break :blk stdx.comptime_slice(&array, array.len);
             },
             // {10, 20, 30, ..., 1000}.
             comptime blk: {
                 var array: [100]Context.Value = undefined;
+
                 for (0..100) |i| array[i] = @intCast(10 * (i + 1));
+
                 break :blk stdx.comptime_slice(&array, array.len);
             },
             // {1, 10, 100, 1000, ..., 10 ^ 10}.
             comptime blk: {
                 var array: [10]Context.Value = undefined;
+
                 for (0..10) |i| array[i] = std.math.pow(Context.Value, 10, i);
+
                 break :blk stdx.comptime_slice(&array, array.len);
             },
         },
@@ -506,13 +554,17 @@ test "zig_zag_merge: unit" {
             // {1, 2, 3, ..., 100}.
             comptime blk: {
                 var array: [100]Context.Value = undefined;
+
                 for (0..100) |i| array[i] = @intCast(i + 1);
+
                 break :blk stdx.comptime_slice(&array, array.len);
             },
             // {100, 101, 102, ..., 199}.
             comptime blk: {
                 var array: [100]Context.Value = undefined;
+
                 for (0..100) |i| array[i] = @intCast(i + 100);
+
                 break :blk stdx.comptime_slice(&array, array.len);
             },
         },
@@ -525,13 +577,17 @@ test "zig_zag_merge: unit" {
             // {100, 101, 102, ..., 199}.
             comptime blk: {
                 var array: [100]Context.Value = undefined;
+
                 for (0..100) |i| array[i] = @intCast(i + 100);
+
                 break :blk stdx.comptime_slice(&array, array.len);
             },
             // {1, 2, 3, ..., 100}.
             comptime blk: {
                 var array: [100]Context.Value = undefined;
+
                 for (0..100) |i| array[i] = @intCast(i + 1);
+
                 break :blk stdx.comptime_slice(&array, array.len);
             },
         },
@@ -541,8 +597,10 @@ test "zig_zag_merge: unit" {
 
 test "zig_zag_merge: fuzz" {
     const seed = std.crypto.random.int(u64);
+
     errdefer std.debug.print("\nTEST FAILED: seed = {}\n", .{seed});
 
     var prng = stdx.PRNG.from_seed(seed);
+
     try TestContextType(32).fuzz(&prng, 256);
 }

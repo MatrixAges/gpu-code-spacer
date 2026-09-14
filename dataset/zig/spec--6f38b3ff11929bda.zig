@@ -162,6 +162,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Security mechanism challenge.
     /// The SASL protocol works by exchanging challenges and responses until both peers have
     /// received sufficient information to authenticate each other. This method challenges
@@ -180,6 +181,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Propose connection tuning parameters.
     /// This method proposes a set of connection configuration values to the client. The
     /// client can accept and/or adjust these.
@@ -211,6 +213,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Signal that connection is ready.
     /// This method signals to the client that the connection is ready for use.
     connection_open_ok: struct {
@@ -224,6 +227,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Request a connection close.
     /// This method indicates that the sender wants to close the connection. This may be
     /// due to internal conditions (e.g. a forced shut-down) or due to an error handling
@@ -254,15 +258,18 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm a connection close.
     /// This method confirms a Connection.Close method and tells the recipient that it is
     /// safe to release resources for the connection and close the socket.
     connection_close_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Indicate that connection is blocked.
     /// This method indicates that a connection has been blocked
     /// and does not accept new publishes.
@@ -279,15 +286,18 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Indicate that connection is unblocked.
     /// This method indicates that a connection has been unblocked
     /// and now accepts publishes.
     connection_unblocked: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Update secret.
     /// This method updates the secret used to authenticate this connection. It is used
     /// when secrets have an expiration date and need to be renewed, like OAuth 2 tokens.
@@ -309,6 +319,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Signal that the channel is ready.
     /// This method signals to the client that the channel is ready for use.
     channel_open_ok: struct {
@@ -322,6 +333,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Enable/disable flow from peer.
     /// This method asks the peer to pause or restart the flow of content data sent by
     /// a consumer. This is a simple flow-control mechanism that a peer can use to avoid
@@ -336,6 +348,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
 
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             const bitset_1: stdx.BitSetType(8) = .{ .bits = try decoder.read_int(u8) };
+
             const active = bitset_1.is_set(0);
 
             return .{
@@ -343,6 +356,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm a flow method.
     /// Confirms to the peer that a flow command was received and processed.
     channel_flow_ok: struct {
@@ -353,6 +367,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
 
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             const bitset_1: stdx.BitSetType(8) = .{ .bits = try decoder.read_int(u8) };
+
             const active = bitset_1.is_set(0);
 
             return .{
@@ -360,6 +375,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Request a channel close.
     /// This method indicates that the sender wants to close the channel. This may be due to
     /// internal conditions (e.g. a forced shut-down) or due to an error handling a specific
@@ -390,48 +406,59 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm a channel close.
     /// This method confirms a Channel.Close method and tells the recipient that it is safe
     /// to release resources for the channel.
     channel_close_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm exchange declaration.
     /// This method confirms a Declare method and confirms the name of the exchange,
     /// essential for automatically-named exchanges.
     exchange_declare_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm deletion of an exchange.
     /// This method confirms the deletion of an exchange.
     exchange_delete_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm bind successful.
     /// This method confirms that the bind was successful.
     exchange_bind_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm unbind successful.
     /// This method confirms that the unbind was successful.
     exchange_unbind_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirms a queue definition.
     /// This method confirms a Declare method and confirms the name of the queue, essential
     /// for automatically-named queues.
@@ -457,22 +484,27 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm bind successful.
     /// This method confirms that the bind was successful.
     queue_bind_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm unbind successful.
     /// This method confirms that the unbind was successful.
     queue_unbind_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirms a queue purge.
     /// This method confirms the purge of a queue.
     queue_purge_ok: struct {
@@ -487,6 +519,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm deletion of a queue.
     /// This method confirms the deletion of a queue.
     queue_delete_ok: struct {
@@ -501,6 +534,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm the requested qos.
     /// This method tells the client that the requested QoS levels could be handled by the
     /// server. The requested QoS applies to all active consumers until a new QoS is
@@ -508,9 +542,11 @@ pub const ClientMethod = union(ClientMethod.Tag) {
     basic_qos_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm a new consumer.
     /// The server provides the client with a consumer tag, which is used by the client
     /// for methods called on the consumer at a later stage.
@@ -526,6 +562,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// End a queue consumer.
     /// This method cancels a consumer. This does not affect already delivered
     /// messages, but it does mean the server will not send any more messages for
@@ -547,7 +584,9 @@ pub const ClientMethod = union(ClientMethod.Tag) {
 
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             const consumer_tag = try decoder.read_short_string();
+
             const bitset_1: stdx.BitSetType(8) = .{ .bits = try decoder.read_int(u8) };
+
             const no_wait = bitset_1.is_set(0);
 
             return .{
@@ -556,6 +595,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm a cancelled consumer.
     /// This method confirms that the cancellation was completed.
     basic_cancel_ok: struct {
@@ -569,6 +609,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Return a failed message.
     /// This method returns an undeliverable message that was published with the "immediate"
     /// flag set, or an unroutable message published with the "mandatory" flag set. The
@@ -598,6 +639,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Notify the client of a consumer message.
     /// This method delivers a message to the client, via a consumer. In the asynchronous
     /// message delivery model, the client starts a consumer using the Consume method, then
@@ -617,7 +659,9 @@ pub const ClientMethod = union(ClientMethod.Tag) {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             const consumer_tag = try decoder.read_short_string();
             const delivery_tag = try decoder.read_int(u64);
+
             const bitset_1: stdx.BitSetType(8) = .{ .bits = try decoder.read_int(u8) };
+
             const redelivered = bitset_1.is_set(0);
             const exchange = try decoder.read_short_string();
             const routing_key = try decoder.read_short_string();
@@ -631,6 +675,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Provide client with a message.
     /// This method delivers a message to the client following a get method. A message
     /// delivered by 'get-ok' must be acknowledged unless the no-ack option was set in the
@@ -648,7 +693,9 @@ pub const ClientMethod = union(ClientMethod.Tag) {
 
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             const delivery_tag = try decoder.read_int(u64);
+
             const bitset_1: stdx.BitSetType(8) = .{ .bits = try decoder.read_int(u8) };
+
             const redelivered = bitset_1.is_set(0);
             const exchange = try decoder.read_short_string();
             const routing_key = try decoder.read_short_string();
@@ -663,6 +710,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Indicate no messages available.
     /// This method tells the client that the queue has no messages available for the
     /// client.
@@ -677,6 +725,7 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Acknowledge one or more messages.
     /// When sent by the client, this method acknowledges one or more
     /// messages delivered via the Deliver or Get-Ok methods.
@@ -698,7 +747,9 @@ pub const ClientMethod = union(ClientMethod.Tag) {
 
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             const delivery_tag = try decoder.read_int(u64);
+
             const bitset_1: stdx.BitSetType(8) = .{ .bits = try decoder.read_int(u8) };
+
             const multiple = bitset_1.is_set(0);
 
             return .{
@@ -707,14 +758,17 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm recovery.
     /// This method acknowledges a Basic.Recover method.
     basic_recover_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Reject one or more incoming messages.
     /// This method allows a client to reject one or more incoming messages. It can be
     /// used to interrupt and cancel large incoming messages, or return untreatable
@@ -740,7 +794,9 @@ pub const ClientMethod = union(ClientMethod.Tag) {
 
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             const delivery_tag = try decoder.read_int(u64);
+
             const bitset_1: stdx.BitSetType(8) = .{ .bits = try decoder.read_int(u8) };
+
             const multiple = bitset_1.is_set(0);
             const requeue = bitset_1.is_set(1);
 
@@ -751,38 +807,46 @@ pub const ClientMethod = union(ClientMethod.Tag) {
             };
         }
     },
+
     /// Confirm transaction mode.
     /// This method confirms to the client that the channel was successfully set to use
     /// standard transactions.
     tx_select_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm a successful commit.
     /// This method confirms to the client that the commit succeeded. Note that if a commit
     /// fails, the server raises a channel exception.
     tx_commit_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// Confirm successful rollback.
     /// This method confirms to the client that the rollback succeeded. Note that if an
     /// rollback fails, the server raises a channel exception.
     tx_rollback_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
+
     /// This method confirms to the client that the channel was successfully
     /// set to use publisher acknowledgements.
     confirm_select_ok: struct {
         fn decode(decoder: *Decoder) Decoder.Error!@This() {
             _ = decoder;
+
             return .{};
         }
     },
@@ -793,12 +857,15 @@ pub const ClientMethod = union(ClientMethod.Tag) {
 
     pub fn decode(header: MethodHeader, decoder: *Decoder) Decoder.Error!ClientMethod {
         @setEvalBranchQuota(10_000);
+
         const tag = std.meta.intToEnum(Tag, @as(u32, @bitCast(header))) catch {
             return error.Unexpected;
         };
+
         const value: ClientMethod = switch (tag) {
             inline else => |tag_comptime| value: {
                 const Method = std.meta.TagPayload(ClientMethod, tag_comptime);
+
                 break :value @unionInit(
                     ClientMethod,
                     @tagName(tag_comptime),
@@ -806,7 +873,9 @@ pub const ClientMethod = union(ClientMethod.Tag) {
                 );
             },
         };
+
         try decoder.read_frame_end();
+
         return value;
     }
 };
@@ -880,6 +949,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_short_string(self.locale);
         }
     },
+
     /// Security mechanism response.
     /// This method attempts to authenticate, passing a block of SASL data for the security
     /// mechanism at the server side.
@@ -893,6 +963,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_long_string_body(self.response);
         }
     },
+
     /// Negotiate connection tuning parameters.
     /// This method sends the client's connection tuning parameters to the server.
     /// Certain fields are negotiated, others provide capability information.
@@ -918,6 +989,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_int(u16, self.heartbeat);
         }
     },
+
     /// Open connection to virtual host.
     /// This method opens a connection to a virtual host, which is a collection of
     /// resources, and acts to separate multiple application domains within a server.
@@ -933,11 +1005,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_short_string(self.virtual_host);
             encoder.write_short_string(self.reserved_1);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.reserved_2);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Request a connection close.
     /// This method indicates that the sender wants to close the connection. This may be
     /// due to internal conditions (e.g. a forced shut-down) or due to an error handling
@@ -961,6 +1036,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_int(u16, self.method_id);
         }
     },
+
     /// Confirm a connection close.
     /// This method confirms a Connection.Close method and tells the recipient that it is
     /// safe to release resources for the connection and close the socket.
@@ -970,6 +1046,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             _ = encoder;
         }
     },
+
     /// Indicate that connection is blocked.
     /// This method indicates that a connection has been blocked
     /// and does not accept new publishes.
@@ -982,6 +1059,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_short_string(self.reason);
         }
     },
+
     /// Indicate that connection is unblocked.
     /// This method indicates that a connection has been unblocked
     /// and now accepts publishes.
@@ -991,6 +1069,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             _ = encoder;
         }
     },
+
     /// Update secret response.
     /// This method confirms the updated secret is valid.
     connection_update_secret_ok: struct {
@@ -999,6 +1078,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             _ = encoder;
         }
     },
+
     /// Open a channel for use.
     /// This method opens a channel to the server.
     channel_open: struct {
@@ -1008,6 +1088,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_short_string(self.reserved_1);
         }
     },
+
     /// Enable/disable flow from peer.
     /// This method asks the peer to pause or restart the flow of content data sent by
     /// a consumer. This is a simple flow-control mechanism that a peer can use to avoid
@@ -1022,10 +1103,12 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.active);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Confirm a flow method.
     /// Confirms to the peer that a flow command was received and processed.
     channel_flow_ok: struct {
@@ -1036,10 +1119,12 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.active);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Request a channel close.
     /// This method indicates that the sender wants to close the channel. This may be due to
     /// internal conditions (e.g. a forced shut-down) or due to an error handling a specific
@@ -1063,6 +1148,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_int(u16, self.method_id);
         }
     },
+
     /// Confirm a channel close.
     /// This method confirms a Channel.Close method and tells the recipient that it is safe
     /// to release resources for the channel.
@@ -1072,6 +1158,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             _ = encoder;
         }
     },
+
     /// Verify exchange exists, create if needed.
     /// This method creates an exchange if it does not already exist, and if the exchange
     /// exists, verifies that it is of the correct and expected class.
@@ -1117,7 +1204,9 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.exchange);
             encoder.write_short_string(self.type);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.passive);
             bitset_1.set_value(1, self.durable);
             bitset_1.set_value(2, self.auto_delete);
@@ -1127,6 +1216,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_table(self.arguments);
         }
     },
+
     /// Delete an exchange.
     /// This method deletes an exchange. When an exchange is deleted all queue bindings on
     /// the exchange are cancelled.
@@ -1143,12 +1233,15 @@ pub const ServerMethod = union(ServerMethod.Tag) {
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.exchange);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.if_unused);
             bitset_1.set_value(1, self.no_wait);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Bind exchange to an exchange.
     /// This method binds an exchange to an exchange.
     exchange_bind: struct {
@@ -1176,12 +1269,15 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_short_string(self.destination);
             encoder.write_short_string(self.source);
             encoder.write_short_string(self.routing_key);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.no_wait);
             encoder.write_int(u8, bitset_1.bits);
             encoder.write_table(self.arguments);
         }
     },
+
     /// Unbind an exchange from an exchange.
     /// This method unbinds an exchange from an exchange.
     exchange_unbind: struct {
@@ -1203,12 +1299,15 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_short_string(self.destination);
             encoder.write_short_string(self.source);
             encoder.write_short_string(self.routing_key);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.no_wait);
             encoder.write_int(u8, bitset_1.bits);
             encoder.write_table(self.arguments);
         }
     },
+
     /// Declare queue, create if needed.
     /// This method creates or checks a queue. When creating a new queue the client can
     /// specify various properties that control the durability of the queue and its
@@ -1251,7 +1350,9 @@ pub const ServerMethod = union(ServerMethod.Tag) {
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.queue);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.passive);
             bitset_1.set_value(1, self.durable);
             bitset_1.set_value(2, self.exclusive);
@@ -1261,6 +1362,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_table(self.arguments);
         }
     },
+
     /// Bind queue to an exchange.
     /// This method binds a queue to an exchange. Until a queue is bound it will not
     /// receive any messages. In a classic messaging model, store-and-forward queues
@@ -1293,12 +1395,15 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_short_string(self.queue);
             encoder.write_short_string(self.exchange);
             encoder.write_short_string(self.routing_key);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.no_wait);
             encoder.write_int(u8, bitset_1.bits);
             encoder.write_table(self.arguments);
         }
     },
+
     /// Unbind a queue from an exchange.
     /// This method unbinds a queue from an exchange.
     queue_unbind: struct {
@@ -1322,6 +1427,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_table(self.arguments);
         }
     },
+
     /// Purge a queue.
     /// This method removes all messages from a queue which are not awaiting
     /// acknowledgment.
@@ -1334,11 +1440,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.queue);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.no_wait);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Delete a queue.
     /// This method deletes a queue. When a queue is deleted any pending messages are sent
     /// to a dead-letter queue if this is defined in the server configuration, and all
@@ -1360,13 +1469,16 @@ pub const ServerMethod = union(ServerMethod.Tag) {
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.queue);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.if_unused);
             bitset_1.set_value(1, self.if_empty);
             bitset_1.set_value(2, self.no_wait);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Specify quality of service.
     /// This method requests a specific quality of service. The QoS can be specified for the
     /// current channel or for all channels on the connection. The particular properties and
@@ -1404,11 +1516,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u32, self.prefetch_size);
             encoder.write_int(u16, self.prefetch_count);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.global);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Start a queue consumer.
     /// This method asks the server to start a "consumer", which is a transient request for
     /// messages from a specific queue. Consumers last as long as the channel they were
@@ -1437,7 +1552,9 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.queue);
             encoder.write_short_string(self.consumer_tag);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.no_local);
             bitset_1.set_value(1, self.no_ack);
             bitset_1.set_value(2, self.exclusive);
@@ -1446,6 +1563,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_table(self.arguments);
         }
     },
+
     /// End a queue consumer.
     /// This method cancels a consumer. This does not affect already delivered
     /// messages, but it does mean the server will not send any more messages for
@@ -1467,11 +1585,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_short_string(self.consumer_tag);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.no_wait);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Confirm a cancelled consumer.
     /// This method confirms that the cancellation was completed.
     basic_cancel_ok: struct {
@@ -1481,6 +1602,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_short_string(self.consumer_tag);
         }
     },
+
     /// Publish a message.
     /// This method publishes a message to a specific exchange. The message will be routed
     /// to queues as defined by the exchange configuration and distributed to any active
@@ -1511,12 +1633,15 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.exchange);
             encoder.write_short_string(self.routing_key);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.mandatory);
             bitset_1.set_value(1, self.immediate);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Direct access to a queue.
     /// This method provides a direct access to the messages in a queue using a synchronous
     /// dialogue that is designed for specific types of application where synchronous
@@ -1530,11 +1655,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u16, self.reserved_1);
             encoder.write_short_string(self.queue);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.no_ack);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Acknowledge one or more messages.
     /// When sent by the client, this method acknowledges one or more
     /// messages delivered via the Deliver or Get-Ok methods.
@@ -1556,11 +1684,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u64, self.delivery_tag);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.multiple);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Reject an incoming message.
     /// This method allows a client to reject a message. It can be used to interrupt and
     /// cancel large incoming messages, or return untreatable messages to their original
@@ -1574,11 +1705,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u64, self.delivery_tag);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.requeue);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Redeliver unacknowledged messages.
     /// This method asks the server to redeliver all unacknowledged messages on a
     /// specified channel. Zero or more messages may be redelivered.  This method
@@ -1592,10 +1726,12 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.requeue);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Redeliver unacknowledged messages.
     /// This method asks the server to redeliver all unacknowledged messages on a
     /// specified channel. Zero or more messages may be redelivered.  This method
@@ -1609,10 +1745,12 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.requeue);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Reject one or more incoming messages.
     /// This method allows a client to reject one or more incoming messages. It can be
     /// used to interrupt and cancel large incoming messages, or return untreatable
@@ -1638,12 +1776,15 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             encoder.write_int(u64, self.delivery_tag);
+
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.multiple);
             bitset_1.set_value(1, self.requeue);
             encoder.write_int(u8, bitset_1.bits);
         }
     },
+
     /// Select standard transaction mode.
     /// This method sets the channel to use standard transactions. The client must use this
     /// method at least once on a channel before using the Commit or Rollback methods.
@@ -1653,6 +1794,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             _ = encoder;
         }
     },
+
     /// Commit the current transaction.
     /// This method commits all message publications and acknowledgments performed in
     /// the current transaction.  A new transaction starts immediately after a commit.
@@ -1662,6 +1804,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             _ = encoder;
         }
     },
+
     /// Abandon the current transaction.
     /// This method abandons all message publications and acknowledgments performed in
     /// the current transaction. A new transaction starts immediately after a rollback.
@@ -1673,6 +1816,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             _ = encoder;
         }
     },
+
     /// This method sets the channel to use publisher acknowledgements.
     /// The client can only use this method on a non-transactional
     /// channel.
@@ -1681,6 +1825,7 @@ pub const ServerMethod = union(ServerMethod.Tag) {
 
         fn encode(self: *const @This(), encoder: *Encoder) void {
             var bitset_1: stdx.BitSetType(8) = .{};
+
             bitset_1.set_value(0, self.nowait);
             encoder.write_int(u8, bitset_1.bits);
         }
@@ -1695,12 +1840,14 @@ pub const ServerMethod = union(ServerMethod.Tag) {
             .type = .method,
             .channel = channel,
         });
+
         switch (self) {
             inline else => |method| {
                 encoder.write_method_header(self.method_header());
                 method.encode(encoder);
             },
         }
+
         encoder.finish_frame(.method);
     }
 };

@@ -74,7 +74,6 @@ pub const call_site = 0x48;
 pub const call_site_parameter = 0x49;
 pub const skeleton_unit = 0x4a;
 pub const immutable_type = 0x4b;
-
 pub const lo_user = 0x4080;
 pub const hi_user = 0xffff;
 

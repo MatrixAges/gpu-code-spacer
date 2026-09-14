@@ -10,6 +10,7 @@ function index(entries, report) {
   const names = [...byName.keys()];
 
   names.sort();
+
   report(names);
 
   return byName;

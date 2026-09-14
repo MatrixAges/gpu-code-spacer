@@ -20,9 +20,11 @@ pub const vsr_options = .{
     .release = @import("vsr_options").release,
     .release_client_min = @import("vsr_options").release_client_min,
 };
+
 const vsr_vopr_options = @import("vsr_vopr_options");
 
 const state_machine = vsr_vopr_options.state_machine;
+
 const StateMachineType = switch (state_machine) {
     .accounting => @import("state_machine.zig").StateMachineType,
     .testing => @import("testing/state_machine.zig").StateMachineType,
@@ -93,13 +95,17 @@ const CLIArgs = struct {
 
 pub fn main() !void {
     comptime assert(constants.verify);
+
     // This must be initialized at runtime as stderr is not comptime known on e.g. Windows.
     log_buffer.unbuffered_writer = std.io.getStdErr().writer();
+
     fuzz.limit_ram();
 
     var gpa_instance: std.heap.GeneralPurposeAllocator(.{}) = .{};
+
     defer {
         _ = gpa_instance.detectLeaks();
+
         switch (gpa_instance.deinit()) {
             .ok => {},
             .leak => @panic("memory leaked"),
@@ -109,15 +115,19 @@ pub fn main() !void {
     const gpa = gpa_instance.allocator();
 
     var flags = stdx.Flags.init(gpa);
+
     defer flags.deinit(gpa);
 
     const cli_args = flags.parse(CLIArgs);
+
     if (cli_args.lite and cli_args.performance) {
         return vsr.fatal(.cli, "--lite and --performance are mutually exclusive", .{});
     }
+
     if (cli_args.replica_missing != null and !cli_args.performance) {
         return vsr.fatal(.cli, "--replica-missing requires --performance", .{});
     }
+
     if (cli_args.replica_missing == null and cli_args.replica_missing_until_request != null) {
         return vsr.fatal(.cli, "--replica-missing-until-request requires --replica-missing", .{});
     }
@@ -125,8 +135,10 @@ pub fn main() !void {
     log_performance_mode = cli_args.performance;
 
     const seed_random = std.crypto.random.int(u64);
+
     const seed = seed_from_arg: {
         const seed_argument = cli_args.seed orelse break :seed_from_arg seed_random;
+
         break :seed_from_arg vsr.testing.parse_seed(seed_argument);
     };
 
@@ -142,6 +154,7 @@ pub fn main() !void {
                 .{},
             );
         }
+
         if (vsr_vopr_options.log != .short) {
             log.warn("no seed provided: full debug logs are enabled, this will be slow", .{});
         }
@@ -158,9 +171,11 @@ pub fn main() !void {
 
     options.replica_missing = cli_args.replica_missing;
     options.replica_missing_until_request = cli_args.replica_missing_until_request;
+
     if (cli_args.packet_loss_ratio) |packet_loss_ratio| {
         options.network.packet_loss_probability = packet_loss_ratio;
     }
+
     if (cli_args.requests_max) |requests_max| {
         options.requests_max = requests_max;
     }
@@ -238,6 +253,7 @@ pub fn main() !void {
     });
 
     var simulator = try Simulator.init(gpa, &prng, options);
+
     defer simulator.deinit(gpa);
 
     if (cli_args.performance) {
@@ -246,13 +262,17 @@ pub fn main() !void {
             if (replica_index > options.network.node_count) {
                 vsr.fatal(.cli, "--replica-index too large", .{});
             }
+
             simulator.cluster.replica_crash(replica_index);
+
             simulator.replica_crash_stability[replica_index] = std.math.maxInt(u32);
         }
 
         // Warm-up the cluster before performance testing to get past the initial view change.
         simulator.options.request_probability = Ratio.zero();
+
         for (0..500) |_| simulator.tick();
+
         simulator.options.request_probability = options.request_probability;
     }
 
@@ -270,16 +290,23 @@ pub fn main() !void {
 
     while (tick < cli_args.ticks_max_requests) : (tick += 1) {
         const requests_replied_old = simulator.requests_replied;
+
         simulator.tick();
+
         tick_total += 1;
+
         if (simulator.requests_replied > requests_replied_old) {
             tick = 0;
         }
+
         requests_done = simulator.requests_replied == simulator.options.requests_max;
+
         upgrades_done =
             for (simulator.cluster.replicas, simulator.cluster.replica_health) |*replica, health| {
                 if (health != .up) continue;
+
                 const release_latest = releases[simulator.replica_releases_limit - 1].release;
+
                 if (replica.release.value == release_latest.value) {
                     break true;
                 }
@@ -297,18 +324,24 @@ pub fn main() !void {
             simulator.options.cluster.replica_count,
             simulator.options.cluster.standby_count,
         );
+
         if (cli_args.replica_missing) |replica_missing| {
             // If replica is permanently missing then exclude it from the core.
             if (cli_args.replica_missing_until_request == null) core.unset(replica_missing);
         }
+
         simulator.transition_to_liveness_mode(core);
 
         tick = 0;
+
         while (tick < cli_args.ticks_max_convergence) : (tick += 1) {
             simulator.tick();
+
             tick_total += 1;
+
             if (simulator.pending() == null) break;
         }
+
         assert(simulator.pending() == null);
     } else {
         const core = if (requests_done and upgrades_done)
@@ -334,9 +367,12 @@ pub fn main() !void {
         simulator.transition_to_liveness_mode(core);
 
         tick = 0;
+
         while (tick < cli_args.ticks_max_convergence) : (tick += 1) {
             simulator.tick();
+
             tick_total += 1;
+
             if (simulator.pending() == null) {
                 break;
             }
@@ -347,11 +383,13 @@ pub fn main() !void {
                 log.info("no liveness, final cluster state (core={b}):", .{simulator.core.bits});
                 simulator.cluster.log_cluster();
                 log.err("you can reproduce this failure with seed={}", .{seed});
+
                 fatal(.liveness, "no state convergence: {s}", .{reason});
             }
         } else {
             const commits = simulator.cluster.state_checker.commits.items;
             const last_checksum = commits[commits.len - 1].header.checksum;
+
             for (simulator.cluster.aofs, 0..) |*aof, replica_index| {
                 if (simulator.core.is_set(replica_index)) {
                     try aof.validate(gpa, last_checksum);
@@ -382,11 +420,14 @@ fn options_swarm(prng: *stdx.PRNG) Simulator.Options {
 
     const batch_size_limit_min = comptime batch_size_limit_min: {
         var event_size_max: u32 = @sizeOf(vsr.RegisterRequest);
+
         for (std.enums.values(StateMachine.Operation)) |operation| {
             event_size_max = @max(event_size_max, operation.event_size());
         }
+
         break :batch_size_limit_min event_size_max;
     };
+
     const batch_size_limit: u32 = if (prng.boolean())
         constants.message_body_size_max
     else
@@ -394,7 +435,9 @@ fn options_swarm(prng: *stdx.PRNG) Simulator.Options {
 
     const multi_batch_per_request_limit: u32 = multi_batch_per_request_limit: {
         const event_max = @divFloor(batch_size_limit, batch_size_limit_min);
+
         assert(event_max > 0);
+
         break :multi_batch_per_request_limit if (event_max == 1) 1 else prng.range_inclusive(
             u32,
             1,
@@ -460,6 +503,7 @@ fn options_swarm(prng: *stdx.PRNG) Simulator.Options {
 
     const read_latency_min = range_inclusive_ms(prng, 0, 30);
     const write_latency_min = range_inclusive_ms(prng, 0, 30);
+
     const storage_options: Cluster.Storage.Options = .{
         .size = cluster_options.storage_size_limit,
         .seed = prng.int(u64),
@@ -472,6 +516,7 @@ fn options_swarm(prng: *stdx.PRNG) Simulator.Options {
         .write_misdirect_probability = ratio(prng.range_inclusive(u8, 0, 10), 100),
         .crash_fault_probability = ratio(prng.range_inclusive(u8, 80, 100), 100),
     };
+
     const storage_fault_atlas: Cluster.StorageFaultAtlas.Options = .{
         .faulty_superblock = true,
         .faulty_wal_headers = replica_count > 1,
@@ -523,9 +568,11 @@ fn options_swarm(prng: *stdx.PRNG) Simulator.Options {
 
 fn options_lite(prng: *stdx.PRNG) Simulator.Options {
     var base = options_swarm(prng);
+
     base.cluster.replica_count = 3;
     base.cluster.standby_count = 0;
     base.network.node_count = 3;
+
     return base;
 }
 
@@ -594,6 +641,7 @@ fn options_performance(prng: *stdx.PRNG) Simulator.Options {
         .write_misdirect_probability = Ratio.zero(),
         .crash_fault_probability = Ratio.zero(),
     };
+
     const storage_fault_atlas: Cluster.StorageFaultAtlas.Options = .{
         .faulty_superblock = false,
         .faulty_wal_headers = false,
@@ -603,6 +651,7 @@ fn options_performance(prng: *stdx.PRNG) Simulator.Options {
     };
 
     var workload_prng = stdx.PRNG.from_seed(92); // Fix workload for perf testing.
+
     const workload_options = StateMachine.Workload.Options.generate(&workload_prng, .{
         .batch_size_limit = constants.message_body_size_max,
         .multi_batch_per_request_limit = 1,
@@ -734,26 +783,33 @@ pub const Simulator = struct {
                 .on_client_reply = on_client_reply,
             },
         });
+
         errdefer cluster.deinit();
 
         var workload = try StateMachine.Workload.init(gpa, prng, options.workload);
+
         errdefer workload.deinit(gpa);
 
         const replica_releases = try gpa.alloc(
             usize,
             options.cluster.replica_count + options.cluster.standby_count,
         );
+
         errdefer gpa.free(replica_releases);
+
         @memset(replica_releases, 1);
 
         const replica_crash_stability = try gpa.alloc(
             usize,
             options.cluster.replica_count + options.cluster.standby_count,
         );
+
         errdefer gpa.free(replica_crash_stability);
+
         @memset(replica_crash_stability, 0);
 
         var reply_sequence = try ReplySequence.init(gpa);
+
         errdefer reply_sequence.deinit(gpa);
 
         return Simulator{
@@ -777,9 +833,12 @@ pub const Simulator = struct {
 
     pub fn pending(simulator: *const Simulator) ?[]const u8 {
         assert(simulator.core.count() > 0);
+
         assert(simulator.requests_sent - simulator.cluster.client_eviction_requests_cancelled <=
             simulator.options.requests_max);
+
         assert(simulator.reply_sequence.empty());
+
         for (simulator.cluster.clients) |*client_maybe| {
             if (client_maybe.*) |client| {
                 if (client.request_inflight) |_| return "pending request";
@@ -788,6 +847,7 @@ pub const Simulator = struct {
 
         // Even though there are no client requests in progress, the cluster may be upgrading.
         const release_max = simulator.core_release_max();
+
         for (simulator.cluster.replicas) |*replica| {
             if (simulator.core.is_set(replica.replica)) {
                 // (If down, the replica is waiting to be upgraded.)
@@ -809,12 +869,15 @@ pub const Simulator = struct {
 
         // Check whether the replica is still repairing prepares/tables/replies.
         const commit_max: u64 = simulator.cluster.state_checker.commits.items.len - 1;
+
         for (simulator.cluster.replicas) |*replica| {
             if (simulator.core.is_set(replica.replica)) {
                 for (replica.op_checkpoint() + 1..commit_max + 1) |op| {
                     const header = simulator.cluster.state_checker.header_with_op(op);
+
                     if (!replica.journal.has_prepare(&header)) return "pending journal";
                 }
+
                 // It's okay for a replica to miss some prepares older than the current checkpoint.
                 maybe(replica.journal.faulty.count > 0);
 
@@ -824,9 +887,11 @@ pub const Simulator = struct {
 
         // Expect that all core replicas have arrived at an identical (non-divergent) checkpoint.
         var checkpoint_id: ?u128 = null;
+
         for (simulator.cluster.replicas) |*replica| {
             if (simulator.core.is_set(replica.replica)) {
                 const replica_checkpoint_id = replica.superblock.working.checkpoint_id();
+
                 if (checkpoint_id) |id| {
                     assert(checkpoint_id == id);
                 } else {
@@ -834,6 +899,7 @@ pub const Simulator = struct {
                 }
             }
         }
+
         assert(checkpoint_id != null);
 
         return null;
@@ -852,6 +918,7 @@ pub const Simulator = struct {
         if (simulator.options.replica_missing_until_request) |request| {
             if (simulator.requests_replied >= request) {
                 simulator.options.replica_missing_until_request = null;
+
                 simulator.replica_restart(simulator.options.replica_missing.?, false);
             }
         }
@@ -887,19 +954,24 @@ pub const Simulator = struct {
     /// context.
     pub fn transition_to_liveness_mode(simulator: *Simulator, core: Core) void {
         log.debug("transition_to_liveness_mode: core={b}", .{core.bits});
+
         assert(simulator.core.count() == 0);
+
         defer assert(simulator.core.count() > 0);
 
         simulator.core = core;
 
         var it = core.iterate();
+
         while (it.next()) |replica_index| {
             const fault = false;
+
             if (simulator.cluster.replica_health[replica_index] == .down) {
                 simulator.replica_restart(@intCast(replica_index), fault);
             }
 
             const replica_health = simulator.cluster.replica_health[replica_index];
+
             if (replica_health == .up and replica_health.up.paused) {
                 simulator.cluster.replica_unpause(@intCast(replica_index));
             }
@@ -908,6 +980,7 @@ pub const Simulator = struct {
         }
 
         simulator.cluster.network.transition_to_liveness_mode(simulator.core);
+
         simulator.options.replica_crash_probability = Ratio.zero();
         simulator.options.replica_restart_probability = Ratio.zero();
         simulator.options.replica_reformat_probability = Ratio.zero();
@@ -934,6 +1007,7 @@ pub const Simulator = struct {
                 // `replica` considers itself a primary, check that at least part of the core thinks
                 // so as well.
                 var it = simulator.core.iterate();
+
                 while (it.next()) |replica_core_index| {
                     if (simulator.cluster.replicas[replica_core_index].view == replica.view) {
                         return true;
@@ -941,6 +1015,7 @@ pub const Simulator = struct {
                 }
             }
         }
+
         return false;
     }
 
@@ -952,12 +1027,14 @@ pub const Simulator = struct {
 
         var core_replicas: u8 = 0;
         var core_recovering: u8 = 0;
+
         for (
             simulator.cluster.replicas,
             simulator.cluster.replica_health,
         ) |*replica, health| {
             if (simulator.core.is_set(replica.replica) and !replica.standby()) {
                 core_replicas += 1;
+
                 switch (health) {
                     .up => core_recovering += @intFromBool(replica.status == .recovering_head),
                     .down => unreachable,
@@ -967,7 +1044,9 @@ pub const Simulator = struct {
         }
 
         const quorums = vsr.quorums(simulator.options.cluster.replica_count);
+
         assert(quorums.view_change <= core_replicas);
+
         return quorums.view_change > core_replicas - core_recovering;
     }
 
@@ -979,6 +1058,7 @@ pub const Simulator = struct {
         if (!simulator.core.is_set(replica.replica)) return false;
         if (replica.standby()) return false;
         if (simulator.cluster.replica_health[replica.replica] == .reformatting) return false;
+
         assert(simulator.cluster.replica_health[replica.replica] == .up);
 
         switch (replica.status) {
@@ -1005,6 +1085,7 @@ pub const Simulator = struct {
         gpa: std.mem.Allocator,
     ) error{OutOfMemory}!?u64 {
         assert(simulator.core.count() > 0);
+
         const replica_count = simulator.options.cluster.replica_count;
 
         var cluster_op_head: u64 = 0;
@@ -1018,6 +1099,7 @@ pub const Simulator = struct {
 
             if (replica.log_view > cluster_log_view) {
                 maybe(cluster_op_head > replica.op);
+
                 cluster_op_head = replica.op;
             } else if (replica.log_view == cluster_log_view) {
                 cluster_op_head = @max(cluster_op_head, replica.op);
@@ -1027,6 +1109,7 @@ pub const Simulator = struct {
             cluster_commit_max = @max(cluster_commit_max, replica.commit_max);
             cluster_op_repair_min = @min(cluster_op_repair_min, replica.op_repair_min());
         }
+
         assert(cluster_commit_max <= cluster_op_head);
 
         // Use replicas with the largest log_view to infer uncommitted headers. Replicas with a
@@ -1034,11 +1117,12 @@ pub const Simulator = struct {
         // at most a pipeline of uncommitted headers in the cluster.
         const pipeline_max = constants.pipeline_prepare_queue_max;
         var uncommitted_headers: [pipeline_max]?vsr.Header.Prepare = @splat(null);
+
         if (cluster_commit_max < cluster_op_head) {
             for (simulator.cluster.replicas) |replica| {
                 if (!simulator.core_repairable_replica(Cluster.Replica, &replica)) continue;
-
                 if (replica.log_view < cluster_log_view) continue;
+
                 for (cluster_commit_max + 1..cluster_op_head + 1) |op| {
                     if (header: {
                         if (replica.superblock.working.vsr_state.log_view <
@@ -1051,8 +1135,10 @@ pub const Simulator = struct {
                             // linger, so if we only looked at the journal headers it would appear
                             // as if the replicas disagreed about the uncommitted headers.
                             const headers_count = replica.superblock.working.view_headers_count;
+
                             const headers =
                                 replica.superblock.working.view_headers_all[0..headers_count];
+
                             for (headers) |*header| {
                                 if (header.op == op) {
                                     break :header switch (vsr.Headers.jv_header_type(header)) {
@@ -1083,6 +1169,7 @@ pub const Simulator = struct {
                     // We can only be missing an uncommitted *header* (and be unable to nack it)
                     // if at least one replica was reformatted.
                     var core_replicas = simulator.core.iterate();
+
                     while (core_replicas.next()) |replica| {
                         if (simulator.replica_reformats.is_set(replica)) break;
                     } else unreachable;
@@ -1093,26 +1180,33 @@ pub const Simulator = struct {
         }
 
         const ReplicaSet = stdx.BitSetType(constants.replicas_max);
+
         var replicas_missing_ops = try gpa.alloc(
             ReplicaSet,
             cluster_op_head - cluster_op_repair_min + 1,
         );
+
         defer gpa.free(replicas_missing_ops);
 
         for (replicas_missing_ops, cluster_op_repair_min..) |*replicas_missing_op, op| {
             replicas_missing_op.* = .{};
+
             const header = blk: {
                 if (op > cluster_commit_max) {
                     const uncommitted_header = uncommitted_headers[op % pipeline_max].?;
+
                     assert(uncommitted_header.op == op);
+
                     break :blk uncommitted_header;
                 } else {
                     break :blk simulator.cluster.state_checker.header_with_op(op);
                 }
             };
+
             for (simulator.cluster.replicas) |replica| {
                 // Replicas should be able to repair using any other replica in the core.
                 if (replica.standby()) continue;
+
                 if (simulator.cluster.replica_health[replica.replica] == .reformatting or
                     !simulator.core.is_set(replica.replica) or
                     !replica.journal.has_prepare(&header))
@@ -1126,17 +1220,21 @@ pub const Simulator = struct {
         // quorum of replicas. If so, the cluster cannot initiate repair or commit (see the
         // awaiting_repair and complete_invalid cases in the JVQuorum).
         const nack_quorum = vsr.quorums(replica_count).nack_prepare;
+
         for (cluster_commit_max..cluster_op_head + 1) |op| {
             if (replicas_missing_ops[op - cluster_op_repair_min].count() >= nack_quorum) {
                 const header = blk: {
                     if (op > cluster_commit_max) {
                         const uncommitted_header = uncommitted_headers[op % pipeline_max].?;
+
                         assert(uncommitted_header.op == op);
+
                         break :blk uncommitted_header;
                     } else {
                         break :blk simulator.cluster.state_checker.header_with_op(op);
                     }
                 };
+
                 return header.op;
             }
         }
@@ -1165,6 +1263,7 @@ pub const Simulator = struct {
                 }
             }
         }
+
         return null;
     }
 
@@ -1176,10 +1275,12 @@ pub const Simulator = struct {
         assert(simulator.core.count() > 0);
 
         const FaultyReplicas = stdx.BitSetType(constants.members_max);
+
         var blocks_missing = std.AutoArrayHashMap(
             struct { address: u64, checksum: u128 },
             FaultyReplicas,
         ).init(gpa);
+
         defer blocks_missing.deinit();
 
         // Find all blocks that any replica in the core is missing.
@@ -1190,6 +1291,7 @@ pub const Simulator = struct {
             const storage = &simulator.cluster.storages[replica.replica];
 
             var fault_iterator = replica.grid.read_global_queue.iterate();
+
             while (fault_iterator.next()) |faulty_read| {
                 const v = try blocks_missing.getOrPut(.{
                     .address = faulty_read.address,
@@ -1197,6 +1299,7 @@ pub const Simulator = struct {
                 });
 
                 if (!v.found_existing) v.value_ptr.* = .{};
+
                 v.value_ptr.set(replica.replica);
 
                 log.debug("{}: core_missing_blocks: " ++
@@ -1209,6 +1312,7 @@ pub const Simulator = struct {
             }
 
             var repair_iterator = replica.grid.blocks_missing.faulty_blocks.iterator();
+
             while (repair_iterator.next()) |fault| {
                 const v = try blocks_missing.getOrPut(.{
                     .address = fault.key_ptr.*,
@@ -1216,6 +1320,7 @@ pub const Simulator = struct {
                 });
 
                 if (!v.found_existing) v.value_ptr.* = .{};
+
                 v.value_ptr.set(replica.replica);
 
                 log.debug("{}: core_missing_blocks: " ++
@@ -1231,9 +1336,11 @@ pub const Simulator = struct {
         // Check whether every replica in the core is missing the blocks.
         // (If any core replica has the block, then that is a bug, since it should have repaired.)
         var blocks_missing_iterator = blocks_missing.iterator();
+
         while (blocks_missing_iterator.next()) |block_missing_and_faulty_replicas| {
             const block_missing = block_missing_and_faulty_replicas.key_ptr;
             const faulty_replicas = block_missing_and_faulty_replicas.value_ptr;
+
             for (simulator.cluster.replicas) |replica| {
                 const storage = &simulator.cluster.storages[replica.replica];
 
@@ -1241,22 +1348,24 @@ pub const Simulator = struct {
                 // This can occur after state sync: if we compact and create a table, but then skip
                 // over that table via state sync, we will try to sync the table anyway.
                 if (faulty_replicas.is_set(replica.replica)) continue;
-
                 if (!simulator.core.is_set(replica.replica)) continue;
                 if (simulator.cluster.replica_health[replica.replica] == .reformatting) continue;
                 if (replica.standby()) continue;
+
                 if (storage.area_faulty(.{
                     .grid = .{ .address = block_missing.address },
                 })) continue;
 
                 const block = storage.grid_block(block_missing.address) orelse continue;
                 const block_header = schema.header_from_block(block);
+
                 if (block_header.checksum == block_missing.checksum) {
                     log.err("{}: core_missing_blocks: found address={} checksum={x:0>32}", .{
                         replica.replica,
                         block_missing.address,
                         block_missing.checksum,
                     });
+
                     @panic("block found in core");
                 }
             }
@@ -1279,6 +1388,7 @@ pub const Simulator = struct {
 
                 const storage = &simulator.cluster.storages[replica.replica];
                 const storage_replies = storage.client_replies();
+
                 if (simulator.core.is_set(replica.replica) and !replica.standby()) {
                     for (storage_replies, 0..) |storage_reply, reply_slot| {
                         if (storage_reply.header.checksum == reply.checksum and
@@ -1302,17 +1412,22 @@ pub const Simulator = struct {
         assert(simulator.core.count() > 0);
 
         const eviction_reasons = simulator.cluster.client_eviction_reasons;
+
         const eviction_reasons_reformats =
             eviction_reasons[simulator.cluster.options.client_count..];
+
         assert(eviction_reasons_reformats.len == simulator.cluster.options.reformats_max);
 
         for (eviction_reasons_reformats) |reason_or_null| {
             if (reason_or_null) |reason| {
                 log.err("reformat evicted with {s}", .{@tagName(reason)});
+
                 assert(reason == .no_session or reason == .session_too_low);
+
                 return true;
             }
         }
+
         return false;
     }
 
@@ -1320,15 +1435,19 @@ pub const Simulator = struct {
         assert(simulator.core.count() > 0);
 
         var release_max: vsr.Release = vsr.Release.zero;
+
         for (simulator.cluster.replicas) |*replica| {
             if (simulator.core.is_set(replica.replica)) {
                 release_max = release_max.max(replica.release);
+
                 if (replica.upgrade_release) |release| {
                     release_max = release_max.max(release);
                 }
             }
         }
+
         assert(release_max.value > 0);
+
         return release_max;
     }
 
@@ -1350,6 +1469,7 @@ pub const Simulator = struct {
         while (!simulator.reply_sequence.empty()) {
             const op = simulator.reply_op_next;
             const prepare_header = simulator.cluster.state_checker.commits.items[op].header;
+
             assert(prepare_header.op == op);
 
             if (simulator.reply_sequence.peek(op)) |commit| {
@@ -1402,6 +1522,7 @@ pub const Simulator = struct {
         _ = reply;
 
         const simulator: *Simulator = @ptrCast(@alignCast(cluster.context.?));
+
         assert(simulator.cluster.client_eviction_reasons[reply_client] == null);
 
         if (!request.header.operation.vsr_reserved()) {
@@ -1422,25 +1543,32 @@ pub const Simulator = struct {
         }
 
         if (simulator.requests_idle) return;
+
         if (simulator.requests_sent - simulator.cluster.client_eviction_requests_cancelled ==
             simulator.options.requests_max) return;
+
         if (!simulator.prng.chance(simulator.options.request_probability)) return;
 
         const client_index = index: {
             const client_count = simulator.options.cluster.client_count;
+
             const client_index_base =
                 simulator.prng.int_inclusive(usize, client_count - 1);
+
             for (0..client_count) |offset| {
                 const client_index = (client_index_base + offset) % client_count;
+
                 if (simulator.cluster.client_eviction_reasons[client_index] == null) {
                     break :index client_index;
                 }
             } else {
                 for (0..client_count) |index| {
                     assert(simulator.cluster.client_eviction_reasons[index] != null);
+
                     assert(simulator.cluster.client_eviction_reasons[index] == .no_session or
                         simulator.cluster.client_eviction_reasons[index] == .session_too_low);
                 }
+
                 unimplemented("client replacement; all clients were evicted");
             }
         };
@@ -1450,6 +1578,7 @@ pub const Simulator = struct {
         // Messages aren't added to the ReplySequence until a reply arrives.
         // Before sending a new message, make sure there will definitely be room for it.
         var reserved: usize = 0;
+
         for (
             simulator.cluster.clients,
         ) |*client_maybe| {
@@ -1461,18 +1590,22 @@ pub const Simulator = struct {
                 reserved += @intFromBool(c.request_inflight != null);
             }
         }
+
         // +1 for the potential request — is there room in the sequencer's queue?
         if (reserved + 1 > simulator.reply_sequence.free()) return;
 
         // Make sure that the client is ready to send a new request.
         if (client.request_inflight != null) return;
+
         const request_message = client.get_message();
+
         errdefer client.release_message(request_message);
 
         const request_metadata = simulator.workload.build_request(
             client_index,
             request_message.buffer[@sizeOf(vsr.Header)..constants.message_size_max],
         );
+
         assert(request_metadata.size <= constants.message_body_size_max);
 
         simulator.cluster.request(
@@ -1481,14 +1614,17 @@ pub const Simulator = struct {
             request_message,
             request_metadata.size,
         );
+
         // Since we already checked the client's request queue for free space, `client.request()`
         // should always queue the request.
         assert(request_message == client.request_inflight.?.message.base());
         assert(request_message.header.size == @sizeOf(vsr.Header) + request_metadata.size);
+
         assert(request_message.header.into(.request).?.operation.cast(StateMachine.Operation) ==
             request_metadata.operation);
 
         simulator.requests_sent += 1;
+
         assert(simulator.requests_sent - simulator.cluster.client_eviction_requests_cancelled <=
             simulator.options.requests_max);
     }
@@ -1498,6 +1634,7 @@ pub const Simulator = struct {
             const upgrade =
                 simulator.replica_releases[replica.replica] < releases.len and
                 simulator.prng.chance(simulator.options.replica_release_advance_probability);
+
             if (upgrade) simulator.replica_upgrade(replica.replica);
         }
     }
@@ -1505,6 +1642,7 @@ pub const Simulator = struct {
     fn tick_crash(simulator: *Simulator) void {
         for (simulator.cluster.replicas) |*replica| {
             simulator.replica_crash_stability[replica.replica] -|= 1;
+
             if (simulator.replica_crash_stability[replica.replica] > 0) continue;
 
             switch (simulator.cluster.replica_health[replica.replica]) {
@@ -1522,6 +1660,7 @@ pub const Simulator = struct {
         const replica_writes = replica_storage.writes.count();
 
         var crash_probability = simulator.options.replica_crash_probability;
+
         if (replica_writes > 0) crash_probability.numerator *= 10;
 
         const crash_random = simulator.prng.chance(crash_probability);
@@ -1543,6 +1682,7 @@ pub const Simulator = struct {
             simulator.replica_releases_limit and
             (simulator.core.is_set(replica.replica) or
                 simulator.prng.chance(simulator.options.replica_release_catchup_probability));
+
         if (restart_upgrade) simulator.replica_upgrade(replica.replica);
 
         const restart_random =
@@ -1554,6 +1694,7 @@ pub const Simulator = struct {
             vsr.quorums(simulator.options.cluster.replica_count).view_change;
 
         var recoverable_count: usize = 0;
+
         for (simulator.cluster.replicas, 0..) |*r, i| {
             recoverable_count += @intFromBool(simulator.cluster.replica_health[i] == .up and
                 !simulator.replica_reformats.is_set(replica.replica) and
@@ -1565,20 +1706,25 @@ pub const Simulator = struct {
         // To improve VOPR utilization, try to prevent the replica from going into
         // `.recovering_head` state if the replica is needed to form a quorum.
         const fault = recoverable_count >= recoverable_count_min or replica.standby();
+
         if (fault) {
             const reformat_random =
                 !replica.standby() and
                 simulator.cluster.reformat_count < simulator.cluster.options.reformats_max and
                 simulator.prng.chance(simulator.options.replica_reformat_probability);
+
             if (reformat_random) {
                 log.debug("{}: reformat replica", .{replica.replica});
 
                 simulator.replica_reformats.set(replica.replica);
                 simulator.cluster.replica_reformat(replica.replica) catch unreachable;
+
                 return;
             }
         }
+
         simulator.replica_restart(replica.replica, fault);
+
         maybe(!fault and replica.status == .recovering_head);
     }
 
@@ -1599,8 +1745,10 @@ pub const Simulator = struct {
             // impossible to get torn writes for all journal header sectors at the same time.
             const header_sector_offset =
                 @divExact(vsr.Zone.wal_headers.start(), constants.sector_size);
+
             const header_sector_count =
                 @divExact(constants.journal_size_headers, constants.sector_size);
+
             for (0..header_sector_count) |header_sector_index| {
                 replica_storage.faults.unset(header_sector_offset + header_sector_index);
             }
@@ -1608,6 +1756,7 @@ pub const Simulator = struct {
         }
 
         var header_prepare_view_mismatch: bool = false;
+
         if (!fault) {
             // The journal writes redundant headers of faulty ops as zeroes to ensure
             // that they remain faulty after a crash/recover. Since that fault cannot
@@ -1617,6 +1766,7 @@ pub const Simulator = struct {
             const headers_offset = vsr.Zone.wal_headers.offset(0);
             const headers_size = vsr.Zone.wal_headers.size().?;
             const headers_bytes = replica_storage.memory[headers_offset..][0..headers_size];
+
             for (
                 mem.bytesAsSlice(vsr.Header.Prepare, headers_bytes),
                 replica_storage.wal_prepares(),
@@ -1638,6 +1788,7 @@ pub const Simulator = struct {
         });
 
         replica_storage.faulty = fault;
+
         simulator.cluster.replica_restart(replica_index) catch unreachable;
 
         if (replica.status == .recovering_head) {
@@ -1646,6 +1797,7 @@ pub const Simulator = struct {
         }
 
         replica_storage.faulty = true;
+
         simulator.replica_crash_stability[replica_index] =
             simulator.options.replica_restart_stability;
     }
@@ -1653,20 +1805,25 @@ pub const Simulator = struct {
     fn replica_upgrade(simulator: *Simulator, replica_index: u8) void {
         simulator.replica_releases[replica_index] =
             @min(simulator.replica_releases[replica_index] + 1, releases.len);
+
         simulator.replica_releases_limit =
             @max(simulator.replica_releases[replica_index], simulator.replica_releases_limit);
 
         const replica_releases = simulator.replica_release_list(replica_index);
+
         simulator.cluster.replica_set_releases(replica_index, &replica_releases);
     }
 
     fn replica_release_list(simulator: *const Simulator, replica_index: u8) vsr.ReleaseList {
         const replica_releases_count = simulator.replica_releases[replica_index];
         var release_list: vsr.ReleaseList = .empty;
+
         for (0..replica_releases_count) |i| {
             release_list.push(releases[i].release);
         }
+
         release_list.verify();
+
         return release_list;
     }
 
@@ -1681,18 +1838,22 @@ pub const Simulator = struct {
             0..,
         ) |*replica, *stability, replica_index| {
             stability.* -|= 1;
+
             if (stability.* > 0) continue;
 
             if (simulator.cluster.replica_health[replica.replica] != .up) continue;
+
             const paused = simulator.cluster.replica_health[replica.replica].up.paused;
             const pause = simulator.prng.chance(simulator.options.replica_pause_probability);
             const unpause = simulator.prng.chance(simulator.options.replica_unpause_probability);
 
             if (!paused and pause) {
                 simulator.cluster.replica_pause(@intCast(replica_index));
+
                 stability.* = simulator.options.replica_pause_stability;
             } else if (paused and unpause) {
                 simulator.cluster.replica_unpause(@intCast(replica_index));
+
                 stability.* = simulator.options.replica_unpause_stability;
             }
         }
@@ -1711,6 +1872,7 @@ fn fatal(failure: Failure, comptime fmt_string: []const u8, args: anytype) noret
 /// the simulator in a loop.
 fn unimplemented(comptime message: []const u8) noreturn {
     const full_message = "unimplemented: " ++ message;
+
     log.info(full_message, .{});
     log.info("not crashing in VOPR", .{});
     std.process.exit(0);
@@ -1733,18 +1895,22 @@ fn random_core(prng: *stdx.PRNG, replica_count: u8, standby_count: u8) Core {
         .total = replica_count,
         .sample = replica_core_count,
     });
+
     for (0..replica_count) |replica| {
         if (combination.take(prng)) core.set(replica);
     }
+
     assert(combination.done());
 
     combination = stdx.PRNG.Combination.init(.{
         .total = standby_count,
         .sample = standby_core_count,
     });
+
     for (replica_count..replica_count + standby_count) |standby| {
         if (combination.take(prng)) core.set(standby);
     }
+
     assert(combination.done());
 
     assert(core.count() == replica_core_count + standby_core_count);

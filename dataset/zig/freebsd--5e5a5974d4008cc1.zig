@@ -35,6 +35,7 @@ pub const CopyFileRangeError = std.posix.UnexpectedError || error{
 
 pub fn copy_file_range(fd_in: fd_t, off_in: ?*i64, fd_out: fd_t, off_out: ?*i64, len: usize, flags: u32) CopyFileRangeError!usize {
     const rc = std.c.copy_file_range(fd_in, off_in, fd_out, off_out, len, flags);
+
     switch (errno(rc)) {
         .SUCCESS => return @intCast(rc),
         .BADF => return error.BadFileFlags,

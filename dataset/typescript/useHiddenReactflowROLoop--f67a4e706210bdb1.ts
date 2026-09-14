@@ -9,6 +9,7 @@ export default () => {
 			)
 		) {
 			const resizeObserverErr = document.getElementById('webpack-dev-server-client-overlay')
+
 			if (resizeObserverErr) {
 				resizeObserverErr.style.display = 'none'
 			}

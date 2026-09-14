@@ -77,8 +77,11 @@ pub const featureSetHasAll = CpuFeature.FeatureSetFns(Feature).featureSetHasAll;
 
 pub const all_features = blk: {
     const len = @typeInfo(Feature).@"enum".fields.len;
+
     std.debug.assert(len <= CpuFeature.Set.needed_bit_count);
+
     var result: [len]CpuFeature = undefined;
+
     result[@intFromEnum(Feature.@"10e60")] = .{
         .llvm_name = "10e60",
         .description = "Support CSKY 10e60 instructions",
@@ -86,6 +89,7 @@ pub const all_features = blk: {
             .@"7e10",
         }),
     };
+
     result[@intFromEnum(Feature.@"2e3")] = .{
         .llvm_name = "2e3",
         .description = "Support CSKY 2e3 instructions",
@@ -93,11 +97,13 @@ pub const all_features = blk: {
             .e2,
         }),
     };
+
     result[@intFromEnum(Feature.@"3e3r1")] = .{
         .llvm_name = "3e3r1",
         .description = "Support CSKY 3e3r1 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.@"3e3r2")] = .{
         .llvm_name = "3e3r2",
         .description = "Support CSKY 3e3r2 instructions",
@@ -106,6 +112,7 @@ pub const all_features = blk: {
             .doloop,
         }),
     };
+
     result[@intFromEnum(Feature.@"3e3r3")] = .{
         .llvm_name = "3e3r3",
         .description = "Support CSKY 3e3r3 instructions",
@@ -113,6 +120,7 @@ pub const all_features = blk: {
             .doloop,
         }),
     };
+
     result[@intFromEnum(Feature.@"3e7")] = .{
         .llvm_name = "3e7",
         .description = "Support CSKY 3e7 instructions",
@@ -120,6 +128,7 @@ pub const all_features = blk: {
             .@"2e3",
         }),
     };
+
     result[@intFromEnum(Feature.@"7e10")] = .{
         .llvm_name = "7e10",
         .description = "Support CSKY 7e10 instructions",
@@ -127,106 +136,127 @@ pub const all_features = blk: {
             .@"3e7",
         }),
     };
+
     result[@intFromEnum(Feature.btst16)] = .{
         .llvm_name = "btst16",
         .description = "Use the 16-bit btsti instruction",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.cache)] = .{
         .llvm_name = "cache",
         .description = "Enable cache",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ccrt)] = .{
         .llvm_name = "ccrt",
         .description = "Use CSKY compiler runtime",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck801)] = .{
         .llvm_name = "ck801",
         .description = "CSKY ck801 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck802)] = .{
         .llvm_name = "ck802",
         .description = "CSKY ck802 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck803)] = .{
         .llvm_name = "ck803",
         .description = "CSKY ck803 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck803s)] = .{
         .llvm_name = "ck803s",
         .description = "CSKY ck803s processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck804)] = .{
         .llvm_name = "ck804",
         .description = "CSKY ck804 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck805)] = .{
         .llvm_name = "ck805",
         .description = "CSKY ck805 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck807)] = .{
         .llvm_name = "ck807",
         .description = "CSKY ck807 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck810)] = .{
         .llvm_name = "ck810",
         .description = "CSKY ck810 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck810v)] = .{
         .llvm_name = "ck810v",
         .description = "CSKY ck810v processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck860)] = .{
         .llvm_name = "ck860",
         .description = "CSKY ck860 processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.ck860v)] = .{
         .llvm_name = "ck860v",
         .description = "CSKY ck860v processors",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.constpool)] = .{
         .llvm_name = "constpool",
         .description = "Dump the constant pool by compiler",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.doloop)] = .{
         .llvm_name = "doloop",
         .description = "Enable doloop instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.dsp1e2)] = .{
         .llvm_name = "dsp1e2",
         .description = "Support CSKY dsp1e2 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.dsp_silan)] = .{
         .llvm_name = "dsp_silan",
         .description = "Enable DSP Silan instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.dspe60)] = .{
         .llvm_name = "dspe60",
         .description = "Support CSKY dspe60 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.dspv2)] = .{
         .llvm_name = "dspv2",
         .description = "Enable DSP V2.0 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.e1)] = .{
         .llvm_name = "e1",
         .description = "Support CSKY e1 instructions",
@@ -234,6 +264,7 @@ pub const all_features = blk: {
             .elrw,
         }),
     };
+
     result[@intFromEnum(Feature.e2)] = .{
         .llvm_name = "e2",
         .description = "Support CSKY e2 instructions",
@@ -241,111 +272,133 @@ pub const all_features = blk: {
             .e1,
         }),
     };
+
     result[@intFromEnum(Feature.edsp)] = .{
         .llvm_name = "edsp",
         .description = "Enable DSP instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.elrw)] = .{
         .llvm_name = "elrw",
         .description = "Use the extend LRW instruction",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fdivdu)] = .{
         .llvm_name = "fdivdu",
         .description = "Enable float divide instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.float1e2)] = .{
         .llvm_name = "float1e2",
         .description = "Support CSKY float1e2 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.float1e3)] = .{
         .llvm_name = "float1e3",
         .description = "Support CSKY float1e3 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.float3e4)] = .{
         .llvm_name = "float3e4",
         .description = "Support CSKY float3e4 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.float7e60)] = .{
         .llvm_name = "float7e60",
         .description = "Support CSKY float7e60 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.floate1)] = .{
         .llvm_name = "floate1",
         .description = "Support CSKY floate1 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpuv2_df)] = .{
         .llvm_name = "fpuv2_df",
         .description = "Enable FPUv2 double float instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpuv2_sf)] = .{
         .llvm_name = "fpuv2_sf",
         .description = "Enable FPUv2 single float instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpuv3_df)] = .{
         .llvm_name = "fpuv3_df",
         .description = "Enable FPUv3 double float instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpuv3_hf)] = .{
         .llvm_name = "fpuv3_hf",
         .description = "Enable FPUv3 half precision operate instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpuv3_hi)] = .{
         .llvm_name = "fpuv3_hi",
         .description = "Enable FPUv3 half word converting instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.fpuv3_sf)] = .{
         .llvm_name = "fpuv3_sf",
         .description = "Enable FPUv3 single float instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.hard_float)] = .{
         .llvm_name = "hard-float",
         .description = "Use hard floating point features",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.hard_float_abi)] = .{
         .llvm_name = "hard-float-abi",
         .description = "Use hard floating point ABI to pass args",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.hard_tp)] = .{
         .llvm_name = "hard-tp",
         .description = "Enable TLS Pointer register",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.high_registers)] = .{
         .llvm_name = "high-registers",
         .description = "Enable r16-r31 registers",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.hwdiv)] = .{
         .llvm_name = "hwdiv",
         .description = "Enable divide instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.istack)] = .{
         .llvm_name = "istack",
         .description = "Enable interrupt attribute",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.java)] = .{
         .llvm_name = "java",
         .description = "Enable java instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.mp)] = .{
         .llvm_name = "mp",
         .description = "Support CSKY mp instructions",
@@ -353,6 +406,7 @@ pub const all_features = blk: {
             .@"2e3",
         }),
     };
+
     result[@intFromEnum(Feature.mp1e2)] = .{
         .llvm_name = "mp1e2",
         .description = "Support CSKY mp1e2 instructions",
@@ -360,66 +414,80 @@ pub const all_features = blk: {
             .@"3e7",
         }),
     };
+
     result[@intFromEnum(Feature.multiple_stld)] = .{
         .llvm_name = "multiple_stld",
         .description = "Enable multiple load/store instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.nvic)] = .{
         .llvm_name = "nvic",
         .description = "Enable NVIC",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.pushpop)] = .{
         .llvm_name = "pushpop",
         .description = "Enable push/pop instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.smart)] = .{
         .llvm_name = "smart",
         .description = "Let CPU work in Smart Mode",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.soft_tp)] = .{
         .llvm_name = "soft-tp",
         .description = "Disable TLS Pointer register",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.stack_size)] = .{
         .llvm_name = "stack-size",
         .description = "Output stack size information",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.trust)] = .{
         .llvm_name = "trust",
         .description = "Enable trust instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.vdsp2e3)] = .{
         .llvm_name = "vdsp2e3",
         .description = "Support CSKY vdsp2e3 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.vdsp2e60f)] = .{
         .llvm_name = "vdsp2e60f",
         .description = "Support CSKY vdsp2e60f instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.vdspv1)] = .{
         .llvm_name = "vdspv1",
         .description = "Enable 128bit vdsp-v1 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     result[@intFromEnum(Feature.vdspv2)] = .{
         .llvm_name = "vdspv2",
         .description = "Enable vdsp-v2 instructions",
         .dependencies = featureSet(&[_]Feature{}),
     };
+
     const ti = @typeInfo(Feature);
+
     for (&result, 0..) |*elem, i| {
         elem.index = i;
         elem.name = ti.@"enum".fields[i].name;
     }
+
     break :blk result;
 };
 
@@ -442,6 +510,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const c807f: CpuModel = .{
         .name = "c807f",
         .llvm_name = "c807f",
@@ -467,6 +536,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const c810: CpuModel = .{
         .name = "c810",
         .llvm_name = "c810",
@@ -491,6 +561,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const c810t: CpuModel = .{
         .name = "c810t",
         .llvm_name = "c810t",
@@ -515,6 +586,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const c810tv: CpuModel = .{
         .name = "c810tv",
         .llvm_name = "c810tv",
@@ -541,6 +613,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const c810v: CpuModel = .{
         .name = "c810v",
         .llvm_name = "c810v",
@@ -567,6 +640,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const c860: CpuModel = .{
         .name = "c860",
         .llvm_name = "c860",
@@ -592,6 +666,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const c860v: CpuModel = .{
         .name = "c860v",
         .llvm_name = "c860v",
@@ -620,6 +695,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck801: CpuModel = .{
         .name = "ck801",
         .llvm_name = "ck801",
@@ -630,6 +706,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck801t: CpuModel = .{
         .name = "ck801t",
         .llvm_name = "ck801t",
@@ -640,6 +717,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck802: CpuModel = .{
         .name = "ck802",
         .llvm_name = "ck802",
@@ -651,6 +729,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck802j: CpuModel = .{
         .name = "ck802j",
         .llvm_name = "ck802j",
@@ -663,6 +742,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck802t: CpuModel = .{
         .name = "ck802t",
         .llvm_name = "ck802t",
@@ -674,6 +754,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803: CpuModel = .{
         .name = "ck803",
         .llvm_name = "ck803",
@@ -686,6 +767,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803e: CpuModel = .{
         .name = "ck803e",
         .llvm_name = "ck803e",
@@ -701,6 +783,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ef: CpuModel = .{
         .name = "ck803ef",
         .llvm_name = "ck803ef",
@@ -719,6 +802,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efh: CpuModel = .{
         .name = "ck803efh",
         .llvm_name = "ck803efh",
@@ -737,6 +821,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efhr1: CpuModel = .{
         .name = "ck803efhr1",
         .llvm_name = "ck803efhr1",
@@ -758,6 +843,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efhr2: CpuModel = .{
         .name = "ck803efhr2",
         .llvm_name = "ck803efhr2",
@@ -780,6 +866,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efhr3: CpuModel = .{
         .name = "ck803efhr3",
         .llvm_name = "ck803efhr3",
@@ -802,6 +889,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efht: CpuModel = .{
         .name = "ck803efht",
         .llvm_name = "ck803efht",
@@ -820,6 +908,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efhtr1: CpuModel = .{
         .name = "ck803efhtr1",
         .llvm_name = "ck803efhtr1",
@@ -841,6 +930,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efhtr2: CpuModel = .{
         .name = "ck803efhtr2",
         .llvm_name = "ck803efhtr2",
@@ -863,6 +953,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efhtr3: CpuModel = .{
         .name = "ck803efhtr3",
         .llvm_name = "ck803efhtr3",
@@ -885,6 +976,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efr1: CpuModel = .{
         .name = "ck803efr1",
         .llvm_name = "ck803efr1",
@@ -906,6 +998,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efr2: CpuModel = .{
         .name = "ck803efr2",
         .llvm_name = "ck803efr2",
@@ -928,6 +1021,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803efr3: CpuModel = .{
         .name = "ck803efr3",
         .llvm_name = "ck803efr3",
@@ -950,6 +1044,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803eft: CpuModel = .{
         .name = "ck803eft",
         .llvm_name = "ck803eft",
@@ -968,6 +1063,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803eftr1: CpuModel = .{
         .name = "ck803eftr1",
         .llvm_name = "ck803eftr1",
@@ -989,6 +1085,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803eftr2: CpuModel = .{
         .name = "ck803eftr2",
         .llvm_name = "ck803eftr2",
@@ -1011,6 +1108,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803eftr3: CpuModel = .{
         .name = "ck803eftr3",
         .llvm_name = "ck803eftr3",
@@ -1033,6 +1131,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803eh: CpuModel = .{
         .name = "ck803eh",
         .llvm_name = "ck803eh",
@@ -1048,6 +1147,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ehr1: CpuModel = .{
         .name = "ck803ehr1",
         .llvm_name = "ck803ehr1",
@@ -1067,6 +1167,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ehr2: CpuModel = .{
         .name = "ck803ehr2",
         .llvm_name = "ck803ehr2",
@@ -1086,6 +1187,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ehr3: CpuModel = .{
         .name = "ck803ehr3",
         .llvm_name = "ck803ehr3",
@@ -1105,6 +1207,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803eht: CpuModel = .{
         .name = "ck803eht",
         .llvm_name = "ck803eht",
@@ -1120,6 +1223,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ehtr1: CpuModel = .{
         .name = "ck803ehtr1",
         .llvm_name = "ck803ehtr1",
@@ -1139,6 +1243,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ehtr2: CpuModel = .{
         .name = "ck803ehtr2",
         .llvm_name = "ck803ehtr2",
@@ -1158,6 +1263,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ehtr3: CpuModel = .{
         .name = "ck803ehtr3",
         .llvm_name = "ck803ehtr3",
@@ -1177,6 +1283,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803er1: CpuModel = .{
         .name = "ck803er1",
         .llvm_name = "ck803er1",
@@ -1196,6 +1303,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803er2: CpuModel = .{
         .name = "ck803er2",
         .llvm_name = "ck803er2",
@@ -1215,6 +1323,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803er3: CpuModel = .{
         .name = "ck803er3",
         .llvm_name = "ck803er3",
@@ -1234,6 +1343,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803et: CpuModel = .{
         .name = "ck803et",
         .llvm_name = "ck803et",
@@ -1249,6 +1359,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803etr1: CpuModel = .{
         .name = "ck803etr1",
         .llvm_name = "ck803etr1",
@@ -1268,6 +1379,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803etr2: CpuModel = .{
         .name = "ck803etr2",
         .llvm_name = "ck803etr2",
@@ -1287,6 +1399,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803etr3: CpuModel = .{
         .name = "ck803etr3",
         .llvm_name = "ck803etr3",
@@ -1306,6 +1419,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803f: CpuModel = .{
         .name = "ck803f",
         .llvm_name = "ck803f",
@@ -1321,6 +1435,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803fh: CpuModel = .{
         .name = "ck803fh",
         .llvm_name = "ck803fh",
@@ -1336,6 +1451,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803fhr1: CpuModel = .{
         .name = "ck803fhr1",
         .llvm_name = "ck803fhr1",
@@ -1354,6 +1470,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803fhr2: CpuModel = .{
         .name = "ck803fhr2",
         .llvm_name = "ck803fhr2",
@@ -1372,6 +1489,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803fhr3: CpuModel = .{
         .name = "ck803fhr3",
         .llvm_name = "ck803fhr3",
@@ -1390,6 +1508,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803fr1: CpuModel = .{
         .name = "ck803fr1",
         .llvm_name = "ck803fr1",
@@ -1408,6 +1527,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803fr2: CpuModel = .{
         .name = "ck803fr2",
         .llvm_name = "ck803fr2",
@@ -1426,6 +1546,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803fr3: CpuModel = .{
         .name = "ck803fr3",
         .llvm_name = "ck803fr3",
@@ -1444,6 +1565,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ft: CpuModel = .{
         .name = "ck803ft",
         .llvm_name = "ck803ft",
@@ -1459,6 +1581,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ftr1: CpuModel = .{
         .name = "ck803ftr1",
         .llvm_name = "ck803ftr1",
@@ -1476,6 +1599,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ftr2: CpuModel = .{
         .name = "ck803ftr2",
         .llvm_name = "ck803ftr2",
@@ -1494,6 +1618,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ftr3: CpuModel = .{
         .name = "ck803ftr3",
         .llvm_name = "ck803ftr3",
@@ -1512,6 +1637,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803h: CpuModel = .{
         .name = "ck803h",
         .llvm_name = "ck803h",
@@ -1524,6 +1650,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803hr1: CpuModel = .{
         .name = "ck803hr1",
         .llvm_name = "ck803hr1",
@@ -1539,6 +1666,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803hr2: CpuModel = .{
         .name = "ck803hr2",
         .llvm_name = "ck803hr2",
@@ -1554,6 +1682,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803hr3: CpuModel = .{
         .name = "ck803hr3",
         .llvm_name = "ck803hr3",
@@ -1569,6 +1698,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803ht: CpuModel = .{
         .name = "ck803ht",
         .llvm_name = "ck803ht",
@@ -1581,6 +1711,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803htr1: CpuModel = .{
         .name = "ck803htr1",
         .llvm_name = "ck803htr1",
@@ -1596,6 +1727,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803htr2: CpuModel = .{
         .name = "ck803htr2",
         .llvm_name = "ck803htr2",
@@ -1611,6 +1743,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803htr3: CpuModel = .{
         .name = "ck803htr3",
         .llvm_name = "ck803htr3",
@@ -1626,6 +1759,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803r1: CpuModel = .{
         .name = "ck803r1",
         .llvm_name = "ck803r1",
@@ -1641,6 +1775,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803r2: CpuModel = .{
         .name = "ck803r2",
         .llvm_name = "ck803r2",
@@ -1656,6 +1791,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803r3: CpuModel = .{
         .name = "ck803r3",
         .llvm_name = "ck803r3",
@@ -1671,6 +1807,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803s: CpuModel = .{
         .name = "ck803s",
         .llvm_name = "ck803s",
@@ -1685,6 +1822,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803se: CpuModel = .{
         .name = "ck803se",
         .llvm_name = "ck803se",
@@ -1702,6 +1840,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803sef: CpuModel = .{
         .name = "ck803sef",
         .llvm_name = "ck803sef",
@@ -1722,6 +1861,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803sefn: CpuModel = .{
         .name = "ck803sefn",
         .llvm_name = "ck803sefn",
@@ -1743,6 +1883,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803sefnt: CpuModel = .{
         .name = "ck803sefnt",
         .llvm_name = "ck803sefnt",
@@ -1764,6 +1905,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803seft: CpuModel = .{
         .name = "ck803seft",
         .llvm_name = "ck803seft",
@@ -1784,6 +1926,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803sen: CpuModel = .{
         .name = "ck803sen",
         .llvm_name = "ck803sen",
@@ -1802,6 +1945,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803sf: CpuModel = .{
         .name = "ck803sf",
         .llvm_name = "ck803sf",
@@ -1819,6 +1963,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803sfn: CpuModel = .{
         .name = "ck803sfn",
         .llvm_name = "ck803sfn",
@@ -1837,6 +1982,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803sn: CpuModel = .{
         .name = "ck803sn",
         .llvm_name = "ck803sn",
@@ -1852,6 +1998,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803snt: CpuModel = .{
         .name = "ck803snt",
         .llvm_name = "ck803snt",
@@ -1867,6 +2014,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803st: CpuModel = .{
         .name = "ck803st",
         .llvm_name = "ck803st",
@@ -1881,6 +2029,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803t: CpuModel = .{
         .name = "ck803t",
         .llvm_name = "ck803t",
@@ -1893,6 +2042,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803tr1: CpuModel = .{
         .name = "ck803tr1",
         .llvm_name = "ck803tr1",
@@ -1908,6 +2058,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803tr2: CpuModel = .{
         .name = "ck803tr2",
         .llvm_name = "ck803tr2",
@@ -1923,6 +2074,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck803tr3: CpuModel = .{
         .name = "ck803tr3",
         .llvm_name = "ck803tr3",
@@ -1938,6 +2090,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804: CpuModel = .{
         .name = "ck804",
         .llvm_name = "ck804",
@@ -1953,6 +2106,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804e: CpuModel = .{
         .name = "ck804e",
         .llvm_name = "ck804e",
@@ -1970,6 +2124,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804ef: CpuModel = .{
         .name = "ck804ef",
         .llvm_name = "ck804ef",
@@ -1990,6 +2145,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804efh: CpuModel = .{
         .name = "ck804efh",
         .llvm_name = "ck804efh",
@@ -2010,6 +2166,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804efht: CpuModel = .{
         .name = "ck804efht",
         .llvm_name = "ck804efht",
@@ -2030,6 +2187,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804eft: CpuModel = .{
         .name = "ck804eft",
         .llvm_name = "ck804eft",
@@ -2050,6 +2208,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804eh: CpuModel = .{
         .name = "ck804eh",
         .llvm_name = "ck804eh",
@@ -2067,6 +2226,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804eht: CpuModel = .{
         .name = "ck804eht",
         .llvm_name = "ck804eht",
@@ -2084,6 +2244,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804et: CpuModel = .{
         .name = "ck804et",
         .llvm_name = "ck804et",
@@ -2101,6 +2262,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804f: CpuModel = .{
         .name = "ck804f",
         .llvm_name = "ck804f",
@@ -2119,6 +2281,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804fh: CpuModel = .{
         .name = "ck804fh",
         .llvm_name = "ck804fh",
@@ -2137,6 +2300,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804ft: CpuModel = .{
         .name = "ck804ft",
         .llvm_name = "ck804ft",
@@ -2155,6 +2319,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804h: CpuModel = .{
         .name = "ck804h",
         .llvm_name = "ck804h",
@@ -2170,6 +2335,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804ht: CpuModel = .{
         .name = "ck804ht",
         .llvm_name = "ck804ht",
@@ -2185,6 +2351,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck804t: CpuModel = .{
         .name = "ck804t",
         .llvm_name = "ck804t",
@@ -2200,6 +2367,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck805: CpuModel = .{
         .name = "ck805",
         .llvm_name = "ck805",
@@ -2218,6 +2386,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck805e: CpuModel = .{
         .name = "ck805e",
         .llvm_name = "ck805e",
@@ -2237,6 +2406,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck805ef: CpuModel = .{
         .name = "ck805ef",
         .llvm_name = "ck805ef",
@@ -2259,6 +2429,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck805eft: CpuModel = .{
         .name = "ck805eft",
         .llvm_name = "ck805eft",
@@ -2281,6 +2452,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck805et: CpuModel = .{
         .name = "ck805et",
         .llvm_name = "ck805et",
@@ -2300,6 +2472,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck805f: CpuModel = .{
         .name = "ck805f",
         .llvm_name = "ck805f",
@@ -2321,6 +2494,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck805ft: CpuModel = .{
         .name = "ck805ft",
         .llvm_name = "ck805ft",
@@ -2342,6 +2516,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck805t: CpuModel = .{
         .name = "ck805t",
         .llvm_name = "ck805t",
@@ -2360,6 +2535,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck807: CpuModel = .{
         .name = "ck807",
         .llvm_name = "ck807",
@@ -2378,6 +2554,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck807e: CpuModel = .{
         .name = "ck807e",
         .llvm_name = "ck807e",
@@ -2396,6 +2573,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck807ef: CpuModel = .{
         .name = "ck807ef",
         .llvm_name = "ck807ef",
@@ -2421,6 +2599,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck807f: CpuModel = .{
         .name = "ck807f",
         .llvm_name = "ck807f",
@@ -2446,6 +2625,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810: CpuModel = .{
         .name = "ck810",
         .llvm_name = "ck810",
@@ -2465,6 +2645,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810e: CpuModel = .{
         .name = "ck810e",
         .llvm_name = "ck810e",
@@ -2484,6 +2665,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810ef: CpuModel = .{
         .name = "ck810ef",
         .llvm_name = "ck810ef",
@@ -2508,6 +2690,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810eft: CpuModel = .{
         .name = "ck810eft",
         .llvm_name = "ck810eft",
@@ -2532,6 +2715,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810eftv: CpuModel = .{
         .name = "ck810eftv",
         .llvm_name = "ck810eftv",
@@ -2558,6 +2742,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck810efv: CpuModel = .{
         .name = "ck810efv",
         .llvm_name = "ck810efv",
@@ -2584,6 +2769,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck810et: CpuModel = .{
         .name = "ck810et",
         .llvm_name = "ck810et",
@@ -2603,6 +2789,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810etv: CpuModel = .{
         .name = "ck810etv",
         .llvm_name = "ck810etv",
@@ -2624,6 +2811,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck810ev: CpuModel = .{
         .name = "ck810ev",
         .llvm_name = "ck810ev",
@@ -2645,6 +2833,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck810f: CpuModel = .{
         .name = "ck810f",
         .llvm_name = "ck810f",
@@ -2669,6 +2858,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810ft: CpuModel = .{
         .name = "ck810ft",
         .llvm_name = "ck810ft",
@@ -2693,6 +2883,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810ftv: CpuModel = .{
         .name = "ck810ftv",
         .llvm_name = "ck810ftv",
@@ -2719,6 +2910,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck810fv: CpuModel = .{
         .name = "ck810fv",
         .llvm_name = "ck810fv",
@@ -2745,6 +2937,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck810t: CpuModel = .{
         .name = "ck810t",
         .llvm_name = "ck810t",
@@ -2764,6 +2957,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck810tv: CpuModel = .{
         .name = "ck810tv",
         .llvm_name = "ck810tv",
@@ -2785,6 +2979,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck810v: CpuModel = .{
         .name = "ck810v",
         .llvm_name = "ck810v",
@@ -2806,6 +3001,7 @@ pub const cpu = struct {
             .vdspv1,
         }),
     };
+
     pub const ck860: CpuModel = .{
         .name = "ck860",
         .llvm_name = "ck860",
@@ -2826,6 +3022,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck860f: CpuModel = .{
         .name = "ck860f",
         .llvm_name = "ck860f",
@@ -2851,6 +3048,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const ck860fv: CpuModel = .{
         .name = "ck860fv",
         .llvm_name = "ck860fv",
@@ -2879,6 +3077,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const ck860v: CpuModel = .{
         .name = "ck860v",
         .llvm_name = "ck860v",
@@ -2902,6 +3101,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const e801: CpuModel = .{
         .name = "e801",
         .llvm_name = "e801",
@@ -2912,6 +3112,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e802: CpuModel = .{
         .name = "e802",
         .llvm_name = "e802",
@@ -2923,6 +3124,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e802t: CpuModel = .{
         .name = "e802t",
         .llvm_name = "e802t",
@@ -2934,6 +3136,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e803: CpuModel = .{
         .name = "e803",
         .llvm_name = "e803",
@@ -2948,6 +3151,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e803t: CpuModel = .{
         .name = "e803t",
         .llvm_name = "e803t",
@@ -2962,6 +3166,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e804d: CpuModel = .{
         .name = "e804d",
         .llvm_name = "e804d",
@@ -2979,6 +3184,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e804df: CpuModel = .{
         .name = "e804df",
         .llvm_name = "e804df",
@@ -2999,6 +3205,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e804dft: CpuModel = .{
         .name = "e804dft",
         .llvm_name = "e804dft",
@@ -3019,6 +3226,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e804dt: CpuModel = .{
         .name = "e804dt",
         .llvm_name = "e804dt",
@@ -3036,6 +3244,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e804f: CpuModel = .{
         .name = "e804f",
         .llvm_name = "e804f",
@@ -3054,6 +3263,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const e804ft: CpuModel = .{
         .name = "e804ft",
         .llvm_name = "e804ft",
@@ -3072,6 +3282,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const generic: CpuModel = .{
         .name = "generic",
         .llvm_name = "generic",
@@ -3079,6 +3290,7 @@ pub const cpu = struct {
             .btst16,
         }),
     };
+
     pub const @"i805": CpuModel = .{
         .name = "i805",
         .llvm_name = "i805",
@@ -3097,6 +3309,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const i805f: CpuModel = .{
         .name = "i805f",
         .llvm_name = "i805f",
@@ -3118,6 +3331,7 @@ pub const cpu = struct {
             .vdspv2,
         }),
     };
+
     pub const r807: CpuModel = .{
         .name = "r807",
         .llvm_name = "r807",
@@ -3136,6 +3350,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const r807f: CpuModel = .{
         .name = "r807f",
         .llvm_name = "r807f",
@@ -3161,6 +3376,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const s802: CpuModel = .{
         .name = "s802",
         .llvm_name = "s802",
@@ -3172,6 +3388,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const s802t: CpuModel = .{
         .name = "s802t",
         .llvm_name = "s802t",
@@ -3183,6 +3400,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const s803: CpuModel = .{
         .name = "s803",
         .llvm_name = "s803",
@@ -3197,6 +3415,7 @@ pub const cpu = struct {
             .trust,
         }),
     };
+
     pub const s803t: CpuModel = .{
         .name = "s803t",
         .llvm_name = "s803t",

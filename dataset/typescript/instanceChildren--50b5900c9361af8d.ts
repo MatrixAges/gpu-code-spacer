@@ -8,11 +8,14 @@ export function getCompatChildren(
   instance: ComponentInternalInstance,
 ): ComponentPublicInstance[] {
   assertCompatEnabled(DeprecationTypes.INSTANCE_CHILDREN, instance)
+
   const root = instance.subTree
   const children: ComponentPublicInstance[] = []
+
   if (root) {
     walk(root, children)
   }
+
   return children
 }
 
@@ -21,6 +24,7 @@ function walk(vnode: VNode, children: ComponentPublicInstance[]) {
     children.push(vnode.component.proxy!)
   } else if (vnode.shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
     const vnodes = vnode.children as VNode[]
+
     for (let i = 0; i < vnodes.length; i++) {
       walk(vnodes[i], children)
     }

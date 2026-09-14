@@ -19,6 +19,7 @@ pub fn init(init_s: u64) Sfc64 {
     var x = Sfc64{};
 
     x.seed(init_s);
+
     return x;
 }
 
@@ -28,10 +29,12 @@ pub fn random(self: *Sfc64) std.Random {
 
 fn next(self: *Sfc64) u64 {
     const tmp = self.a +% self.b +% self.counter;
+
     self.counter += 1;
     self.a = self.b ^ (self.b >> RightShift);
     self.b = self.c +% (self.c << LeftShift);
     self.c = math.rotl(u64, self.c, Rotation) +% tmp;
+
     return tmp;
 }
 
@@ -40,7 +43,9 @@ fn seed(self: *Sfc64, init_s: u64) void {
     self.b = init_s;
     self.c = init_s;
     self.counter = 1;
+
     var i: u32 = 0;
+
     while (i < 12) : (i += 1) {
         _ = self.next();
     }
@@ -54,8 +59,10 @@ pub fn fill(self: *Sfc64, buf: []u8) void {
     while (i < aligned_len) : (i += 8) {
         var n = self.next();
         comptime var j: usize = 0;
+
         inline while (j < 8) : (j += 1) {
             buf[i + j] = @as(u8, @truncate(n));
+
             n >>= 8;
         }
     }
@@ -63,8 +70,10 @@ pub fn fill(self: *Sfc64, buf: []u8) void {
     // Remaining. (cuts the stream)
     if (i != buf.len) {
         var n = self.next();
+
         while (i < buf.len) : (i += 1) {
             buf[i] = @as(u8, @truncate(n));
+
             n >>= 8;
         }
     }
@@ -124,6 +133,7 @@ test fill {
     for (seq) |s| {
         var buf0: [8]u8 = undefined;
         var buf1: [7]u8 = undefined;
+
         std.mem.writeInt(u64, &buf0, s, .little);
         r.fill(&buf1);
         try std.testing.expect(std.mem.eql(u8, buf0[0..7], buf1[0..]));

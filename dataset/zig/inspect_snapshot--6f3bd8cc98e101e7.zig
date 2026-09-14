@@ -9,6 +9,7 @@ const tigerbeetle: []const u8 = @import("test_options").tigerbeetle_exe;
 
 test "inspect constants snapshot" {
     const shell = try Shell.create(std.testing.allocator);
+
     defer shell.destroy();
 
     const output = try shell.exec_stdout(

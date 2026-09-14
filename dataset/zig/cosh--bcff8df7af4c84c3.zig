@@ -18,6 +18,7 @@ const maxInt = std.math.maxInt;
 ///  - cosh(nan)   = nan
 pub fn cosh(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => cosh32(x),
         f64 => cosh64(x),
@@ -37,15 +38,19 @@ fn cosh32(x: f32) f32 {
     if (ux < 0x3F317217) {
         if (ux < 0x3F800000 - (12 << 23)) {
             math.raiseOverflow();
+
             return 1.0;
         }
+
         const t = math.expm1(ax);
+
         return 1 + t * t / (2 * (1 + t));
     }
 
     // |x| < log(FLT_MAX)
     if (ux < 0x42B17217) {
         const t = @exp(ax);
+
         return 0.5 * (t + 1 / t);
     }
 
@@ -69,15 +74,19 @@ fn cosh64(x: f64) f64 {
             if (x != 0) {
                 math.raiseInexact();
             }
+
             return 1.0;
         }
+
         const t = math.expm1(ax);
+
         return 1 + t * t / (2 * (1 + t));
     }
 
     // |x| < log(DBL_MAX)
     if (w < 0x40862E42) {
         const t = @exp(ax);
+
         // NOTE: If x > log(0x1p26) then 1/t is not required.
         return 0.5 * (t + 1 / t);
     }

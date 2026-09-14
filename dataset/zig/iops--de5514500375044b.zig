@@ -14,14 +14,19 @@ pub fn IOPSType(comptime T: type, comptime size: u8) type {
 
         pub fn acquire(self: *IOPS) ?*T {
             const i = self.busy.first_unset() orelse return null;
+
             self.busy.set(i);
+
             return &self.items[i];
         }
 
         pub fn release(self: *IOPS, item: *T) void {
             item.* = undefined;
+
             const i = self.index(item);
+
             assert(self.busy.is_set(i));
+
             self.busy.unset(i);
         }
 
@@ -30,7 +35,9 @@ pub fn IOPSType(comptime T: type, comptime size: u8) type {
                 (@intFromPtr(item) - @intFromPtr(&self.items)),
                 @sizeOf(T),
             );
+
             assert(i < size);
+
             return i;
         }
 
@@ -54,6 +61,7 @@ pub fn IOPSType(comptime T: type, comptime size: u8) type {
 
             pub fn next(iterator: *@This()) ?*T {
                 const i = iterator.bitset_iterator.next() orelse return null;
+
                 return &iterator.iops.items[i];
             }
         };
@@ -64,6 +72,7 @@ pub fn IOPSType(comptime T: type, comptime size: u8) type {
 
             pub fn next(iterator: *@This()) ?*const T {
                 const i = iterator.bitset_iterator.next() orelse return null;
+
                 return &iterator.iops.items[i];
             }
         };
@@ -105,8 +114,8 @@ test "IOPS" {
     try testing.expectEqual(@as(usize, 3), iops.executing());
 
     var four = iops.acquire().?;
-    try testing.expectEqual(@as(?*u32, null), iops.acquire());
 
+    try testing.expectEqual(@as(?*u32, null), iops.acquire());
     try testing.expectEqual(@as(usize, 0), iops.available());
     try testing.expectEqual(@as(usize, 4), iops.executing());
 
@@ -130,5 +139,6 @@ test "IOPS" {
     two = iops.acquire().?;
     three = iops.acquire().?;
     four = iops.acquire().?;
+
     try testing.expectEqual(@as(?*u32, null), iops.acquire());
 }

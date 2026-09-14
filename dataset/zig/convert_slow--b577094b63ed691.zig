@@ -44,6 +44,7 @@ pub fn convertSlow(comptime T: type, s: []const u8) BiasedFp(T) {
     const fractional_bits = math.floatFractionalBits(T);
 
     var d = Decimal(T).parse(s); // no need to recheck underscores
+
     if (d.num_digits == 0 or d.decimal_point < Decimal(T).min_exponent) {
         return BiasedFp(T).zero();
     } else if (d.decimal_point >= Decimal(T).max_exponent) {
@@ -51,16 +52,21 @@ pub fn convertSlow(comptime T: type, s: []const u8) BiasedFp(T) {
     }
 
     var exp2: i32 = 0;
+
     // Shift right toward (1/2 .. 1]
     while (d.decimal_point > 0) {
         const n = @as(usize, @intCast(d.decimal_point));
         const shift = getShift(n);
+
         d.rightShift(shift);
+
         if (d.decimal_point < -Decimal(T).decimal_point_range) {
             return BiasedFp(T).zero();
         }
+
         exp2 += @as(i32, @intCast(shift));
     }
+
     //  Shift left toward (1/2 .. 1]
     while (d.decimal_point <= 0) {
         const shift = blk: {
@@ -72,25 +78,35 @@ pub fn convertSlow(comptime T: type, s: []const u8) BiasedFp(T) {
                 };
             } else {
                 const n = @as(usize, @intCast(-d.decimal_point));
+
                 break :blk getShift(n);
             }
         };
+
         d.leftShift(shift);
+
         if (d.decimal_point > Decimal(T).decimal_point_range) {
             return BiasedFp(T).inf(T);
         }
+
         exp2 -= @as(i32, @intCast(shift));
     }
+
     // We are now in the range [1/2 .. 1] but the binary format uses [1 .. 2]
     exp2 -= 1;
+
     while (min_exponent + 1 > exp2) {
         var n = @as(usize, @intCast((min_exponent + 1) - exp2));
+
         if (n > max_shift) {
             n = max_shift;
         }
+
         d.rightShift(n);
+
         exp2 += @as(i32, @intCast(n));
     }
+
     if (exp2 - min_exponent >= infinite_power) {
         return BiasedFp(T).inf(T);
     }
@@ -98,22 +114,31 @@ pub fn convertSlow(comptime T: type, s: []const u8) BiasedFp(T) {
     // Shift the decimal to the hidden bit, and then round the value
     // to get the high mantissa+1 bits.
     d.leftShift(fractional_bits + 1);
+
     var mantissa = d.round();
+
     if (mantissa >= (@as(MantissaT, 1) << (fractional_bits + 1))) {
         // Rounding up overflowed to the carry bit, need to
         // shift back to the hidden bit.
         d.rightShift(1);
+
         exp2 += 1;
+
         mantissa = d.round();
+
         if ((exp2 - min_exponent) >= infinite_power) {
             return BiasedFp(T).inf(T);
         }
     }
+
     var power2 = exp2 - min_exponent;
+
     if (mantissa < (@as(MantissaT, 1) << fractional_bits)) {
         power2 -= 1;
     }
+
     // Zero out all the bits above the mantissa bits.
     mantissa &= (@as(MantissaT, 1) << math.floatMantissaBits(T)) - 1;
+
     return .{ .f = mantissa, .e = power2 };
 }

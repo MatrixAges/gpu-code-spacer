@@ -21,13 +21,16 @@ pub const secret_seed_length = Cipher.key_length;
 /// The seed must be uniform, secret and `secret_seed_length` bytes long.
 pub fn init(secret_seed: [secret_seed_length]u8) Self {
     var self = Self{ .state = undefined, .offset = 0 };
+
     Cipher.stream(&self.state, 0, secret_seed, nonce);
+
     return self;
 }
 
 /// Inserts entropy to refresh the internal state.
 pub fn addEntropy(self: *Self, bytes: []const u8) void {
     var i: usize = 0;
+
     while (i + Cipher.key_length <= bytes.len) : (i += Cipher.key_length) {
         Cipher.xor(
             self.state[0..Cipher.key_length],
@@ -37,10 +40,13 @@ pub fn addEntropy(self: *Self, bytes: []const u8) void {
             nonce,
         );
     }
+
     if (i < bytes.len) {
         var k = [_]u8{0} ** Cipher.key_length;
         const src = bytes[i..];
+
         @memcpy(k[0..src.len], src);
+
         Cipher.xor(
             self.state[0..Cipher.key_length],
             self.state[0..Cipher.key_length],
@@ -49,6 +55,7 @@ pub fn addEntropy(self: *Self, bytes: []const u8) void {
             nonce,
         );
     }
+
     self.refill();
 }
 
@@ -60,6 +67,7 @@ pub fn random(self: *Self) std.Random {
 // Refills the buffer with random bytes, overwriting the previous key.
 fn refill(self: *Self) void {
     Cipher.stream(&self.state, 0, self.state[0..Cipher.key_length].*, nonce);
+
     self.offset = 0;
 }
 
@@ -67,16 +75,19 @@ fn refill(self: *Self) void {
 pub fn fill(self: *Self, buf_: []u8) void {
     const bytes = self.state[Cipher.key_length..];
     var buf = buf_;
-
     const avail = bytes.len - self.offset;
+
     if (avail > 0) {
         // Bytes from the current block
         const n = @min(avail, buf.len);
+
         @memcpy(buf[0..n], bytes[self.offset..][0..n]);
         @memset(bytes[self.offset..][0..n], 0);
+
         buf = buf[n..];
         self.offset += n;
     }
+
     if (buf.len == 0) return;
 
     self.refill();
@@ -84,7 +95,9 @@ pub fn fill(self: *Self, buf_: []u8) void {
     // Full blocks
     while (buf.len >= bytes.len) {
         @memcpy(buf[0..bytes.len], bytes);
+
         buf = buf[bytes.len..];
+
         self.refill();
     }
 
@@ -92,6 +105,7 @@ pub fn fill(self: *Self, buf_: []u8) void {
     if (buf.len > 0) {
         @memcpy(buf, bytes[0..buf.len]);
         @memset(bytes[0..buf.len], 0);
+
         self.offset = buf.len;
     }
 }

@@ -1,4 +1,5 @@
 import ToggleNode from '../plugins/Toggle/ToggleNode'
+
 import {
 	$createToggleBodyNode,
 	$createToggleBtnNode,
@@ -6,6 +7,7 @@ import {
 	$createToggleNode,
 	$isToggleNode
 } from '../plugins/Toggle/utils'
+
 import { $convertFromMarkdownString, $convertToMarkdownString } from '../utils'
 import transformers from './'
 

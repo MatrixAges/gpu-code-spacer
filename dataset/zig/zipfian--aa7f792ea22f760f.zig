@@ -93,6 +93,7 @@ pub const ZipfianGenerator = struct {
     pub fn init_theta(items: u64, theta: f64) ZipfianGenerator {
         assert(theta > 0.0);
         assert(theta != 1.0);
+
         return ZipfianGenerator{
             .theta = theta,
             .n = items,
@@ -110,6 +111,7 @@ pub const ZipfianGenerator = struct {
 
         // NB: These depend only on zetan and could be cached for a minor speedup.
         const alpha = 1.0 / (1.0 - self.theta);
+
         const eta = (1.0 - math.pow(
             f64,
             2.0 / @as(f64, @floatFromInt(self.n)),
@@ -138,6 +140,7 @@ pub const ZipfianGenerator = struct {
     pub fn grow(self: *ZipfianGenerator, new_items: u64) void {
         const items = self.n + new_items;
         const zetan_new = zeta_incremental(self.n, new_items, self.zetan, self.theta);
+
         self.* = .{
             .theta = self.theta,
             .n = items,
@@ -151,9 +154,11 @@ pub const ZipfianGenerator = struct {
 fn zeta(n: u64, theta: f64) f64 {
     var i: u64 = 1;
     var zeta_sum: f64 = 0.0;
+
     while (i <= n) : (i += 1) {
         zeta_sum += math.pow(f64, 1.0 / @as(f64, @floatFromInt(i)), theta);
     }
+
     return zeta_sum;
 }
 
@@ -167,9 +172,11 @@ fn zeta_incremental(
     const n_new = n_previous + n_additional;
     var i = n_previous + 1;
     var zeta_sum = zetan_previous;
+
     while (i <= n_new) : (i += 1) {
         zeta_sum += math.pow(f64, 1.0 / @as(f64, @floatFromInt(i)), theta);
     }
+
     return zeta_sum;
 }
 
@@ -213,6 +220,7 @@ pub const ZipfianShuffled = struct {
     pub fn next(self: *const ZipfianShuffled, prng: *stdx.PRNG) u64 {
         const zipf_standard = self.gen.next(prng);
         const zipf_shuffled = self.transform(zipf_standard);
+
         return zipf_shuffled;
     }
 
@@ -239,6 +247,7 @@ pub const ZipfianShuffled = struct {
         // the requirement (see https://en.wikipedia.org/wiki/Euler%27s_totient_function).
         for (0..100_000) |_| {
             const a = prng.range_inclusive(u64, 1, n);
+
             if (std.math.gcd(a, n) == 1) {
                 return a;
             }
@@ -260,6 +269,7 @@ test "zeta_incremental" {
         n_incremental: u64,
         theta: f64,
     };
+
     const cases = [_]Case{
         .{
             .n_start = 0,
@@ -282,12 +292,14 @@ test "zeta_incremental" {
         const n = case.n_start + case.n_incremental;
         const zeta_expected = zeta(n, case.theta);
         const zeta_actual_start = zeta(case.n_start, case.theta);
+
         const zeta_actual = zeta_incremental(
             case.n_start,
             case.n_incremental,
             zeta_actual_start,
             case.theta,
         );
+
         assert(zeta_expected == zeta_actual);
     }
 }
@@ -297,18 +309,24 @@ test "zipfian-grow" {
     // Need to try multiple times to ensure they don't both coincidentally
     // pick the likely 0 value.
     var i: u64 = 10;
+
     while (i < 100) : (i += 1) {
         const expected = brk: {
             var prng = stdx.PRNG.from_seed(0);
             var zipf = ZipfianGenerator.init_theta(i, 0.9);
+
             break :brk zipf.next(&prng);
         };
+
         const actual = brk: {
             var prng = stdx.PRNG.from_seed(0);
             var zipf = ZipfianGenerator.init_theta(1, 0.9);
+
             zipf.grow(i - 1);
+
             break :brk zipf.next(&prng);
         };
+
         assert(expected == actual);
     }
 }
@@ -327,7 +345,6 @@ test "zipfian-ctors" {
             assert(zipf1.n == zipf2.n);
             assert(zipf1.n == szipf1.gen.n);
             assert(zipf1.n == szipf2.gen.n);
-
             assert(zipf1.zetan == zipf2.zetan);
             assert(zipf1.zetan == szipf1.gen.zetan);
             assert(zipf1.zetan == szipf2.gen.zetan);
@@ -353,6 +370,7 @@ test "zipfian-distribution" {
 
     for (0..1000) |_| {
         const n = zipf.next(&prng);
+
         distribution[n] += 1;
     }
 
@@ -371,6 +389,7 @@ test "shuffled-zipfian-distribution" {
 
     for (0..1000) |_| {
         const n = zipf_shuffled.next(&prng);
+
         distribution[n] += 1;
     }
 
@@ -387,15 +406,19 @@ test "zipfian-shuffled" {
     var prng = stdx.PRNG.from_seed(0);
     const allocator = std.testing.allocator;
     var found = try allocator.alloc(bool, max);
+
     defer allocator.free(found);
 
     for (1..max) |items| {
         @memset(found, false);
+
         var zipf = ZipfianShuffled.init(items, &prng);
 
         for (0..items) |i| {
             const zipf_shuffled = zipf.transform(i);
+
             try std.testing.expect(!found[zipf_shuffled]);
+
             found[zipf_shuffled] = true;
         }
     }

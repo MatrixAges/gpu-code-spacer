@@ -3,6 +3,7 @@ import type { PartialEnvironment } from './baseEnvironment'
 import type { Environment } from './environment'
 import type { InternalResolveOptions } from './plugins/resolve'
 import { tryNodeResolve } from './plugins/resolve'
+
 import {
   bareImportRE,
   createDebugger,
@@ -25,10 +26,13 @@ export function shouldExternalize(
   importer: string | undefined,
 ): boolean {
   let isExternal = isExternalCache.get(environment)
+
   if (!isExternal) {
     isExternal = createIsExternal(environment)
+
     isExternalCache.set(environment, isExternal)
   }
+
   return isExternal(id, importer)
 }
 
@@ -38,6 +42,7 @@ export function createIsConfiguredAsExternal(
   const { config } = environment
   const { root, resolve } = config
   const { external, noExternal } = resolve
+
   const noExternalFilter =
     typeof noExternal !== 'boolean' &&
     !(Array.isArray(noExternal) && noExternal.length === 0) &&
@@ -61,6 +66,7 @@ export function createIsConfiguredAsExternal(
     if (!bareImportRE.test(id) || id.includes('\0')) {
       return false
     }
+
     try {
       const resolved = tryNodeResolve(
         id,
@@ -71,19 +77,23 @@ export function createIsConfiguredAsExternal(
         undefined,
         false,
       )
+
       if (!resolved) {
         return false
       }
+
       // Only allow linked packages to be externalized
       // if they are explicitly configured as external
       if (!configuredAsExternal && !isInNodeModules(resolved.id)) {
         return false
       }
+
       return canExternalizeFile(resolved.id)
     } catch {
       debug?.(
         `Failed to node resolve "${id}". Skipping externalizing it by default.`,
       )
+
       // may be an invalid import that's resolved by a plugin
       return false
     }
@@ -100,10 +110,13 @@ export function createIsConfiguredAsExternal(
     ) {
       return true
     }
+
     const pkgName = getNpmPackageName(id)
+
     if (!pkgName) {
       return isExternalizable(id, importer, false)
     }
+
     if (
       // A package name in ssr.external externalizes every
       // externalizable package entry
@@ -112,12 +125,15 @@ export function createIsConfiguredAsExternal(
     ) {
       return isExternalizable(id, importer, true)
     }
+
     if (typeof noExternal === 'boolean') {
       return !noExternal
     }
+
     if (noExternalFilter && !noExternalFilter(pkgName)) {
       return false
     }
+
     // If external is true, all will be externalized by default, regardless if
     // it's a linked package
     return isExternalizable(id, importer, external === true)
@@ -135,19 +151,24 @@ function createIsExternal(
     if (processedIds.has(id)) {
       return processedIds.get(id)!
     }
+
     let isExternal = false
+
     if (id[0] !== '.' && !path.isAbsolute(id)) {
       isExternal =
         isBuiltin(environment.config.resolve.builtins, id) ||
         isConfiguredAsExternal(id, importer)
     }
+
     processedIds.set(id, isExternal)
+
     return isExternal
   }
 }
 
 export function canExternalizeFile(filePath: string): boolean {
   const ext = path.extname(filePath)
+
   // only external js imports
   return !ext || ext === '.js' || ext === '.mjs' || ext === '.cjs'
 }

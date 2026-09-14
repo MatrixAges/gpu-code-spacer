@@ -8,6 +8,7 @@ const Error = Status.Error;
 
 pub const File = extern struct {
     revision: u64,
+
     _open: *const fn (*const File, **File, [*:0]const u16, OpenMode, Attributes) callconv(cc) Status,
     _close: *const fn (*File) callconv(cc) Status,
     _delete: *const fn (*File) callconv(cc) Status,
@@ -31,17 +32,21 @@ pub const File = extern struct {
         VolumeFull,
         InvalidParameter,
     };
+
     pub const CloseError = uefi.UnexpectedError;
+
     pub const SeekError = uefi.UnexpectedError || error{
         Unsupported,
         DeviceError,
     };
+
     pub const ReadError = uefi.UnexpectedError || error{
         NoMedia,
         DeviceError,
         VolumeCorrupted,
         BufferTooSmall,
     };
+
     pub const WriteError = uefi.UnexpectedError || error{
         Unsupported,
         NoMedia,
@@ -51,15 +56,18 @@ pub const File = extern struct {
         AccessDenied,
         VolumeFull,
     };
+
     pub const GetInfoSizeError = uefi.UnexpectedError || error{
         Unsupported,
         NoMedia,
         DeviceError,
         VolumeCorrupted,
     };
+
     pub const GetInfoError = GetInfoSizeError || error{
         BufferTooSmall,
     };
+
     pub const SetInfoError = uefi.UnexpectedError || error{
         Unsupported,
         NoMedia,
@@ -70,6 +78,7 @@ pub const File = extern struct {
         VolumeFull,
         BadBufferSize,
     };
+
     pub const FlushError = uefi.UnexpectedError || error{
         DeviceError,
         VolumeCorrupted,
@@ -85,6 +94,7 @@ pub const File = extern struct {
         create_attributes: Attributes,
     ) OpenError!*File {
         var new: *File = undefined;
+
         switch (self._open(
             self,
             &new,
@@ -128,6 +138,7 @@ pub const File = extern struct {
 
     pub fn read(self: *File, buffer: []u8) ReadError!usize {
         var size: usize = buffer.len;
+
         switch (self._read(self, &size, buffer.ptr)) {
             .success => return size,
             .no_media => return Error.NoMedia,
@@ -140,6 +151,7 @@ pub const File = extern struct {
 
     pub fn write(self: *File, buffer: []const u8) WriteError!usize {
         var size: usize = buffer.len;
+
         switch (self._write(self, &size, buffer.ptr)) {
             .success => return size,
             .unsupported => return Error.Unsupported,
@@ -155,6 +167,7 @@ pub const File = extern struct {
 
     pub fn getPosition(self: *const File) SeekError!u64 {
         var position: u64 = undefined;
+
         switch (self._get_position(self, &position)) {
             .success => return position,
             .unsupported => return Error.Unsupported,
@@ -165,10 +178,12 @@ pub const File = extern struct {
 
     fn getEndPos(self: *File) SeekError!u64 {
         const start_pos = try self.getPosition();
+
         // ignore error
         defer self.setPosition(start_pos) catch {};
 
         try self.setPosition(end_of_file);
+
         return self.getPosition();
     }
 
@@ -185,11 +200,13 @@ pub const File = extern struct {
         var pos = try self.getPosition();
         const seek_back = offset < 0;
         const amt = @abs(offset);
+
         if (seek_back) {
             pos += amt;
         } else {
             pos -= amt;
         }
+
         try self.setPosition(pos);
     }
 
@@ -197,6 +214,7 @@ pub const File = extern struct {
         const InfoType = @FieldType(Info, @tagName(info));
 
         var len: usize = 0;
+
         switch (self._get_info(self, &InfoType.guid, &len, null)) {
             .success, .buffer_too_small => return len,
             .unsupported => return Error.Unsupported,
@@ -218,6 +236,7 @@ pub const File = extern struct {
         const InfoType = @FieldType(Info, @tagName(info));
 
         var len = buffer.len;
+
         switch (self._get_info(
             self,
             &InfoType.guid,
@@ -245,6 +264,7 @@ pub const File = extern struct {
             .file => data.getFileName(),
             .file_system, .volume_label => data.getVolumeLabel(),
         };
+
         const attached_str_len = std.mem.sliceTo(attached_str, 0).len;
 
         // add the length (not +1 for sentinel) because `@sizeOf(InfoType)`

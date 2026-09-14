@@ -56,13 +56,17 @@ pub const Multiversion = struct {
         const vtable = struct {
             fn releases_bundled(_: *anyopaque) ReleaseList {
                 var result: ReleaseList = .empty;
+
                 result.push(release);
+
                 return result;
             }
+
             fn release_execute(_: *anyopaque, release_next: Release) void {
                 assert(release_next.value != release.value);
                 @panic("multiversion unsupported");
             }
+
             fn tick(_: *anyopaque) void {}
         };
 
@@ -120,6 +124,7 @@ fn execveat(
 /// A ReleaseList is ordered from lowest-to-highest.
 pub const ReleaseList = struct {
     buffer: [constants.vsr_releases_max]Release,
+
     count: u16,
 
     pub const empty: ReleaseList = .{
@@ -130,9 +135,11 @@ pub const ReleaseList = struct {
     pub fn push(release_list: *ReleaseList, release: Release) void {
         assert(release_list.count < constants.vsr_releases_max);
         assert(release.value > 0);
+
         if (release_list.count > 0) {
             assert(release_list.last().value < release.value);
         }
+
         release_list.buffer[release_list.count] = release;
         release_list.count += 1;
     }
@@ -143,7 +150,9 @@ pub const ReleaseList = struct {
 
     pub fn verify(release_list: *const ReleaseList) void {
         assert(release_list.count > 0);
+
         for (release_list.slice()) |a| assert(a.value > 0);
+
         for (
             release_list.slice()[0 .. release_list.count - 1],
             release_list.slice()[1..],
@@ -156,16 +165,19 @@ pub const ReleaseList = struct {
         for (release_list.slice()) |r| {
             if (r.value == release.value) return true;
         }
+
         return false;
     }
 
     pub fn first(release_list: *const ReleaseList) Release {
         assert(release_list.count > 0);
+
         return release_list.slice()[0];
     }
 
     pub fn last(release_list: *const ReleaseList) Release {
         assert(release_list.count > 0);
+
         return release_list.slice()[release_list.count - 1];
     }
 };
@@ -217,7 +229,9 @@ pub const Release = extern struct {
     ) !void {
         _ = fmt;
         _ = options;
+
         const release_triple = release.triple();
+
         return writer.print("{}.{}.{}", .{
             release_triple.major,
             release_triple.minor,
@@ -257,7 +271,9 @@ pub const ReleaseTriple = extern struct {
         const major = parts.first();
         const minor = parts.next() orelse return error.InvalidRelease;
         const patch = parts.next() orelse return error.InvalidRelease;
+
         if (parts.next() != null) return error.InvalidRelease;
+
         return .{
             .major = stdx.parse_int(u16, major, .{}) catch return error.InvalidRelease,
             .minor = stdx.parse_int(u8, minor, .{}) catch return error.InvalidRelease,
@@ -290,6 +306,7 @@ test "ReleaseTriple.parse" {
         .{ .string = "65535.0.0", .result = .{ .major = 65535, .minor = 0, .patch = 0 } },
         .{ .string = "65536.0.0", .result = error.InvalidRelease },
     };
+
     for (tests) |t| {
         try std.testing.expectEqualDeep(t.result, ReleaseTriple.parse(t.string));
     }
@@ -352,6 +369,7 @@ pub const MultiversionHeader = extern struct {
             assert(next.release_client_min != 0);
 
             assert(self.count < past_releases_max);
+
             const index = self.count;
 
             if (index > 0) {
@@ -397,19 +415,24 @@ pub const MultiversionHeader = extern struct {
             const release_client_mins = self.release_client_mins[0..self.count];
 
             for (releases) |v| if (v == 0) return error.InvalidPastReleases;
+
             if (!std.sort.isSorted(u32, releases, {}, std.sort.asc(u32))) {
                 return error.InvalidPastReleases;
             }
 
             if (offsets[0] != 0) return error.InvalidPastReleases;
+
             for (offsets[1..], 1..) |offset, i| {
                 const calculated_offset = blk: {
                     var calculated_offset: u32 = 0;
+
                     for (sizes[0..i]) |size| {
                         calculated_offset += size;
                     }
+
                     break :blk calculated_offset;
                 };
+
                 if (offset == 0) return error.InvalidPastReleases;
                 if (offset != calculated_offset) return error.InvalidPastReleases;
             }
@@ -419,6 +442,7 @@ pub const MultiversionHeader = extern struct {
             for (git_commits) |g| if (stdx.zeroed(&g)) return error.InvalidPastReleases;
 
             for (release_client_mins) |v| if (v == 0) return error.InvalidPastReleases;
+
             if (!std.sort.isSorted(u32, release_client_mins, {}, std.sort.asc(u32))) {
                 return error.InvalidPastReleases;
             }
@@ -434,6 +458,7 @@ pub const MultiversionHeader = extern struct {
                 self.sizes[0..self.count],
             ) |checksum_expected, offset, size| {
                 const checksum_calculated = checksum.checksum(body[offset..][0..size]);
+
                 if (checksum_calculated != checksum_expected) {
                     return error.PastReleaseChecksumMismatch;
                 }
@@ -476,12 +501,15 @@ pub const MultiversionHeader = extern struct {
     current_release: u32,
 
     current_flags: Flags,
+
     current_flags_padding: [3]u8 = @splat(0),
 
     past: PastReleases = .{},
+
     past_padding: [16]u8 = @splat(0),
 
     current_git_commit: [20]u8,
+
     current_release_client_min: u32,
 
     /// Reserved space for future use. This is special: unlike the rest of the *_padding fields,
@@ -493,6 +521,7 @@ pub const MultiversionHeader = extern struct {
     /// Parses an instance from a slice of bytes and validates its checksum. Returns a copy.
     pub fn init_from_bytes(bytes: *const [@sizeOf(MultiversionHeader)]u8) !MultiversionHeader {
         const self = std.mem.bytesAsValue(MultiversionHeader, bytes).*;
+
         try self.verify();
 
         return self;
@@ -521,9 +550,11 @@ pub const MultiversionHeader = extern struct {
         stdx.maybe(stdx.zeroed(&self.reserved));
 
         try self.past.verify();
+
         if (!stdx.zeroed(&self.past_padding)) return error.InvalidPastPadding;
 
         const past_release_newest = self.past.releases[self.past.count - 1];
+
         if (past_release_newest >= self.current_release) return error.PastReleaseNewerThanCurrent;
     }
 
@@ -534,6 +565,7 @@ pub const MultiversionHeader = extern struct {
         comptime assert(std.meta.fieldIndex(MultiversionHeader, "checksum_header") == 0);
 
         const checksum_size = @sizeOf(@TypeOf(self.checksum_header));
+
         comptime assert(checksum_size == @sizeOf(u128));
 
         return checksum.checksum(std.mem.asBytes(self)[@sizeOf(u128)..]);
@@ -548,6 +580,7 @@ pub const MultiversionHeader = extern struct {
 
         for (0..self.past.count) |i| {
             release_list.push(Release{ .value = self.past.releases[i] });
+
             if (from_release.value < self.past.releases[i]) {
                 if (self.past.flags[i].visit) {
                     break;
@@ -610,6 +643,7 @@ test "MultiversionHeader.advertisable" {
 
     for (tests) |t| {
         var past_releases: MultiversionHeader.PastReleases = .{};
+
         for (t.releases) |release_flags| {
             past_releases.add(.{
                 .release = release_flags[0],
@@ -620,6 +654,7 @@ test "MultiversionHeader.advertisable" {
                 .release_client_min = 1,
             });
         }
+
         try past_releases.verify();
 
         var header = MultiversionHeader{
@@ -631,15 +666,18 @@ test "MultiversionHeader.advertisable" {
             .current_git_commit = @splat(0),
             .current_release_client_min = 0,
         };
+
         header.checksum_header = header.calculate_header_checksum();
 
         try header.verify();
 
         const advertisable = header.advertisable(Release{ .value = t.from });
         var expected: ReleaseList = .empty;
+
         for (t.expected) |release| {
             expected.push(Release{ .value = release });
         }
+
         try std.testing.expectEqualSlices(
             Release,
             expected.slice(),
@@ -666,18 +704,23 @@ pub const MultiversionOS = struct {
     io: *IO,
 
     exe_path: [:0]const u8,
+
     exe_path_format: ExePathFormat,
     args_envp: ArgsEnvp,
 
     source_buffer: []align(8) u8,
+
     source_fd: ?posix.fd_t = null,
     source_offset: ?u64 = null,
 
     target_fd: posix.fd_t,
+
     target_path: [:0]const u8,
+
     target_body_offset: ?u32 = null,
     target_body_size: ?u32 = null,
     target_header: ?MultiversionHeader = null,
+
     /// This list only contains the advertisable releases, which are a subset of the actual
     /// releases included in the multiversion binary. See MultiversionHeader.advertisable().
     releases_bundled: ReleaseList = .empty,
@@ -686,6 +729,7 @@ pub const MultiversionOS = struct {
 
     timeout: Timeout,
     timeout_statx: os.linux.Statx = undefined,
+
     timeout_statx_previous: union(enum) { none, previous: os.linux.Statx, err } = .none,
 
     stage: union(enum) {
@@ -727,6 +771,7 @@ pub const MultiversionOS = struct {
             8,
             multiversion_binary_size_max_by_format,
         );
+
         errdefer allocator.free(source_buffer);
 
         const nonce = stdx.unique_u128();
@@ -736,18 +781,21 @@ pub const MultiversionOS = struct {
             .macos, .windows => blk: {
                 const suffix = if (builtin.target.os.tag == .windows) ".exe" else "";
                 const temporary_directory = try system_temporary_directory(allocator);
+
                 defer allocator.free(temporary_directory);
 
                 const filename = try std.fmt.allocPrint(allocator, "{s}-{}" ++ suffix, .{
                     multiversion_uuid,
                     nonce,
                 });
+
                 defer allocator.free(filename);
 
                 break :blk try std.fs.path.joinZ(allocator, &.{ temporary_directory, filename });
             },
             else => @panic("unsupported platform"),
         };
+
         errdefer allocator.free(target_path);
 
         // Only Linux has a nice API for executing from an in-memory file. For macOS and Windows,
@@ -755,6 +803,7 @@ pub const MultiversionOS = struct {
         const target_fd: posix.fd_t = switch (builtin.target.os.tag) {
             .linux => blk: {
                 const fd = open_memory_file(target_path);
+
                 errdefer posix.close(fd);
 
                 try posix.ftruncate(fd, multiversion_binary_size_max_by_format);
@@ -764,6 +813,7 @@ pub const MultiversionOS = struct {
 
             .macos, .windows => blk: {
                 const mode = if (builtin.target.os.tag == .macos) 0o755 else 0;
+
                 const file = std.fs.createFileAbsolute(
                     target_path,
                     .{ .read = true, .truncate = true, .mode = mode },
@@ -771,6 +821,7 @@ pub const MultiversionOS = struct {
                     "error in target_fd open: {}",
                     .{e},
                 );
+
                 try file.setEndPos(multiversion_binary_size_max);
 
                 break :blk file.handle;
@@ -778,6 +829,7 @@ pub const MultiversionOS = struct {
 
             else => @panic("unsupported platform"),
         };
+
         errdefer posix.close(target_fd);
 
         const args_envp: ArgsEnvp = switch (builtin.target.os.tag) {
@@ -789,9 +841,11 @@ pub const MultiversionOS = struct {
                 // For args, modify them so that argv[0] is exe_path. This allows our memfd executed
                 // binary to find its way back to the real file on disk.
                 const args = try allocator.allocSentinel(?[*:0]const u8, os.argv.len, null);
+
                 errdefer allocator.free(args);
 
                 args[0] = try allocator.dupeZ(u8, exe_path);
+
                 errdefer allocator.free(args[0]);
 
                 for (1..os.argv.len) |i| args[i] = os.argv[i];
@@ -841,7 +895,9 @@ pub const MultiversionOS = struct {
 
     pub fn deinit(self: *MultiversionOS, allocator: std.mem.Allocator) void {
         posix.close(self.target_fd);
+
         self.target_fd = IO.INVALID_FILE;
+
         allocator.free(self.target_path);
 
         allocator.free(self.source_buffer);
@@ -853,6 +909,7 @@ pub const MultiversionOS = struct {
             allocator.free(std.mem.span(self.args_envp.args[0].?));
             allocator.free(self.args_envp.args);
         }
+
         self.* = undefined;
     }
 
@@ -866,16 +923,19 @@ pub const MultiversionOS = struct {
 
     fn vtable_releases_bundled(context: *anyopaque) ReleaseList {
         const self: *const MultiversionOS = @ptrCast(@alignCast(context));
+
         return self.releases_bundled;
     }
 
     fn vtable_release_execute(context: *anyopaque, release: Release) void {
         const self: *MultiversionOS = @ptrCast(@alignCast(context));
+
         self.replica_release_execute(release);
     }
 
     fn vtable_tick(context: *anyopaque) void {
         const self: *MultiversionOS = @ptrCast(@alignCast(context));
+
         self.tick();
     }
 
@@ -888,11 +948,13 @@ pub const MultiversionOS = struct {
         } else {
             self.binary_open();
         }
+
         assert(self.stage != .init);
 
         while (self.stage != .ready and self.stage != .err) {
             self.io.run() catch |e| {
                 assert(self.stage != .ready);
+
                 self.stage = .{ .err = e };
             };
         }
@@ -901,6 +963,7 @@ pub const MultiversionOS = struct {
             // If there's been an error starting up multiversioning, don't disable it, but
             // advertise only the current version in memory.
             self.releases_bundled = .empty;
+
             self.releases_bundled.push(constants.config.process.release);
 
             return self.stage.err;
@@ -917,6 +980,7 @@ pub const MultiversionOS = struct {
 
     fn tick(self: *MultiversionOS) void {
         self.timeout.tick();
+
         if (self.timeout.fired()) self.on_timeout();
     }
 
@@ -928,6 +992,7 @@ pub const MultiversionOS = struct {
         assert(self.timeout.id == 0);
 
         self.timeout.id = replica_index;
+
         self.timeout.start();
         log.debug("enabled automatic on-disk version detection.", .{});
     }
@@ -936,6 +1001,7 @@ pub const MultiversionOS = struct {
         self.timeout.reset();
 
         assert(builtin.target.os.tag == .linux);
+
         if (comptime builtin.target.os.tag != .linux) return; // Prevent codegen.
 
         switch (self.stage) {
@@ -949,6 +1015,7 @@ pub const MultiversionOS = struct {
         }
 
         self.stage = .init;
+
         self.binary_statx();
     }
 
@@ -956,6 +1023,7 @@ pub const MultiversionOS = struct {
         assert(self.stage == .init);
 
         self.stage = .source_stat;
+
         self.io.statx(
             *MultiversionOS,
             self,
@@ -999,6 +1067,7 @@ pub const MultiversionOS = struct {
             }
 
             self.stage = .init;
+
             self.binary_open();
         }
 
@@ -1026,6 +1095,7 @@ pub const MultiversionOS = struct {
             .macos, .windows => {
                 const file = std.fs.openFileAbsolute(self.exe_path, .{}) catch |e|
                     std.debug.panic("error in binary_open: {}", .{e});
+
                 self.binary_open_callback(&self.completion, file.handle);
             },
             else => @panic("unsupported platform"),
@@ -1043,11 +1113,13 @@ pub const MultiversionOS = struct {
 
         const fd = result catch |e| {
             self.source_offset = null;
+
             return self.handle_error(e);
         };
 
         self.stage = .source_read;
         self.source_fd = fd;
+
         self.binary_read();
     }
 
@@ -1085,13 +1157,16 @@ pub const MultiversionOS = struct {
                 assert(self.source_offset != null);
 
                 posix.close(self.source_fd.?);
+
                 self.source_offset = null;
                 self.source_fd = null;
             }
         }
 
         const bytes_read = result catch |e| return self.handle_error(e);
+
         self.source_offset.? += bytes_read;
+
         assert(self.source_offset.? <= self.source_buffer.len);
         // This could be a truncated file, but it'll get rejected when we verify the checksum.
         maybe(self.source_offset.? == self.source_buffer.len);
@@ -1100,6 +1175,7 @@ pub const MultiversionOS = struct {
             const source_buffer = self.source_buffer[0..self.source_offset.?];
 
             self.stage = .target_update;
+
             self.target_update(source_buffer) catch |e| return self.handle_error(e);
             assert(self.stage == .ready);
         } else {
@@ -1109,6 +1185,7 @@ pub const MultiversionOS = struct {
 
     fn target_update(self: *MultiversionOS, source_buffer: []align(8) u8) !void {
         assert(self.stage == .target_update);
+
         const offsets = switch (self.exe_path_format) {
             .elf => try parse_elf(source_buffer),
             .pe => try parse_pe(source_buffer),
@@ -1126,7 +1203,9 @@ pub const MultiversionOS = struct {
         // `init_from_bytes` validates the header checksum internally.
         const source_buffer_header =
             source_buffer[active.header_offset..][0..@sizeOf(MultiversionHeader)];
+
         const header = try MultiversionHeader.init_from_bytes(source_buffer_header);
+
         var header_inactive_platform: ?MultiversionHeader = null;
 
         // MachO's checksum_binary_without_header works slightly differently since there are
@@ -1136,10 +1215,13 @@ pub const MultiversionOS = struct {
 
             const source_buffer_header_inactive_platform =
                 source_buffer[inactive.header_offset..][0..@sizeOf(MultiversionHeader)];
+
             header_inactive_platform = try MultiversionHeader.init_from_bytes(
                 source_buffer_header_inactive_platform,
             );
+
             @memset(source_buffer_header_inactive_platform, 0);
+
             if (header.checksum_binary_without_header !=
                 header_inactive_platform.?.checksum_binary_without_header)
             {
@@ -1149,7 +1231,9 @@ pub const MultiversionOS = struct {
 
         // Zero the header section in memory, to compute the hash, before copying it back.
         @memset(source_buffer_header, 0);
+
         const source_buffer_checksum = checksum.checksum(source_buffer);
+
         if (source_buffer_checksum != header.checksum_binary_without_header) {
             return error.ChecksumMismatch;
         }
@@ -1164,6 +1248,7 @@ pub const MultiversionOS = struct {
 
         if (offsets.inactive()) |inactive| {
             assert(offsets.format == .macho);
+
             const source_buffer_header_inactive_platform =
                 source_buffer[inactive.header_offset..][0..@sizeOf(MultiversionHeader)];
 
@@ -1180,6 +1265,7 @@ pub const MultiversionOS = struct {
         // 2. The existing releases_bundled, of any versions newer than current, is a subset
         //    of the new advertisable releases.
         const advertisable = header.advertisable(constants.config.process.release);
+
         if (!advertisable.contains(constants.config.process.release)) {
             return error.RunningVersionNotIncluded;
         }
@@ -1196,6 +1282,7 @@ pub const MultiversionOS = struct {
         if (self.timeout_statx_previous != .none) {
             log.info("releases_bundled old: {any}", .{self.releases_bundled.slice()});
         }
+
         defer if (self.timeout_statx_previous != .none) {
             log.info("releases_bundled new: {any}", .{self.releases_bundled.slice()});
         };
@@ -1215,6 +1302,7 @@ pub const MultiversionOS = struct {
             "this replica might fail to automatically restart!", .{});
 
         const target_file = std.fs.File{ .handle = self.target_fd };
+
         try target_file.pwriteAll(source_buffer, 0);
 
         self.target_header = header;
@@ -1242,6 +1330,7 @@ pub const MultiversionOS = struct {
                 " upgrade (or downgrade) the binary", .{
                 release,
             });
+
             @panic("release not available");
         }
 
@@ -1284,6 +1373,7 @@ pub const MultiversionOS = struct {
         //   to execute a past version. Happens when stopping at an intermediate release with
         //   visit == true.
         const release_target_current = release_target.value == self.target_header.?.current_release;
+
         const release_target_past = std.mem.indexOfScalar(
             u32,
             self.target_header.?.past.releases[0..self.target_header.?.past.count],
@@ -1306,6 +1396,7 @@ pub const MultiversionOS = struct {
                 self.exe_path,
             });
         }
+
         try self.exec_target_fd();
     }
 
@@ -1365,6 +1456,7 @@ pub const MultiversionOS = struct {
             self.source_buffer[0..binary_size],
             self.target_body_offset.? + binary_offset,
         );
+
         assert(bytes_read == binary_size);
 
         try target_file.pwriteAll(self.source_buffer[0..binary_size], 0);
@@ -1381,8 +1473,10 @@ pub const MultiversionOS = struct {
             );
 
             assert(bytes_read_for_checksum == binary_size);
+
             break :blk checksum.checksum(self.source_buffer[0..binary_size]);
         };
+
         assert(written_checksum == binary_checksum);
 
         // The trailing newline is intentional - it provides visual separation in the logs when
@@ -1391,6 +1485,7 @@ pub const MultiversionOS = struct {
             release_target,
             self.exe_path,
         });
+
         try self.exec_target_fd();
     }
 
@@ -1427,6 +1522,7 @@ pub const MultiversionOS = struct {
                 const cmd_line_w = stdx.windows.GetCommandLineW();
 
                 var lp_startup_info = std.mem.zeroes(std.os.windows.STARTUPINFOW);
+
                 lp_startup_info.cb = @sizeOf(std.os.windows.STARTUPINFOW);
 
                 var lp_process_information: std.os.windows.PROCESS_INFORMATION = undefined;
@@ -1449,11 +1545,15 @@ pub const MultiversionOS = struct {
                     0, // nDefaultTimeOut
                     null, // lpSecurityAttributes
                 );
+
                 if (pipe == std.os.windows.INVALID_HANDLE_VALUE) {
                     log.err("CreateNamedPipeW: {}", .{std.os.windows.GetLastError()});
+
                     return error.CreateNamedPipeWFailed;
                 }
+
                 assert(pipe != std.os.windows.INVALID_HANDLE_VALUE);
+
                 errdefer std.os.windows.CloseHandle(pipe);
 
                 // Pass the name of the pipe and the path to the original executable
@@ -1464,6 +1564,7 @@ pub const MultiversionOS = struct {
                         pipe_name,
                     ) != 0,
                 );
+
                 assert(
                     std.os.windows.kernel32.SetEnvironmentVariableW(
                         comptime std.unicode.utf8ToUtf16LeStringLiteral(TB_MULTIVERSION_EXE),
@@ -1486,16 +1587,19 @@ pub const MultiversionOS = struct {
                     &lp_startup_info,
                     &lp_process_information,
                 ) catch return error.CreateProcessWFailed;
+
                 const child: std.os.windows.HANDLE = lp_process_information.hProcess;
 
                 if (stdx.windows.ConnectNamedPipe(pipe, null) == std.os.windows.FALSE and
                     std.os.windows.GetLastError() != .PIPE_CONNECTED)
                 {
                     log.err("ConnectNamedPipe: {}", .{std.os.windows.GetLastError()});
+
                     return error.ConnectNamedPipeFailed;
                 }
 
                 var me: std.os.windows.HANDLE = undefined;
+
                 if (std.os.windows.kernel32.DuplicateHandle(
                     std.os.windows.GetCurrentProcess(),
                     std.os.windows.GetCurrentProcess(),
@@ -1506,10 +1610,12 @@ pub const MultiversionOS = struct {
                     std.os.windows.DUPLICATE_SAME_ACCESS,
                 ) != std.os.windows.TRUE) {
                     log.err("DuplicateHandle: {}", .{std.os.windows.GetLastError()});
+
                     return error.DuplicateHandleFailed;
                 }
 
                 const write_size = try std.os.windows.WriteFile(pipe, std.mem.asBytes(&me), null);
+
                 assert(write_size == @sizeOf(@TypeOf(me)));
 
                 std.process.exit(0);
@@ -1527,10 +1633,12 @@ pub fn self_exe_path(allocator: std.mem.Allocator) ![:0]const u8 {
         const ntdll = os.windows.kernel32.GetModuleHandleW(
             std.unicode.utf8ToUtf16LeStringLiteral("ntdll.dll"),
         ).?;
+
         const wine_get_version = os.windows.kernel32.GetProcAddress(ntdll, "wine_get_version");
 
         if (wine_get_version != null) {
             log.warn("wine doesn't support std.fs.selfExePath", .{});
+
             return allocator.dupeZ(u8, "");
         }
     }
@@ -1547,6 +1655,7 @@ pub fn self_exe_path(allocator: std.mem.Allocator) ![:0]const u8 {
 
         // Running from a memfd already; the real path is argv[0].
         const path = try allocator.dupeZ(u8, std.mem.span(os.argv[0]));
+
         assert(std.fs.path.isAbsolute(path));
 
         return path;
@@ -1561,6 +1670,7 @@ pub fn self_exe_path(allocator: std.mem.Allocator) ![:0]const u8 {
 
         // Running from a temp path already; the real path is argv[0].
         const path = try allocator.dupeZ(u8, std.mem.span(os.argv[0]));
+
         assert(std.fs.path.isAbsolute(path));
 
         return path;
@@ -1575,6 +1685,7 @@ pub fn self_exe_path(allocator: std.mem.Allocator) ![:0]const u8 {
 
         // Windows make it error-prone to set argv[0], so the path is passed via env.
         const path = try std.process.getEnvVarOwned(allocator, TB_MULTIVERSION_EXE);
+
         defer allocator.free(path);
 
         assert(std.fs.path.isAbsolute(path));
@@ -1592,9 +1703,11 @@ pub fn random_wstr() [32]u16 {
     var buffer_utf8: [31]u8 = undefined;
     const name_utf8 = stdx.array_print(31, &buffer_utf8, "{d}", .{std.crypto.random.int(u64)});
     var fba = std.heap.FixedBufferAllocator.init(std.mem.asBytes(&result));
+
     _ = std.unicode.utf8ToUtf16LeAllocZ(fba.allocator(), name_utf8) catch |err| switch (err) {
         error.InvalidUtf8, error.OutOfMemory => unreachable,
     };
+
     return result;
 }
 
@@ -1616,16 +1729,20 @@ pub fn random_wstr() [32]u16 {
 // 7. Child waits for parent to exit.
 const TB_MULTIVERSION_PIPE = "TB_MULTIVERSION_PIPE";
 const TB_MULTIVERSION_EXE = "TB_MULTIVERSION_EXE";
+
 pub fn wait_for_parent_to_exit() !void {
     comptime assert(builtin.os.tag == .windows);
 
     var pipe_name_buffer: [64]u16 = undefined;
+
     const count = std.os.windows.kernel32.GetEnvironmentVariableW(
         comptime std.unicode.utf8ToUtf16LeStringLiteral(TB_MULTIVERSION_PIPE),
         &pipe_name_buffer,
         pipe_name_buffer.len,
     );
+
     if (count == 0) return;
+
     assert(pipe_name_buffer[count] == 0);
 
     const pipe = std.os.windows.kernel32.CreateFileW(
@@ -1637,16 +1754,22 @@ pub fn wait_for_parent_to_exit() !void {
         0,
         null,
     );
+
     if (pipe == std.os.windows.INVALID_HANDLE_VALUE) {
         log.err("CreateFileW: {}", .{std.os.windows.GetLastError()});
+
         return error.CreateFileWFailed;
     }
+
     assert(pipe != std.os.windows.INVALID_HANDLE_VALUE);
+
     defer std.os.windows.CloseHandle(pipe);
 
     var parent: std.os.windows.HANDLE = undefined;
     const read_size = try std.os.windows.ReadFile(pipe, std.mem.asBytes(&parent), null);
+
     assert(read_size == @sizeOf(@TypeOf(parent)));
+
     defer std.os.windows.CloseHandle(parent);
 
     try std.os.windows.WaitForSingleObject(parent, std.os.windows.INFINITE);
@@ -1660,6 +1783,7 @@ const HeaderBodyOffsets = struct {
     };
 
     format: enum { elf, pe, macho },
+
     aarch64: ?Offsets,
     x86_64: ?Offsets,
 
@@ -1688,6 +1812,7 @@ const HeaderBodyOffsets = struct {
 /// like bounds checking on slices.
 pub fn parse_elf(buffer: []align(@alignOf(elf.Elf64_Ehdr)) const u8) !HeaderBodyOffsets {
     if (@sizeOf(elf.Elf64_Ehdr) > buffer.len) return error.InvalidELF;
+
     const elf_header = try elf.Header.parse(buffer[0..@sizeOf(elf.Elf64_Ehdr)]);
 
     // TigerBeetle only supports little endian on 64 bit platforms.
@@ -1713,9 +1838,11 @@ pub fn parse_elf(buffer: []align(@alignOf(elf.Elf64_Ehdr)) const u8) !HeaderBody
     // First, read the string table section.
     const string_table_elf_section_header_offset: u64 = elf_section_headers_offset +
         @as(u64, @sizeOf(elf.Elf64_Shdr)) * string_table_section_header_index;
+
     if (string_table_elf_section_header_offset + @sizeOf(elf.Elf64_Shdr) > buffer.len) {
         return error.InvalidELF;
     }
+
     const string_table_elf_section_header = std.mem.bytesAsValue(
         elf.Elf64_Shdr,
         buffer[string_table_elf_section_header_offset..][0..@sizeOf(elf.Elf64_Shdr)],
@@ -1740,6 +1867,7 @@ pub fn parse_elf(buffer: []align(@alignOf(elf.Elf64_Ehdr)) const u8) !HeaderBody
     if (buffer[string_table_offset + string_table_elf_section_header.sh_size - 1] != 0) {
         return error.InvalidStringTable;
     }
+
     const string_table =
         buffer[string_table_offset..][0 .. string_table_elf_section_header.sh_size - 1 :0];
 
@@ -1747,8 +1875,10 @@ pub fn parse_elf(buffer: []align(@alignOf(elf.Elf64_Ehdr)) const u8) !HeaderBody
     var header_offset: ?u32 = null;
     var body_offset: ?u32 = null;
     var body_size: ?u32 = null;
+
     for (0..elf_section_headers_count) |i| {
         const offset: u64 = elf_section_headers_offset + @as(u64, @sizeOf(elf.Elf64_Shdr)) * i;
+
         if (offset + @sizeOf(elf.Elf64_Shdr) > buffer.len) return error.InvalidSectionOffset;
 
         const elf_section_header = std.mem.bytesAsValue(
@@ -1769,9 +1899,11 @@ pub fn parse_elf(buffer: []align(@alignOf(elf.Elf64_Ehdr)) const u8) !HeaderBody
             // The body must be the second-last section in the file.
             if (body_offset != null) return error.MultipleMultiversionBody;
             if (i != elf_section_headers_count - 2) return error.InvalidMultiversionBodyLocation;
+
             if (elf_section_header.sh_offset > std.math.maxInt(@TypeOf(body_offset.?))) {
                 return error.InvalidMultiversionBodyOffset;
             }
+
             if (elf_section_header.sh_size > std.math.maxInt(@TypeOf(body_size.?))) {
                 return error.InvalidMultiversionBodySize;
             }
@@ -1783,10 +1915,13 @@ pub fn parse_elf(buffer: []align(@alignOf(elf.Elf64_Ehdr)) const u8) !HeaderBody
         } else if (std.mem.eql(u8, name, ".tb_mvh")) {
             // The header must be the last section in the file. (It's _logically_ a header.)
             if (header_offset != null) return error.MultipleMultiversionHeader;
+
             if (elf_section_header.sh_size != @sizeOf(MultiversionHeader)) {
                 return error.InvalidMultiversionHeaderSize;
             }
+
             if (i != elf_section_headers_count - 1) return error.InvalidMultiversionHeaderLocation;
+
             if (elf_section_header.sh_offset > std.math.maxInt(@TypeOf(header_offset.?))) {
                 return error.InvalidMultiversionHeaderOffset;
             }
@@ -1818,10 +1953,12 @@ pub fn parse_elf(buffer: []align(@alignOf(elf.Elf64_Ehdr)) const u8) !HeaderBody
 
 pub fn parse_macho(buffer: []const u8) !HeaderBodyOffsets {
     if (@sizeOf(std.macho.fat_header) > buffer.len) return error.InvalidMacho;
+
     const fat_header = std.mem.bytesAsValue(
         std.macho.fat_header,
         buffer[0..@sizeOf(std.macho.fat_header)],
     );
+
     if (fat_header.magic != std.macho.FAT_CIGAM) return error.InvalidMachoMagic;
     if (@byteSwap(fat_header.nfat_arch) != 6) return error.InvalidMachoArches;
 
@@ -1831,33 +1968,42 @@ pub fn parse_macho(buffer: []const u8) !HeaderBodyOffsets {
     var body_offset_x86_64: ?u32 = null;
     var body_size_aarch64: ?u32 = null;
     var body_size_x86_64: ?u32 = null;
+
     for (0..6) |i| {
         const offset = @sizeOf(std.macho.fat_header) + @sizeOf(std.macho.fat_arch) * i;
+
         if (offset + @sizeOf(std.macho.fat_arch) > buffer.len) return error.InvalidMacho;
+
         const fat_arch = std.mem.bytesAsValue(
             std.macho.fat_arch,
             buffer[offset..][0..@sizeOf(std.macho.fat_arch)],
         );
+
         const fat_arch_cpu_type = @byteSwap(fat_arch.cputype);
 
         switch (fat_arch_cpu_type) {
             @intFromEnum(section_to_macho_cpu.tb_mvb_aarch64) => {
                 if (body_offset_aarch64 != null) return error.InvalidMachoDuplicate;
+
                 assert(body_offset_aarch64 == null and body_size_aarch64 == null);
+
                 body_offset_aarch64 = @byteSwap(fat_arch.offset);
                 body_size_aarch64 = @byteSwap(fat_arch.size);
             },
             @intFromEnum(section_to_macho_cpu.tb_mvh_aarch64) => {
                 if (header_offset_aarch64 != null) return error.InvalidMachoDuplicate;
+
                 header_offset_aarch64 = @byteSwap(fat_arch.offset);
             },
             @intFromEnum(section_to_macho_cpu.tb_mvb_x86_64) => {
                 if (body_offset_x86_64 != null) return error.InvalidMachoDuplicate;
+
                 body_offset_x86_64 = @byteSwap(fat_arch.offset);
                 body_size_x86_64 = @byteSwap(fat_arch.size);
             },
             @intFromEnum(section_to_macho_cpu.tb_mvh_x86_64) => {
                 if (header_offset_x86_64 != null) return error.InvalidMachoDuplicate;
+
                 header_offset_x86_64 = @byteSwap(fat_arch.offset);
             },
             else => {},
@@ -1942,22 +2088,35 @@ fn test_elf_build_header(buffer: []align(8) u8) !*elf.Elf64_Ehdr {
     );
 
     stdx.copy_disjoint(.exact, u8, elf_header.e_ident[0..4], elf.MAGIC);
+
     try expect_any_error(parse_elf(buffer));
 
     elf_header.e_ident[elf.EI_VERSION] = 1;
+
     try expect_any_error(parse_elf(buffer));
+
     elf_header.e_ident[elf.EI_DATA] = elf.ELFDATA2LSB;
+
     try expect_any_error(parse_elf(buffer));
+
     elf_header.e_ident[elf.EI_CLASS] = elf.ELFCLASS64;
+
     try expect_any_error(parse_elf(buffer));
 
     elf_header.e_machine = elf.EM.X86_64;
+
     try expect_any_error(parse_elf(buffer));
+
     elf_header.e_shnum = 4;
+
     try expect_any_error(parse_elf(buffer));
+
     elf_header.e_shoff = 8192;
+
     try expect_any_error(parse_elf(buffer));
+
     elf_header.e_shstrndx = 1;
+
     try expect_any_error(parse_elf(buffer));
 
     return elf_header;
@@ -1973,19 +2132,24 @@ fn test_elf_build_string_table(buffer: []align(8) u8, elf_header: *elf.Elf64_Ehd
     );
 
     string_table_elf_section_header.sh_type = elf.SHT_STRTAB;
+
     try expect_any_error(parse_elf(buffer));
 
     string_table_elf_section_header.sh_size = test_elf_name_length_max * elf_header.e_shnum;
+
     try expect_any_error(parse_elf(buffer));
 
     string_table_elf_section_header.sh_offset = 300;
+
     try expect_any_error(parse_elf(buffer));
 
     string_table_elf_section_header.sh_name = @intCast(string_table_elf_section_header.sh_size - 1);
 
     const string_table_size = string_table_elf_section_header.sh_size;
     const string_table = buffer[string_table_elf_section_header.sh_offset..][0..string_table_size];
+
     string_table[string_table_elf_section_header.sh_size - 1] = 0;
+
     try expect_any_error(parse_elf(buffer));
 
     return string_table;
@@ -2002,18 +2166,26 @@ fn test_elf_build_section(
     assert(index < elf_header.e_shnum);
 
     const offset: u64 = elf_header.e_shoff + @as(u64, @sizeOf(elf.Elf64_Shdr)) * index;
+
     const elf_section_header = std.mem.bytesAsValue(
         elf.Elf64_Shdr,
         buffer[offset..][0..@sizeOf(elf.Elf64_Shdr)],
     );
+
     elf_section_header.sh_name = test_elf_name_length_max * index;
+
     try expect_any_error(parse_elf(buffer));
 
     stdx.copy_disjoint(.inexact, u8, string_table[elf_section_header.sh_name..], name);
+
     try expect_any_error(parse_elf(buffer));
+
     string_table[elf_section_header.sh_name..][name.len] = 0;
+
     try expect_any_error(parse_elf(buffer));
+
     elf_section_header.sh_offset = 8192 * index;
+
     try expect_any_error(parse_elf(buffer));
 
     return elf_section_header;
@@ -2023,6 +2195,7 @@ fn test_elf_build_section(
 // full range of values is the undefined intermediate bits.
 test parse_elf {
     var buffer: [32768]u8 align(8) = undefined;
+
     for (0..256) |i| {
         @memset(&buffer, @as(u8, @intCast(i)));
 
@@ -2040,6 +2213,7 @@ test parse_elf {
             2,
             ".tb_mvb",
         );
+
         // So it overlaps on purpose, to check the MultiversionBodyOverlapsHeader assert.
         section_mvb.sh_size = 16384;
 
@@ -2050,11 +2224,13 @@ test parse_elf {
             3,
             ".tb_mvh",
         );
+
         section_mvh.sh_size = 8192; // @sizeOf(MultiversionHeader), but hardcoded.
 
         try std.testing.expectError(error.MultiversionBodyOverlapsHeader, parse_elf(&buffer));
 
         section_mvb.sh_size = 8192;
+
         const parsed = try parse_elf(&buffer);
 
         assert(parsed.x86_64.?.body_offset == 16384);
@@ -2068,12 +2244,15 @@ pub fn print_information(
     output: std.io.AnyWriter,
 ) !void {
     var io = try IO.init(32, 0);
+
     defer io.deinit();
 
     const absolute_exe_path = try std.fs.cwd().realpathAlloc(gpa, exe_path);
+
     defer gpa.free(absolute_exe_path);
 
     const absolute_exe_path_z = try gpa.dupeZ(u8, absolute_exe_path);
+
     defer gpa.free(absolute_exe_path_z);
 
     var multiversion = try MultiversionOS.init(
@@ -2082,10 +2261,12 @@ pub fn print_information(
         absolute_exe_path_z,
         .detect,
     );
+
     defer multiversion.deinit(gpa);
 
     multiversion.open_sync() catch |err| {
         try output.print("multiversioning not enabled: {}\n", .{err});
+
         return err;
     };
 
@@ -2099,6 +2280,7 @@ pub fn print_information(
     // `source_buffer` contains the same data as `target_file` - this code doesn't update anything
     // after the initial open_sync().
     const target_body_size = multiversion.target_body_size.?; // Line length limits.
+
     try header.past.verify_checksums(
         multiversion.source_buffer[multiversion.target_body_offset.?..][0..target_body_size],
     );
@@ -2112,6 +2294,7 @@ pub fn print_information(
         comptime std.enums.values(std.meta.FieldEnum(MultiversionHeader)),
     ) |field| {
         const field_name = @tagName(field);
+
         switch (field) {
             .past, .current_flags_padding, .past_padding, .reserved => continue,
             .current_git_commit => {
@@ -2142,15 +2325,18 @@ pub fn print_information(
     }
 
     try output.print("multiversioning.header.past.count={}\n", .{header.past.count});
+
     inline for (
         comptime std.enums.values(std.meta.FieldEnum(MultiversionHeader.PastReleases)),
     ) |field| {
         const field_name = @tagName(field);
+
         switch (field) {
             .count, .flags_padding => {},
             .releases, .release_client_mins => {
                 comptime assert(@sizeOf(Release) ==
                     @sizeOf(@TypeOf(@field(header.past, field_name)[0])));
+
                 const release_list: []const Release =
                     @ptrCast(@field(header.past, field_name)[0..header.past.count]);
 

@@ -5,16 +5,19 @@ import type { InternalModuleFormat, SourceMap } from 'rolldown'
 import { resolveTsconfig } from 'rolldown/experimental'
 import { TsconfigCache } from 'rolldown/utils'
 import type { FSWatcher } from '#dep-types/chokidar'
+
 import type {
   EsbuildLoader,
   EsbuildMessage,
   EsbuildTransformOptions,
   EsbuildTransformResult as RawEsbuildTransformResult,
 } from '#types/internal/esbuildOptions'
+
 import { cleanUrl } from '../../shared/utils'
 import type { ResolvedConfig } from '../config'
 import type { Plugin } from '../plugin'
 import type { ViteDevServer } from '../server'
+
 import {
   combineSourcemaps,
   createDebugger,
@@ -72,17 +75,22 @@ type TSConfigJSON = {
   }
   [key: string]: any
 }
+
 export type TSCompilerOptions = NonNullable<TSConfigJSON['compilerOptions']>
 
 let esbuild: Promise<typeof import('esbuild')> | undefined
+
 const importEsbuild = () => {
   esbuild ||= import('esbuild')
+
   return esbuild
 }
 
 let warnedTransformWithEsbuild = false
+
 const warnTransformWithEsbuildUsageOnce = () => {
   if (warnedTransformWithEsbuild) return
+
   warnedTransformWithEsbuild = true
 
   // eslint-disable-next-line no-console -- logger cannot be used here
@@ -141,14 +149,18 @@ export async function transformWithEsbuild(
       'useDefineForClassFields',
       'verbatimModuleSyntax',
     ]
+
     const compilerOptionsForFile: TSCompilerOptions = {}
+
     if (loader === 'ts' || loader === 'tsx') {
       const result = resolveTsconfig(
         filename,
         getTSConfigResolutionCache(config),
       )
+
       if (result) {
         const { tsconfig: loadedTsconfig, tsconfigFilePaths } = result
+
         // tsconfig could be out of root, make sure it is watched on dev
         if (watcher && config) {
           for (const tsconfigFile of tsconfigFilePaths) {
@@ -216,6 +228,7 @@ export async function transformWithEsbuild(
   delete resolvedOptions.jsxInject
 
   let transform: typeof import('esbuild').transform
+
   try {
     transform = (await importEsbuild()).transform
   } catch (e) {
@@ -233,10 +246,14 @@ export async function transformWithEsbuild(
 
   try {
     const result = await transform(code, resolvedOptions)
+
     let map: SourceMap
+
     if (inMap && resolvedOptions.sourcemap) {
       const nextMap = JSON.parse(result.map)
+
       nextMap.sourcesContent = []
+
       map = combineSourcemaps(filename, [
         nextMap as RawSourceMap,
         inMap as RawSourceMap,
@@ -247,15 +264,18 @@ export async function transformWithEsbuild(
           ? JSON.parse(result.map)
           : { mappings: '' }
     }
+
     return {
       ...result,
       map,
     }
   } catch (e: any) {
     debug?.(`esbuild error with options used: `, resolvedOptions)
+
     // patch error information
     if (e.errors) {
       e.frame = ''
+
       e.errors.forEach((m: EsbuildMessage) => {
         if (
           m.text === 'Experimental decorators are not currently enabled' ||
@@ -265,10 +285,13 @@ export async function transformWithEsbuild(
           m.text +=
             '. Vite 5 now uses esbuild 0.18 and you need to enable them by adding "experimentalDecorators": true in your "tsconfig.json" file.'
         }
+
         e.frame += `\n` + prettifyMessage(m, code)
       })
+
       e.loc = e.errors[0].location
     }
+
     throw e
   }
 }
@@ -315,10 +338,12 @@ export const injectEsbuildHelpers = (
 
   if (contentIndex > 0) {
     const esbuildHelpers = esbuildCode.slice(0, contentIndex)
+
     return esbuildCode
       .slice(contentIndex)
       .replace('"use strict";', (m: string) => m + esbuildHelpers)
   }
+
   return esbuildCode
 }
 
@@ -451,13 +476,16 @@ export function resolveEsbuildTranspileOptions(
 
 function prettifyMessage(m: EsbuildMessage, code: string): string {
   let res = colors.yellow(m.text)
+
   if (m.location) {
     res += `\n` + generateCodeFrame(code, m.location)
   }
+
   return res + `\n`
 }
 
 let globalTSConfigResolutionCache: TsconfigCache | undefined
+
 const tsconfigResolutionCacheMap = new WeakMap<ResolvedConfig, TsconfigCache>()
 
 export function getTSConfigResolutionCache(
@@ -466,11 +494,15 @@ export function getTSConfigResolutionCache(
   if (!config) {
     return (globalTSConfigResolutionCache ??= new TsconfigCache())
   }
+
   let cache = tsconfigResolutionCacheMap.get(config)
+
   if (!cache) {
     cache = new TsconfigCache(config.tsconfig)
+
     tsconfigResolutionCacheMap.set(config, cache)
   }
+
   return cache
 }
 
@@ -482,6 +514,7 @@ export function reloadOnTsconfigChange(
   // any json file in the tsconfig cache could have been used to compile ts
   if (changedFile.endsWith('.json')) {
     const cache = getTSConfigResolutionCache(server.config)
+
     if (changedFile.endsWith('/tsconfig.json')) {
       server.config.logger.info(
         `changed tsconfig file detected: ${changedFile} - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.`,

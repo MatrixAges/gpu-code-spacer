@@ -24,13 +24,16 @@ pub const tcp_options: IO.TCPOptions = .{
 
 test "TCP socket buffer options" {
     var io = try IO.init(32, 0);
+
     defer io.deinit();
 
     var options = tcp_options;
+
     options.rcvbuf = 1;
     options.sndbuf = 1;
 
     const socket = try io.open_socket_tcp(.IPv4, options);
+
     defer io.close_socket(socket);
 }
 
@@ -56,6 +59,7 @@ test "open/write/read/close/statx" {
             var self: Context = .{
                 .io = try IO.init(32, 0),
             };
+
             defer self.io.deinit();
 
             // The file gets created below, either by createFile or openat.
@@ -79,8 +83,10 @@ test "open/write/read/close/statx" {
                     .read = true,
                     .truncate = true,
                 });
+
                 self.openat_callback(&completion, file.handle);
             }
+
             while (!self.done) try self.io.run();
 
             try testing.expectEqual(self.write_buf.len, self.written);
@@ -99,6 +105,7 @@ test "open/write/read/close/statx" {
             result: anyerror!posix.fd_t,
         ) void {
             self.fd = result catch @panic("openat error");
+
             self.io.write(
                 *Context,
                 self,
@@ -117,6 +124,7 @@ test "open/write/read/close/statx" {
             result: IO.WriteError!usize,
         ) void {
             self.written = result catch @panic("write error");
+
             self.io.read(*Context, self, read_callback, completion, self.fd.?, &self.read_buf, 10);
         }
 
@@ -126,6 +134,7 @@ test "open/write/read/close/statx" {
             result: IO.ReadError!usize,
         ) void {
             self.read = result catch @panic("read error");
+
             self.io.close(*Context, self, close_callback, completion, self.fd.?);
         }
 
@@ -162,6 +171,7 @@ test "open/write/read/close/statx" {
             _ = result catch @panic("statx error");
 
             assert(!self.done);
+
             self.done = true;
         }
     }.run_test();
@@ -175,7 +185,6 @@ test "accept/connect/send/receive" {
         done: bool = false,
         server: posix.socket_t,
         client: posix.socket_t,
-
         accepted_sock: posix.socket_t = undefined,
 
         send_buf: [10]u8 = [_]u8{ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 },
@@ -186,15 +195,18 @@ test "accept/connect/send/receive" {
 
         fn run_test() !void {
             var io = try IO.init(32, 0);
+
             defer io.deinit();
 
             const address: stdx.SocketAddress = .{ .ip = .@"127.0.0.1", .port = 0 };
             const kernel_backlog = 1;
 
             const server = try io.open_socket_tcp(address.ip.family(), tcp_options);
+
             defer io.close_socket(server);
 
             const client = try io.open_socket_tcp(address.ip.family(), tcp_options);
+
             defer io.close_socket(client);
 
             try posix.setsockopt(
@@ -203,13 +215,17 @@ test "accept/connect/send/receive" {
                 posix.SO.REUSEADDR,
                 &std.mem.toBytes(@as(c_int, 1)),
             );
+
             const address_std = address.to_std();
+
             try posix.bind(server, &address_std.any, address_std.getOsSockLen());
             try posix.listen(server, kernel_backlog);
 
             var client_address_std = std.net.Address.initIp4(undefined, undefined);
             var client_address_std_len = client_address_std.getOsSockLen();
+
             try posix.getsockname(server, &client_address_std.any, &client_address_std_len);
+
             const client_address = try stdx.SocketAddress.from_std(client_address_std);
 
             var self: Context = .{
@@ -219,6 +235,7 @@ test "accept/connect/send/receive" {
             };
 
             var client_completion: IO.Completion = undefined;
+
             self.io.connect(
                 *Context,
                 &self,
@@ -229,13 +246,13 @@ test "accept/connect/send/receive" {
             );
 
             var server_completion: IO.Completion = undefined;
+
             self.io.accept(*Context, &self, accept_callback, &server_completion, server);
 
             while (!self.done) try self.io.run();
 
             try testing.expectEqual(self.send_buf.len, self.sent);
             try testing.expectEqual(self.recv_buf.len, self.received);
-
             try testing.expectEqualSlices(u8, self.send_buf[0..self.received], &self.recv_buf);
         }
 
@@ -272,6 +289,7 @@ test "accept/connect/send/receive" {
             result: IO.AcceptError!posix.socket_t,
         ) void {
             self.accepted_sock = result catch @panic("accept error");
+
             self.io.recv(
                 *Context,
                 self,
@@ -290,6 +308,7 @@ test "accept/connect/send/receive" {
             _ = completion;
 
             self.received = result catch @panic("recv error");
+
             self.done = true;
         }
     }.run_test();
@@ -309,15 +328,18 @@ test "timeout" {
 
         fn run_test() !void {
             var time_os: TimeOS = .{};
+
             var self: Context = .{
                 .time = time_os.time(),
                 .io = try IO.init(32, 0),
             };
+
             defer self.io.deinit();
 
             const start = self.time.monotonic();
 
             var completions: [timeouts_total]IO.Completion = undefined;
+
             for (&completions) |*completion| {
                 self.io.timeout(
                     *Context,
@@ -327,14 +349,17 @@ test "timeout" {
                     delay.ns,
                 );
             }
+
             while (self.timeouts_fired < timeouts_total) try self.io.run();
 
             try self.io.run();
             try testing.expectEqual(@as(u32, timeouts_total), self.timeouts_fired);
 
             const elapsed = start.elapsed(self.stop.?);
+
             if (elapsed.ns < delay.ns) {
                 std.log.err("elapsed={} < delay={}", .{ elapsed, delay });
+
                 return error.TestUnexpectedResult;
             }
 
@@ -353,6 +378,7 @@ test "timeout" {
             _ = result catch @panic("timeout error");
 
             if (self.stop == null) self.stop = self.time.monotonic();
+
             self.timeouts_fired += 1;
         }
     }.run_test();
@@ -376,9 +402,11 @@ test "event" {
                 .io = try IO.init(32, 0),
                 .main_thread_id = std.Thread.getCurrentId(),
             };
+
             defer self.io.deinit();
 
             self.event = try self.io.open_event();
+
             defer self.io.close_event(self.event);
 
             var time: TimeOS = .{};
@@ -386,10 +414,12 @@ test "event" {
 
             // Listen to the event and spawn a thread that triggers the completion after some time.
             self.io.event_listen(self.event, &self.event_completion, on_event);
+
             const thread = try std.Thread.spawn(.{}, Context.trigger_event, .{&self});
 
             // Wait for the number of events to complete.
             while (self.count < events_count) try self.io.run();
+
             thread.join();
 
             // Make sure the event was triggered multiple times.
@@ -397,11 +427,13 @@ test "event" {
 
             // Make sure at least some time has passed.
             const elapsed = timer.elapsed(time.monotonic());
+
             assert(elapsed.ns >= delay);
         }
 
         fn trigger_event(self: *Context) void {
             assert(std.Thread.getCurrentId() != self.main_thread_id);
+
             while (self.count < events_count) {
                 std.time.sleep(delay + 1);
 
@@ -412,9 +444,11 @@ test "event" {
 
         fn on_event(completion: *IO.Completion) void {
             const self: *Context = @fieldParentPtr("event_completion", completion);
+
             assert(std.Thread.getCurrentId() == self.main_thread_id);
 
             self.count += 1;
+
             if (self.count == events_count) return;
 
             // Reattaching the event.
@@ -439,9 +473,11 @@ test "submission queue full" {
 
         fn run_test() !void {
             var self: Context = .{ .io = try IO.init(1, 0) };
+
             defer self.io.deinit();
 
             var completions: [count]IO.Completion = undefined;
+
             for (&completions) |*completion| {
                 self.io.timeout(
                     *Context,
@@ -451,6 +487,7 @@ test "submission queue full" {
                     ms * std.time.ns_per_ms,
                 );
             }
+
             while (self.count < count) try self.io.run();
 
             try self.io.run();
@@ -487,12 +524,14 @@ test "tick to wait" {
 
         fn run_test() !void {
             var self: Context = .{ .io = try IO.init(1, 0) };
+
             defer self.io.deinit();
 
             const address: stdx.SocketAddress = .{ .ip = .@"127.0.0.1", .port = 0 };
             const kernel_backlog = 1;
 
             const server = try self.io.open_socket_tcp(address.ip.family(), tcp_options);
+
             defer self.io.close_socket(server);
 
             try posix.setsockopt(
@@ -501,24 +540,30 @@ test "tick to wait" {
                 posix.SO.REUSEADDR,
                 &std.mem.toBytes(@as(c_int, 1)),
             );
+
             const address_std = address.to_std();
+
             try posix.bind(server, &address_std.any, address_std.getOsSockLen());
             try posix.listen(server, kernel_backlog);
 
             var client_address_std = std.net.Address.initIp4(undefined, undefined);
             var client_address_std_len = client_address_std.getOsSockLen();
-            try posix.getsockname(server, &client_address_std.any, &client_address_std_len);
-            const client_address = try stdx.SocketAddress.from_std(client_address_std);
 
+            try posix.getsockname(server, &client_address_std.any, &client_address_std_len);
+
+            const client_address = try stdx.SocketAddress.from_std(client_address_std);
             const client = try self.io.open_socket_tcp(client_address.ip.family(), tcp_options);
+
             defer self.io.close_socket(client);
 
             // Start the accept.
             var server_completion: IO.Completion = undefined;
+
             self.io.accept(*Context, &self, accept_callback, &server_completion, server);
 
             // Start the connect.
             var client_completion: IO.Completion = undefined;
+
             self.io.connect(
                 *Context,
                 &self,
@@ -537,12 +582,15 @@ test "tick to wait" {
 
             assert(self.connected);
             assert(self.accepted != null);
+
             defer self.io.close_socket(self.accepted.?);
 
             // Start receiving on the client.
             var recv_completion: IO.Completion = undefined;
             var recv_buffer: [64]u8 = undefined;
+
             @memset(&recv_buffer, 0xaa);
+
             self.io.recv(
                 *Context,
                 &self,
@@ -562,11 +610,13 @@ test "tick to wait" {
             // This simulates IO being completed by an external system.
             var send_buf: [64]u8 = @splat(0);
             const wrote = try os_send(self.accepted.?, &send_buf, 0);
+
             try testing.expectEqual(wrote, send_buf.len);
 
             // Wait for the recv() to complete using only IO.run().
             // If tick is broken, then this will deadlock
             assert(!self.received);
+
             while (!self.received) {
                 try self.io.run();
             }
@@ -584,6 +634,7 @@ test "tick to wait" {
             _ = completion;
 
             assert(self.accepted == null);
+
             self.accepted = result catch @panic("accept error");
         }
 
@@ -596,6 +647,7 @@ test "tick to wait" {
             _ = result catch @panic("connect error");
 
             assert(!self.connected);
+
             self.connected = true;
         }
 
@@ -608,6 +660,7 @@ test "tick to wait" {
             _ = result catch |err| std.debug.panic("recv error: {}", .{err});
 
             assert(!self.received);
+
             self.received = true;
         }
 
@@ -627,10 +680,12 @@ test "pipe data over socket" {
         const buffer_size = 1 * MiB;
 
         const Context = @This();
+
         const Socket = struct {
             fd: ?posix.socket_t = null,
             completion: IO.Completion = undefined,
         };
+
         const Pipe = struct {
             socket: Socket = .{},
             buffer: []u8,
@@ -639,24 +694,30 @@ test "pipe data over socket" {
 
         fn run() !void {
             const tx_buf = try testing.allocator.alloc(u8, buffer_size);
+
             defer testing.allocator.free(tx_buf);
 
             const rx_buf = try testing.allocator.alloc(u8, buffer_size);
+
             defer testing.allocator.free(rx_buf);
 
             @memset(tx_buf, 1);
             @memset(rx_buf, 0);
+
             var self = Context{
                 .io = try IO.init(32, 0),
                 .tx = .{ .buffer = tx_buf },
                 .rx = .{ .buffer = rx_buf },
             };
+
             defer self.io.deinit();
 
             self.server.fd = try self.io.open_socket_tcp(.IPv4, tcp_options);
+
             defer self.io.close_socket(self.server.fd.?);
 
             const address: stdx.SocketAddress = .{ .ip = .@"127.0.0.1", .port = 0 };
+
             try posix.setsockopt(
                 self.server.fd.?,
                 posix.SOL.SOCKET,
@@ -665,16 +726,19 @@ test "pipe data over socket" {
             );
 
             const address_std = address.to_std();
+
             try posix.bind(self.server.fd.?, &address_std.any, address_std.getOsSockLen());
             try posix.listen(self.server.fd.?, 1);
 
             var client_address_std = std.net.Address.initIp4(undefined, undefined);
             var client_address_std_len = client_address_std.getOsSockLen();
+
             try posix.getsockname(
                 self.server.fd.?,
                 &client_address_std.any,
                 &client_address_std_len,
             );
+
             const client_address = try stdx.SocketAddress.from_std(client_address_std);
 
             self.io.accept(
@@ -686,6 +750,7 @@ test "pipe data over socket" {
             );
 
             self.tx.socket.fd = try self.io.open_socket_tcp(.IPv4, tcp_options);
+
             defer self.io.close_socket(self.tx.socket.fd.?);
 
             self.io.connect(
@@ -698,9 +763,11 @@ test "pipe data over socket" {
             );
 
             var tick: usize = 0xdeadbeef;
+
             while (self.rx.transferred != self.rx.buffer.len) : (tick +%= 1) {
                 if (tick % 61 == 0) {
                     const timeout_ns = tick % (10 * std.time.ns_per_ms);
+
                     try self.io.run_for_ns(@as(u63, @intCast(timeout_ns)));
                 } else {
                     try self.io.run();
@@ -711,7 +778,6 @@ test "pipe data over socket" {
             try testing.expect(self.tx.socket.fd != null);
             try testing.expect(self.rx.socket.fd != null);
             self.io.close_socket(self.rx.socket.fd.?);
-
             try testing.expectEqual(self.tx.transferred, buffer_size);
             try testing.expectEqual(self.rx.transferred, buffer_size);
             try testing.expect(std.mem.eql(u8, self.tx.buffer, self.rx.buffer));
@@ -724,9 +790,11 @@ test "pipe data over socket" {
         ) void {
             assert(self.rx.socket.fd == null);
             assert(&self.server.completion == completion);
+
             self.rx.socket.fd = result catch |err| std.debug.panic("accept error {}", .{err});
 
             assert(self.rx.transferred == 0);
+
             self.do_receiver(0);
         }
 
@@ -739,13 +807,14 @@ test "pipe data over socket" {
 
             assert(self.tx.socket.fd != null);
             assert(&self.tx.socket.completion == completion);
-
             assert(self.tx.transferred == 0);
+
             self.do_sender(0);
         }
 
         fn do_sender(self: *Context, bytes: usize) void {
             self.tx.transferred += bytes;
+
             assert(self.tx.transferred <= self.tx.buffer.len);
 
             if (self.tx.transferred < self.tx.buffer.len) {
@@ -766,12 +835,15 @@ test "pipe data over socket" {
             result: IO.SendError!usize,
         ) void {
             const bytes = result catch |err| std.debug.panic("send error: {}", .{err});
+
             assert(&self.tx.socket.completion == completion);
+
             self.do_sender(bytes);
         }
 
         fn do_receiver(self: *Context, bytes: usize) void {
             self.rx.transferred += bytes;
+
             assert(self.rx.transferred <= self.rx.buffer.len);
 
             if (self.rx.transferred < self.rx.buffer.len) {
@@ -792,7 +864,9 @@ test "pipe data over socket" {
             result: IO.RecvError!usize,
         ) void {
             const bytes = result catch |err| std.debug.panic("recv error: {}", .{err});
+
             assert(&self.rx.socket.completion == completion);
+
             self.do_receiver(bytes);
         }
     }.run();
@@ -807,6 +881,7 @@ test "flush checks timeouts even when completions are queued" {
     // verifying identical behavior on windows and darwin but leaves
     // the different linux behavior to future work.
     if (builtin.target.os.tag == .linux) return error.SkipZigTest;
+
     try struct {
         const Context = @This();
 
@@ -816,6 +891,7 @@ test "flush checks timeouts even when completions are queued" {
 
         fn run_test() !void {
             var self: Context = .{ .io = try IO.init(32, 0) };
+
             defer self.io.deinit();
 
             // next_tick goes directly into the completed queue.
@@ -825,11 +901,10 @@ test "flush checks timeouts even when completions are queued" {
             // 1ns timeout will be stranded.
             var c1: IO.Completion = undefined;
             var c2: IO.Completion = undefined;
+
             self.io.next_tick(*Context, &self, on_instant, &c1, .vsr);
             self.io.timeout(*Context, &self, on_timeout, &c2, 1);
-
             try self.io.run();
-
             try testing.expect(self.instant_fired);
             try testing.expect(self.timeout_fired);
         }
@@ -840,6 +915,7 @@ test "flush checks timeouts even when completions are queued" {
 
         fn on_timeout(self: *Context, _: *IO.Completion, result: IO.TimeoutError!void) void {
             _ = result catch @panic("timeout error");
+
             self.timeout_fired = true;
         }
     }.run_test();
@@ -857,6 +933,7 @@ test "chained zero-delay callbacks complete in a single flush" {
 
         fn run_test() !void {
             var self: Context = .{ .io = try IO.init(32, 0) };
+
             defer self.io.deinit();
 
             // Start the chain with a single next_tick.
@@ -874,6 +951,7 @@ test "chained zero-delay callbacks complete in a single flush" {
 
         fn on_next_tick(self: *Context, _: *IO.Completion, _: IO.NextTickResult) void {
             self.count += 1;
+
             if (self.count < chain_length) {
                 self.io.next_tick(
                     *Context,

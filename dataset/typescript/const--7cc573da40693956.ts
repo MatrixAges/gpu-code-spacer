@@ -33,9 +33,12 @@ export const autolock_map = {
 export const getAutolockOptions = () => {
 	return Object.keys(autolock_map).map(_key => {
 		let label = ''
+
 		const key = _key as keyof typeof autolock_map
 		const target = autolock_map[key]
+
 		const getUnit = (unit: 'minutes' | 'hours') => $t(`common.time.${unit}`)
+
 		// @ts-ignore
 		const target_unit = getUnit(target.unit as 'minutes' | 'hours')
 

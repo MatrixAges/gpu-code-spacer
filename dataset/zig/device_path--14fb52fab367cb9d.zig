@@ -28,6 +28,7 @@ pub const DevicePath = extern struct {
     pub fn next(self: *const DevicePath) ?*const DevicePath {
         const bytes: [*]const u8 = @ptrCast(self);
         const next_node: *const DevicePath = @ptrCast(bytes + self.length);
+
         if (next_node.type == .end and @as(uefi.DevicePath.End.Subtype, @enumFromInt(self.subtype)) == .end_entire)
             return null;
 
@@ -76,6 +77,7 @@ pub const DevicePath = extern struct {
         ptr[path.len] = 0;
 
         var end = @as(*uefi.DevicePath.End.EndEntireDevicePath, @ptrCast(@constCast(@as(*DevicePath, @ptrCast(new)).next().?)));
+
         end.type = .end;
         end.subtype = .end_entire;
         end.length = @sizeOf(uefi.DevicePath.End.EndEntireDevicePath);
@@ -91,6 +93,7 @@ pub const DevicePath = extern struct {
             // we need to initialize it and its subtype
             if (self.type == enum_value) {
                 const subtype = self.initSubtype(ufield.type);
+
                 if (subtype) |sb| {
                     // e.g. return .{ .hardware = .{ .pci = @ptrCast(...) } }
                     return @unionInit(uefi.DevicePath, ufield.name, sb);
@@ -122,7 +125,6 @@ pub const DevicePath = extern struct {
 comptime {
     assert(4 == @sizeOf(DevicePath));
     assert(1 == @alignOf(DevicePath));
-
     assert(0 == @offsetOf(DevicePath, "type"));
     assert(1 == @offsetOf(DevicePath, "subtype"));
     assert(2 == @offsetOf(DevicePath, "length"));

@@ -1,6 +1,5 @@
 const std = @import("std");
 const vsr = @import("vsr");
-
 const assert = std.debug.assert;
 const stdx = vsr.stdx;
 const tb = vsr.tigerbeetle;
@@ -155,6 +154,7 @@ fn dotnet_type(comptime Type: type) []const u8 {
         .bool => return "byte",
         .int => |info| {
             assert(info.signedness == .unsigned);
+
             return switch (info.bits) {
                 8 => "byte",
                 16 => "ushort",
@@ -198,6 +198,7 @@ fn emit_enum(
     comptime int_type: []const u8,
 ) !void {
     const is_packed_struct = @TypeOf(type_info) == std.builtin.Type.Struct;
+
     if (is_packed_struct) {
         assert(type_info.layout == .@"packed");
         // Packed structs represented as Enum needs a Flags attribute:
@@ -228,6 +229,7 @@ fn emit_enum(
         if (comptime std.mem.startsWith(u8, field.name, "deprecated_")) continue;
 
         try emit_docs(buffer, mapping, field.name);
+
         if (is_packed_struct) {
             try buffer.writer().print("    {s} = 1 << {},\n\n", .{
                 stdx.to_case(field.name, .PascalCase),
@@ -235,6 +237,7 @@ fn emit_enum(
             });
         } else {
             const int_value = @intFromEnum(@field(Type, field.name));
+
             try buffer.writer().print("    {s} = {s},\n\n", .{
                 stdx.to_case(field.name, .PascalCase),
                 if (int_value == std.math.maxInt(@TypeOf(int_value)))
@@ -357,7 +360,6 @@ fn emit_struct(
     }
 
     if (mapping.visibility == .public) {
-
         // Properties
         inline for (type_info.fields) |field| {
             try emit_docs(buffer, mapping, field.name);
@@ -506,11 +508,12 @@ pub fn generate_bindings(buffer: *std.ArrayList(u8)) !void {
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
     defer arena.deinit();
+
     const allocator = arena.allocator();
-
     var buffer = std.ArrayList(u8).init(allocator);
-    try generate_bindings(&buffer);
 
+    try generate_bindings(&buffer);
     try std.io.getStdOut().writeAll(buffer.items);
 }

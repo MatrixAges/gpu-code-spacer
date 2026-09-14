@@ -34,9 +34,11 @@ export default async (type: 'embedding' | 'rerank' | 'gen') => {
 			await initLlama()
 
 			const model = await fetcher(env.llama)
+
 			if (!model || typeof model === 'boolean') {
 				throw new Error(`Failed to load ${type} model`)
 			}
+
 			// @ts-ignore
 			env[model_key] = model
 
@@ -59,6 +61,7 @@ export default async (type: 'embedding' | 'rerank' | 'gen') => {
 
 		state.promise = (async () => {
 			const ctx = await creator()
+
 			// @ts-ignore
 			env[context_key] = ctx
 
@@ -90,6 +93,7 @@ const resetContextTimer = (type: 'embedding' | 'rerank' | 'gen') => {
 			const is_empty = isTasksEmpty(type)
 
 			if (!is_empty) return resetContextTimer(type)
+
 			// @ts-ignore
 			env[context_key] = null
 

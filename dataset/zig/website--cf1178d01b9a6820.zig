@@ -33,6 +33,7 @@ pub fn write_page(self: Website, options: struct {
 }) LazyPath {
     const b = self.page_writer_exe.step.owner;
     const page_writer_run = b.addRunArtifact(self.page_writer_exe);
+
     page_writer_run.addArgs(&.{
         options.title,
         options.author,
@@ -41,6 +42,8 @@ pub fn write_page(self: Website, options: struct {
         if (options.include_search) "true" else "false",
         options.nav,
     });
+
     page_writer_run.addFileArg(options.content);
+
     return page_writer_run.addOutputFileArg("page.html");
 }

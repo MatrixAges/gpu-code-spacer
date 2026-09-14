@@ -31,6 +31,7 @@ pub fn insertion(
             return mem.swap(T, &ctx.items[a], &ctx.items[b]);
         }
     };
+
     insertionContext(0, items.len, Context{ .items = items, .sub_ctx = context });
 }
 
@@ -43,8 +44,10 @@ pub fn insertionContext(a: usize, b: usize, context: anytype) void {
     assert(a <= b);
 
     var i = a + 1;
+
     while (i < b) : (i += 1) {
         var j = i;
+
         while (j > a and context.lessThan(j, j - 1)) : (j -= 1) {
             context.swap(j, j - 1);
         }
@@ -72,6 +75,7 @@ pub fn heap(
             return mem.swap(T, &ctx.items[a], &ctx.items[b]);
         }
     };
+
     heapContext(0, items.len, Context{ .items = items, .sub_ctx = context });
 }
 
@@ -82,24 +86,31 @@ pub fn heap(
 /// Sorts in ascending order with respect to `lessThan`.
 pub fn heapContext(a: usize, b: usize, context: anytype) void {
     assert(a <= b);
+
     // build the heap in linear time.
     var i = a + (b - a) / 2;
+
     while (i > a) {
         i -= 1;
+
         siftDown(a, i, b, context);
     }
 
     // pop maximal elements from the heap.
     i = b;
+
     while (i > a) {
         i -= 1;
+
         context.swap(a, i);
+
         siftDown(a, a, i, context);
     }
 }
 
 fn siftDown(a: usize, target: usize, b: usize, context: anytype) void {
     var cur = target;
+
     while (true) {
         // When we don't overflow from the multiply below, the following expression equals (2*cur) - (2*a) + a + 1
         // The `+ a + 1` is safe because:
@@ -124,6 +135,7 @@ fn siftDown(a: usize, target: usize, b: usize, context: anytype) void {
         // swap `cur` with the greater child,
         // move one step down, and continue sifting.
         context.swap(child, cur);
+
         cur = child;
     }
 }
@@ -171,6 +183,7 @@ const IdAndValue = struct {
 
     fn lessThan(context: void, a: IdAndValue, b: IdAndValue) bool {
         _ = context;
+
         return a.value < b.value;
     }
 };
@@ -215,6 +228,7 @@ test "stable sort" {
 
     for (&cases) |*case| {
         block(IdAndValue, (case.*)[0..], {}, IdAndValue.lessThan);
+
         for (case.*, 0..) |item, i| {
             try testing.expect(item.id == expected[i].id);
             try testing.expect(item.value == expected[i].value);
@@ -230,7 +244,9 @@ test "stable sort fuzz testing" {
     for (0..test_case_count) |_| {
         const array_size = random.intRangeLessThan(usize, 0, 1000);
         const array = try testing.allocator.alloc(IdAndValue, array_size);
+
         defer testing.allocator.free(array);
+
         // Value is a small random numbers to create collisions.
         // Id is a  reverse index to make sure sorting function only uses provided `lessThan`.
         for (array, 0..) |*item, index| {
@@ -239,10 +255,13 @@ test "stable sort fuzz testing" {
                 .id = array_size - index,
             };
         }
+
         block(IdAndValue, array, {}, IdAndValue.lessThan);
+
         if (array_size > 0) {
             for (array[0 .. array_size - 1], array[1..]) |x, y| {
                 try testing.expect(x.value <= y.value);
+
                 if (x.value == y.value) {
                     try testing.expect(x.id > y.id);
                 }
@@ -314,16 +333,20 @@ test "sort" {
         for (u8cases) |case| {
             var buf: [20]u8 = undefined;
             const slice = buf[0..case[0].len];
+
             @memcpy(slice, case[0]);
             sortFn(u8, slice, {}, asc_u8);
+
             try testing.expect(mem.eql(u8, slice, case[1]));
         }
 
         for (i32cases) |case| {
             var buf: [20]i32 = undefined;
             const slice = buf[0..case[0].len];
+
             @memcpy(slice, case[0]);
             sortFn(i32, slice, {}, asc_i32);
+
             try testing.expect(mem.eql(i32, slice, case[1]));
         }
     }
@@ -361,8 +384,10 @@ test "sort descending" {
         for (rev_cases) |case| {
             var buf: [8]i32 = undefined;
             const slice = buf[0..case[0].len];
+
             @memcpy(slice, case[0]);
             sortFn(i32, slice, {}, desc_i32);
+
             try testing.expect(mem.eql(i32, slice, case[1]));
         }
     }
@@ -399,8 +424,10 @@ test "sort with context in the middle of a slice" {
             for (ranges) |range| {
                 var buf: [20]i32 = undefined;
                 const slice = buf[0..case[0].len];
+
                 @memcpy(slice, case[0]);
                 sortFn(range.start, range.end, Context{ .items = slice });
+
                 try testing.expectEqualSlices(i32, case[1][range.start..range.end], slice[range.start..range.end]);
             }
         }
@@ -416,12 +443,16 @@ test "sort fuzz testing" {
         for (0..test_case_count) |_| {
             const array_size = random.intRangeLessThan(usize, 0, 1000);
             const array = try testing.allocator.alloc(i32, array_size);
+
             defer testing.allocator.free(array);
+
             // populate with random data
             for (array) |*item| {
                 item.* = random.intRangeLessThan(i32, 0, 100);
             }
+
             sortFn(i32, array, {}, asc_i32);
+
             try testing.expect(isSorted(i32, array, {}, asc_i32));
         }
     }
@@ -459,12 +490,14 @@ pub fn binarySearch(
     while (low < high) {
         // Avoid overflowing in the midpoint calculation
         const mid = low + (high - low) / 2;
+
         switch (compareFn(context, items[mid])) {
             .eq => return mid,
             .gt => low = mid + 1,
             .lt => high = mid,
         }
     }
+
     return null;
 }
 
@@ -473,13 +506,16 @@ test binarySearch {
         fn orderU32(context: u32, item: u32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn orderI32(context: i32, item: i32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn orderLength(context: usize, item: []const u8) std.math.Order {
             return std.math.order(context, item.len);
         }
     };
+
     const R = struct {
         b: i32,
         e: i32,
@@ -542,6 +578,7 @@ pub fn lowerBound(
             return compareFn(ctx, item).invert() == .lt;
         }
     };
+
     return partitionPoint(T, items, context, S.predicate);
 }
 
@@ -550,13 +587,16 @@ test lowerBound {
         fn compareU32(context: u32, item: u32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn compareI32(context: i32, item: i32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn compareF32(context: f32, item: f32) std.math.Order {
             return std.math.order(context, item);
         }
     };
+
     const R = struct {
         val: i32,
 
@@ -612,6 +652,7 @@ pub fn upperBound(
             return compareFn(ctx, item).invert() != .gt;
         }
     };
+
     return partitionPoint(T, items, context, S.predicate);
 }
 
@@ -620,13 +661,16 @@ test upperBound {
         fn compareU32(context: u32, item: u32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn compareI32(context: i32, item: i32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn compareF32(context: f32, item: f32) std.math.Order {
             return std.math.order(context, item);
         }
     };
+
     const R = struct {
         val: i32,
 
@@ -683,12 +727,14 @@ pub fn partitionPoint(
 
     while (low < high) {
         const mid = low + (high - low) / 2;
+
         if (predicate(context, items[mid])) {
             low = mid + 1;
         } else {
             high = mid;
         }
     }
+
     return low;
 }
 
@@ -697,21 +743,27 @@ test partitionPoint {
         fn lowerU32(context: u32, item: u32) bool {
             return item < context;
         }
+
         fn lowerI32(context: i32, item: i32) bool {
             return item < context;
         }
+
         fn lowerF32(context: f32, item: f32) bool {
             return item < context;
         }
+
         fn lowerEqU32(context: u32, item: u32) bool {
             return item <= context;
         }
+
         fn lowerEqI32(context: i32, item: i32) bool {
             return item <= context;
         }
+
         fn lowerEqF32(context: f32, item: f32) bool {
             return item <= context;
         }
+
         fn isEven(_: void, item: u8) bool {
             return item % 2 == 0;
         }
@@ -774,6 +826,7 @@ pub fn equalRange(
 
     while (low < high) {
         const mid = low + (high - low) / 2;
+
         switch (compareFn(context, items[mid])) {
             .gt => {
                 low = mid + 1;
@@ -808,12 +861,15 @@ test equalRange {
         fn orderU32(context: u32, item: u32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn orderI32(context: i32, item: i32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn orderF32(context: f32, item: f32) std.math.Order {
             return std.math.order(context, item);
         }
+
         fn orderLength(context: usize, item: []const u8) std.math.Order {
             return std.math.order(context, item.len);
         }
@@ -830,6 +886,7 @@ test equalRange {
     try std.testing.expectEqual(.{ 2, 2 }, equalRange(u32, &[_]u32{ 2, 4, 8, 16, 32, 64 }, @as(u32, 5), S.orderU32));
     try std.testing.expectEqual(.{ 3, 5 }, equalRange(u32, &[_]u32{ 2, 3, 4, 5, 5 }, @as(u32, 5), S.orderU32));
     try std.testing.expectEqual(.{ 1, 1 }, equalRange(f32, &[_]f32{ -54.2, -26.7, 0.0, 56.55, 100.1, 322.0 }, @as(f32, -33.4), S.orderF32));
+
     try std.testing.expectEqual(.{ 3, 5 }, equalRange(
         []const u8,
         &[_][]const u8{ "Mars", "Venus", "Earth", "Saturn", "Uranus", "Mercury", "Jupiter", "Neptune" },
@@ -850,6 +907,7 @@ pub fn argMin(
 
     var smallest = items[0];
     var smallest_index: usize = 0;
+
     for (items[1..], 0..) |item, i| {
         if (lessThan(context, item, smallest)) {
             smallest = item;
@@ -877,6 +935,7 @@ pub fn min(
     comptime lessThan: fn (context: @TypeOf(context), lhs: T, rhs: T) bool,
 ) ?T {
     const i = argMin(T, items, context, lessThan) orelse return null;
+
     return items[i];
 }
 
@@ -902,6 +961,7 @@ pub fn argMax(
 
     var biggest = items[0];
     var biggest_index: usize = 0;
+
     for (items[1..], 0..) |item, i| {
         if (lessThan(context, biggest, item)) {
             biggest = item;
@@ -929,6 +989,7 @@ pub fn max(
     comptime lessThan: fn (context: @TypeOf(context), lhs: T, rhs: T) bool,
 ) ?T {
     const i = argMax(T, items, context, lessThan) orelse return null;
+
     return items[i];
 }
 
@@ -949,6 +1010,7 @@ pub fn isSorted(
     comptime lessThan: fn (context: @TypeOf(context), lhs: T, rhs: T) bool,
 ) bool {
     var i: usize = 1;
+
     while (i < items.len) : (i += 1) {
         if (lessThan(context, items[i], items[i - 1])) {
             return false;
@@ -963,24 +1025,18 @@ test isSorted {
     try testing.expect(isSorted(i32, &[_]i32{10}, {}, asc_i32));
     try testing.expect(isSorted(i32, &[_]i32{ 1, 2, 3, 4, 5 }, {}, asc_i32));
     try testing.expect(isSorted(i32, &[_]i32{ -10, 1, 1, 1, 10 }, {}, asc_i32));
-
     try testing.expect(isSorted(i32, &[_]i32{}, {}, desc_i32));
     try testing.expect(isSorted(i32, &[_]i32{-20}, {}, desc_i32));
     try testing.expect(isSorted(i32, &[_]i32{ 3, 2, 1, 0, -1 }, {}, desc_i32));
     try testing.expect(isSorted(i32, &[_]i32{ 10, -10 }, {}, desc_i32));
-
     try testing.expect(isSorted(i32, &[_]i32{ 1, 1, 1, 1, 1 }, {}, asc_i32));
     try testing.expect(isSorted(i32, &[_]i32{ 1, 1, 1, 1, 1 }, {}, desc_i32));
-
     try testing.expectEqual(false, isSorted(i32, &[_]i32{ 5, 4, 3, 2, 1 }, {}, asc_i32));
     try testing.expectEqual(false, isSorted(i32, &[_]i32{ 1, 2, 3, 4, 5 }, {}, desc_i32));
-
     try testing.expect(isSorted(u8, "abcd", {}, asc_u8));
     try testing.expect(isSorted(u8, "zyxw", {}, desc_u8));
-
     try testing.expectEqual(false, isSorted(u8, "abcd", {}, desc_u8));
     try testing.expectEqual(false, isSorted(u8, "zyxw", {}, asc_u8));
-
     try testing.expect(isSorted(u8, "ffff", {}, asc_u8));
     try testing.expect(isSorted(u8, "ffff", {}, desc_u8));
 }

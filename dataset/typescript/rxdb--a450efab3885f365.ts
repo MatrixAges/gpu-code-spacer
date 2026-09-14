@@ -7,6 +7,7 @@ import type {
 	DBPomoItems,
 	DBScheduleItems
 } from '@/schemas'
+
 import type { RxDatabase } from 'rxdb'
 import type { RxDocument, RxQuery, CRDTDocumentField, RxCollection } from 'rxdb'
 

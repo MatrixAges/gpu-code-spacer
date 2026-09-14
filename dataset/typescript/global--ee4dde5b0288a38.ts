@@ -6,6 +6,7 @@ import {
   track,
   trigger,
 } from '@vue/reactivity'
+
 import {
   NOOP,
   extend,
@@ -15,9 +16,11 @@ import {
   isObject,
   isString,
 } from '@vue/shared'
+
 import { warn } from '../warning'
 import { cloneVNode, createVNode } from '../vnode'
 import type { ElementNamespace, RootRenderFunction } from '../renderer'
+
 import type {
   App,
   AppConfig,
@@ -25,6 +28,7 @@ import type {
   CreateAppFunction,
   Plugin,
 } from '../apiCreateApp'
+
 import {
   type Component,
   type ComponentOptions,
@@ -33,22 +37,27 @@ import {
   isRuntimeOnly,
   setupComponent,
 } from '../component'
+
 import {
   type RenderFunction,
   internalOptionMergeStrats,
   mergeOptions,
 } from '../componentOptions'
+
 import type { ComponentPublicInstance } from '../componentPublicInstance'
 import { devtoolsInitApp, devtoolsUnmountApp } from '../devtools'
 import type { Directive } from '../directives'
 import { nextTick } from '../scheduler'
 import { version } from '..'
+
 import {
   type LegacyConfig,
   installLegacyConfigWarnings,
   installLegacyOptionMergeStrats,
 } from './globalConfig'
+
 import type { LegacyDirective } from './customDirective'
+
 import {
   DeprecationTypes,
   assertCompatEnabled,
@@ -57,6 +66,7 @@ import {
   softAssertCompatEnabled,
   warnDeprecation,
 } from './compatConfig'
+
 import type { LegacyPublicInstance } from './instance'
 
 /**
@@ -81,6 +91,7 @@ export type CompatVue = Pick<App, 'version' | 'component' | 'directive'> & {
     plugin: Plugin<Options>,
     ...options: Options
   ): CompatVue
+
   use<Options>(plugin: Plugin<Options>, options: Options): CompatVue
 
   mixin(mixin: ComponentOptions): CompatVue
@@ -88,6 +99,7 @@ export type CompatVue = Pick<App, 'version' | 'component' | 'directive'> & {
   component(name: string): Component | undefined
   component(name: string, component: Component): CompatVue
   directive<T = any, V = any>(name: string): Directive<T, V> | undefined
+
   directive<T = any, V = any>(
     name: string,
     directive: Directive<T, V>,
@@ -156,6 +168,7 @@ export function createCompatVue(
     assertCompatEnabled(DeprecationTypes.GLOBAL_MOUNT, null)
 
     const { data } = options
+
     if (
       data &&
       !isFunction(data) &&
@@ -171,6 +184,7 @@ export function createCompatVue(
     }
 
     const vm = app._createRoot!(options)
+
     if (options.el) {
       return (vm as any).$mount(options.el)
     } else {
@@ -187,17 +201,20 @@ export function createCompatVue(
     } else if (isFunction(plugin)) {
       plugin(Vue as any, ...options)
     }
+
     return Vue
   }
 
   Vue.mixin = m => {
     singletonApp.mixin(m)
+
     return Vue
   }
 
   Vue.component = ((name: string, comp: Component) => {
     if (comp) {
       singletonApp.component(name, comp)
+
       return Vue
     } else {
       return singletonApp.component(name)
@@ -207,6 +224,7 @@ export function createCompatVue(
   Vue.directive = ((name: string, dir: Directive | LegacyDirective) => {
     if (dir) {
       singletonApp.directive(name, dir as Directive)
+
       return Vue
     } else {
       return singletonApp.directive(name)
@@ -216,6 +234,7 @@ export function createCompatVue(
   Vue.options = { _base: Vue }
 
   let cid = 1
+
   Vue.cid = cid
 
   Vue.nextTick = nextTick
@@ -224,6 +243,7 @@ export function createCompatVue(
 
   function extendCtor(this: any, extendOptions: ComponentOptions = {}) {
     assertCompatEnabled(DeprecationTypes.GLOBAL_EXTEND, null)
+
     if (isFunction(extendOptions)) {
       extendOptions = extendOptions.options
     }
@@ -233,6 +253,7 @@ export function createCompatVue(
     }
 
     const Super = this
+
     function SubVue(inlineOptions?: ComponentOptions) {
       if (!inlineOptions) {
         return createCompatApp(SubVue.options, SubVue)
@@ -247,15 +268,20 @@ export function createCompatVue(
         )
       }
     }
+
     SubVue.super = Super
+
     SubVue.prototype = Object.create(Vue.prototype)
+
     SubVue.prototype.constructor = SubVue
 
     // clone non-primitive base option values for edge case of mutating
     // extended options
     const mergeBase: any = {}
+
     for (const key in Super.options) {
       const superValue = Super.options[key]
+
       mergeBase[key] = isArray(superValue)
         ? superValue.slice()
         : isObject(superValue)
@@ -270,12 +296,15 @@ export function createCompatVue(
     )
 
     SubVue.options._base = SubVue
+
     SubVue.extend = extendCtor.bind(SubVue)
+
     SubVue.mixin = Super.mixin
     SubVue.use = Super.use
     SubVue.cid = ++cid
 
     extendCache.set(extendOptions, SubVue)
+
     return SubVue
   }
 
@@ -283,22 +312,26 @@ export function createCompatVue(
 
   Vue.set = (target, key, value) => {
     assertCompatEnabled(DeprecationTypes.GLOBAL_SET, null)
+
     target[key] = value
   }
 
   Vue.delete = (target, key) => {
     assertCompatEnabled(DeprecationTypes.GLOBAL_DELETE, null)
+
     delete target[key]
   }
 
   Vue.observable = (target: any) => {
     assertCompatEnabled(DeprecationTypes.GLOBAL_OBSERVABLE, null)
+
     return reactive(target)
   }
 
   Vue.filter = ((name: string, filter?: any) => {
     if (filter) {
       singletonApp.filter!(name, filter)
+
       return Vue
     } else {
       return singletonApp.filter!(name)
@@ -317,9 +350,11 @@ export function createCompatVue(
       ),
     defineReactive,
   }
+
   Object.defineProperty(Vue, 'util', {
     get() {
       assertCompatEnabled(DeprecationTypes.GLOBAL_PRIVATE_UTIL, null)
+
       return util
     },
   })
@@ -346,20 +381,26 @@ export function installAppCompatProperties(
   installCompatMount(app, context, render)
   installLegacyAPIs(app)
   applySingletonAppMutations(app)
+
   if (__DEV__) installLegacyConfigWarnings(app.config)
 }
 
 function installFilterMethod(app: App, context: AppContext) {
   context.filters = {}
+
   app.filter = (name: string, filter?: Function): any => {
     assertCompatEnabled(DeprecationTypes.FILTERS, null)
+
     if (!filter) {
       return context.filters![name]
     }
+
     if (__DEV__ && context.filters![name]) {
       warn(`Filter "${name}" has already been registered.`)
     }
+
     context.filters![name] = filter
+
     return app
   }
 }
@@ -371,6 +412,7 @@ function installLegacyAPIs(app: App) {
     prototype: {
       get() {
         __DEV__ && warnDeprecation(DeprecationTypes.GLOBAL_PROTOTYPE, null)
+
         return app.config.globalProperties
       },
     },
@@ -390,6 +432,7 @@ function installLegacyAPIs(app: App) {
 function applySingletonAppMutations(app: App) {
   // copy over asset registries and deopt flag
   app._context.mixins = [...singletonApp._context.mixins]
+
   ;['components', 'directives', 'filters'].forEach(key => {
     // @ts-expect-error
     app._context[key] = Object.create(singletonApp._context[key])
@@ -397,15 +440,19 @@ function applySingletonAppMutations(app: App) {
 
   // copy over global config mutations
   isCopyingConfig = true
+
   for (const key in singletonApp.config) {
     if (key === 'isNativeTag') continue
+
     if (
       isRuntimeOnly() &&
       (key === 'isCustomElement' || key === 'compilerOptions')
     ) {
       continue
     }
+
     const val = singletonApp.config[key as keyof AppConfig]
+
     // @ts-expect-error
     app.config[key] = isObject(val) ? Object.create(val) : val
 
@@ -421,20 +468,26 @@ function applySingletonAppMutations(app: App) {
       }
     }
   }
+
   isCopyingConfig = false
+
   applySingletonPrototype(app, singletonCtor)
 }
 
 function applySingletonPrototype(app: App, Ctor: Function) {
   // copy prototype augmentations as config.globalProperties
   const enabled = isCompatEnabled(DeprecationTypes.GLOBAL_PROTOTYPE, null)
+
   if (enabled) {
     app.config.globalProperties = Object.create(Ctor.prototype)
   }
+
   let hasPrototypeAugmentations = false
+
   for (const key of Object.getOwnPropertyNames(Ctor.prototype)) {
     if (key !== 'constructor') {
       hasPrototypeAugmentations = true
+
       if (enabled) {
         Object.defineProperty(
           app.config.globalProperties,
@@ -444,6 +497,7 @@ function applySingletonPrototype(app: App, Ctor: Function) {
       }
     }
   }
+
   if (__DEV__ && hasPrototypeAugmentations) {
     warnDeprecation(DeprecationTypes.GLOBAL_PROTOTYPE, null)
   }
@@ -464,20 +518,25 @@ function installCompatMount(
   app._createRoot = options => {
     const component = app._component
     const vnode = createVNode(component, options.propsData || null)
+
     vnode.appContext = context
 
     const hasNoRender =
       !isFunction(component) && !component.render && !component.template
+
     const emptyRender = () => {}
 
     // create root instance
     const instance = createComponentInstance(vnode, null, null)
+
     // suppress "missing render fn" warning since it can't be determined
     // until $mount is called
     if (hasNoRender) {
       instance.render = emptyRender
     }
+
     setupComponent(instance)
+
     vnode.component = instance
     vnode.isCompatRoot = true
 
@@ -490,20 +549,25 @@ function installCompatMount(
     instance.ctx._compat_mount = (selectorOrEl?: string | Element) => {
       if (isMounted) {
         __DEV__ && warn(`Root instance is already mounted.`)
+
         return
       }
 
       let container: Element
+
       if (typeof selectorOrEl === 'string') {
         // eslint-disable-next-line
         const result = document.querySelector(selectorOrEl)
+
         if (!result) {
           __DEV__ &&
             warn(
               `Failed to mount root instance: selector "${selectorOrEl}" returned null.`,
             )
+
           return
         }
+
         container = result
       } else {
         // eslint-disable-next-line
@@ -511,6 +575,7 @@ function installCompatMount(
       }
 
       let namespace: ElementNamespace
+
       if (container instanceof SVGElement) namespace = 'svg'
       else if (
         typeof MathMLElement === 'function' &&
@@ -522,8 +587,10 @@ function installCompatMount(
       if (__DEV__) {
         context.reload = () => {
           const cloned = cloneVNode(vnode)
+
           // compat mode will use instance if not reset to null
           cloned.component = null
+
           render(cloned, container, namespace)
         }
       }
@@ -536,14 +603,18 @@ function installCompatMount(
         if (__DEV__) {
           for (let i = 0; i < container.attributes.length; i++) {
             const attr = container.attributes[i]
+
             if (attr.name !== 'v-cloak' && /^(?:v-|:|@)/.test(attr.name)) {
               warnDeprecation(DeprecationTypes.GLOBAL_MOUNT_CONTAINER, null)
+
               break
             }
           }
         }
+
         instance.render = null
         ;(component as ComponentOptions).template = container.innerHTML
+
         finishComponentSetup(instance, false, true /* skip options */)
       }
 
@@ -562,6 +633,7 @@ function installCompatMount(
       app._container = container
       // for devtools and telemetry
       ;(container as any).__vue_app__ = app
+
       if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
         devtoolsInitApp(app, version)
       }
@@ -572,27 +644,34 @@ function installCompatMount(
     instance.ctx._compat_destroy = () => {
       if (isMounted) {
         render(null, app._container)
+
         if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
           devtoolsUnmountApp(app)
         }
+
         delete app._container.__vue_app__
       } else {
         const { bum, scope, um } = instance
+
         // beforeDestroy hooks
         if (bum) {
           invokeArrayFns(bum)
         }
+
         if (isCompatEnabled(DeprecationTypes.INSTANCE_EVENT_HOOKS, instance)) {
           instance.emit('hook:beforeDestroy')
         }
+
         // stop effects
         if (scope) {
           scope.stop()
         }
+
         // unmounted hook
         if (um) {
           invokeArrayFns(um)
         }
+
         if (isCompatEnabled(DeprecationTypes.INSTANCE_EVENT_HOOKS, instance)) {
           instance.emit('hook:destroyed')
         }
@@ -621,6 +700,7 @@ function defineReactive(obj: any, key: string, val: any) {
   // be a bit more common.
   if (isObject(val) && !isReactive(val) && !patched.has(val)) {
     const reactiveVal = reactive(val)
+
     if (isArray(val)) {
       methodsToPatch.forEach((m: any) => {
         val[m] = (...args: any[]) => {
@@ -641,9 +721,11 @@ function defineReactive(obj: any, key: string, val: any) {
   }
 
   const i = obj.$
+
   if (i && obj === i.proxy) {
     // target is a Vue instance - define on instance.ctx
     defineReactiveSimple(i.ctx, key, val)
+
     i.accessCache = Object.create(null)
   } else if (isReactive(obj)) {
     obj[key] = val
@@ -654,15 +736,18 @@ function defineReactive(obj: any, key: string, val: any) {
 
 function defineReactiveSimple(obj: any, key: string, val: any) {
   val = isObject(val) ? reactive(val) : val
+
   Object.defineProperty(obj, key, {
     enumerable: true,
     configurable: true,
     get() {
       track(obj, TrackOpTypes.GET, key)
+
       return val
     },
     set(newVal) {
       val = isObject(newVal) ? reactive(newVal) : newVal
+
       trigger(obj, TriggerOpTypes.SET, key, newVal)
     },
   })

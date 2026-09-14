@@ -15,7 +15,9 @@ pub fn BoundedArrayType(comptime T: type, comptime buffer_capacity: usize) type 
         pub inline fn from_slice(items: []const T) error{Overflow}!BoundedArray {
             if (items.len <= buffer_capacity) {
                 var result: BoundedArray = .{};
+
                 result.push_slice(items);
+
                 return result;
             } else {
                 return error.Overflow;
@@ -30,6 +32,7 @@ pub fn BoundedArrayType(comptime T: type, comptime buffer_capacity: usize) type 
         /// checking at compile time that it indeed can represent the length.
         pub inline fn count_as(array: *const BoundedArray, comptime Int: type) Int {
             comptime assert(buffer_capacity <= std.math.maxInt(Int));
+
             return @intCast(array.count_u32);
         }
 
@@ -43,6 +46,7 @@ pub fn BoundedArrayType(comptime T: type, comptime buffer_capacity: usize) type 
 
         pub inline fn get(array: *const BoundedArray, index: usize) T {
             assert(index < array.count_u32);
+
             return array.buffer[index];
         }
 
@@ -61,48 +65,60 @@ pub fn BoundedArrayType(comptime T: type, comptime buffer_capacity: usize) type 
         pub fn insert_at(array: *BoundedArray, index: usize, item: T) void {
             assert(!array.full());
             assert(index <= array.count_u32);
+
             stdx.copy_right(
                 .exact,
                 T,
                 array.buffer[index + 1 .. array.count_u32 + 1],
                 array.buffer[index..array.count_u32],
             );
+
             array.buffer[index] = item;
             array.count_u32 += 1;
         }
 
         pub fn push(array: *BoundedArray, item: T) void {
             assert(!array.full());
+
             array.buffer[array.count_u32] = item;
             array.count_u32 += 1;
         }
 
         pub fn push_slice(array: *BoundedArray, items: []const T) void {
             assert(array.count_u32 + items.len <= array.capacity());
+
             stdx.copy_disjoint(.inexact, T, array.buffer[array.count_u32..], items);
+
             array.count_u32 += @intCast(items.len);
         }
 
         pub inline fn swap_remove(array: *BoundedArray, index: usize) T {
             assert(array.count_u32 > 0);
             assert(index < array.count_u32);
+
             const result = array.buffer[index];
+
             array.count_u32 -= 1;
             array.buffer[index] = array.buffer[array.count_u32];
+
             return result;
         }
 
         pub inline fn ordered_remove(array: *BoundedArray, index: usize) T {
             assert(array.count_u32 > 0);
             assert(index < array.count_u32);
+
             const result = array.buffer[index];
+
             stdx.copy_left(
                 .exact,
                 T,
                 array.buffer[index .. array.count_u32 - 1],
                 array.buffer[index + 1 .. array.count_u32],
             );
+
             array.count_u32 -= 1;
+
             return result;
         }
 
@@ -116,6 +132,7 @@ pub fn BoundedArrayType(comptime T: type, comptime buffer_capacity: usize) type 
 
         pub inline fn truncate(array: *BoundedArray, count_new: usize) void {
             assert(count_new <= array.count_u32);
+
             array.count_u32 = @intCast(count_new); // can't overflow due to check above.
         }
 
@@ -125,7 +142,9 @@ pub fn BoundedArrayType(comptime T: type, comptime buffer_capacity: usize) type 
 
         pub inline fn pop(array: *BoundedArray) ?T {
             if (array.count_u32 == 0) return null;
+
             array.count_u32 -= 1;
+
             return array.buffer[array.count_u32];
         }
 
@@ -146,14 +165,17 @@ test BoundedArrayType {
 
     var array: Array = .{};
     var model: Model = try .initCapacity(gpa, capacity);
+
     defer model.deinit(gpa);
 
     var prng = stdx.PRNG.from_seed_testing();
 
     for (0..swarm_count) |_| {
         const swarm_weights = prng.enum_weights(std.meta.DeclEnum(Array));
+
         for (0..action_count) |_| {
             const action = prng.enum_weighted(std.meta.DeclEnum(Array), swarm_weights);
+
             switch (action) {
                 .count => assert(array.count() == model.items.len),
                 .count_as => assert(array.count_as(u8) == model.items.len),
@@ -162,6 +184,7 @@ test BoundedArrayType {
                 .get => {
                     if (model.items.len > 0) {
                         const index = prng.index(model.items);
+
                         assert(array.get(index) == model.items[index]);
                     }
                 },
@@ -190,7 +213,9 @@ test BoundedArrayType {
                 .push_slice => {
                     var buffer: [capacity]u8 = undefined;
                     const count = prng.int_inclusive(usize, model.capacity - model.items.len);
+
                     for (0..count) |index| buffer[index] = prng.int(u8);
+
                     const slice = buffer[0..count];
 
                     array.push_slice(slice);
@@ -202,6 +227,7 @@ test BoundedArrayType {
 
                         const a = array.swap_remove(index);
                         const b = model.swapRemove(index);
+
                         assert(a == b);
                     }
                 },
@@ -211,6 +237,7 @@ test BoundedArrayType {
 
                         const a = array.ordered_remove(index);
                         const b = model.orderedRemove(index);
+
                         assert(a == b);
                     }
                 },
@@ -220,9 +247,11 @@ test BoundedArrayType {
 
                     model.resize(gpa, count_new) catch unreachable;
                     array.resize(count_new) catch unreachable;
+
                     if (count_old <= count_new) {
                         for (count_old..count_new) |index| {
                             const value = prng.int(u8);
+
                             model.items[index] = value;
                             array.buffer[index] = value;
                         }
@@ -230,6 +259,7 @@ test BoundedArrayType {
                 },
                 .truncate => {
                     const count_new = prng.int_inclusive(usize, model.items.len);
+
                     array.truncate(count_new);
                     model.resize(gpa, count_new) catch unreachable;
                 },
@@ -240,16 +270,20 @@ test BoundedArrayType {
                 .pop => {
                     const b = model.pop();
                     const a = array.pop();
+
                     assert((a == null and b == null) or (a.? == b.?));
                 },
                 .capacity => assert(array.capacity() == model.capacity),
                 .from_slice => {
                     var buffer: [capacity]u8 = undefined;
                     const count = prng.int_inclusive(usize, model.capacity - model.items.len);
+
                     for (0..count) |index| buffer[index] = prng.int(u8);
+
                     const slice = buffer[0..count];
 
                     array = Array.from_slice(slice) catch unreachable;
+
                     model.clearRetainingCapacity();
                     model.appendSliceAssumeCapacity(slice);
                 },
@@ -265,6 +299,7 @@ test "BoundedArray.insert_at" {
     // Test lists of every size (less than the capacity).
     for (0..items_max) |len| {
         var list_base = BoundedArrayU64{};
+
         for (0..len) |i| {
             list_base.push(i);
         }

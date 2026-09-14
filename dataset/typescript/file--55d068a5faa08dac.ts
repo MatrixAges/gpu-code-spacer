@@ -7,8 +7,10 @@ import type { Subscription } from 'rxjs'
 
 export default class Index {
 	id = ''
+
 	data = {} as DirTree.Item
 	data_watcher = {} as Subscription
+
 	loading = false
 
 	constructor() {
@@ -44,6 +46,7 @@ export default class Index {
 		if (!this.checkExsit(item)) return (this.loading = false)
 
 		this.data = getDocItem(item)!
+
 		this.loading = false
 	}
 

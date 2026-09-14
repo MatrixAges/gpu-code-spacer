@@ -19,37 +19,45 @@ pub const Preopens = struct {
                 return @intCast(i);
             }
         }
+
         return null;
     }
 };
 
 pub fn preopensAlloc(gpa: Allocator) Allocator.Error!Preopens {
     var names: std.ArrayList([]const u8) = .empty;
+
     defer names.deinit(gpa);
 
     try names.ensureUnusedCapacity(gpa, 3);
-
     names.appendAssumeCapacity("stdin"); // 0
     names.appendAssumeCapacity("stdout"); // 1
     names.appendAssumeCapacity("stderr"); // 2
+
     while (true) {
         const fd = @as(wasi.fd_t, @intCast(names.items.len));
         var prestat: prestat_t = undefined;
+
         switch (wasi.fd_prestat_get(fd, &prestat)) {
             .SUCCESS => {},
             .OPNOTSUPP, .BADF => return .{ .names = try names.toOwnedSlice(gpa) },
             else => @panic("fd_prestat_get: unexpected error"),
         }
+
         try names.ensureUnusedCapacity(gpa, 1);
+
         // This length does not include a null byte. Let's keep it this way to
         // gently encourage WASI implementations to behave properly.
         const name_len = prestat.u.dir.pr_name_len;
         const name = try gpa.alloc(u8, name_len);
+
         errdefer gpa.free(name);
+
         switch (wasi.fd_prestat_dir_name(fd, name.ptr, name.len)) {
             .SUCCESS => {},
             else => @panic("fd_prestat_dir_name: unexpected error"),
         }
+
         names.appendAssumeCapacity(name);
     }
 }

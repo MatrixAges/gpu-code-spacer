@@ -29,6 +29,7 @@ const Target = union(enum) {
         };
 
         inline for (targets) |t| if (std.mem.eql(u8, str, t[0])) return t[1];
+
         return error.InvalidTarget;
     }
 };
@@ -51,17 +52,21 @@ const vsr_options = @import("vsr_options");
 
 pub fn main() !void {
     var allocator: std.heap.GeneralPurposeAllocator(.{}) = .{};
+
     defer {
         if (allocator.deinit() != .ok) {
             @panic("memory leaked");
         }
     }
+
     const gpa = allocator.allocator();
 
     const shell = try Shell.create(gpa);
+
     defer shell.destroy();
 
     var flags = stdx.Flags.init(gpa);
+
     defer flags.deinit(gpa);
 
     const cli_args = flags.parse(CLIArgs);
@@ -70,7 +75,9 @@ pub fn main() !void {
         cli_args.tmp,
         std.crypto.random.int(u64),
     });
+
     var tmp_dir = try std.fs.cwd().makeOpenPath(tmp_dir_path, .{});
+
     defer {
         tmp_dir.close();
         std.fs.cwd().deleteTree(tmp_dir_path) catch {};
@@ -101,7 +108,9 @@ pub fn main() !void {
     }
 
     const stat = try shell.cwd.statFile(cli_args.output);
+
     assert(stat.size <= multiversion_binary_size_max);
+
     assert(stat.size <= multiversion.multiversion_binary_platform_size_max(.{
         .macos = target == .macos,
         .debug = cli_args.debug,
@@ -193,7 +202,9 @@ fn build_multiversion_single_arch(shell: *Shell, options: struct {
         )).value,
         .current_git_commit = try git_sha_to_binary(&vsr_options.git_commit.?),
     };
+
     header.checksum_header = header.calculate_header_checksum();
+
     try header.verify();
 
     try shell.cwd.writeFile(.{
@@ -260,6 +271,7 @@ fn build_multiversion_universal(shell: *Shell, options: struct {
     });
 
     assert(builtin.target.cpu.arch == .x86_64 or builtin.target.cpu.arch == .aarch64);
+
     const past_versions_aarch64 = try build_multiversion_body(shell, .{
         .llvm_objcopy = options.llvm_objcopy,
         .tmp_path = options.tmp_path,
@@ -279,6 +291,7 @@ fn build_multiversion_universal(shell: *Shell, options: struct {
         .output = sections.x86_64.body,
         .debug = options.debug,
     });
+
     assert(past_versions_aarch64.past_releases.count == past_versions_x86_64.past_releases.count);
 
     try macos_universal_binary_build(
@@ -317,6 +330,7 @@ fn build_multiversion_universal(shell: *Shell, options: struct {
             },
         },
     );
+
     const checksum_binary_without_header = try checksum_file(
         shell,
         tigerbeetle_zero_header,
@@ -348,7 +362,9 @@ fn build_multiversion_universal(shell: *Shell, options: struct {
             )).value,
             .current_git_commit = try git_sha_to_binary(&vsr_options.git_commit.?),
         };
+
         header.checksum_header = header.calculate_header_checksum();
+
         try header.verify();
 
         try shell.cwd.writeFile(.{
@@ -445,6 +461,7 @@ fn build_multiversion_body(shell: *Shell, options: struct {
         .macos => try multiversion.parse_macho(past_binary_contents),
         .linux => try multiversion.parse_elf(past_binary_contents),
     };
+
     const arch_offsets = switch (options.arch) {
         .x86_64 => parsed_offsets.x86_64.?,
         .aarch64 => parsed_offsets.aarch64.?,
@@ -454,21 +471,26 @@ fn build_multiversion_body(shell: *Shell, options: struct {
         past_binary_contents[arch_offsets.header_offset..][0..@sizeOf(MultiversionHeader)];
 
     var header = try MultiversionHeader.init_from_bytes(header_bytes);
+
     if (header.current_release == (try multiversion.Release.parse("0.15.4")).value) {
         // current_git_commit and current_release_client_min were added after 0.15.4. These are the
         // values for that release.
         header.current_git_commit = try git_sha_to_binary(
             "14abaeabd09bd7c78a95b6b990748f3612b3e4cc",
         );
+
         header.current_release_client_min = (try multiversion.Release.parse("0.15.3")).value;
     }
 
     var unpacked = std.ArrayList([]const u8).init(shell.arena.allocator());
     var past_releases: MultiversionHeader.PastReleases = .{};
+
     assert(past_releases.count == 0);
+
     // Extract the old current release - this is the release that was the current release, and not
     // embedded in the past pack.
     const old_current_release = header.current_release;
+
     const old_current_release_output_name = try shell.fmt("{s}/tigerbeetle-past-{}-{s}", .{
         options.tmp_path,
         multiversion.Release{ .value = old_current_release },
@@ -503,7 +525,9 @@ fn build_multiversion_body(shell: *Shell, options: struct {
         const old_current_release_fd = try shell.cwd.openFile(old_current_release_output_name, .{
             .mode = .write_only,
         });
+
         defer old_current_release_fd.close();
+
         try old_current_release_fd.chmod(0o755);
     }
 
@@ -559,7 +583,9 @@ fn build_multiversion_body(shell: *Shell, options: struct {
             multiversion.Release{ .value = past_release },
             @tagName(options.arch),
         });
+
         const mode_exec = if (builtin.os.tag == .windows) 0 else 0o755;
+
         try shell.cwd.writeFile(.{
             .sub_path = past_name,
             .data = past_binary_contents[arch_offsets.body_offset..][past_offset..][0..past_size],
@@ -581,6 +607,7 @@ fn build_multiversion_body(shell: *Shell, options: struct {
             .git_commit = past_commit,
             .release_client_min = past_release_client_min,
         });
+
         try unpacked.append(past_name);
     }
 
@@ -602,11 +629,15 @@ fn build_multiversion_body(shell: *Shell, options: struct {
         .git_commit = header.current_git_commit,
         .release_client_min = header.current_release_client_min,
     });
+
     try unpacked.append(old_current_release_output_name);
+
     assert(past_releases.count == past_count + 1); // +1 to include the old current release.
+
     try past_releases.verify();
 
     const body_file = try shell.cwd.createFile(options.output, .{ .exclusive = true });
+
     defer body_file.close();
 
     for (
@@ -619,7 +650,9 @@ fn build_multiversion_body(shell: *Shell, options: struct {
             multiversion.Release{ .value = release },
             @tagName(options.arch),
         });
+
         const contents = try shell.cwd.readFileAlloc(shell.arena.allocator(), past_name, size);
+
         try body_file.pwriteAll(contents, offset);
     }
 
@@ -652,11 +685,13 @@ fn macos_universal_binary_build(
 
     const headers_size = @sizeOf(std.macho.fat_header) +
         @sizeOf(std.macho.fat_arch) * binaries.len;
+
     assert(headers_size < alignment);
 
     const binary_headers = try shell.arena.allocator().alloc(std.macho.fat_arch, binaries.len);
 
     var current_offset: u32 = alignment;
+
     for (binaries, binary_headers) |binary, *binary_header| {
         const binary_size: u32 = @intCast(
             (try shell.cwd.statFile(binary.path)).size,
@@ -679,16 +714,20 @@ fn macos_universal_binary_build(
         .exclusive = true,
         .mode = if (builtin.target.os.tag == .windows) 0 else 0o755,
     });
+
     defer output_file.close();
 
     const fat_header = std.macho.fat_header{
         .magic = std.macho.FAT_CIGAM,
         .nfat_arch = @byteSwap(@as(u32, @intCast(binaries.len))),
     };
+
     assert(@sizeOf(std.macho.fat_header) == 8);
+
     try output_file.writeAll(std.mem.asBytes(&fat_header));
 
     assert(@sizeOf(std.macho.fat_arch) == 20);
+
     try output_file.writeAll(std.mem.sliceAsBytes(binary_headers));
 
     try output_file.seekTo(alignment);
@@ -699,6 +738,7 @@ fn macos_universal_binary_build(
             binary.path,
             multiversion_binary_size_max,
         );
+
         assert(binary_contents.len == @byteSwap(binary_header.size));
 
         try output_file.seekTo(@byteSwap(binary_header.offset));
@@ -724,14 +764,17 @@ fn macos_universal_binary_extract(
         std.macho.fat_header,
         binary_contents[0..@sizeOf(std.macho.fat_header)],
     );
+
     assert(fat_header.magic == std.macho.FAT_CIGAM);
 
     for (0..@byteSwap(fat_header.nfat_arch)) |i| {
         const header_offset = @sizeOf(std.macho.fat_header) + @sizeOf(std.macho.fat_arch) * i;
+
         const fat_arch = std.mem.bytesAsValue(
             std.macho.fat_arch,
             binary_contents[header_offset..][0..@sizeOf(std.macho.fat_arch)],
         );
+
         assert(@byteSwap(fat_arch.@"align") == 14);
 
         if (@byteSwap(fat_arch.cputype) == filter.cpu_type and
@@ -769,13 +812,16 @@ fn self_check_enabled(target: Target) bool {
 
 fn self_check(shell: *Shell, tigerbeetle: []const u8, past_releases: []const []const u8) !void {
     assert(past_releases.len > 0);
+
     try shell.exec(
         "{tigerbeetle} multiversion {tigerbeetle}",
         .{ .tigerbeetle = tigerbeetle },
     );
+
     for (past_releases) |past_release| {
         // 0.15.3 didn't have the multiversion subcommand since it was the epoch.
         if (std.mem.indexOf(u8, past_release, "0.15.3") != null) continue;
+
         try shell.exec(
             "{past_release} multiversion {tigerbeetle}",
             .{ .tigerbeetle = tigerbeetle, .past_release = past_release },
@@ -785,6 +831,7 @@ fn self_check(shell: *Shell, tigerbeetle: []const u8, past_releases: []const []c
 
 fn checksum_file(shell: *Shell, path: []const u8, size_max: u32) !u128 {
     const contents = try shell.cwd.readFileAlloc(shell.arena.allocator(), path, size_max);
+
     return multiversion.checksum.checksum(contents);
 }
 
@@ -792,11 +839,14 @@ fn git_sha_to_binary(commit: []const u8) ![20]u8 {
     assert(commit.len == 40);
 
     var commit_bytes: [20]u8 = std.mem.zeroes([20]u8);
+
     const commit_int =
         try stdx.parse_int(u160, commit, .{ .base = 16, .allow_leading_zero = true });
+
     std.mem.writeInt(u160, &commit_bytes, commit_int, .big);
 
     var commit_roundtrip: [40]u8 = undefined;
+
     assert(std.mem.eql(u8, try std.fmt.bufPrint(
         &commit_roundtrip,
         "{s}",

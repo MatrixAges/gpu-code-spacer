@@ -18,6 +18,7 @@ const maxInt = std.math.maxInt;
 ///  - asinh(nan)   = nan
 pub fn asinh(x: anytype) @TypeOf(x) {
     const T = @TypeOf(x);
+
     return switch (T) {
         f32 => asinh32(x),
         f64 => asinh64(x),

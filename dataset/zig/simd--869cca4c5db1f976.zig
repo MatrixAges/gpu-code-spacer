@@ -13,6 +13,7 @@ pub fn suggestVectorLengthForCpu(comptime T: type, comptime cpu: std.Target.Cpu)
 
     // This is guesswork, if you have better suggestions can add it or edit the current here
     const element_bit_size = @max(8, std.math.ceilPowerOfTwo(u16, @bitSizeOf(T)) catch unreachable);
+
     const vector_bit_size: u16 = blk: {
         if (cpu.arch.isX86()) {
             if (T == bool and cpu.has(.x86, .prefer_mask_registers)) return 64;
@@ -75,8 +76,10 @@ pub fn suggestVectorLengthForCpu(comptime T: type, comptime cpu: std.Target.Cpu)
         } else if (cpu.arch.isWasm()) {
             if (cpu.has(.wasm, .simd128)) break :blk 128;
         }
+
         return null;
     };
+
     if (vector_bit_size <= element_bit_size) return null;
 
     return @divExact(vector_bit_size, element_bit_size);
@@ -90,14 +93,18 @@ pub fn suggestVectorLength(comptime T: type) ?comptime_int {
 
 test "suggestVectorLengthForCpu works with signed and unsigned values" {
     comptime var cpu = std.Target.Cpu.baseline(std.Target.Cpu.Arch.x86_64, builtin.os);
+
     comptime cpu.features.addFeature(@intFromEnum(std.Target.x86.Feature.avx512f));
     comptime cpu.features.populateDependencies(&std.Target.x86.all_features);
+
     const expected_len: usize = switch (builtin.zig_backend) {
         .stage2_x86_64 => 8,
         else => 16,
     };
+
     const signed_integer_len = suggestVectorLengthForCpu(i32, cpu).?;
     const unsigned_integer_len = suggestVectorLengthForCpu(u32, cpu).?;
+
     try std.testing.expectEqual(expected_len, unsigned_integer_len);
     try std.testing.expectEqual(expected_len, signed_integer_len);
 }
@@ -125,6 +132,7 @@ pub fn VectorCount(comptime VectorType: type) type {
 pub inline fn iota(comptime T: type, comptime len: usize) @Vector(len, T) {
     comptime {
         var out: [len]T = undefined;
+
         for (&out, 0..) |*element, i| {
             element.* = switch (@typeInfo(T)) {
                 .int => @as(T, @intCast(i)),
@@ -132,6 +140,7 @@ pub inline fn iota(comptime T: type, comptime len: usize) @Vector(len, T) {
                 else => @compileError("Can't use type " ++ @typeName(T) ++ " in iota."),
             };
         }
+
         return @as(@Vector(len, T), out);
     }
 }
@@ -187,6 +196,7 @@ pub fn interlace(vecs: anytype) @Vector(vectorLength(@TypeOf(vecs[0])) * vecs.le
         const select_mask = repeat(len, join(@as(@Vector(a_vec_count, bool), @splat(true)), @as(@Vector(b_vec_count, bool), @splat(false))));
         const a_indices = count_up - cycle * @as(Vi32, @splat(@intCast(b_vec_count)));
         const b_indices = shiftElementsRight(count_up - cycle * @as(Vi32, @splat(@intCast(a_vec_count))), a_vec_count, 0);
+
         break :blk @select(i32, select_mask, a_indices, ~b_indices);
     };
 
@@ -208,8 +218,10 @@ pub fn deinterlace(
     var out: [vec_count]@Vector(vec_len, Child) = undefined;
 
     comptime var i: usize = 0; // for-loops don't work for this, apparently.
+
     inline while (i < out.len) : (i += 1) {
         const indices = comptime iota(i32, vec_len) * @as(@Vector(vec_len, i32), @splat(@intCast(vec_count))) + @as(@Vector(vec_len, i32), @splat(@intCast(i)));
+
         out[i] = @shuffle(Child, interlaced, undefined, indices);
     }
 
@@ -251,6 +263,7 @@ test "vector patterns" {
         try std.testing.expectEqual([8]u32{ 10, 55, 20, 66, 30, 77, 40, 88 }, interlace(.{ base, other_base }));
 
         const small_braid = interlace(small_bases);
+
         try std.testing.expectEqual([10]u8{ 0, 2, 4, 6, 8, 1, 3, 5, 7, 9 }, small_braid);
         try std.testing.expectEqual(small_bases, deinterlace(small_bases.len, small_braid));
     }
@@ -317,8 +330,10 @@ pub fn firstTrue(vec: anytype) ?VectorIndex(@TypeOf(vec)) {
     if (!@reduce(.Or, vec)) {
         return null;
     }
+
     const all_max: @Vector(len, IndexInt) = @splat(~@as(IndexInt, 0));
     const indices = @select(IndexInt, vec, iota(IndexInt, len), all_max);
+
     return @reduce(.Min, indices);
 }
 
@@ -332,6 +347,7 @@ pub fn lastTrue(vec: anytype) ?VectorIndex(@TypeOf(vec)) {
 
     const all_zeroes: @Vector(len, IndexInt) = @splat(0);
     const indices = @select(IndexInt, vec, iota(IndexInt, len), all_zeroes);
+
     return @reduce(.Max, indices);
 }
 
@@ -343,6 +359,7 @@ pub fn countTrues(vec: anytype) VectorCount(@TypeOf(vec)) {
     const all_zeroes: @Vector(len, CountIntType) = @splat(0);
 
     const one_if_true = @select(CountIntType, vec, all_ones, all_zeroes);
+
     return @reduce(.Add, one_if_true);
 }
 
@@ -390,15 +407,18 @@ pub fn prefixScanWithFunc(
     const len = vectorLength(@TypeOf(vec));
 
     if (hop == 0) @compileError("hop can not be 0; you'd be going nowhere forever!");
+
     const abs_hop = if (hop < 0) -hop else hop;
 
     var acc = vec;
     comptime var i = 0;
+
     inline while ((abs_hop << i) < len) : (i += 1) {
         const shifted = if (hop < 0) shiftElementsLeft(acc, abs_hop << i, identity) else shiftElementsRight(acc, abs_hop << i, identity);
 
         acc = if (ErrorType == void) func(acc, shifted) else try func(acc, shifted);
     }
+
     return acc;
 }
 
@@ -458,7 +478,6 @@ pub fn prefixScan(comptime op: std.builtin.ReduceOp, comptime hop: isize, vec: a
 test "vector prefix scan" {
     if (builtin.cpu.arch == .aarch64_be and builtin.zig_backend == .stage2_llvm) return error.SkipZigTest; // https://github.com/ziglang/zig/issues/21893
     if (builtin.zig_backend == .stage2_llvm and builtin.cpu.arch == .hexagon) return error.SkipZigTest;
-
     if (builtin.cpu.arch.isMIPS()) return error.SkipZigTest;
 
     const int_base = @Vector(4, i32){ 11, 23, 9, -21 };
@@ -479,11 +498,9 @@ test "vector prefix scan" {
     // Trying to predict all inaccuracies when adding and multiplying floats with prefixScans would be a mess, so we don't test those.
     try std.testing.expectEqual(@Vector(4, f32){ 2, 0.5, -10, -10 }, prefixScan(.Min, 1, float_base));
     try std.testing.expectEqual(@Vector(4, f32){ 2, 2, 2, 6.54321 }, prefixScan(.Max, 1, float_base));
-
     try std.testing.expectEqual(@Vector(4, bool){ true, true, false, false }, prefixScan(.Xor, 1, bool_base));
     try std.testing.expectEqual(@Vector(4, bool){ true, true, true, true }, prefixScan(.Or, 1, bool_base));
     try std.testing.expectEqual(@Vector(4, bool){ true, false, false, false }, prefixScan(.And, 1, bool_base));
-
     try std.testing.expectEqual(@Vector(4, i32){ 11, 23, 20, 2 }, prefixScan(.Add, 2, int_base));
     try std.testing.expectEqual(@Vector(4, i32){ 22, 11, -12, -21 }, prefixScan(.Add, -1, int_base));
     try std.testing.expectEqual(@Vector(4, i32){ 11, 23, 9, -10 }, prefixScan(.Add, 3, int_base));

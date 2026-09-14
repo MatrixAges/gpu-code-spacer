@@ -13,6 +13,7 @@ export default async (s: Index, is_cron?: boolean, title?: string) => {
 
 	await fs.ensureDir(s.session_dir)
 	await fs.ensureDir(s.files_dir)
+
 	const session_config_exists = await fs.pathExists(s.config_dir)
 
 	if (!session_config_exists) {
@@ -20,7 +21,6 @@ export default async (s: Index, is_cron?: boolean, title?: string) => {
 	}
 
 	await s.updateConfig()
-
 	await s.getContext()
 	await s.getState()
 

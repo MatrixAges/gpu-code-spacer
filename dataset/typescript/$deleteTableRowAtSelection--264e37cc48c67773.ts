@@ -12,11 +12,14 @@ export default () => {
 
 	const anchor = selection.anchor.getNode()
 	const focus = selection.focus.getNode()
+
 	const [anchor_cell, , grid] = $getNodeTriplet(anchor)
 	const [focus_cell] = $getNodeTriplet(focus)
 	const [grid_map, anchor_cell_map, focus_cell_map] = $computeTableMap(grid, anchor_cell, focus_cell)
+
 	const { start_row: anchor_start_row } = anchor_cell_map
 	const { start_row: focus_start_row } = focus_cell_map
+
 	const focus_end_row = focus_start_row + focus_cell.__row_span - 1
 
 	if (grid_map.length === focus_end_row - anchor_start_row + 1) {
@@ -58,6 +61,7 @@ export default () => {
 
 		row_node.remove()
 	}
+
 	if (next_row !== undefined) {
 		const { cell } = next_row[0]
 

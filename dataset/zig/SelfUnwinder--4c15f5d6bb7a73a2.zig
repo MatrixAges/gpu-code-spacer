@@ -26,13 +26,16 @@ pub const CacheEntry = struct {
 
     pub fn find(entries: []const CacheEntry, pc: usize) ?*const CacheEntry {
         assert(pc != 0);
+
         const idx = std.hash.int(pc) % entries.len;
         const entry = &entries[idx];
+
         return if (entry.pc == pc) entry else null;
     }
 
     pub fn populate(entry: *const CacheEntry, entries: []CacheEntry) void {
         const idx = std.hash.int(entry.pc) % entries.len;
+
         entries[idx] = entry.*;
     }
 
@@ -58,6 +61,7 @@ pub fn init(cpu_context: *const std.debug.cpu_context.Native) SelfUnwinder {
 pub fn deinit(unwinder: *SelfUnwinder, gpa: Allocator) void {
     unwinder.cfi_vm.deinit(gpa);
     unwinder.expr_vm.deinit(gpa);
+
     unwinder.* = undefined;
 }
 
@@ -86,6 +90,7 @@ pub fn computeRules(
         @sizeOf(usize),
         native_endian,
     ) orelse return error.MissingDebugInfo;
+
     const cie, const fde = try unwind.getFde(fde_offset, native_endian);
 
     // `lookupPc` can return false positives, so check if the FDE *actually* includes the pc
@@ -94,6 +99,7 @@ pub fn computeRules(
     }
 
     unwinder.cfi_vm.reset();
+
     const row = try unwinder.cfi_vm.runTo(gpa, pc_vaddr, cie, &fde, @sizeOf(usize), native_endian);
 
     var entry: CacheEntry = .{
@@ -104,7 +110,9 @@ pub fn computeRules(
         .rules_regs = undefined,
         .rules = undefined,
     };
+
     var i: usize = 0;
+
     for (unwinder.cfi_vm.rowColumns(&row)) |col| {
         if (i == CacheEntry.max_rules) return error.UnsupportedDebugInfo;
 
@@ -114,11 +122,15 @@ pub fn computeRules(
             error.UnsupportedRegister => continue,
             error.InvalidRegister => return error.InvalidDebugInfo,
         };
+
         entry.rules_regs[i] = col.register;
         entry.rules[i] = col.rule;
+
         i += 1;
     }
+
     entry.num_rules = @intCast(i);
+
     return entry;
 }
 
@@ -167,6 +179,7 @@ fn nextInner(unwinder: *SelfUnwinder, gpa: Allocator, cache_entry: *const CacheE
         .none => return error.InvalidDebugInfo,
         .reg_off => |ro| cfa: {
             const ptr = try regNative(&unwinder.cpu_state, ro.register);
+
             break :cfa try applyOffset(ptr.*, ro.offset);
         },
         .expression => |expr| cfa: {
@@ -176,11 +189,14 @@ fn nextInner(unwinder: *SelfUnwinder, gpa: Allocator, cache_entry: *const CacheE
             // what this actually means is that there will be a `def_cfa r15 + 160`, so nothing
             // special for us to do.
             const prev_cfa_val = (try regNative(&unwinder.cpu_state, sp_reg_num)).*;
+
             unwinder.expr_vm.reset();
+
             const value = try unwinder.expr_vm.run(expr, gpa, .{
                 .format = format,
                 .cpu_context = &unwinder.cpu_state,
             }, prev_cfa_val) orelse return error.InvalidDebugInfo;
+
             switch (value) {
                 .generic => |g| break :cfa g,
                 else => return error.InvalidDebugInfo,
@@ -198,6 +214,7 @@ fn nextInner(unwinder: *SelfUnwinder, gpa: Allocator, cache_entry: *const CacheE
     var has_return_address = true;
 
     const rules_len = cache_entry.num_rules;
+
     for (cache_entry.rules_regs[0..rules_len], cache_entry.rules[0..rules_len]) |register, rule| {
         const new_val: union(enum) {
             same,
@@ -219,38 +236,46 @@ fn nextInner(unwinder: *SelfUnwinder, gpa: Allocator, cache_entry: *const CacheE
             .same_value => .same,
             .offset => |offset| val: {
                 const ptr: *const usize = @ptrFromInt(try applyOffset(cfa, offset));
+
                 break :val .{ .val = ptr.* };
             },
             .val_offset => |offset| .{ .val = try applyOffset(cfa, offset) },
             .register => |r| .{ .bytes = try unwinder.cpu_state.dwarfRegisterBytes(r) },
             .expression => |expr| val: {
                 unwinder.expr_vm.reset();
+
                 const value = try unwinder.expr_vm.run(expr, gpa, .{
                     .format = format,
                     .cpu_context = &unwinder.cpu_state,
                 }, cfa) orelse return error.InvalidDebugInfo;
+
                 const ptr: *const usize = switch (value) {
                     .generic => |addr| @ptrFromInt(addr),
                     else => return error.InvalidDebugInfo,
                 };
+
                 break :val .{ .val = ptr.* };
             },
             .val_expression => |expr| val: {
                 unwinder.expr_vm.reset();
+
                 const value = try unwinder.expr_vm.run(expr, gpa, .{
                     .format = format,
                     .cpu_context = &unwinder.cpu_state,
                 }, cfa) orelse return error.InvalidDebugInfo;
+
                 switch (value) {
                     .generic => |val| break :val .{ .val = val },
                     else => return error.InvalidDebugInfo,
                 }
             },
         };
+
         switch (new_val) {
             .same => {},
             .undefined => {
                 const dest = try new_cpu_state.dwarfRegisterBytes(@intCast(register));
+
                 @memset(dest, undefined);
 
                 // If the return address register is explicitly set to `.undefined`, it means that
@@ -261,13 +286,18 @@ fn nextInner(unwinder: *SelfUnwinder, gpa: Allocator, cache_entry: *const CacheE
             },
             .val => |val| {
                 const dest = try new_cpu_state.dwarfRegisterBytes(@intCast(register));
+
                 if (dest.len != @sizeOf(usize)) return error.InvalidDebugInfo;
+
                 const dest_ptr: *align(1) usize = @ptrCast(dest);
+
                 dest_ptr.* = val;
             },
             .bytes => |src| {
                 const dest = try new_cpu_state.dwarfRegisterBytes(@intCast(register));
+
                 if (dest.len != src.len) return error.InvalidDebugInfo;
+
                 @memcpy(dest, src);
             },
         }
@@ -304,7 +334,9 @@ pub fn regNative(ctx: *std.debug.cpu_context.Native, num: u16) error{
     IncompatibleRegisterSize,
 }!*align(1) usize {
     const bytes = try ctx.dwarfRegisterBytes(num);
+
     if (bytes.len != @sizeOf(usize)) return error.IncompatibleRegisterSize;
+
     return @ptrCast(bytes);
 }
 

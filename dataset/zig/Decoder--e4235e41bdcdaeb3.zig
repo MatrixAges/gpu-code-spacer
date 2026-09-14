@@ -18,9 +18,11 @@ pub fn any(self: *Decoder, comptime T: type) !T {
     if (std.meta.hasFn(T, "decodeDer")) return try T.decodeDer(self);
 
     const tag = Tag.fromZig(T).toExpected();
+
     switch (@typeInfo(T)) {
         .@"struct" => {
             const ele = try self.element(tag);
+
             defer self.index = ele.slice.end; // don't force parsing all fields
 
             var res: T = undefined;
@@ -31,6 +33,7 @@ pub fn any(self: *Decoder, comptime T: type) !T {
                 if (self.field_tag) |ft| {
                     if (ft.explicit) {
                         const seq = try self.element(ft.toTag().toExpected());
+
                         self.index = seq.slice.start;
                         self.field_tag = null;
                     }
@@ -40,8 +43,10 @@ pub fn any(self: *Decoder, comptime T: type) !T {
                     if (f.defaultValue()) |d| {
                         break :brk d;
                     }
+
                     return err;
                 };
+
                 // DER encodes null values by skipping them.
                 if (@typeInfo(f.type) == .optional and @field(res, f.name) == null) {
                     if (f.defaultValue()) |d| @field(res, f.name) = d;
@@ -53,6 +58,7 @@ pub fn any(self: *Decoder, comptime T: type) !T {
         .bool => {
             const ele = try self.element(tag);
             const bytes = self.view(ele);
+
             if (bytes.len != 1) return error.InvalidBool;
 
             return switch (bytes[0]) {
@@ -64,14 +70,17 @@ pub fn any(self: *Decoder, comptime T: type) !T {
         .int => {
             const ele = try self.element(tag);
             const bytes = self.view(ele);
+
             return try int(T, bytes);
         },
         .@"enum" => |e| {
             const ele = try self.element(tag);
             const bytes = self.view(ele);
+
             if (@hasDecl(T, "oids")) {
                 return T.oids.oidToEnum(bytes) orelse return error.UnknownOid;
             }
+
             return @enumFromInt(try int(e.tag_type, bytes));
         },
         .optional => |o| return self.any(o.child) catch return null,
@@ -93,15 +102,18 @@ pub fn element(
 
     const res = try Element.decode(self.bytes, self.index);
     var e = expected;
+
     if (self.field_tag) |ft| {
         e.number = @enumFromInt(ft.number);
         e.class = ft.class;
     }
+
     if (!e.match(res.tag)) {
         return error.UnexpectedElement;
     }
 
     self.index = if (res.tag.constructed) res.slice.start else res.slice.end;
+
     return res;
 }
 
@@ -114,11 +126,14 @@ fn int(comptime T: type, value: []const u8) error{ NonCanonical, LargeValue }!T 
     if (@typeInfo(T).int.bits % 8 != 0) @compileError("T must be byte aligned");
 
     var bytes = value;
+
     if (bytes.len >= 2) {
         if (bytes[0] == 0) {
             if (@clz(bytes[1]) > 0) return error.NonCanonical;
+
             bytes.ptr += 1;
         }
+
         if (bytes[0] == 0xff and @clz(bytes[1]) == 0) return error.NonCanonical;
     }
 
@@ -134,6 +149,7 @@ test int {
     try expectError(error.NonCanonical, int(u8, &[_]u8{ 0xff, 0xff }));
 
     const big = [_]u8{ 0xef, 0xff };
+
     try expectError(error.LargeValue, int(u8, &big));
     try expectEqual(0xefff, int(u16, &big));
 }
@@ -144,11 +160,13 @@ test Decoder {
 
     {
         const seq2 = try parser.sequence();
+
         _ = try parser.element(ExpectedTag.init(.oid, false, .universal));
         _ = try parser.element(ExpectedTag.init(.oid, false, .universal));
 
         try std.testing.expectEqual(parser.index, seq2.slice.end);
     }
+
     _ = try parser.element(ExpectedTag.init(.bitstring, false, .universal));
 
     try std.testing.expectEqual(parser.index, seq.slice.end);

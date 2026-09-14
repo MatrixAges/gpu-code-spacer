@@ -38,6 +38,7 @@ pub fn Composition(comptime H1: type, comptime H2: type) type {
         /// Compute H1(H2(b)).
         pub fn hash(b: []const u8, out: *[digest_length]u8, options: Options) void {
             var d = Self.init(options);
+
             d.update(b);
             d.final(out);
         }
@@ -50,6 +51,7 @@ pub fn Composition(comptime H1: type, comptime H2: type) type {
         /// Compute the final hash for the accumulated content: H1(H2(b)).
         pub fn final(d: *Self, out: *[digest_length]u8) void {
             var H2_digest: [H2.digest_length]u8 = undefined;
+
             d.H2.final(&H2_digest);
             d.H1.update(&H2_digest);
             d.H1.final(out);
@@ -69,11 +71,15 @@ test "Hash composition" {
     const msg = "test";
 
     var out: [Sha256oSha256.digest_length]u8 = undefined;
+
     Sha256oSha256.hash(msg, &out, .{});
 
     var t: [Sha256.digest_length]u8 = undefined;
+
     Sha256.hash(msg, &t, .{});
+
     var out2: [Sha256.digest_length]u8 = undefined;
+
     Sha256.hash(&t, &out2, .{});
 
     try std.testing.expectEqualSlices(u8, &out, &out2);

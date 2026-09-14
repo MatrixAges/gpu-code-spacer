@@ -10,9 +10,12 @@ import type { App, DirTree } from '@/types'
 @injectable()
 export default class Index {
 	open = false
+
 	module = 'todo' as App.ModuleType
 	items = [] as Array<{ item: any; file: DirTree.Item; setting?: any }>
+
 	index = 0
+
 	search_history = {} as Record<App.ModuleType, Array<string>>
 
 	get history() {
@@ -130,6 +133,7 @@ export default class Index {
 
 	async onCheck(args: { id: string; file: DirTree.Item }) {
 		const { id, file } = args
+
 		const find_view = await $app.Event.emit('global.stack.find', file.id)
 		const view = $copy(find_view)
 
@@ -204,7 +208,6 @@ export default class Index {
 
 	off() {
 		this.utils.off()
-
 		$app.Event.on('global.app.check', this.onCheck)
 		$app.Event.off('global.app.showSearch', this.showSearch)
 		$app.Event.off('global.app.closeSearch', this.closeSearch)

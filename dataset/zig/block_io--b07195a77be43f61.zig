@@ -16,12 +16,14 @@ pub const BlockIo = extern struct {
     _flush_blocks: *const fn (*BlockIo) callconv(cc) Status,
 
     pub const ResetError = uefi.UnexpectedError || error{DeviceError};
+
     pub const ReadBlocksError = uefi.UnexpectedError || error{
         DeviceError,
         NoMedia,
         BadBufferSize,
         InvalidParameter,
     };
+
     pub const WriteBlocksError = uefi.UnexpectedError || error{
         WriteProtected,
         NoMedia,
@@ -30,6 +32,7 @@ pub const BlockIo = extern struct {
         BadBufferSize,
         InvalidParameter,
     };
+
     pub const FlushBlocksError = uefi.UnexpectedError || error{
         DeviceError,
         NoMedia,

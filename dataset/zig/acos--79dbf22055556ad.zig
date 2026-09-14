@@ -1,4 +1,5 @@
 const std = @import("../../std.zig");
+
 const testing = std.testing;
 const math = std.math;
 const cmath = math.complex;
@@ -8,6 +9,7 @@ const Complex = cmath.Complex;
 pub fn acos(z: anytype) Complex(@TypeOf(z.re, z.im)) {
     const T = @TypeOf(z.re, z.im);
     const q = cmath.asin(z);
+
     return Complex(T).init(@as(T, math.pi) / 2 - q.re, -q.im);
 }
 

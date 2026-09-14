@@ -17,6 +17,7 @@ pub fn main(shell: *Shell, gpa: std.mem.Allocator) !void {
     _ = gpa;
 
     const date_time = stdx.InstantUnix.now().date_time();
+
     const today = try shell.fmt(
         "{:0>4}-{:0>2}-{:0>2}",
         .{ date_time.year, date_time.month, date_time.day },
@@ -36,6 +37,7 @@ pub fn main(shell: *Shell, gpa: std.mem.Allocator) !void {
     );
 
     var changelog_new = std.ArrayList(u8).init(shell.arena.allocator());
+
     try format_changelog(changelog_new.writer(), .{
         .changelog_current = changelog_current,
         .merges = merges,
@@ -74,13 +76,16 @@ fn format_changelog(buffer: std.ArrayList(u8).Writer, options: struct {
             .minor = release.triple().minor,
             .patch = release.triple().patch + 1,
         });
+
         try buffer.print("## TigerBeetle {}\n\n", .{release_next});
     } else {
         try buffer.print("## TigerBeetle (unreleased)\n\n", .{});
     }
+
     try buffer.print("Released: {s}\n\n", .{options.today});
 
     var merges_left = options.merges;
+
     for (0..128) |_| {
         const merge = try format_changelog_cut_single_merge(&merges_left) orelse break;
 
@@ -92,6 +97,7 @@ fn format_changelog(buffer: std.ArrayList(u8).Writer, options: struct {
             \\
         , .{ merge.pr, merge.pr, merge.summary });
     } else @panic("suspiciously many PRs merged");
+
     assert(std.mem.indexOf(u8, merges_left, "commit") == null);
 
     try buffer.print(
@@ -141,6 +147,7 @@ fn format_changelog_cut_single_merge(merges_left: *[]const u8) !?struct {
 
     const pr_string, merges_left.* = stdx.cut(merges_left.*, " from ") orelse
         return error.ParseMergeLog;
+
     const pr = try stdx.parse_int(u16, pr_string, .{});
 
     _, merges_left.* = stdx.cut(merges_left.*, "\n    \n    ") orelse return error.ParseMergeLog;
@@ -168,8 +175,11 @@ pub const ChangelogIterator = struct {
     pub fn init(changelog: []const u8) ChangelogIterator {
         var rest = stdx.cut_prefix(changelog, "# Changelog\n\n").?;
         const start_index = std.mem.indexOf(u8, rest, "##").?;
+
         assert(rest[start_index - 1] == '\n');
+
         rest = rest[start_index..];
+
         assert(std.mem.startsWith(u8, rest, "## TigerBeetle"));
 
         return .{
@@ -180,10 +190,14 @@ pub const ChangelogIterator = struct {
 
     pub fn next_changelog(it: *ChangelogIterator) ?Entry {
         if (it.done()) return null;
+
         assert(std.mem.startsWith(u8, it.rest, "## TigerBeetle"));
+
         const entry_end_index = std.mem.indexOf(u8, it.rest[2..], "\n\n## ").? + 2;
         const text_full = it.rest[0 .. entry_end_index + 1];
+
         it.rest = it.rest[entry_end_index + 2 ..];
+
         const entry = parse_entry(text_full);
 
         if (it.release_previous_iteration != null and entry.release != null) {
@@ -192,6 +206,7 @@ pub const ChangelogIterator = struct {
             // release.
             assert(Release.less_than({}, entry.release.?, it.release_previous_iteration.?));
         }
+
         if (entry.release != null) {
             it.release_previous_iteration = entry.release;
         }
@@ -210,6 +225,7 @@ pub const ChangelogIterator = struct {
         assert(!std.mem.endsWith(u8, text_full, "\n\n"));
 
         const first_line, var body = stdx.cut(text_full, "\n").?;
+
         const release = if (std.mem.eql(u8, first_line, "## TigerBeetle (unreleased)"))
             null
         else
@@ -218,6 +234,7 @@ pub const ChangelogIterator = struct {
 
         body = stdx.cut_prefix(body, "\nReleased:").?;
         _, body = stdx.cut(body, "\n").?;
+
         return .{ .release = release, .text_full = text_full, .text_body = body };
     }
 };
@@ -252,11 +269,13 @@ test ChangelogIterator {
     var it = ChangelogIterator.init(changelog);
 
     var entry = it.next_changelog().?;
+
     try std.testing.expectEqual(entry.release.?.triple(), ReleaseTriple{
         .major = 1,
         .minor = 2,
         .patch = 3,
     });
+
     try std.testing.expectEqualStrings(entry.text_full,
         \\## TigerBeetle 1.2.3
         \\
@@ -269,6 +288,7 @@ test ChangelogIterator {
         \\- a cool PR
         \\
     );
+
     try std.testing.expectEqualStrings(entry.text_body,
         \\
         \\This is the start of the changelog.
@@ -280,6 +300,7 @@ test ChangelogIterator {
     );
 
     entry = it.next_changelog().?;
+
     try std.testing.expectEqual(entry.release.?.triple(), ReleaseTriple{
         .major = 1,
         .minor = 2,
@@ -297,8 +318,10 @@ test "current changelog" {
         "./CHANGELOG.md",
         changelog_bytes_max,
     );
+
     defer allocator.free(changelog_text);
 
     var it = ChangelogIterator.init(changelog_text);
+
     while (it.next_changelog()) |_| {}
 }

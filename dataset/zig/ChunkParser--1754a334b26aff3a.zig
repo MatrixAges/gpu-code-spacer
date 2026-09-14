@@ -39,6 +39,7 @@ pub fn feed(p: *ChunkParser, bytes: []const u8) usize {
             '\n' => p.state = .head_size,
             else => {
                 p.state = .invalid;
+
                 return i;
             },
         },
@@ -46,6 +47,7 @@ pub fn feed(p: *ChunkParser, bytes: []const u8) usize {
             '\n' => p.state = .head_size,
             else => {
                 p.state = .invalid;
+
                 return i;
             },
         },
@@ -56,21 +58,26 @@ pub fn feed(p: *ChunkParser, bytes: []const u8) usize {
                 'a'...'z' => |b| b - 'a' + 10,
                 '\r' => {
                     p.state = .head_r;
+
                     continue;
                 },
                 '\n' => {
                     p.state = .data;
+
                     return i + 1;
                 },
                 else => {
                     p.state = .head_ext;
+
                     continue;
                 },
             };
 
             const new_len = p.chunk_len *% 16 +% digit;
+
             if (new_len <= p.chunk_len and p.chunk_len != 0) {
                 p.state = .invalid;
+
                 return i;
             }
 
@@ -80,6 +87,7 @@ pub fn feed(p: *ChunkParser, bytes: []const u8) usize {
             '\r' => p.state = .head_r,
             '\n' => {
                 p.state = .data;
+
                 return i + 1;
             },
             else => continue,
@@ -87,16 +95,19 @@ pub fn feed(p: *ChunkParser, bytes: []const u8) usize {
         .head_r => switch (c) {
             '\n' => {
                 p.state = .data;
+
                 return i + 1;
             },
             else => {
                 p.state = .invalid;
+
                 return i;
             },
         },
         .data => unreachable,
         .invalid => unreachable,
     };
+
     return bytes.len;
 }
 
@@ -107,24 +118,31 @@ test feed {
 
     var p = init;
     const first = p.feed(data[0..]);
+
     try testing.expectEqual(@as(u32, 4), first);
     try testing.expectEqual(@as(u64, 0xff), p.chunk_len);
     try testing.expectEqual(.data, p.state);
 
     p = init;
+
     const second = p.feed(data[first..]);
+
     try testing.expectEqual(@as(u32, 13), second);
     try testing.expectEqual(@as(u64, 0xf0f000), p.chunk_len);
     try testing.expectEqual(.data, p.state);
 
     p = init;
+
     const third = p.feed(data[first + second ..]);
+
     try testing.expectEqual(@as(u32, 3), third);
     try testing.expectEqual(@as(u64, 0), p.chunk_len);
     try testing.expectEqual(.data, p.state);
 
     p = init;
+
     const fourth = p.feed(data[first + second + third ..]);
+
     try testing.expectEqual(@as(u32, 16), fourth);
     try testing.expectEqual(@as(u64, 0xffffffffffffffff), p.chunk_len);
     try testing.expectEqual(.invalid, p.state);

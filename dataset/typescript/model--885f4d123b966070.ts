@@ -19,10 +19,12 @@ import type { Pomo } from '@/types'
 @injectable()
 export default class Index {
 	id = ''
+
 	data = {} as Pomo.Item
 	ref_tray = null as HTMLDivElement | null
 
 	watcher = null as unknown as Subscription
+
 	disable_watcher = false
 
 	view_index = 0
@@ -31,6 +33,7 @@ export default class Index {
 	visible_edit_modal = false
 
 	record_timer = null as unknown as NodeJS.Timer
+
 	record_numbers = 0
 
 	tray = null as { status: 'working' | 'break'; percent: number; title: string } | null
@@ -64,12 +67,11 @@ export default class Index {
 		const { id } = args
 
 		this.id = id
+
 		this.file.init(id)
 		this.settings.init('pomo_settings')
-
 		this.work_end.init({ src: notify, loop: true, times: 6 })
 		this.break_end.init({ src: done, loop: true, times: 6 })
-
 		this.on()
 	}
 
@@ -323,6 +325,7 @@ export default class Index {
 		if (!this.watcher) return
 
 		this.watcher?.unsubscribe?.()
+
 		this.watcher = null as unknown as Subscription
 	}
 
@@ -353,9 +356,7 @@ export default class Index {
 	off() {
 		this.file.off()
 		this.settings.off()
-
 		$app.Event.off(`pomo/${this.id}/stopRecord`, this.stopRecord)
-
 		this.stopWatch()
 	}
 }

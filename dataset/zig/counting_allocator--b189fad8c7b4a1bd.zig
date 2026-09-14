@@ -33,7 +33,9 @@ pub fn live_size(self: *CountingAllocator) u64 {
 
 fn alloc(ctx: *anyopaque, len: usize, ptr_align: Alignment, ret_addr: usize) ?[*]u8 {
     const self: *CountingAllocator = @ptrCast(@alignCast(ctx));
+
     self.alloc_size += len;
+
     return self.parent_allocator.rawAlloc(len, ptr_align, ret_addr);
 }
 
@@ -46,6 +48,7 @@ fn resize(ctx: *anyopaque, buf: []u8, buf_align: Alignment, new_len: usize, ret_
         } else {
             self.free_size += buf.len - new_len;
         }
+
         return true;
     } else {
         return false;
@@ -54,19 +57,24 @@ fn resize(ctx: *anyopaque, buf: []u8, buf_align: Alignment, new_len: usize, ret_
 
 fn remap(ctx: *anyopaque, buf: []u8, buf_align: Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
     const self: *CountingAllocator = @ptrCast(@alignCast(ctx));
+
     if (self.parent_allocator.rawRemap(buf, buf_align, new_len, ret_addr)) |remapped| {
         if (new_len > buf.len) {
             self.alloc_size += new_len - buf.len;
         } else {
             self.free_size += buf.len - new_len;
         }
+
         return remapped;
     }
+
     return null;
 }
 
 fn free(ctx: *anyopaque, buf: []u8, buf_align: Alignment, ret_addr: usize) void {
     const self: *CountingAllocator = @ptrCast(@alignCast(ctx));
+
     self.free_size += buf.len;
+
     return self.parent_allocator.rawFree(buf, buf_align, ret_addr);
 }

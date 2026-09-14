@@ -9,7 +9,9 @@ import type { Todo } from '@/types'
 @injectable()
 export default class Index {
 	search_todos = [] as Array<Todo.Todo>
+
 	compositing = false
+
 	tab = 'todos' as 'todos' | 'search'
 
 	constructor() {

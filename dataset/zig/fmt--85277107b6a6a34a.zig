@@ -1,7 +1,6 @@
 //! String formatting and parsing.
 
 const builtin = @import("builtin");
-
 const std = @import("std.zig");
 const math = std.math;
 const assert = std.debug.assert;
@@ -86,6 +85,7 @@ pub const Placeholder = struct {
         var parser: Parser = .{ .bytes = bytes, .i = 0 };
         const arg = parser.specifier() catch |err| @compileError(@errorName(err));
         const specifier_arg = parser.until(':');
+
         if (parser.char()) |b| {
             if (b != ':') @compileError("expected : or }, found '" ++ &[1]u8{b} ++ "'");
         }
@@ -166,54 +166,71 @@ pub const Parser = struct {
 
     pub fn number(self: *@This()) ?usize {
         var r: ?usize = null;
+
         while (self.peek(0)) |byte| {
             switch (byte) {
                 '0'...'9' => {
                     if (r == null) r = 0;
+
                     r.? *= 10;
                     r.? += byte - '0';
                 },
                 else => break,
             }
+
             self.i += 1;
         }
+
         return r;
     }
 
     pub fn until(self: *@This(), delimiter: u8) []const u8 {
         const start = self.i;
+
         self.i = std.mem.indexOfScalarPos(u8, self.bytes, self.i, delimiter) orelse self.bytes.len;
+
         return self.bytes[start..self.i];
     }
 
     pub fn char(self: *@This()) ?u8 {
         const i = self.i;
+
         if (self.bytes.len - i == 0) return null;
+
         self.i = i + 1;
+
         return self.bytes[i];
     }
 
     pub fn maybe(self: *@This(), byte: u8) bool {
         if (self.peek(0) == byte) {
             self.i += 1;
+
             return true;
         }
+
         return false;
     }
 
     pub fn specifier(self: *@This()) !Specifier {
         if (self.maybe('[')) {
             const arg_name = self.until(']');
+
             if (!self.maybe(']')) return error.@"Expected closing ]";
+
             return .{ .named = arg_name };
         }
+
         if (self.number()) |i| return .{ .number = i };
+
         return .{ .none = {} };
     }
 
     pub fn peek(self: *@This(), i: usize) ?u8 {
         const peek_index = self.i + i;
+
         if (peek_index >= self.bytes.len) return null;
+
         return self.bytes[peek_index];
     }
 };
@@ -232,7 +249,9 @@ pub const ArgState = struct {
     pub fn nextArg(self: *@This(), arg_index: ?usize) ?usize {
         const next_index = arg_index orelse init: {
             const arg = self.next_arg;
+
             self.next_arg += 1;
+
             break :init arg;
         };
 
@@ -242,6 +261,7 @@ pub const ArgState = struct {
 
         // Mark this argument as used
         self.used_args |= @as(ArgSetType, 1) << @as(u5, @intCast(next_index));
+
         return next_index;
     }
 };
@@ -250,7 +270,9 @@ pub const ArgState = struct {
 /// Returns the end index within `buffer`.
 pub fn printInt(buffer: []u8, value: anytype, base: u8, case: Case, options: Options) usize {
     var w: Writer = .fixed(buffer);
+
     w.printInt(value, base, case, options) catch unreachable;
+
     return w.end;
 }
 
@@ -270,6 +292,7 @@ pub fn Alt(
 ) type {
     return struct {
         data: Data,
+
         pub inline fn format(self: @This(), writer: *Writer) Writer.Error!void {
             try formatFn(self.data, writer);
         }
@@ -292,7 +315,9 @@ test alt {
             try w.writeByte(ex.number);
         }
     };
+
     const ex: Example = .{ .number = 'a' };
+
     try expectFmt("a", "{f}", .{alt(ex, .other)});
 }
 
@@ -328,6 +353,7 @@ pub fn parseIntWithGenericCharacter(
     if (buf.len == 0) return error.InvalidCharacter;
     if (buf[0] == '+') return parseIntWithSign(Result, Character, buf[1..], base, .pos);
     if (buf[0] == '-') return parseIntWithSign(Result, Character, buf[1..], base, .neg);
+
     return parseIntWithSign(Result, Character, buf, base, .pos);
 }
 
@@ -402,9 +428,11 @@ fn parseIntWithSign(
 
     var buf_base = base;
     var buf_start = buf;
+
     if (base == 0) {
         // Treat is as a decimal number by default.
         buf_base = 10;
+
         // Detect the base by looking at buf prefix.
         if (buf.len > 2 and buf[0] == '0') {
             if (math.cast(u8, buf[1])) |c| switch (std.ascii.toLower(c)) {
@@ -440,7 +468,9 @@ fn parseIntWithSign(
 
     for (buf_start) |c| {
         if (c == '_') continue;
+
         const digit = try charToDigit(math.cast(u8, c) orelse return error.InvalidCharacter, buf_base);
+
         if (accumulate != 0) {
             accumulate = try math.mul(Accumulate, accumulate, math.cast(Accumulate, buf_base) orelse return error.Overflow);
         } else if (sign == .neg) {
@@ -448,8 +478,10 @@ fn parseIntWithSign(
             // Consider parsing "-4" as an i3.
             // This should work, but positive 4 overflows i3, so we can't cast the digit to T and subtract.
             accumulate = math.cast(Accumulate, -@as(i8, @intCast(digit))) orelse return error.Overflow;
+
             continue;
         }
+
         accumulate = try add(Accumulate, accumulate, math.cast(Accumulate, digit) orelse return error.Overflow);
     }
 
@@ -479,19 +511,14 @@ test parseUnsigned {
     try std.testing.expectEqual(65535, try parseUnsigned(u16, "65535", 10));
     try std.testing.expectEqual(65535, try parseUnsigned(u16, "65_535", 10));
     try std.testing.expectError(error.Overflow, parseUnsigned(u16, "65536", 10));
-
     try std.testing.expectEqual(0xffffffffffffffff, try parseUnsigned(u64, "0ffffffffffffffff", 16));
     try std.testing.expectEqual(0xffffffffffffffff, try parseUnsigned(u64, "0f_fff_fff_fff_fff_fff", 16));
     try std.testing.expectError(error.Overflow, parseUnsigned(u64, "10000000000000000", 16));
-
     try std.testing.expectEqual(0xDEADBEEF, try parseUnsigned(u32, "DeadBeef", 16));
-
     try std.testing.expectEqual(1, try parseUnsigned(u7, "1", 10));
     try std.testing.expectEqual(8, try parseUnsigned(u7, "1000", 2));
-
     try std.testing.expectError(error.InvalidCharacter, parseUnsigned(u32, "f", 10));
     try std.testing.expectError(error.InvalidCharacter, parseUnsigned(u8, "109", 8));
-
     try std.testing.expectEqual(1442151747, try parseUnsigned(u32, "NUMBER", 36));
 
     // these numbers should fit even though the base itself doesn't fit in the destination type
@@ -513,14 +540,19 @@ test parseUnsigned {
 /// Parses a number like '2G', '2Gi', or '2GiB'.
 pub fn parseIntSizeSuffix(buf: []const u8, digit_base: u8) ParseIntError!usize {
     var without_B = buf;
+
     if (mem.endsWith(u8, buf, "B")) without_B.len -= 1;
+
     var without_i = without_B;
     var magnitude_base: usize = 1000;
+
     if (mem.endsWith(u8, without_B, "i")) {
         without_i.len -= 1;
         magnitude_base = 1024;
     }
+
     if (without_i.len == 0) return error.InvalidCharacter;
+
     const orders_of_magnitude: usize = switch (without_i[without_i.len - 1]) {
         'k', 'K' => 1,
         'M' => 2,
@@ -534,17 +566,22 @@ pub fn parseIntSizeSuffix(buf: []const u8, digit_base: u8) ParseIntError!usize {
         'Q' => 10,
         else => 0,
     };
+
     var without_suffix = without_i;
+
     if (orders_of_magnitude > 0) {
         without_suffix.len -= 1;
     } else if (without_i.len != without_B.len) {
         return error.InvalidCharacter;
     }
+
     const multiplier = math.powi(usize, magnitude_base, orders_of_magnitude) catch |err| switch (err) {
         error.Underflow => unreachable,
         error.Overflow => return error.Overflow,
     };
+
     const number = try std.fmt.parseInt(usize, without_suffix, digit_base);
+
     return math.mul(usize, number, multiplier);
 }
 
@@ -596,9 +633,11 @@ pub const BufPrintError = error{
 /// Print a format string into `buf`. Returns a slice of the bytes printed.
 pub fn bufPrint(buf: []u8, comptime fmt: []const u8, args: anytype) BufPrintError![]u8 {
     var w: Writer = .fixed(buf);
+
     w.print(fmt, args) catch |err| switch (err) {
         error.WriteFailed => return error.NoSpaceLeft,
     };
+
     return w.buffered();
 }
 
@@ -614,6 +653,7 @@ pub fn bufPrintSentinel(
     comptime sentinel: u8,
 ) BufPrintError![:sentinel]u8 {
     const result = try bufPrint(buf, fmt ++ [_]u8{sentinel}, args);
+
     return result[0 .. result.len - 1 :sentinel];
 }
 
@@ -621,18 +661,23 @@ pub fn bufPrintSentinel(
 pub fn count(comptime fmt: []const u8, args: anytype) usize {
     var trash_buffer: [64]u8 = undefined;
     var dw: Writer.Discarding = .init(&trash_buffer);
+
     dw.writer.print(fmt, args) catch |err| switch (err) {
         error.WriteFailed => unreachable,
     };
+
     return @intCast(dw.count + dw.writer.end);
 }
 
 pub fn allocPrint(gpa: Allocator, comptime fmt: []const u8, args: anytype) Allocator.Error![]u8 {
     var aw = try Writer.Allocating.initCapacity(gpa, fmt.len);
+
     defer aw.deinit();
+
     aw.writer.print(fmt, args) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,
     };
+
     return aw.toOwnedSlice();
 }
 
@@ -643,19 +688,26 @@ pub fn allocPrintSentinel(
     comptime sentinel: u8,
 ) Allocator.Error![:sentinel]u8 {
     var aw = try Writer.Allocating.initCapacity(gpa, fmt.len);
+
     defer aw.deinit();
+
     aw.writer.print(fmt, args) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,
     };
+
     return aw.toOwnedSliceSentinel(sentinel);
 }
 
 pub inline fn comptimePrint(comptime fmt: []const u8, args: anytype) *const [count(fmt, args):0]u8 {
     comptime {
         var buf: [count(fmt, args):0]u8 = undefined;
+
         _ = bufPrint(&buf, fmt, args) catch unreachable;
+
         buf[buf.len] = 0;
+
         const final = buf;
+
         return &final;
     }
 }
@@ -673,8 +725,10 @@ test comptimePrint {
 test "parse u64 digit too big" {
     _ = parseUnsigned(u64, "123a", 10) catch |err| {
         if (err == error.InvalidCharacter) return;
+
         unreachable;
     };
+
     unreachable;
 }
 
@@ -692,20 +746,27 @@ test "escaped braces" {
 test "optional" {
     {
         const value: ?i32 = 1234;
+
         try expectFmt("optional: 1234\n", "optional: {?}\n", .{value});
         try expectFmt("optional: 1234\n", "optional: {?d}\n", .{value});
         try expectFmt("optional: 4d2\n", "optional: {?x}\n", .{value});
     }
+
     {
         const value: ?[]const u8 = "string";
+
         try expectFmt("optional: string\n", "optional: {?s}\n", .{value});
     }
+
     {
         const value: ?i32 = null;
+
         try expectFmt("optional: null\n", "optional: {?}\n", .{value});
     }
+
     {
         const value = @as(?*i32, @ptrFromInt(0xf000d000));
+
         try expectFmt("optional: *i32@f000d000\n", "optional: {*}\n", .{value});
     }
 }
@@ -713,16 +774,21 @@ test "optional" {
 test "error" {
     {
         const value: anyerror!i32 = 1234;
+
         try expectFmt("error union: 1234\n", "error union: {!}\n", .{value});
         try expectFmt("error union: 1234\n", "error union: {!d}\n", .{value});
         try expectFmt("error union: 4d2\n", "error union: {!x}\n", .{value});
     }
+
     {
         const value: anyerror![]const u8 = "string";
+
         try expectFmt("error union: string\n", "error union: {!s}\n", .{value});
     }
+
     {
         const value: anyerror!i32 = error.InvalidChar;
+
         try expectFmt("error union: error.InvalidChar\n", "error union: {!}\n", .{value});
     }
 }
@@ -730,6 +796,7 @@ test "error" {
 test "int.small" {
     {
         const value: u3 = 0b101;
+
         try expectFmt("u3: 5\n", "u3: {}\n", .{value});
     }
 }
@@ -737,30 +804,43 @@ test "int.small" {
 test "int.specifier" {
     {
         const value: u8 = 'a';
+
         try expectFmt("u8: a\n", "u8: {c}\n", .{value});
     }
+
     {
         const value: u8 = 0b1100;
+
         try expectFmt("u8: 0b1100\n", "u8: 0b{b}\n", .{value});
     }
+
     {
         const value: u16 = 0o1234;
+
         try expectFmt("u16: 0o1234\n", "u16: 0o{o}\n", .{value});
     }
+
     {
         const value: u8 = 'a';
+
         try expectFmt("UTF-8: a\n", "UTF-8: {u}\n", .{value});
     }
+
     {
         const value: u21 = 0x1F310;
+
         try expectFmt("UTF-8: 🌐\n", "UTF-8: {u}\n", .{value});
     }
+
     {
         const value: u21 = 0xD800;
+
         try expectFmt("UTF-8: �\n", "UTF-8: {u}\n", .{value});
     }
+
     {
         const value: u21 = 0x110001;
+
         try expectFmt("UTF-8: �\n", "UTF-8: {u}\n", .{value});
     }
 }
@@ -784,15 +864,21 @@ test "buffer" {
     {
         var buf1: [32]u8 = undefined;
         var w: Writer = .fixed(&buf1);
+
         try w.printValue("", .{}, 1234, std.options.fmt_max_depth);
+
         try std.testing.expectEqualStrings("1234", w.buffered());
 
         w = .fixed(&buf1);
+
         try w.printValue("c", .{}, 'a', std.options.fmt_max_depth);
+
         try std.testing.expectEqualStrings("a", w.buffered());
 
         w = .fixed(&buf1);
+
         try w.printValue("b", .{}, 0b1100, std.options.fmt_max_depth);
+
         try std.testing.expectEqualStrings("1100", w.buffered());
     }
 }
@@ -801,18 +887,23 @@ test "buffer" {
 fn expectArrayFmt(expected: []const u8, comptime template: []const u8, comptime array_value: anytype) !void {
     try expectFmt(expected, template, .{array_value});
     try expectFmt(expected, template, .{&array_value});
+
     var runtime_zero: usize = 0;
+
     _ = &runtime_zero;
+
     try expectFmt(expected, template, .{array_value[runtime_zero..]});
 }
 
 test "array" {
     const value: [3]u8 = "abc".*;
+
     try expectArrayFmt("array: abc\n", "array: {s}\n", value);
     try expectArrayFmt("array: 616263\n", "array: {x}\n", value);
     try expectArrayFmt("array: { 97, 98, 99 }\n", "array: {any}\n", value);
 
     var buf: [100]u8 = undefined;
+
     try expectFmt(
         try bufPrint(buf[0..], "array: [3]u8@{x}\n", .{@intFromPtr(&value)}),
         "array: {*}\n",
@@ -823,18 +914,25 @@ test "array" {
 test "slice" {
     {
         const value: []const u8 = "abc";
+
         try expectFmt("slice: abc\n", "slice: {s}\n", .{value});
         try expectFmt("slice: 616263\n", "slice: {x}\n", .{value});
         try expectFmt("slice: { 97, 98, 99 }\n", "slice: {any}\n", .{value});
     }
+
     {
         var runtime_zero: usize = 0;
+
         _ = &runtime_zero;
+
         const value = @as([*]align(1) const []const u8, @ptrFromInt(0xdeadbeef))[runtime_zero..runtime_zero];
+
         try expectFmt("slice: []const u8@deadbeef\n", "slice: {*}\n", .{value});
     }
+
     {
         const null_term_slice: [:0]const u8 = "\x00hello\x00";
+
         try expectFmt("buf: \x00hello\x00\n", "buf: {s}\n", .{null_term_slice});
     }
 
@@ -843,15 +941,20 @@ test "slice" {
     {
         var int_slice = [_]u32{ 1, 4096, 391891, 1111111111 };
         const input: []const u32 = &int_slice;
+
         try expectFmt("int: { 1, 4096, 391891, 1111111111 }", "int: {any}", .{input});
     }
+
     {
         const S1 = struct {
             x: u8,
         };
+
         const struct_slice: []const S1 = &[_]S1{ S1{ .x = 8 }, S1{ .x = 42 } };
+
         try expectFmt("slice: { .{ .x = 8 }, .{ .x = 42 } }", "slice: {any}", .{struct_slice});
     }
+
     {
         const S2 = struct {
             x: u8,
@@ -860,7 +963,9 @@ test "slice" {
                 try writer.print("S2({})", .{s.x});
             }
         };
+
         const struct_slice: []const S2 = &[_]S2{ S2{ .x = 8 }, S2{ .x = 42 } };
+
         try expectFmt("slice: { .{ .x = 8 }, .{ .x = 42 } }", "slice: {any}", .{struct_slice});
     }
 }
@@ -868,16 +973,22 @@ test "slice" {
 test "pointer" {
     {
         const value = @as(*align(1) i32, @ptrFromInt(0xdeadbeef));
+
         try expectFmt("pointer: i32@deadbeef\n", "pointer: {}\n", .{value});
         try expectFmt("pointer: i32@deadbeef\n", "pointer: {*}\n", .{value});
     }
+
     const FnPtr = *align(1) const fn () void;
+
     {
         const value = @as(FnPtr, @ptrFromInt(0xdeadbeef));
+
         try expectFmt("pointer: fn () void@deadbeef\n", "pointer: {}\n", .{value});
     }
+
     {
         const value = @as(FnPtr, @ptrFromInt(0xdeadbeef));
+
         try expectFmt("pointer: fn () void@deadbeef\n", "pointer: {}\n", .{value});
     }
 }
@@ -895,16 +1006,21 @@ test "struct" {
         const Struct = struct {
             field: u8,
         };
+
         const value = Struct{ .field = 42 };
+
         try expectFmt("struct: .{ .field = 42 }\n", "struct: {}\n", .{value});
         try expectFmt("struct: .{ .field = 42 }\n", "struct: {}\n", .{&value});
     }
+
     {
         const Struct = struct {
             a: u0,
             b: u1,
         };
+
         const value = Struct{ .a = 0, .b = 1 };
+
         try expectFmt("struct: .{ .a = 0, .b = 1 }\n", "struct: {}\n", .{value});
     }
 
@@ -930,7 +1046,9 @@ test "enum" {
         One,
         Two,
     };
+
     const value = Enum.Two;
+
     try expectFmt("enum: .Two\n", "enum: {}\n", .{value});
     try expectFmt("enum: .Two\n", "enum: {}\n", .{&value});
     try expectFmt("enum: .One\n", "enum: {}\n", .{Enum.One});
@@ -959,6 +1077,7 @@ test "non-exhaustive enum" {
         Two = 0xbeef,
         _,
     };
+
     try expectFmt("enum: .One\n", "enum: {}\n", .{Enum.One});
     try expectFmt("enum: .Two\n", "enum: {}\n", .{Enum.Two});
     try expectFmt("enum: @enumFromInt(4660)\n", "enum: {}\n", .{@as(Enum, @enumFromInt(0x1234))});
@@ -966,7 +1085,6 @@ test "non-exhaustive enum" {
     try expectFmt("enum: beef\n", "enum: {x}\n", .{Enum.Two});
     try expectFmt("enum: BEEF\n", "enum: {X}\n", .{Enum.Two});
     try expectFmt("enum: 1234\n", "enum: {x}\n", .{@as(Enum, @enumFromInt(0x1234))});
-
     try expectFmt("enum: 15\n", "enum: {d}\n", .{Enum.One});
     try expectFmt("enum: 48879\n", "enum: {d}\n", .{Enum.Two});
     try expectFmt("enum: 4660\n", "enum: {d}\n", .{@as(Enum, @enumFromInt(0x1234))});
@@ -990,25 +1108,28 @@ test "float.scientific.precision" {
 
 test "float.special" {
     try expectFmt("f64: nan", "f64: {}", .{math.nan(f64)});
+
     // negative nan is not defined by IEE 754,
     // and ARM thus normalizes it to positive nan
     if (builtin.target.cpu.arch != .arm) {
         try expectFmt("f64: -nan", "f64: {}", .{-math.nan(f64)});
     }
+
     try expectFmt("f64: inf", "f64: {}", .{math.inf(f64)});
     try expectFmt("f64: -inf", "f64: {}", .{-math.inf(f64)});
 }
 
 test "float.hexadecimal.special" {
     try expectFmt("f64: nan", "f64: {x}", .{math.nan(f64)});
+
     // negative nan is not defined by IEE 754,
     // and ARM thus normalizes it to positive nan
     if (builtin.target.cpu.arch != .arm) {
         try expectFmt("f64: -nan", "f64: {x}", .{-math.nan(f64)});
     }
+
     try expectFmt("f64: inf", "f64: {x}", .{math.inf(f64)});
     try expectFmt("f64: -inf", "f64: {x}", .{-math.inf(f64)});
-
     try expectFmt("f64: 0x0.0p0", "f64: {x}", .{@as(f64, 0)});
     try expectFmt("f64: -0x0.0p0", "f64: {x}", .{-@as(f64, 0)});
 }
@@ -1019,19 +1140,16 @@ test "float.hexadecimal" {
     try expectFmt("f64: 0x1.5555555555555p-2", "f64: {x}", .{@as(f64, 1.0 / 3.0)});
     try expectFmt("f80: 0x1.5555555555555556p-2", "f80: {x}", .{@as(f80, 1.0 / 3.0)});
     try expectFmt("f128: 0x1.5555555555555555555555555555p-2", "f128: {x}", .{@as(f128, 1.0 / 3.0)});
-
     try expectFmt("f16: 0x1p-14", "f16: {x}", .{math.floatMin(f16)});
     try expectFmt("f32: 0x1p-126", "f32: {x}", .{math.floatMin(f32)});
     try expectFmt("f64: 0x1p-1022", "f64: {x}", .{math.floatMin(f64)});
     try expectFmt("f80: 0x1p-16382", "f80: {x}", .{math.floatMin(f80)});
     try expectFmt("f128: 0x1p-16382", "f128: {x}", .{math.floatMin(f128)});
-
     try expectFmt("f16: 0x0.004p-14", "f16: {x}", .{math.floatTrueMin(f16)});
     try expectFmt("f32: 0x0.000002p-126", "f32: {x}", .{math.floatTrueMin(f32)});
     try expectFmt("f64: 0x0.0000000000001p-1022", "f64: {x}", .{math.floatTrueMin(f64)});
     try expectFmt("f80: 0x0.0000000000000002p-16382", "f80: {x}", .{math.floatTrueMin(f80)});
     try expectFmt("f128: 0x0.0000000000000000000000000001p-16382", "f128: {x}", .{math.floatTrueMin(f128)});
-
     try expectFmt("f16: 0x1.ffcp15", "f16: {x}", .{math.floatMax(f16)});
     try expectFmt("f32: 0x1.fffffep127", "f32: {x}", .{math.floatMax(f32)});
     try expectFmt("f64: 0x1.fffffffffffffp1023", "f64: {x}", .{math.floatMax(f64)});
@@ -1045,7 +1163,6 @@ test "float.hexadecimal.precision" {
     try expectFmt("f64: 0x1.55555p-2", "f64: {x:.5}", .{@as(f64, 1.0 / 3.0)});
     try expectFmt("f80: 0x1.5555555p-2", "f80: {x:.7}", .{@as(f80, 1.0 / 3.0)});
     try expectFmt("f128: 0x1.555555555p-2", "f128: {x:.9}", .{@as(f128, 1.0 / 3.0)});
-
     try expectFmt("f16: 0x1.00000p0", "f16: {x:.5}", .{@as(f16, 1.0)});
     try expectFmt("f32: 0x1.00000p0", "f32: {x:.5}", .{@as(f32, 1.0)});
     try expectFmt("f64: 0x1.00000p0", "f64: {x:.5}", .{@as(f64, 1.0)});
@@ -1125,12 +1242,14 @@ test "union" {
 test "struct.self-referential" {
     const S = struct {
         const SelfType = @This();
+
         a: ?*SelfType,
     };
 
     var inst = S{
         .a = null,
     };
+
     inst.a = &inst;
 
     try expectFmt(".{ .a = .{ .a = .{ .a = .{ ... } } } }", "{}", .{inst});
@@ -1140,6 +1259,7 @@ test "struct.zero-size" {
     const A = struct {
         fn foo() void {}
     };
+
     const B = struct {
         a: A,
         c: i32,
@@ -1155,14 +1275,17 @@ test "struct.zero-size" {
 /// Returns an array containing the encoded bytes.
 pub fn bytesToHex(input: anytype, case: Case) [input.len * 2]u8 {
     if (input.len == 0) return [_]u8{};
+
     comptime assert(@TypeOf(input[0]) == u8); // elements to encode must be unsigned bytes
 
     const charset = "0123456789" ++ if (case == .upper) "ABCDEF" else "abcdef";
     var result: [input.len * 2]u8 = undefined;
+
     for (input, 0..) |b, i| {
         result[i * 2 + 0] = charset[b >> 4];
         result[i * 2 + 1] = charset[b & 15];
     }
+
     return result;
 }
 
@@ -1173,13 +1296,16 @@ pub fn hexToBytes(out: []u8, input: []const u8) ![]u8 {
     // Expect 0 or n pairs of hexadecimal digits.
     if (input.len & 1 != 0)
         return error.InvalidLength;
+
     if (out.len * 2 < input.len)
         return error.NoSpaceLeft;
 
     var in_i: usize = 0;
+
     while (in_i < input.len) : (in_i += 2) {
         const hi = try charToDigit(input[in_i], 16);
         const lo = try charToDigit(input[in_i + 1], 16);
+
         out[in_i / 2] = (hi << 4) | lo;
     }
 
@@ -1190,11 +1316,13 @@ test bytesToHex {
     const input = "input slice";
     const encoded = bytesToHex(input, .lower);
     var decoded: [input.len]u8 = undefined;
+
     try std.testing.expectEqualSlices(u8, input, try hexToBytes(&decoded, &encoded));
 }
 
 test hexToBytes {
     var buf: [32]u8 = undefined;
+
     try expectFmt("90" ** 32, "{X}", .{try hexToBytes(&buf, "90" ** 32)});
     try expectFmt("ABCD", "{X}", .{try hexToBytes(&buf, "ABCD")});
     try expectFmt("", "{X}", .{try hexToBytes(&buf, "")});
@@ -1235,11 +1363,13 @@ test "vector" {
     const vop: @Vector(4, ?*const u64) = [_]?*const u64{ &x[0], null, null, &x[3] };
 
     var expect_buffer: [@sizeOf(usize) * 2 * 4 + 64]u8 = undefined;
+
     try expectFmt(try bufPrint(
         &expect_buffer,
         "{{ {}, {}, {}, {} }}",
         .{ &x[0], &x[1], &x[2], &x[3] },
     ), "{}", .{vp});
+
     try expectFmt(try bufPrint(
         &expect_buffer,
         "{{ {?}, null, null, {?} }}",
@@ -1267,6 +1397,7 @@ test "padding" {
 
 test "decimal float padding" {
     const number: f32 = 3.1415;
+
     try expectFmt("left-pad:   **3.142\n", "left-pad:   {d:*>7.3}\n", .{number});
     try expectFmt("center-pad: *3.142*\n", "center-pad: {d:*^7.3}\n", .{number});
     try expectFmt("right-pad:  3.142**\n", "right-pad:  {d:*<7.3}\n", .{number});
@@ -1274,6 +1405,7 @@ test "decimal float padding" {
 
 test "sci float padding" {
     const number: f32 = 3.1415;
+
     try expectFmt("left-pad:   ****3.142e0\n", "left-pad:   {e:*>11.3}\n", .{number});
     try expectFmt("center-pad: **3.142e0**\n", "center-pad: {e:*^11.3}\n", .{number});
     try expectFmt("right-pad:  3.142e0****\n", "right-pad:  {e:*<11.3}\n", .{number});
@@ -1290,6 +1422,7 @@ test "padding.zero" {
 
 test "null" {
     const inst = null;
+
     try expectFmt("null", "{}", .{inst});
 }
 
@@ -1307,6 +1440,7 @@ test "named arguments" {
 
 test "runtime width specifier" {
     const width: usize = 9;
+
     try expectFmt("~~12345~~", "{d:~^[1]}", .{ 12345, width });
     try expectFmt("~~12345~~", "{d:~^[width]}", .{ .string = 12345, .width = width });
     try expectFmt("    12345", "{d:[1]}", .{ 12345, width });
@@ -1316,6 +1450,7 @@ test "runtime width specifier" {
 test "runtime precision specifier" {
     const number: f32 = 3.1415;
     const precision: usize = 2;
+
     try expectFmt("3.14e0", "{e:1.[1]}", .{ number, precision });
     try expectFmt("3.14e0", "{e:1.[precision]}", .{ .number = number, .precision = precision });
 }
@@ -1323,6 +1458,7 @@ test "runtime precision specifier" {
 test "recursive format function" {
     const R = union(enum) {
         const R = @This();
+
         Leaf: i32,
         Branch: struct { left: *const R, right: *const R },
 
@@ -1335,6 +1471,7 @@ test "recursive format function" {
     };
 
     var r: R = .{ .Leaf = 1 };
+
     try expectFmt("Leaf(1)\n", "{f}\n", .{&r});
 }
 
@@ -1344,24 +1481,31 @@ pub const hex_charset = "0123456789abcdef";
 /// hex bytes, little endian.
 pub fn hex(x: anytype) [@sizeOf(@TypeOf(x)) * 2]u8 {
     comptime assert(@typeInfo(@TypeOf(x)).int.signedness == .unsigned);
+
     var result: [@sizeOf(@TypeOf(x)) * 2]u8 = undefined;
     var i: usize = 0;
+
     while (i < result.len / 2) : (i += 1) {
         const byte: u8 = @truncate(x >> @intCast(8 * i));
+
         result[i * 2 + 0] = hex_charset[byte >> 4];
         result[i * 2 + 1] = hex_charset[byte & 15];
     }
+
     return result;
 }
 
 test hex {
     {
         const x = hex(@as(u32, 0xdeadbeef));
+
         try std.testing.expect(x.len == 8);
         try std.testing.expectEqualStrings("efbeadde", &x);
     }
+
     {
         const s = "[" ++ hex(@as(u64, 0x12345678_abcdef00)) ++ "]";
+
         try std.testing.expect(s.len == 18);
         try std.testing.expectEqualStrings("[00efcdab78563412]", s);
     }
@@ -1370,31 +1514,37 @@ test hex {
 test "parser until" {
     { // return substring till ':'
         var parser: Parser = .{ .bytes = "abc:1234", .i = 0 };
+
         try testing.expectEqualStrings("abc", parser.until(':'));
     }
 
     { // return the entire string - `ch` not found
         var parser: Parser = .{ .bytes = "abc1234", .i = 0 };
+
         try testing.expectEqualStrings("abc1234", parser.until(':'));
     }
 
     { // substring is empty - `ch` is the only character
         var parser: Parser = .{ .bytes = ":", .i = 0 };
+
         try testing.expectEqualStrings("", parser.until(':'));
     }
 
     { // empty string and `ch` not found
         var parser: Parser = .{ .bytes = "", .i = 0 };
+
         try testing.expectEqualStrings("", parser.until(':'));
     }
 
     { // substring starts at index 2 and goes upto `ch`
         var parser: Parser = .{ .bytes = "abc:1234", .i = 2 };
+
         try testing.expectEqualStrings("c", parser.until(':'));
     }
 
     { // substring starts at index 4 and goes upto the end - `ch` not found
         var parser: Parser = .{ .bytes = "abc1234", .i = 4 };
+
         try testing.expectEqualStrings("234", parser.until(':'));
     }
 }
@@ -1402,6 +1552,7 @@ test "parser until" {
 test "parser peek" {
     { // start iteration from the first index
         var parser: Parser = .{ .bytes = "hello world", .i = 0 };
+
         try testing.expectEqual('h', parser.peek(0));
         try testing.expectEqual('e', parser.peek(1));
         try testing.expectEqual(' ', parser.peek(5));
@@ -1435,70 +1586,86 @@ test "parser peek" {
 test "parser char" {
     // character exists - iterator at 0
     var parser: Parser = .{ .bytes = "~~hello", .i = 0 };
+
     try testing.expectEqual('~', parser.char());
 
     // character exists - iterator in the middle
     parser = .{ .bytes = "~~hello", .i = 3 };
+
     try testing.expectEqual('e', parser.char());
 
     // character exists - iterator at the end
     parser = .{ .bytes = "~~hello", .i = 6 };
+
     try testing.expectEqual('o', parser.char());
 
     // character doesn't exist - iterator beyond the length of the string
     parser = .{ .bytes = "~~hello", .i = 7 };
+
     try testing.expectEqual(null, parser.char());
 }
 
 test "parser maybe" {
     // character exists - iterator at 0
     var parser: Parser = .{ .bytes = "hello world", .i = 0 };
+
     try testing.expect(parser.maybe('h'));
 
     // character exists - iterator at space
     parser = .{ .bytes = "hello world", .i = 5 };
+
     try testing.expect(parser.maybe(' '));
 
     // character exists - iterator at the end
     parser = .{ .bytes = "hello world", .i = 10 };
+
     try testing.expect(parser.maybe('d'));
 
     // character doesn't exist - iterator beyond the length of the string
     parser = .{ .bytes = "hello world", .i = 11 };
+
     try testing.expect(!parser.maybe('e'));
 }
 
 test "parser number" {
     // input is a single digit natural number - iterator at 0
     var parser: Parser = .{ .bytes = "7", .i = 0 };
+
     try testing.expect(7 == parser.number());
 
     // input is a two digit natural number - iterator at 1
     parser = .{ .bytes = "29", .i = 1 };
+
     try testing.expect(9 == parser.number());
 
     // input is a two digit natural number - iterator beyond the length of the string
     parser = .{ .bytes = "32", .i = 2 };
+
     try testing.expectEqual(null, parser.number());
 
     // input is an integer
     parser = .{ .bytes = "0", .i = 0 };
+
     try testing.expect(0 == parser.number());
 
     // input is a negative integer
     parser = .{ .bytes = "-2", .i = 0 };
+
     try testing.expectEqual(null, parser.number());
 
     // input is a string
     parser = .{ .bytes = "no_number", .i = 2 };
+
     try testing.expectEqual(null, parser.number());
 
     // input is a single character string
     parser = .{ .bytes = "n", .i = 0 };
+
     try testing.expectEqual(null, parser.number());
 
     // input is an empty string
     parser = .{ .bytes = "", .i = 0 };
+
     try testing.expectEqual(null, parser.number());
 }
 
@@ -1508,6 +1675,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "1", .i = 0 };
 
         const result = try parser.specifier();
+
         try testing.expect(expected.number == result.number);
     }
 
@@ -1516,6 +1684,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "42", .i = 0 };
 
         const result = try parser.specifier();
+
         try testing.expect(digit.number == result.number);
     }
 
@@ -1524,6 +1693,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "28", .i = 1 };
 
         const result = try parser.specifier();
+
         try testing.expect(digit.number == result.number);
     }
 
@@ -1532,6 +1702,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "[15]", .i = 0 };
 
         const result = try parser.specifier();
+
         try testing.expectEqualStrings(digit.named, result.named);
     }
 
@@ -1540,6 +1711,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "[hello]", .i = 0 };
 
         const result = try parser.specifier();
+
         try testing.expectEqualStrings(digit.named, result.named);
     }
 
@@ -1547,6 +1719,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "[hello", .i = 0 };
 
         const result = parser.specifier();
+
         try testing.expectError(@field(anyerror, "Expected closing ]"), result);
     }
 
@@ -1554,6 +1727,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "[[[[hello", .i = 2 };
 
         const result = parser.specifier();
+
         try testing.expectError(@field(anyerror, "Expected closing ]"), result);
     }
 
@@ -1562,6 +1736,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "[[[hello]", .i = 0 };
 
         const result = try parser.specifier();
+
         try testing.expectEqualStrings(digit.named, result.named);
     }
 
@@ -1570,6 +1745,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "[[[[hello]]]]]", .i = 1 };
 
         const result = try parser.specifier();
+
         try testing.expectEqualStrings(digit.named, result.named);
     }
 
@@ -1578,6 +1754,7 @@ test "parser specifier" {
         var parser: Parser = .{ .bytes = "hello", .i = 0 };
 
         const result = try parser.specifier();
+
         try testing.expectEqual(char.none, result.none);
     }
 }

@@ -47,9 +47,7 @@ const stdx = @import("stdx");
 const assert = std.debug.assert;
 const maybe = stdx.maybe;
 const KiB = stdx.KiB;
-
 const spec = @import("spec.zig");
-
 pub const frame_min_size = spec.FRAME_MIN_SIZE;
 pub const tcp_port_default = 5672;
 
@@ -230,6 +228,7 @@ pub const Decoder = struct {
                 value: FieldValue,
             } {
                 if (self.decoder.empty()) return null;
+
                 return .{
                     .key = try self.decoder.read_short_string(),
                     .value = try self.decoder.read_field(),
@@ -242,6 +241,7 @@ pub const Decoder = struct {
 
         pub fn init(value: []const u8) Table {
             assert(value.len <= std.math.maxInt(u32));
+
             return .{
                 .length = @intCast(value.len),
                 .pointer = value.ptr,
@@ -278,9 +278,12 @@ pub const Decoder = struct {
         comptime assert(@typeInfo(T) == .int);
         comptime assert(@typeInfo(T).int.signedness == .unsigned);
         comptime assert(@sizeOf(T) == 1 or @sizeOf(T) == 2 or @sizeOf(T) == 4 or @sizeOf(T) == 8);
+
         if (self.index + @sizeOf(T) > self.buffer.len) return error.BufferExhausted;
+
         defer {
             self.index += @sizeOf(T);
+
             assert(self.index <= self.buffer.len);
         }
 
@@ -289,8 +292,10 @@ pub const Decoder = struct {
 
     pub fn read_enum(self: *Decoder, comptime Enum: type) Error!Enum {
         comptime assert(@typeInfo(Enum) == .@"enum");
+
         const Int = std.meta.Tag(Enum);
         const value = try self.read_int(Int);
+
         return std.meta.intToEnum(
             Enum,
             value,
@@ -301,30 +306,37 @@ pub const Decoder = struct {
 
     pub fn read_bool(self: *Decoder) Error!bool {
         const value = try self.read_int(u8);
+
         return value != 0;
     }
 
     pub fn read_short_string(self: *Decoder) Error![]const u8 {
         const length: u8 = try self.read_int(u8);
+
         return try self.read_bytes(length);
     }
 
     pub fn read_long_string(self: *Decoder) Error![]const u8 {
         const length: u32 = try self.read_int(u32);
+
         return try self.read_bytes(length);
     }
 
     pub fn read_table(self: *Decoder) Error!Table {
         const length: u32 = try self.read_int(u32);
         const bytes = try self.read_bytes(length);
+
         return Table.init(bytes);
     }
 
     fn read_bytes(self: *Decoder, length: u32) Error![]const u8 {
         assert(self.index <= self.buffer.len);
+
         if (self.index + length > self.buffer.len) return error.BufferExhausted;
+
         defer {
             self.index += length;
+
             assert(self.index <= self.buffer.len);
         }
 
@@ -333,6 +345,7 @@ pub const Decoder = struct {
 
     pub fn read_field(self: *Decoder) Error!FieldValue {
         const tag = try self.read_enum(FieldValueTag);
+
         const value: FieldValue = switch (tag) {
             .boolean => .{ .boolean = try self.read_bool() },
             .uint8 => .{ .uint8 = try self.read_int(u8) },
@@ -355,7 +368,9 @@ pub const Decoder = struct {
             .not_implemented_byte_array,
             => fatal("AMQP type '{c}' not supported.", .{@intFromEnum(tag)}),
         };
+
         assert(value == tag);
+
         return value;
     }
 
@@ -380,7 +395,6 @@ pub const Decoder = struct {
 
     pub fn read_header(self: *Decoder, frame_size: usize) Error!Header {
         const initial_index = self.index;
-
         const class = try self.read_int(u16);
         const weight = try self.read_int(u16);
         const body_size = try self.read_int(u64);
@@ -388,7 +402,9 @@ pub const Decoder = struct {
 
         if (initial_index + frame_size > self.buffer.len) return error.BufferExhausted;
         if (initial_index + frame_size < self.index) return error.Unexpected;
+
         const properties = self.buffer[self.index .. initial_index + frame_size];
+
         self.index += properties.len;
 
         try self.read_frame_end();
@@ -404,10 +420,14 @@ pub const Decoder = struct {
 
     pub fn read_body(self: *Decoder, frame_size: usize) Error![]const u8 {
         if (self.index + frame_size > self.buffer.len) return error.BufferExhausted;
+
         const body = self.buffer[self.index..][0..frame_size];
+
         self.index += frame_size;
+
         assert(self.index <= self.buffer.len);
         try self.read_frame_end();
+
         return body;
     }
 };
@@ -503,7 +523,9 @@ pub const Encoder = struct {
         comptime assert(@sizeOf(T) == 1 or @sizeOf(T) == 2 or @sizeOf(T) == 4 or @sizeOf(T) == 8);
         assert(self.index + @sizeOf(T) <= self.buffer.len);
         std.mem.writeInt(T, self.buffer[self.index..][0..@sizeOf(T)], value, .big);
+
         self.index += @sizeOf(T);
+
         assert(self.index <= self.buffer.len);
     }
 
@@ -516,6 +538,7 @@ pub const Encoder = struct {
         self.write_int(u8, @intCast(value.len));
         assert(self.index + value.len <= self.buffer.len);
         stdx.copy_left(.inexact, u8, self.buffer[self.index..], value);
+
         self.index += value.len;
     }
 
@@ -524,52 +547,69 @@ pub const Encoder = struct {
         self.write_int(u32, @intCast(value.len));
         assert(self.index + value.len <= self.buffer.len);
         stdx.copy_left(.inexact, u8, self.buffer[self.index..], value);
+
         self.index += value.len;
     }
 
     pub fn write_long_string_body(self: *Encoder, body: ?Body) void {
         if (body == null) {
             self.write_int(u32, 0); // Zero sized string.
+
             return;
         }
 
         const start_index = self.index;
+
         self.index += @sizeOf(u32);
+
         assert(self.index <= self.buffer.len);
 
         self.index += body.?.write(self.buffer[self.index..]);
-        assert(self.index <= self.buffer.len);
-        const end_index = self.index;
 
+        assert(self.index <= self.buffer.len);
+
+        const end_index = self.index;
         const size: u32 = @intCast(end_index - start_index - @sizeOf(u32));
+
         self.index = start_index;
+
         self.write_int(u32, size);
+
         self.index = end_index;
     }
 
     pub fn write_table(self: *Encoder, table: ?Table) void {
         if (table == null) {
             self.write_int(u32, 0); // Zero sized table.
+
             return;
         }
 
         const start_index = self.index;
+
         self.index += @sizeOf(u32);
+
         assert(self.index <= self.buffer.len);
 
         var table_encoder: TableEncoder = .{ .encoder = self };
-        table.?.write(&table_encoder);
-        const end_index = self.index;
 
+        table.?.write(&table_encoder);
+
+        const end_index = self.index;
         const size: u32 = @intCast(end_index - start_index - @sizeOf(u32));
+
         self.index = start_index;
+
         self.write_int(u32, size);
+
         self.index = end_index;
     }
 
     pub fn write_field(self: *Encoder, field: FieldValue) void {
         const tag: FieldValueTag = field;
+
         self.write_int(u8, @intFromEnum(tag));
+
         switch (field) {
             .boolean => |value| self.write_bool(value),
             .uint8 => |value| self.write_int(u8, value),
@@ -598,7 +638,9 @@ pub const Encoder = struct {
         assert(bytes.len > 0);
         assert(self.index + bytes.len <= self.buffer.len);
         stdx.copy_disjoint(.inexact, u8, self.buffer[self.index..], bytes);
+
         self.index += bytes.len;
+
         assert(self.index <= self.buffer.len);
     }
 
@@ -607,8 +649,11 @@ pub const Encoder = struct {
         assert(self.header_reference == null or frame_header.type == .body);
         // Reserve the frame header bytes to be updated by `finish_frame()`.
         assert(self.index + FrameHeader.size_total <= self.buffer.len);
+
         const frame_header_index = self.index;
+
         self.index += FrameHeader.size_total;
+
         self.frame_reference = .{
             .index = frame_header_index,
             .frame_header = frame_header,
@@ -621,19 +666,25 @@ pub const Encoder = struct {
         maybe(self.header_reference == null);
 
         const reference = self.frame_reference.?;
+
         self.frame_reference = null;
+
         assert(reference.index + FrameHeader.size_total <= self.index);
+
         const restore_index = self.index;
         // The frame size field in the FrameHeader must be updated.
         // It represents the payload size, excluding the FrameHeader
         // and the frame end byte.
         const size: u32 = @intCast(restore_index - reference.index - FrameHeader.size_total);
+
         self.index = reference.index;
+
         self.write_int(u8, @intFromEnum(reference.frame_header.type));
         self.write_int(u16, @intFromEnum(reference.frame_header.channel));
         self.write_int(u32, size);
 
         self.index = restore_index;
+
         self.write_int(u8, spec.FRAME_END);
     }
 
@@ -642,8 +693,11 @@ pub const Encoder = struct {
         assert(self.frame_reference != null);
         assert(self.frame_reference.?.frame_header.type == .header);
         assert(self.header_reference == null);
+
         const header_index = self.index;
+
         self.index += Header.size_total;
+
         self.header_reference = .{
             .header = header,
             .index = header_index,
@@ -656,13 +710,19 @@ pub const Encoder = struct {
         assert(self.header_reference != null);
 
         const reference = self.header_reference.?;
+
         self.header_reference = null;
+
         assert(reference.index + Header.size_total <= self.index);
+
         const restore_index = self.index;
+
         self.index = reference.index;
+
         self.write_int(u16, reference.header.class);
         self.write_int(u16, reference.header.weight);
         self.write_int(u64, body_size);
+
         self.index = restore_index;
     }
 
@@ -740,9 +800,11 @@ fn BasicPropertiesType(comptime target: enum { encode, decode }) type {
 
         fn property_flags(self: *const BasicProperties) u16 {
             var bitset: stdx.BitSetType(16) = .{};
+
             inline for (std.meta.fields(BasicProperties), 0..) |field, index| {
                 bitset.set_value(index, @field(self, field.name) != null);
             }
+
             return @bitReverse(bitset.bits);
         }
 
@@ -752,9 +814,11 @@ fn BasicPropertiesType(comptime target: enum { encode, decode }) type {
             var reader = Decoder.init(content);
             var bitset: stdx.BitSetType(16) = .{ .bits = @bitReverse(flags) };
             var properties: BasicProperties = .{};
+
             inline for (std.meta.fields(BasicProperties), 0..) |field, index| {
                 if (bitset.is_set(index)) {
                     const FieldType = std.meta.Child(field.type);
+
                     @field(properties, field.name) = try switch (FieldType) {
                         []const u8 => reader.read_short_string(),
                         Decoder.Table => reader.read_table(),
@@ -765,7 +829,9 @@ fn BasicPropertiesType(comptime target: enum { encode, decode }) type {
                     };
                 }
             }
+
             assert(reader.index == content.len);
+
             return properties;
         }
 
@@ -773,6 +839,7 @@ fn BasicPropertiesType(comptime target: enum { encode, decode }) type {
             comptime assert(target == .encode);
 
             encoder.write_int(u16, self.property_flags());
+
             inline for (std.meta.fields(BasicProperties)) |field| {
                 if (@field(self, field.name)) |value| {
                     switch (@TypeOf(value)) {
@@ -794,10 +861,12 @@ fn BasicPropertiesType(comptime target: enum { encode, decode }) type {
 /// Similar to `vsr.fatal`, but not logged in the `vsr` scope.
 pub fn fatal(comptime format: []const u8, args: anytype) noreturn {
     const log = std.log.scoped(.amqp);
+
     log.err(format, args);
 
     const vsr = @import("../../vsr.zig");
     const status = vsr.FatalReason.cli.exit_status();
+
     assert(status != 0);
     std.process.exit(status);
 }
@@ -806,6 +875,7 @@ const testing = std.testing;
 
 test "amqp: Encoder/Decoder primitives" {
     var buffer = try testing.allocator.alloc(u8, frame_min_size);
+
     defer testing.allocator.free(buffer);
 
     const Primitives = enum {
@@ -819,15 +889,18 @@ test "amqp: Encoder/Decoder primitives" {
     };
 
     var prng = stdx.PRNG.from_seed_testing();
+
     for (0..4096) |_| {
         var encoder = Encoder.init(buffer);
 
         switch (prng.enum_uniform(Primitives)) {
             .bool => {
                 const value = prng.boolean();
+
                 encoder.write_bool(value);
 
                 var decoder = Decoder.init(buffer[0..encoder.index]);
+
                 try testing.expectEqual(value, try decoder.read_bool());
             },
             inline .uint64, .uint32, .uint16, .uint8 => |tag| {
@@ -838,32 +911,39 @@ test "amqp: Encoder/Decoder primitives" {
                     .uint8 => u8,
                     else => comptime unreachable,
                 };
+
                 const value = prng.int(Int);
+
                 encoder.write_int(Int, value);
 
                 var decoder = Decoder.init(buffer[0..encoder.index]);
+
                 try testing.expectEqual(value, try decoder.read_int(Int));
             },
             .short_string => {
                 const size = prng.range_inclusive(u32, 0, 255);
                 const value = try testing.allocator.alloc(u8, size);
+
                 defer testing.allocator.free(value);
 
                 prng.fill(value);
                 encoder.write_short_string(value);
 
                 var decoder = Decoder.init(buffer[0..encoder.index]);
+
                 try testing.expectEqualStrings(value, try decoder.read_short_string());
             },
             .long_string => {
                 const size = prng.range_inclusive(u32, 256, frame_min_size - @sizeOf(u32));
                 const value = try testing.allocator.alloc(u8, size);
+
                 defer testing.allocator.free(value);
 
                 prng.fill(value);
                 encoder.write_long_string(value);
 
                 var decoder = Decoder.init(buffer[0..encoder.index]);
+
                 try testing.expectEqualStrings(value, try decoder.read_long_string());
             },
         }
@@ -872,6 +952,7 @@ test "amqp: Encoder/Decoder primitives" {
 
 test "amqp: Encoder/Decoder enums" {
     var buffer = try testing.allocator.alloc(u8, frame_min_size);
+
     defer testing.allocator.free(buffer);
 
     const Enum = enum(u8) {
@@ -882,29 +963,36 @@ test "amqp: Encoder/Decoder enums" {
 
     for (std.enums.values(Enum)) |value| {
         var encoder: Encoder = Encoder.init(buffer);
+
         encoder.write_int(u8, @intFromEnum(value));
 
         var decoder: Decoder = Decoder.init(buffer[0..buffer.len]);
+
         try testing.expectEqual(value, try decoder.read_enum(Enum));
     }
 
     // Invalid enum:
     var encoder: Encoder = Encoder.init(buffer);
+
     encoder.write_int(u8, 0);
 
     var decoder: Decoder = Decoder.init(buffer[0..buffer.len]);
+
     try testing.expectError(error.Unexpected, decoder.read_enum(Enum));
 }
 
 test "amqp: BasicProperties property_flags" {
     // Sets the field with any value, just to compute the `property_flags`.
     const BasicProperties = BasicPropertiesType(.decode);
+
     const set_flag = struct {
         fn set_flag(set_field: std.meta.FieldEnum(BasicProperties)) u16 {
             var properties: BasicProperties = .{};
+
             switch (set_field) {
                 inline else => |field| {
                     const Field = std.meta.Child(@FieldType(BasicProperties, @tagName(field)));
+
                     @field(properties, @tagName(field)) = switch (Field) {
                         []const u8 => "",
                         DeliveryMode => .persistent,
@@ -914,11 +1002,13 @@ test "amqp: BasicProperties property_flags" {
                     };
                 },
             }
+
             return properties.property_flags();
         }
     }.set_flag;
 
     const empty: BasicProperties = .{};
+
     try testing.expectEqual(@as(u16, 0x0000), empty.property_flags());
 
     // The last bit corresponding to the first property (it's big endian).
@@ -940,11 +1030,14 @@ test "amqp: BasicProperties property_flags" {
 
 test "amqp: BasicProperties encode/decode" {
     var buffer = try testing.allocator.alloc(u8, frame_min_size);
+
     defer testing.allocator.free(buffer);
 
     var prng = stdx.PRNG.from_seed_testing();
+
     for (0..4096) |_| {
         var arena = std.heap.ArenaAllocator.init(testing.allocator);
+
         defer arena.deinit();
 
         const properties = try TestingBasicProperties.random(.{
@@ -953,15 +1046,18 @@ test "amqp: BasicProperties encode/decode" {
         });
 
         var encoder = Encoder.init(buffer);
+
         properties.encode(&encoder);
 
         // Decoding:
         var decoder = Decoder.init(buffer[0..encoder.index]);
         const flags = try decoder.read_int(u16);
+
         const properties_decoded = try Decoder.BasicProperties.decode(
             flags,
             decoder.buffer[decoder.index..],
         );
+
         try testing.expect(try TestingBasicProperties.eql(
             arena.allocator(),
             properties,
@@ -973,11 +1069,14 @@ test "amqp: BasicProperties encode/decode" {
 test "amqp: Table encode/decode" {
     // 64k ought to be enough for any random!
     var buffer = try testing.allocator.alloc(u8, 64 * KiB);
+
     defer testing.allocator.free(buffer);
 
     var prng = stdx.PRNG.from_seed_testing();
+
     for (0..4096) |_| {
         var arena = std.heap.ArenaAllocator.init(testing.allocator);
+
         defer arena.deinit();
 
         const object = try TestingTable.random(.{
@@ -988,14 +1087,17 @@ test "amqp: Table encode/decode" {
 
         // Encoding the complex object:
         var encoder = Encoder.init(buffer);
+
         encoder.write_table(object.table());
 
         // Decoding:
         var decoder = Decoder.init(buffer[0..encoder.index]);
+
         const object_decoded = try TestingTable.from_table(
             arena.allocator(),
             try decoder.read_table(),
         );
+
         try testing.expect(TestingTable.eql(object, object_decoded));
     }
 }
@@ -1003,16 +1105,18 @@ test "amqp: Table encode/decode" {
 test "amqp: frame and header" {
     const Snap = stdx.Snap;
     const snap = Snap.snap_fn("src");
-
     var buffer = try testing.allocator.alloc(u8, frame_min_size);
+
     defer testing.allocator.free(buffer);
 
     {
         // Method frame.
         var encoder = Encoder.init(buffer);
+
         encoder.begin_frame(.{ .type = .method, .channel = .global });
         encoder.write_method_header(.{ .class = 1, .method = 10 });
         encoder.finish_frame(.method);
+
         try snap(@src(),
             \\01 00 00 00 00 00 04 00  01 00 0a ce
         ).diff_hex(buffer[0..encoder.index]);
@@ -1021,10 +1125,10 @@ test "amqp: frame and header" {
     {
         // Method + header.
         var encoder = Encoder.init(buffer);
+
         encoder.begin_frame(.{ .type = .method, .channel = .global });
         encoder.write_method_header(.{ .class = 10, .method = 100 });
         encoder.finish_frame(.method);
-
         encoder.begin_frame(.{ .type = .header, .channel = .current });
         encoder.begin_header(.{ .class = 10, .weight = 0 });
         encoder.finish_frame(.header);
@@ -1039,14 +1143,13 @@ test "amqp: frame and header" {
     {
         // Method + header + body.
         var encoder = Encoder.init(buffer);
+
         encoder.begin_frame(.{ .type = .method, .channel = .global });
         encoder.write_method_header(.{ .class = 100, .method = 1000 });
         encoder.finish_frame(.method);
-
         encoder.begin_frame(.{ .type = .header, .channel = .current });
         encoder.begin_header(.{ .class = 100, .weight = 0 });
         encoder.finish_frame(.header);
-
         encoder.begin_frame(.{ .type = .body, .channel = .current });
         encoder.write_bytes("body");
         encoder.finish_header("body".len);
@@ -1082,6 +1185,7 @@ const TestingTable = struct {
             .write = &struct {
                 fn write(context: *const anyopaque, encoder: *Encoder.TableEncoder) void {
                     const object: *const TestingTable = @ptrCast(@alignCast(context));
+
                     inline for (std.meta.fields(TestingTable)) |field| {
                         if (@field(object, field.name)) |value| {
                             encoder.put(field.name, switch (std.meta.Child(field.type)) {
@@ -1103,20 +1207,25 @@ const TestingTable = struct {
                 }
             }.write,
         };
+
         return .{ .context = self, .vtable = &vtable };
     }
 
     fn from_table(arena: std.mem.Allocator, decoder: Decoder.Table) !*const TestingTable {
         var object = try arena.create(TestingTable);
+
         object.* = TestingTable.empty;
 
         var iterator = decoder.iterator();
+
         while (try iterator.next()) |entry| {
             const FieldEnum = std.meta.FieldEnum(TestingTable);
             const entry_field = std.meta.stringToEnum(FieldEnum, entry.key).?;
+
             switch (entry_field) {
                 inline else => |field| {
                     const Field = @FieldType(TestingTable, @tagName(field));
+
                     @field(object, @tagName(field)) = switch (std.meta.Child(Field)) {
                         bool => entry.value.boolean,
                         []const u8 => entry.value.string,
@@ -1134,6 +1243,7 @@ const TestingTable = struct {
                 },
             }
         }
+
         return object;
     }
 
@@ -1141,6 +1251,7 @@ const TestingTable = struct {
         inline for (std.meta.fields(TestingTable)) |field| {
             const both_null = @field(table1, field.name) == null and
                 @field(table2, field.name) == null;
+
             if (!both_null) {
                 const value1 = @field(table1, field.name) orelse return false;
                 const value2 = @field(table2, field.name) orelse return false;
@@ -1153,6 +1264,7 @@ const TestingTable = struct {
                     Timestamp => value1 == value2,
                     else => comptime unreachable,
                 };
+
                 if (!equals) return false;
             }
         }
@@ -1166,13 +1278,15 @@ const TestingTable = struct {
         recursive: bool,
     }) !*const TestingTable {
         const ratio = stdx.PRNG.ratio;
-
         const is_empty = options.prng.chance(ratio(5, 100));
+
         if (is_empty) return &TestingTable.empty;
 
         var object = try options.arena.create(TestingTable);
+
         inline for (std.meta.fields(TestingTable)) |field| {
             const is_null = options.prng.chance(ratio(5, 100));
+
             if (is_null) {
                 @field(object, field.name) = null;
             } else switch (std.meta.Child(field.type)) {
@@ -1182,7 +1296,9 @@ const TestingTable = struct {
                 []const u8 => {
                     const size = options.prng.range_inclusive(u32, 0, 255);
                     const str = try options.arena.alloc(u8, size);
+
                     options.prng.fill(str);
+
                     @field(object, field.name) = str;
                 },
                 u32, u16, u8 => |Int| {
@@ -1190,6 +1306,7 @@ const TestingTable = struct {
                 },
                 i64, i32, i16, i8 => |Int| {
                     const Unsigned = std.meta.Int(.unsigned, @bitSizeOf(Int));
+
                     @field(object, field.name) = @bitCast(options.prng.int(Unsigned));
                 },
                 *const TestingTable => {
@@ -1204,6 +1321,7 @@ const TestingTable = struct {
                 else => comptime unreachable,
             }
         }
+
         return object;
     }
 };
@@ -1216,6 +1334,7 @@ pub const TestingBasicProperties = struct {
     }) !Encoder.BasicProperties {
         const is_null = stdx.PRNG.ratio(5, 100);
         var properties: Encoder.BasicProperties = .{};
+
         inline for (std.meta.fields(Encoder.BasicProperties)) |field| {
             if (@field(options.default, field.name)) |default| {
                 @field(properties, field.name) = default;
@@ -1225,7 +1344,9 @@ pub const TestingBasicProperties = struct {
                 []const u8 => {
                     const size = options.prng.range_inclusive(u32, 0, 255);
                     const str = try options.arena.alloc(u8, size);
+
                     options.prng.fill(str);
+
                     @field(properties, field.name) = str;
                 },
                 u64, u8 => |Int| {
@@ -1240,11 +1361,13 @@ pub const TestingBasicProperties = struct {
                         .prng = options.prng,
                         .recursive = false,
                     });
+
                     @field(properties, field.name) = object.table();
                 },
                 else => comptime unreachable,
             }
         }
+
         return properties;
     }
 
@@ -1256,6 +1379,7 @@ pub const TestingBasicProperties = struct {
         inline for (std.meta.fields(Encoder.BasicProperties)) |field| {
             const both_null = @field(properties1, field.name) == null and
                 @field(properties2, field.name) == null;
+
             if (!both_null) {
                 const value1 = @field(properties1, field.name) orelse return false;
                 const value2 = @field(properties2, field.name) orelse return false;
@@ -1268,17 +1392,21 @@ pub const TestingBasicProperties = struct {
                         const encoded_object: *const TestingTable = @ptrCast(@alignCast(
                             value1.context,
                         ));
+
                         const decoded_object: *const TestingTable = try TestingTable.from_table(
                             arena,
                             value2,
                         );
+
                         break :eql TestingTable.eql(encoded_object, decoded_object);
                     },
                     else => comptime unreachable,
                 };
+
                 if (!equals) return false;
             }
         }
+
         return true;
     }
 };

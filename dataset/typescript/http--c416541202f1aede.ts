@@ -105,6 +105,7 @@ export interface CorsOptions {
         origin: string | undefined,
         cb: (err: Error, origins: CorsOrigin) => void,
       ) => void)
+
   methods?: string | string[]
   allowedHeaders?: string | string[]
   exposedHeaders?: string | string[]
@@ -122,10 +123,12 @@ export async function resolveHttpServer(
 ): Promise<HttpServer> {
   if (!httpsOptions) {
     const { createServer } = await import('node:http')
+
     return createServer(app)
   }
 
   const { createSecureServer } = await import('node:http2')
+
   return createSecureServer(
     {
       // Manually increase the session memory to prevent 502 ENHANCE_YOUR_CALM
@@ -154,6 +157,7 @@ export async function resolveHttpsConfig(
     readFileIfExists(https.key),
     readFileIfExists(https.pfx),
   ])
+
   return { ...https, ca, cert, key, pfx }
 }
 
@@ -161,6 +165,7 @@ async function readFileIfExists(value?: string | Buffer | any[]) {
   if (typeof value === 'string') {
     return fsp.readFile(path.resolve(value)).catch(() => value)
   }
+
   return value
 }
 
@@ -175,17 +180,23 @@ async function getAvailableEphemeralPort(
     // which does not always hold true, but it should be fine for most cases.
     let port = 0
     let available = true
+
     for (const host of [...wildcardHosts, specifiedHost]) {
       // Gracefully handle errors (e.g., IPv6 disabled on the system)
       const availablePort = await tryListen(port, host).catch(() => port)
+
       if (availablePort == null) {
         available = false
+
         break
       }
+
       port = availablePort
     }
+
     if (available) return port
   }
+
   return null
 }
 
@@ -194,8 +205,10 @@ async function isPortAvailable(port: number): Promise<boolean> {
   for (const host of wildcardHosts) {
     // Gracefully handle errors (e.g., IPv6 disabled on the system)
     const available = await tryListen(port, host).catch(() => true)
+
     if (!available) return false
   }
+
   return true
 }
 
@@ -205,15 +218,19 @@ function tryListen(
 ): Promise<number | null> {
   return new Promise((resolve) => {
     const server = net.createServer()
+
     server.once('error', (e: NodeJS.ErrnoException) => {
       server.close(() => resolve(e.code === 'EADDRINUSE' ? null : port))
     })
+
     server.once('listening', () => {
       const address = server.address()
+
       server.close(() =>
         resolve(typeof address === 'object' && address ? address.port : port),
       )
     })
+
     server.listen(port, host)
   })
 }
@@ -229,11 +246,14 @@ async function tryBindServer(
     const onError = (e: NodeJS.ErrnoException) => {
       httpServer.off('error', onError)
       httpServer.off('listening', onListening)
+
       resolve({ success: false, error: e })
     }
+
     const onListening = () => {
       httpServer.off('error', onError)
       httpServer.off('listening', onListening)
+
       resolve({ success: true })
     }
 
@@ -259,17 +279,21 @@ export async function httpServerStart(
 
   if (startPort === 0) {
     const port = await getAvailableEphemeralPort(host)
+
     if (port == null) {
       throw new Error('No available ephemeral port found')
     }
 
     const result = await tryBindServer(httpServer, port, host)
+
     if (result.success) {
       return port
     }
+
     if (result.error.code !== 'EADDRINUSE') {
       throw result.error
     }
+
     // this can happen if the port was listened by other process between getAvailableEphemeralPort and tryBindServer
     throw new Error(`Port ${port} is already in use`)
   }
@@ -283,6 +307,7 @@ export async function httpServerStart(
     // we still try binding directly before giving up.
     if (strictPort) {
       const result = await tryBindServer(httpServer, port, host)
+
       if (result.success) {
         if (!portAvailableOnWildcard) {
           logger.warn(
@@ -292,25 +317,32 @@ export async function httpServerStart(
             ),
           )
         }
+
         return port
       }
+
       if (result.error.code !== 'EADDRINUSE') {
         throw result.error
       }
+
       throw new Error(`Port ${port} is already in use`)
     }
 
     if (portAvailableOnWildcard) {
       const result = await tryBindServer(httpServer, port, host)
+
       if (result.success) {
         return port
       }
+
       if (result.error.code !== 'EADDRINUSE') {
         throw result.error
       }
     }
+
     logger.info(`Port ${port} is in use, trying another one...`)
   }
+
   throw new Error(
     `No available ports found between ${startPort} and ${MAX_PORT}`,
   )
@@ -323,33 +355,41 @@ export function setClientErrorHandler(
   server.on('clientError', (err, socket) => {
     // https://github.com/nodejs/node/blob/v26.2.0/lib/_http_server.js#L992
     let msg
+
     switch ((err as any).code) {
       case 'HPE_HEADER_OVERFLOW': {
         msg = '431 Request Header Fields Too Large'
+
         logger.warn(
           colors.yellow(
             'Server responded with status code 431. ' +
               'See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.',
           ),
         )
+
         break
       }
       case 'HPE_CHUNK_EXTENSIONS_OVERFLOW': {
         msg = '413 Payload Too Large'
+
         break
       }
       case 'ERR_HTTP_REQUEST_TIMEOUT': {
         msg = '408 Request Timeout'
+
         break
       }
       default: {
         msg = '400 Bad Request'
+
         break
       }
     }
+
     if ((err as any).code === 'ECONNRESET' || !socket.writable) {
       return
     }
+
     socket.end(`HTTP/1.1 ${msg}\r\nConnection: close\r\n\r\n`)
   })
 }

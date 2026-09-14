@@ -36,9 +36,11 @@ export default class Index {
 				switch (type) {
 					case 'blur':
 						if (this.blur !== value) this.blur = value
+
 						break
 					case 'maximize':
 						if (this.maximize !== value) this.maximize = value
+
 						break
 				}
 			}

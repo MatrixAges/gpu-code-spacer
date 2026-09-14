@@ -91,10 +91,12 @@ pub const cpu_models = struct {
         E{ .part = 0xd8e, .m64 = &A64.neoverse_n3 },
         E{ .part = 0xd8f, .m64 = &A64.cortex_a320 },
     };
+
     // implementer = 0x42
     const Broadcom = [_]E{
         E{ .part = 0x516, .m64 = &A64.thunderx2t99 },
     };
+
     // implementer = 0x43
     const Cavium = [_]E{
         E{ .part = 0x0a0, .m64 = &A64.thunderx },
@@ -103,24 +105,29 @@ pub const cpu_models = struct {
         E{ .part = 0x0a1, .m64 = &A64.thunderxt88 },
         E{ .part = 0x0af, .m64 = &A64.thunderx2t99 },
     };
+
     // implementer = 0x46
     const Fujitsu = [_]E{
         E{ .part = 0x001, .m64 = &A64.a64fx },
     };
+
     // implementer = 0x48
     const HiSilicon = [_]E{
         E{ .part = 0xd01, .m64 = &A64.tsv110 },
     };
+
     // implementer = 0x4e
     const Nvidia = [_]E{
         E{ .part = 0x004, .m64 = &A64.carmel },
         E{ .part = 0x010, .m64 = &A64.olympus },
     };
+
     // implementer = 0x50
     const Ampere = [_]E{
         E{ .part = 0x000, .variant = 3, .m64 = &A64.emag },
         E{ .part = 0x000, .m64 = &A64.xgene1 },
     };
+
     // implementer = 0x51
     const Qualcomm = [_]E{
         E{ .part = 0x001, .m64 = &A64.oryon_1 },
@@ -137,6 +144,7 @@ pub const cpu_models = struct {
         E{ .part = 0xc00, .m64 = &A64.falkor },
         E{ .part = 0xc01, .m64 = &A64.saphira },
     };
+
     // implementer = 0x61
     const Apple = [_]E{
         E{ .part = 0x022, .m64 = &A64.apple_m1 },
@@ -228,6 +236,7 @@ pub const aarch64 = struct {
             if (info.implementer == 0x41) {
                 // ARM Ltd.
                 const special_bits: u4 = @truncate(info.part >> 8);
+
                 if (special_bits == 0x0 or special_bits == 0x7) {
                     // TODO Variant and arch encoded differently.
                     break :blk;

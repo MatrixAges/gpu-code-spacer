@@ -15,6 +15,7 @@ import { hasViteIgnoreRE } from './importAnalysis'
 import type { InternalResolveOptions } from './resolve'
 import { tryFsResolve } from './resolve'
 import type { WorkerType } from './worker'
+
 import {
   WORKER_FILE_ID,
   emitWorkerAssetsForBundledDev,
@@ -29,7 +30,9 @@ interface WorkerOptions {
 
 function err(e: string, pos: number) {
   const error = new Error(e) as RollupError
+
   error.pos = pos
+
   return error
 }
 
@@ -39,6 +42,7 @@ function findClosingParen(input: string, fromIndex: number) {
   for (let i = fromIndex; i < input.length; i++) {
     if (input[i] === '(') count++
     if (input[i] === ')') count--
+
     if (count === 0) return i
   }
 
@@ -62,6 +66,7 @@ function extractWorkerTypeFromAst(
 
     if (property.type === 'SpreadElement') {
       lastSpreadElementIndex = i
+
       continue
     }
 
@@ -104,6 +109,7 @@ async function parseWorkerOptions(
   optsStartIndex: number,
 ): Promise<WorkerOptions> {
   let opts: WorkerOptions = {}
+
   try {
     opts = evalValue<WorkerOptions>(rawOpts)
   } catch {
@@ -113,6 +119,7 @@ async function parseWorkerOptions(
     ).expression
 
     const type = extractWorkerTypeFromAst(optsNode, optsStartIndex)
+
     if (type) {
       return { type }
     }
@@ -144,9 +151,11 @@ async function getWorkerType(
   i: number,
 ): Promise<WorkerType> {
   const commaIndex = clean.indexOf(',', i)
+
   if (commaIndex === -1) {
     return 'classic'
   }
+
   const endIndex = findClosingParen(clean, i)
 
   // case: ') ... ,' mean no worker options params
@@ -157,6 +166,7 @@ async function getWorkerType(
   // need to find in comment code
   let workerOptString = raw.substring(commaIndex + 1, endIndex)
   const hasViteIgnore = hasViteIgnoreRE.test(workerOptString)
+
   if (hasViteIgnore) {
     return 'ignore'
   }
@@ -164,6 +174,7 @@ async function getWorkerType(
   // need to find in no comment code
   const cleanWorkerOptString = clean.substring(commaIndex + 1, endIndex)
   const trimmedCleanWorkerOptString = cleanWorkerOptString.trim()
+
   if (!trimmedCleanWorkerOptString.length) {
     return 'classic'
   }
@@ -177,6 +188,7 @@ async function getWorkerType(
   }
 
   const workerOpts = await parseWorkerOptions(workerOptString, commaIndex + 1)
+
   if (
     workerOpts.type &&
     (workerOpts.type === 'module' || workerOpts.type === 'classic')
@@ -213,11 +225,14 @@ export function workerImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
       filter: { code: workerImportMetaUrlRE },
       async handler(code, id) {
         const isBundled = this.environment.config.isBundled
+
         let s: MagicString | undefined
+
         const cleanString = stripLiteral(code)
         const re = new RegExp(workerImportMetaUrlRE)
 
         let match: RegExpExecArray | null
+
         while ((match = re.exec(cleanString))) {
           const [[, endIndex], [expStart, expEnd], [urlStart, urlEnd]] =
             match.indices as Array<[number, number]>
@@ -233,11 +248,14 @@ export function workerImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
           }
 
           s ||= new MagicString(code)
+
           const workerType = await getWorkerType(code, cleanString, endIndex)
           const url = rawUrl.slice(1, -1)
           const { file: urlWithoutPostfix, postfix } = splitFileAndPostfix(url)
           const queryPostfix = postfix[0] === '?' ? postfix : ''
+
           let file: string | undefined
+
           if (urlWithoutPostfix[0] === '.') {
             file = path.resolve(path.dirname(id), urlWithoutPostfix)
             file = slash(tryFsResolve(file, fsResolveOptions) ?? file)
@@ -247,7 +265,9 @@ export function workerImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
               tryIndex: false,
               preferRelative: true,
             })
+
             file = await workerResolver(this.environment, urlWithoutPostfix, id)
+
             file ??=
               urlWithoutPostfix[0] === '/'
                 ? slash(path.join(config.publicDir, urlWithoutPostfix))
@@ -262,6 +282,7 @@ export function workerImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
             s.update(expStart, expEnd, 'self.location.href')
           } else {
             let builtUrlExpr: string
+
             if (isBundled) {
               recordWorkerReference(
                 config,
@@ -269,9 +290,12 @@ export function workerImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
                 cleanUrl(file),
                 id,
               )
+
               const result = await workerFileToUrl(config, file)
+
               if (this.environment.config.command === 'serve') {
                 emitWorkerAssetsForBundledDev(this, config)
+
                 builtUrlExpr = JSON.stringify(
                   toOutputFilePathInJSForBundledDev(
                     this.environment,
@@ -281,17 +305,21 @@ export function workerImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
               } else {
                 builtUrlExpr = generateWorkerEntryUrlExpr(this, config, result)
               }
+
               for (const file of result.watchedFiles) {
                 this.addWatchFile(file)
               }
             } else {
               builtUrlExpr = await fileToUrl(this, cleanUrl(file), 'string')
+
               builtUrlExpr = injectQuery(
                 `${builtUrlExpr}${queryPostfix}`,
                 `${WORKER_FILE_ID}&type=${workerType}`,
               )
+
               builtUrlExpr = JSON.stringify(builtUrlExpr)
             }
+
             s.update(
               expStart,
               expEnd,
