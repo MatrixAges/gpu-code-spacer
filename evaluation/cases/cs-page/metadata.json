@@ -2,14 +2,28 @@
   "schema_version": 2,
   "case_id": "cs-page",
   "language": "csharp",
-  "scenario": "分页参数验证及Allman风格",
+  "scenario": "分页参数验证及同行左花括号风格",
   "source_benchmark": "config/style-benchmark.json",
   "source_sha256": "77b27d5ca14e3b1430cad4ae950706b3a9875183febf381e28a4df0ae7d12a07",
   "initial_output_sha256": "f24bf93c62186645f4fb2a1fd06fb274beb8d61b6a11817bf6a5eb67a066d783",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
-  "expectations": [
+  "reference_status": "adapted_example_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "d438bb30180e95eea90ec811d43e3f7bce9be162ccd1b24a04e2274266601ea8"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "统一使用同一行左花括号；行为不变，本轮不再覆盖Allman换行风格。",
+    "current_output_sha256": "196019d7b2769fd756c85d9d525f5c3ba675985446948a57865364f2e2fde4c3"
+  },
+  "initial_expectations": [
     {
       "after_line": 5,
       "blank_lines": 0,

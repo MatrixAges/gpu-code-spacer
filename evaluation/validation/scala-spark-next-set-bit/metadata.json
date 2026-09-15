@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "scala-spark-next-set-bit",
   "language": "scala",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "assistant_reviewed_pending_user_confirmation",
   "source": {
     "repository": "apache/spark",
     "commit": "5641a808168c316f71a8be3d920f38a23fef4320",
@@ -41,11 +41,24 @@
   },
   "license_file": "../../../data/validation/spark/LICENSE",
   "input_sha256": {
-    "dense": "ac0953e641738bdcfd1b752611751a819c580e531e6a2a7ff9c7a9f72db14b62",
-    "spaced": "c0593c327b4b60c616186c60b5039eae1e6d7ce94d293aec6ae08ee561f14920"
+    "dense": "ac0953e641738bdcfd1b752611751a819c580e531e6a2a7ff9c7a9f72db14b62"
   },
   "initial_output_sha256": "752c6497096e5afdc12cc9062c825f1b5e03d0aa9119fdf3d1884c81a2c7b602",
   "used_for_training": false,
   "used_for_model_selection": false,
-  "product_model_executed": false
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": false,
+    "expected_layout_changed": false,
+    "note": "保留原始源码与期望布局，仅移除spaced输入。",
+    "current_output_sha256": "752c6497096e5afdc12cc9062c825f1b5e03d0aa9119fdf3d1884c81a2c7b602"
+  },
+  "used_for_development_feedback": true
 }

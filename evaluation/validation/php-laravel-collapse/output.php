@@ -1,4 +1,5 @@
 <?php
+
 class ValidationSample {
     public static function collapse($array)
     {

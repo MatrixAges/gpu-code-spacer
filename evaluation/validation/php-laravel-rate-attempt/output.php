@@ -1,4 +1,5 @@
 <?php
+
 class ValidationSample {
     public function attempt($key, $maxAttempts, Closure $callback, $decaySeconds = 60)
     {

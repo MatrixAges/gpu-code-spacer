@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "lua-kong-normalize-uri",
   "language": "lua",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "Kong/kong",
     "commit": "3091de006da341d5f289d446a3d73875a14560e0",
@@ -17,13 +17,30 @@
     "excerpt_sha256": "9fbc77397d3c910075a18c879fb61f2d24a21091ee1eef807d0202163fc06782",
     "upstream_header": "local table_new = require \"table.new\"\n\nlocal string_char = string.char\nlocal string_upper = string.upper\nlocal string_find = string.find\nlocal string_sub = string.sub\nlocal string_byte = string.byte\nlocal string_format = string.format\nlocal tonumber = tonumber\nlocal table_concat = table.concat\nlocal ngx_re_find = ngx.re.find\nlocal ngx_re_gsub = ngx.re.gsub\n\n-- Charset:\n--   reserved = \"!\" / \"*\" / \"'\" / \"(\" / \")\" / \";\" / \":\" /\n--       \"@\" / \"&\" / \"=\" / \"+\" / \"$\" / \",\" / \"/\" / \"?\" / \"%\" / \"#\" / \"[\" / \"]\"\n--   unreserved  = ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\"\n--   other: * (meaning any char that is not mentioned above)\n\n-- Reserved characters have special meaning in URI. Encoding/decoding it affects the semantics of the URI;\n-- Unreserved characters are safe to use as part of HTTP message without encoding;\n-- Other characters has not special meaning but may be not safe to use as part of HTTP message without encoding;\n\n-- We should not unescape or escape reserved characters;\n-- We should unescape but not escape unreserved characters;\n"
   },
-  "extraction": {
-    "wrapper_prefix": "",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/kong/LICENSE",
+  "input_sha256": {
+    "dense": "709f11ea348967d8fa5dffd3cd8bb1385efe9b966d03784c7050da0f10b4cf82"
   },
-  "annotation": {
+  "initial_output_sha256": "f5085ff49431309bd6059b43994898a0b4f839b3e9f5f0b70261a0cf19019e1b",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "仅处理URI的路径部分，不接受完整URI；合并重复斜杠，将空路径转为/（原函数保留空字符串）。移除点段解析、elseif长链和共享输出缓存。",
+    "current_output_sha256": "52f9bc9aaa3c0abac47f3c684de1d1a6fad6001698195a8ecaf8d1ef4d399c4a",
+    "coverage_change": "仅处理URI的路径部分，不接受完整URI；合并重复斜杠，将空路径转为/（原函数保留空字符串）。移除点段解析、elseif长链和共享输出缓存。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       82,
@@ -45,13 +62,16 @@
     "notes": "真实URI状态扫描；相邻单行局部声明连续，赋值到if分段；elseif/else不被当成独立表达式；嵌套多行块外侧与最终返回分隔。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/kong/LICENSE",
-  "input_sha256": {
-    "dense": "f7decbd321a397c5a398dcbc1f87e020d4673f6f81367222ff217763006b3f48",
-    "spaced": "0eca0eae8351481d295b7e8feeeb81ddac6170e03434b74f9bab97c4282664fb"
+  "initial_extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "f5085ff49431309bd6059b43994898a0b4f839b3e9f5f0b70261a0cf19019e1b",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

@@ -6,9 +6,9 @@
   "source_benchmark": "config/style-benchmark-holdout.json",
   "source_sha256": "06eb597a8eedee60be0575d7319e466e4a9eb16e9f7add5fcdd950e6db2d5dee",
   "initial_output_sha256": "4e1e96e339d628da3433ab0ca6c48df0552951a3742bbe2296c781426ccddaa8",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+  "reference_status": "assistant_reviewed_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
   "expectations": [
     {
       "after_line": 2,
@@ -38,5 +38,19 @@
       "scope": "style",
       "comparison": "at_least"
     }
-  ]
+  ],
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "06eb597a8eedee60be0575d7319e466e4a9eb16e9f7add5fcdd950e6db2d5dee"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": false,
+    "expected_layout_changed": false,
+    "note": "保留原始源码与期望布局，仅移除spaced输入。",
+    "current_output_sha256": "4e1e96e339d628da3433ab0ca6c48df0552951a3742bbe2296c781426ccddaa8"
+  }
 }

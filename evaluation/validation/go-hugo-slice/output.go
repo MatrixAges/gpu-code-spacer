@@ -5,15 +5,13 @@ func Slice(args ...any) any {
 		return args
 	}
 
-	first := args[0]
-
-	firstType := reflect.TypeOf(first)
+	firstType := reflect.TypeOf(args[0])
 
 	if firstType == nil {
 		return args
 	}
 
-	if g, ok := first.(Slicer); ok {
+	if g, ok := args[0].(Slicer); ok {
 		v, err := g.Slice(args)
 
 		if err == nil {

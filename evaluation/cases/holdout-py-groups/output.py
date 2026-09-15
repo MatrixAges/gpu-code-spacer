@@ -5,9 +5,7 @@ def batches(values, width, emit):
         raise ValueError("positive width required")
 
     for start in range(0, count, width):
-        end = min(start + width, count)
-
-        batch = values[start:end]
+        batch = values[start:start + width]
 
         emit(batch)
 

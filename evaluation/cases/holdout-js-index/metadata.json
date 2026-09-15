@@ -6,10 +6,24 @@
   "source_benchmark": "config/style-benchmark-holdout.json",
   "source_sha256": "4e1f171492755a1ed8cc2fe2edb054caffb8e80ee4589ac429a124982992a49c",
   "initial_output_sha256": "ddbbdc851368287663762b0a319a87843cb1e6bdfda86ac48953fa96c3834abd",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
-  "expectations": [
+  "reference_status": "adapted_example_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "4e7de9ce346eabfd8bdb4598d1c61de6b2ebb46e360afe6cb87826c6b26fce63"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "将新建数组的排序合并到初始化，保留排序后上报与返回Map的行为。",
+    "current_output_sha256": "03d853c6b39c6c6097cdf9f3656c91e40b60d7f8c4f48e3d299fe3583bda904a"
+  },
+  "initial_expectations": [
     {
       "after_line": 2,
       "blank_lines": 1,

@@ -6,10 +6,24 @@
   "source_benchmark": "config/style-benchmark-holdout.json",
   "source_sha256": "64ae7a72a41a2b6c224523e85c030d3a9aeb618453363518455b150faa7cb7dd",
   "initial_output_sha256": "7477cf8a488e641b17d4958a9bac2c63ac9780e45aa3464ca3c48bdbc7ea680d",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
-  "expectations": [
+  "reference_status": "adapted_example_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "c177b29c2677f47c945fe5a7c99ea98bdec075059e82a220e6cc7112a2d65617"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "显式命名本次长度，再连续累加计数和长度。",
+    "current_output_sha256": "81239b78ce71a27548301252717c59e1402b6a55cb9167e208333f1615e09055"
+  },
+  "initial_expectations": [
     {
       "after_line": 2,
       "blank_lines": 0,

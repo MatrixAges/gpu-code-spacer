@@ -1,6 +1,3 @@
-#include <algorithm>
-#include <vector>
-
 bool erase(std::vector<int>& values, int wanted) {
     const auto found = std::find(values.begin(), values.end(), wanted);
 

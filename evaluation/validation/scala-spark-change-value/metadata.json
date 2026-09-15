@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "scala-spark-change-value",
   "language": "scala",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "apache/spark",
     "commit": "5641a808168c316f71a8be3d920f38a23fef4320",
@@ -17,13 +17,30 @@
     "excerpt_sha256": "cb3bda9f9e18c7809f99d86bd718cb05c71f8d02815a8d52f4af72fd8f4204e0",
     "upstream_header": "/*\n * Licensed to the Apache Software Foundation (ASF) under one or more\n * contributor license agreements.  See the NOTICE file distributed with\n * this work for additional information regarding copyright ownership.\n * The ASF licenses this file to You under the Apache License, Version 2.0\n * (the \"License\"); you may not use this file except in compliance with\n * the License.  You may obtain a copy of the License at\n *\n *    http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage org.apache.spark.util.collection\n\nimport scala.reflect.ClassTag\n\n/**\n * A fast hash map implementation for nullable keys. This hash map supports insertions and updates,\n * but not deletions. This map uses much less space than java.util.HashMap and is competitive with\n * it for aggregation workloads (`changeValue`), while java.util.HashMap is faster for pure\n"
   },
-  "extraction": {
-    "wrapper_prefix": "class ValidationSample[K, V, T] {\n",
-    "wrapper_suffix": "}\n",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/spark/LICENSE",
+  "input_sha256": {
+    "dense": "d2271706c4656c45cfcab3479acda43c215f703be0ca0208af4ce7516bc7c624"
   },
-  "annotation": {
+  "initial_output_sha256": "8dc20f97623b19f8bb577022bf9bb0df117172c887146a0765f692fbb17dd6e3",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "插入路径用显式update调用，合并路径用显式return；不再覆盖该处索引赋值与隐式值返回。",
+    "current_output_sha256": "7ad485c8c4f83725a3724d97633c87506701aa1c623d7c2d8b8a728ad2edd314",
+    "coverage_change": "插入路径用显式update调用，合并路径用显式return；不再覆盖该处索引赋值与隐式值返回。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       123,
@@ -37,13 +54,16 @@
     "notes": "哈希表空键/普通键分支、惰性参数、赋值和容量维护调用、尾表达式。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/spark/LICENSE",
-  "input_sha256": {
-    "dense": "16ea7ad0f07ecb44ffa45094fc4aab49c0cfbf2b9c9665ceab8caeb61eb4c832",
-    "spaced": "007c934c04df3249115ef0f7d553144f0697a73c644e8eee889982ac94483291"
+  "initial_extraction": {
+    "wrapper_prefix": "class ValidationSample[K, V, T] {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "8dc20f97623b19f8bb577022bf9bb0df117172c887146a0765f692fbb17dd6e3",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

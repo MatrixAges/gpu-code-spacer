@@ -7,9 +7,7 @@ function index(entries, report) {
     byName.set(key, value);
   }
 
-  const names = [...byName.keys()];
-
-  names.sort();
+  const names = [...byName.keys()].sort();
 
   report(names);
 

@@ -1,6 +1,3 @@
-#include <numeric>
-#include <vector>
-
 double average(const std::vector<int>& values) {
     const auto count = values.size();
 

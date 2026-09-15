@@ -15,13 +15,16 @@ func unwrapForHashing(v reflect.Value) (reflect.Value, error) {
 		in = v.Interface()
 	}
 
-	switch t := in.(type) {
-	case hashstructure.Hashable:
+	if _, ok := in.(hashstructure.Hashable); ok {
 		// Let hashstructure handle it.
 		return v, nil
-	case keyer:
+	}
+
+	if t, ok := in.(keyer); ok {
 		return reflect.ValueOf(t.Key()), nil
-	case identity.IdentityProvider:
+	}
+
+	if t, ok := in.(identity.IdentityProvider); ok {
 		return reflect.ValueOf(t.GetIdentity()), nil
 	}
 

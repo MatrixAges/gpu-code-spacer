@@ -3,9 +3,9 @@
   "case_id": "go-hugo-emojify",
   "language": "go",
   "language_in_archives": true,
-  "generalization_scope": "new repository; language already present in archived evaluation",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "generalization_scope": "Adapted development examples; no independent generalization claim.",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "gohugoio/hugo",
     "commit": "881c0ec70d746d3a86b29c9104aa56ac51040ee9",
@@ -19,13 +19,30 @@
     "excerpt_sha256": "e0084f9fda99489751e54aefe314a3b22aad8f701daf700da20e1b38df0a6709",
     "upstream_header": "// Copyright 2016 The Hugo Authors. All rights reserved.\n//\n// Licensed under the Apache License, Version 2.0 (the \"License\");\n// you may not use this file except in compliance with the License.\n// You may obtain a copy of the License at\n// http://www.apache.org/licenses/LICENSE-2.0\n//\n// Unless required by applicable law or agreed to in writing, software\n// distributed under the License is distributed on an \"AS IS\" BASIS,\n// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n// See the License for the specific language governing permissions and\n// limitations under the License.\n\npackage helpers\n\nimport (\n\t\"bytes\"\n\t\"sync\"\n\n\t\"github.com/kyokomi/emoji/v2\"\n)\n\nvar (\n\temojiInit sync.Once\n\n"
   },
-  "extraction": {
-    "wrapper_prefix": "package validation\n",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/hugo/LICENSE",
+  "input_sha256": {
+    "dense": "ed59a757961a43d566972c088d1a2d4234a3eb18a25f3bf27dd4a7a2ce565496"
   },
-  "annotation": {
+  "initial_output_sha256": "15d7edec9b5efd002987df8ac54d2850d3e3b8a7941ab79f447ca4a8fa95b0e5",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "使用for初始化及更新子句，内联一次性的emoji切片变量，并显式限制扫描上界；保留原分支行为。",
+    "current_output_sha256": "2212e2065af715a33bb9f336baa54b4376e727b8a4caa222c4e973fdb31455d6",
+    "coverage_change": "使用for初始化及更新子句，内联一次性的emoji切片变量，并显式限制扫描上界；保留原分支行为。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       37,
@@ -44,13 +61,16 @@
     "notes": "文本扫描替换；连续声明、循环和条件链、索引更新、延迟初始化调用。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/hugo/LICENSE",
-  "input_sha256": {
-    "dense": "de88d5b6e2ecde64283635ea5fa2b9130448a496023c72c5bc05c6a5d98e1fba",
-    "spaced": "42ef286fef35bc883d45307daccccba79da06aacc0bc0d7a3d1a639a70723d6c"
+  "initial_extraction": {
+    "wrapper_prefix": "package validation\n",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "15d7edec9b5efd002987df8ac54d2850d3e3b8a7941ab79f447ca4a8fa95b0e5",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

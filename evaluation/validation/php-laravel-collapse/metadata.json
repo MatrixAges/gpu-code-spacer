@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "php-laravel-collapse",
   "language": "php",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "assistant_reviewed_pending_user_confirmation",
   "source": {
     "repository": "laravel/framework",
     "commit": "41807417bb85908412b67ff7ec4132a026d603c7",
@@ -35,11 +35,24 @@
   },
   "license_file": "../../../data/validation/laravel-framework/LICENSE.md",
   "input_sha256": {
-    "dense": "88d04fff5705ae546a48c59d4f28809ebb7cd7f9e634e8f773d41fa497bd387e",
-    "spaced": "cea1bfea3ac055205a03a945bb9871d070b7f46c0d7f6968c29ee292bb461fd9"
+    "dense": "88d04fff5705ae546a48c59d4f28809ebb7cd7f9e634e8f773d41fa497bd387e"
   },
   "initial_output_sha256": "5808db5533d629ccc58eb840b2f9b63a0f9a97726a9fb12ac55dafc1792f26e9",
   "used_for_training": false,
   "used_for_model_selection": false,
-  "product_model_executed": false
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": false,
+    "expected_layout_changed": true,
+    "note": "PHP文件标记与类声明之间留空行，修正文件头分段标注。",
+    "current_output_sha256": "a3475ad15a489e26c6a58cfcdcea5729f3e33ea46946849f6cc6dcc2608f8e07"
+  },
+  "used_for_development_feedback": true
 }

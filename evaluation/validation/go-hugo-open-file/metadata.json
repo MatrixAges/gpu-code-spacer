@@ -3,9 +3,9 @@
   "case_id": "go-hugo-open-file",
   "language": "go",
   "language_in_archives": true,
-  "generalization_scope": "new repository; language already present in archived evaluation",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "generalization_scope": "Adapted development examples; no independent generalization claim.",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "gohugoio/hugo",
     "commit": "881c0ec70d746d3a86b29c9104aa56ac51040ee9",
@@ -19,13 +19,29 @@
     "excerpt_sha256": "a1783431486b87a2f26d4d74a10865be63a81d4c1363f5875851424399712e05",
     "upstream_header": "// Copyright 2024 The Hugo Authors. All rights reserved.\n//\n// Licensed under the Apache License, Version 2.0 (the \"License\");\n// you may not use this file except in compliance with the License.\n// You may obtain a copy of the License at\n// http://www.apache.org/licenses/LICENSE-2.0\n//\n// Unless required by applicable lfmtaw or agreed to in writing, software\n// distributed under the License is distributed on an \"AS IS\" BASIS,\n// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n// See the License for the specific language governing permissions and\n// limitations under the License.\n\npackage herrors\n\nimport (\n\t\"encoding/json\"\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n\t\"path/filepath\"\n\n\t\"github.com/bep/godartsass/v2\"\n\t\"github.com/bep/golibsass/libsass/libsasserrors\"\n\t\"github.com/gohugoio/hugo/common/paths\"\n"
   },
-  "extraction": {
-    "wrapper_prefix": "package validation\n",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/hugo/LICENSE",
+  "input_sha256": {
+    "dense": "20e90fe4caa19ae34cc548d39a41aec3f78feada717f2fa6683be03ed6faa305"
   },
-  "annotation": {
+  "initial_output_sha256": "757c93aab4d1b8b1cf41b02af70371a41755c00c4a0de5f81651e9d790a22c04",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "Stat结果限制在if初始化作用域，保留文件名回报和打开操作。",
+    "current_output_sha256": "e440e72610c4fcdec74f1cb1d29eafbb77a105448edad91a2e726dde9aa672b4"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       247,
@@ -40,13 +56,16 @@
     "notes": "文件状态查询与打开；多返回值、匿名接口多行类型断言和早退。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/hugo/LICENSE",
-  "input_sha256": {
-    "dense": "3a5557679d75680e0661c7380b5edf45ba86a76b3ec1a14d7d546abc7b2e56cb",
-    "spaced": "a2c5078fa38d54248fc0123b449d16cba5a2c664a463065970ee702ef04fa5bd"
+  "initial_extraction": {
+    "wrapper_prefix": "package validation\n",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "757c93aab4d1b8b1cf41b02af70371a41755c00c4a0de5f81651e9d790a22c04",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

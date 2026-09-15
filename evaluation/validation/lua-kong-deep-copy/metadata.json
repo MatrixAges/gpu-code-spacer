@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "lua-kong-deep-copy",
   "language": "lua",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "Kong/kong",
     "commit": "3091de006da341d5f289d446a3d73875a14560e0",
@@ -17,13 +17,30 @@
     "excerpt_sha256": "41fc4281c6fdf65e07fd2443a471346dd660d9b3d7fc29a51be5a7211f76d897",
     "upstream_header": "local type          = type\nlocal pairs         = pairs\nlocal ipairs        = ipairs\nlocal select        = select\nlocal tostring      = tostring\nlocal insert        = table.insert\nlocal setmetatable  = setmetatable\nlocal getmetatable  = getmetatable\n\n\nlocal _M = {}\n\n\n_M.EMPTY = require(\"pl.tablex\").readonly({})\n\n\n--- packs a set of arguments in a table.\n-- Explicitly sets field `n` to the number of arguments, so it is `nil` safe\n_M.pack = function(...) return {n = select(\"#\", ...), ...} end\n\n\n--- unpacks a table to a list of arguments.\n-- Explicitly honors the `n` field if given in the table, so it is `nil` safe\n_M.unpack = function(t, i, j) return unpack(t, i or 1, j or t.n or #t) end\n\n"
   },
-  "extraction": {
-    "wrapper_prefix": "",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/kong/LICENSE",
+  "input_sha256": {
+    "dense": "616a0b6275a1f49189a6ae4f55e82c098f59cc65a3c489c9a20ec7614a7bd99c"
   },
-  "annotation": {
+  "initial_output_sha256": "e0e88df507322d0ce1e448d72ca7a85f4887464ec1708fe67055d0ca8b7e27ac",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "通过非table早退移除else嵌套，保留递归键值复制与元表逻辑。",
+    "current_output_sha256": "05c87de6407be7fa29538d4c8e9cb3590744e7ee6b4168457248410c41b55dea",
+    "coverage_change": "通过非table早退移除else嵌套，保留递归键值复制与元表逻辑。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       158,
@@ -36,13 +53,16 @@
     "notes": "条件块到声明、声明到条件、赋值到循环、两个多行控制块、最终返回；else仍属于同一if。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/kong/LICENSE",
-  "input_sha256": {
-    "dense": "41fc4281c6fdf65e07fd2443a471346dd660d9b3d7fc29a51be5a7211f76d897",
-    "spaced": "065d9a7b7c2fbbe185a6a5a3d2abfa3b4e40786a55908033d06a5d7bb508c783"
+  "initial_extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "e0e88df507322d0ce1e448d72ca7a85f4887464ec1708fe67055d0ca8b7e27ac",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

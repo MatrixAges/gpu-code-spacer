@@ -5,8 +5,7 @@ let from_abs_path ?(warn_on_error = true) fname =
   (* A compiler-generated sentinel (see [compiler_generated]) has no on-disk file by
      construction, so don't warn when [realpath] fails to resolve it. *)
   let warn_on_error =
-    warn_on_error && not (String.is_suffix fname ~suffix:compiler_generated_suffix)
-  in
+    warn_on_error && not (String.is_suffix fname ~suffix:compiler_generated_suffix) in
 
   (* try to get realpath of source file. Use original if it fails *)
   let fname_real = try Utils.realpath ~warn_on_error fname with Unix.Unix_error _ -> fname in

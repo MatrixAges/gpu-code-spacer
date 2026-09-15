@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "php-laravel-call-class",
   "language": "php",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "assistant_reviewed_pending_user_confirmation",
   "source": {
     "repository": "laravel/framework",
     "commit": "41807417bb85908412b67ff7ec4132a026d603c7",
@@ -36,11 +36,24 @@
   },
   "license_file": "../../../data/validation/laravel-framework/LICENSE.md",
   "input_sha256": {
-    "dense": "1afa47b9daead6ed056f3c01bf659b4f2f3031e19dfa99b562a88bc6c9531ff6",
-    "spaced": "023d26a57eae11b6e7466b5923d3bf646bf11b266a1cfd3e0a1653e9d81537cc"
+    "dense": "1afa47b9daead6ed056f3c01bf659b4f2f3031e19dfa99b562a88bc6c9531ff6"
   },
   "initial_output_sha256": "f43c153fd65915f2ef203d6ab6a29d7eafd652589e29e7e07a5184acf794ddb7",
   "used_for_training": false,
   "used_for_model_selection": false,
-  "product_model_executed": false
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": false,
+    "expected_layout_changed": true,
+    "note": "PHP文件标记与类声明之间留空行，修正文件头分段标注。",
+    "current_output_sha256": "2f31ad53585ec292b24723b654edeae21d25754f858472b21d7fa2fc1aac58d9"
+  },
+  "used_for_development_feedback": true
 }

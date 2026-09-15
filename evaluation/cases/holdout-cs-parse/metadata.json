@@ -6,10 +6,24 @@
   "source_benchmark": "config/style-benchmark-holdout.json",
   "source_sha256": "35c4961d8e7fef2be1bbf47c91c1694665a3ae0cf83c51b0b96282e810e48543",
   "initial_output_sha256": "2c496229efd7c1c57662f9fc0e5e9eaa9f3aeb80f6028cc6e64a2cebb7947ee9",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
-  "expectations": [
+  "reference_status": "adapted_example_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "2083c2868f71bb0a8c0a1eb350a2ffe45dac36614ff4b71ad99ea4e0e12053a5"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "统一使用同一行左花括号；行为不变，本轮不再覆盖Allman换行风格。",
+    "current_output_sha256": "7e68efe84df009f820210697a929dbf03558887618470c2d3d0d9de2b5ba61e9"
+  },
+  "initial_expectations": [
     {
       "after_line": 6,
       "blank_lines": 1,

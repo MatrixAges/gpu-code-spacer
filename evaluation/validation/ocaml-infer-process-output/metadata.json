@@ -3,9 +3,9 @@
   "case_id": "ocaml-infer-process-output",
   "language": "ocaml",
   "language_in_archives": false,
-  "generalization_scope": "new repository and language absent from archived corpus language list",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "generalization_scope": "Adapted development examples; no independent generalization claim.",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "facebook/infer",
     "commit": "3d38229b04b649024fee065621f6a4c838f6d029",
@@ -19,13 +19,30 @@
     "excerpt_sha256": "00bca97cf793760bd84ebf0eaf1c52fc50939c82b489860681f526dc399dbbbd",
     "upstream_header": "(*\n * Copyright (c) Facebook, Inc. and its affiliates.\n *\n * This source code is licensed under the MIT license found in the\n * LICENSE file in the root directory of this source tree.\n *)\n\nopen! IStd\nmodule L = Logging\n\n[@@@warning \"+missing-record-field-pattern\"]\n\ntype action = ReadStdout | ReadStderr\n\nlet create_process_and_wait_with_output ~prog ~args ?(env = `Extend []) action =\n  let redirected_fd_name, redirect_spec =\n    match action with ReadStderr -> (\"stderr\", \"2>\") | ReadStdout -> (\"stdout\", \">\")\n  in\n  let output_file =\n    IFilename.temp_file ~in_dir:(ResultsDir.get_path Temporary) prog redirected_fd_name\n  in\n  let escaped_cmd = List.map ~f:Escape.escape_shell (prog :: args) |> String.concat ~sep:\" \" in\n  let redirected_cmd = Printf.sprintf \"exec %s %s'%s'\" escaped_cmd redirect_spec output_file in\n  let {IUnix.Process_info.stdin; stdout; stderr; pid} =\n    IUnix.create_process_env ~prog:\"sh\" ~args:[\"-c\"; redirected_cmd] ~env\n"
   },
-  "extraction": {
-    "wrapper_prefix": "",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/infer/LICENSE",
+  "input_sha256": {
+    "dense": "b0bb23bfa54c43adced2dd15626fe2257c456b1a2b735aa4877bc407f7433353"
   },
-  "annotation": {
+  "initial_output_sha256": "c1856aa4e2c2653134eb92532d62fae8252a2abe13a9eaa765e440d57b1d1b48",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "缩小为输出文件读取及两种独立关闭函数；移除进程启动、重定向、多态变体、waitpid以及相邻不同模块关闭调用的覆盖。",
+    "current_output_sha256": "0bd1db58e6764002af6408c6e431d0ddceeae5d04be14f414bd49e4d78ac7917",
+    "coverage_change": "缩小为输出文件读取及两种独立关闭函数；移除进程启动、重定向、多态变体、waitpid以及相邻不同模块关闭调用的覆盖。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       18,
@@ -41,13 +58,16 @@
     "notes": "Nested let-bindings include their RHS and terminating in. The one-line escaped_cmd and redirected_cmd bindings are same-kind and stay together; each multi-line binding needs outer separation. After channel_to_log binding, the four single-line calls form a continuous semicolon sequence; the final match is a separate expression. Match arms, record destructuring, optional arguments and the two-line L.die application stay continuous.",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/infer/LICENSE",
-  "input_sha256": {
-    "dense": "00bca97cf793760bd84ebf0eaf1c52fc50939c82b489860681f526dc399dbbbd",
-    "spaced": "a2ee5fc280a856692fecbca524c24d25798d16103e5d9041910466afedf1b805"
+  "initial_extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "c1856aa4e2c2653134eb92532d62fae8252a2abe13a9eaa765e440d57b1d1b48",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

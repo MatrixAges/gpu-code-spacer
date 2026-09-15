@@ -1,11 +1,14 @@
 <?php
+
 class ValidationSample {
     public function replace($path, $content, $mode = null)
     {
         // If the path already exists and is a symlink, get the real path...
         clearstatcache(true, $path);
 
-        $path = realpath($path) ?: $path;
+        if ($realPath = realpath($path)) {
+            $path = $realPath;
+        }
 
         $tempPath = tempnam(dirname($path), basename($path));
 

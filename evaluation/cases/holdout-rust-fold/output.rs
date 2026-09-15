@@ -3,9 +3,10 @@ fn lengths(words: &[&str]) -> (usize, usize) {
     let mut total = 0;
 
     for word in words {
-        count += 1;
+        let length = word.len();
 
-        total += word.len();
+        count += 1;
+        total += length;
     }
 
     (

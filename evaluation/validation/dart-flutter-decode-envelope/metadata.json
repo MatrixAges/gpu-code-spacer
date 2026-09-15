@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "dart-flutter-decode-envelope",
   "language": "dart",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "assistant_reviewed_pending_user_confirmation",
   "source": {
     "repository": "flutter/flutter",
     "commit": "7232346962d641f84fa8cd085cb335d8203c705a",
@@ -38,11 +38,24 @@
   },
   "license_file": "../../../data/validation/flutter/LICENSE",
   "input_sha256": {
-    "dense": "9885accfd5455f68703161b7c49af191307592cf9a6770dfae622c312bc9175f",
-    "spaced": "63bbd645c4e124a1bc6b9d3880e9332e4a45b73b76b61b989b0c64ea8a386d1a"
+    "dense": "9885accfd5455f68703161b7c49af191307592cf9a6770dfae622c312bc9175f"
   },
   "initial_output_sha256": "4334c17571b20097328fe94b3c953058996a9d45067f9226ebf12a09cdf90c6a",
   "used_for_training": false,
   "used_for_model_selection": false,
-  "product_model_executed": false
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": false,
+    "expected_layout_changed": false,
+    "note": "保留原始源码与期望布局，仅移除spaced输入。",
+    "current_output_sha256": "4334c17571b20097328fe94b3c953058996a9d45067f9226ebf12a09cdf90c6a"
+  },
+  "used_for_development_feedback": true
 }

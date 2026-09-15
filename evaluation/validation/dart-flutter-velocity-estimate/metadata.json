@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "dart-flutter-velocity-estimate",
   "language": "dart",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "flutter/flutter",
     "commit": "7232346962d641f84fa8cd085cb335d8203c705a",
@@ -17,13 +17,29 @@
     "excerpt_sha256": "8f227f2cecc3268ccf7357bc880920ab3b18a5d33842838afbbfad78c22b08ea",
     "upstream_header": "// Copyright 2014 The Flutter Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style license that can be\n// found in the LICENSE file.\n\nimport 'package:flutter/foundation.dart';\n\nimport 'binding.dart';\nimport 'events.dart';\nimport 'lsq_solver.dart';\n\nexport 'dart:ui' show Offset, PointerDeviceKind;\n\n/// A velocity in two dimensions.\n@immutable\nclass Velocity {\n  /// Creates a [Velocity].\n  const Velocity({required this.pixelsPerSecond});\n\n  /// A velocity that isn't moving at all.\n  static const Velocity zero = Velocity(pixelsPerSecond: Offset.zero);\n\n  /// The number of pixels per second of velocity in the x and y directions.\n  final Offset pixelsPerSecond;\n\n  /// Return the negation of a velocity.\n"
   },
-  "extraction": {
-    "wrapper_prefix": "class ValidationSample {\n",
-    "wrapper_suffix": "}\n",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/flutter/LICENSE",
+  "input_sha256": {
+    "dense": "f5775224fbc6ea409861d8240b3a6860f4823811ba39bb17c904e6ec6d3f2668"
   },
-  "annotation": {
+  "initial_output_sha256": "9a8dc716745c9a766c4289aad9ac4e0ce73fa0cbce72b9eb586d4acaba86ce83",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "内联只使用一次的样本索引，保留模运算、可空检查与速度计算。",
+    "current_output_sha256": "e8384fbdb2b439362af8c40a26233d644650cfaaa7662d4cc601dee9bdb4cd11"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       332,
@@ -35,13 +51,16 @@
     "notes": "历史点索引声明、空值早退、断言调用及带注释的多行三元返回。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/flutter/LICENSE",
-  "input_sha256": {
-    "dense": "756f9e369b47a788f161f785ffabc0cb616f8d3065e5aa3a2c9cb10cdebe6d4b",
-    "spaced": "efddb3c50dda451ebc1787ec6554398473129e5a03cac08e0affef17a1774e06"
+  "initial_extraction": {
+    "wrapper_prefix": "class ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "9a8dc716745c9a766c4289aad9ac4e0ce73fa0cbce72b9eb586d4acaba86ce83",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

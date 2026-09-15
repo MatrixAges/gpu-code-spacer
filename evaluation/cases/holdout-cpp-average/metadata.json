@@ -6,10 +6,26 @@
   "source_benchmark": "config/style-benchmark-holdout.json",
   "source_sha256": "34eb776f8d4ca0dce31dbc709f62397d6406358ad63b52772aa1018dcfa414ff",
   "initial_output_sha256": "c80eabbaf5821701b7aa300112f913833b96b82c1c11d477648dd0fcc718cef0",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
-  "expectations": [
+  "reference_status": "adapted_example_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "2d81ce68f154755210e435b6cf1e18d0535373c1329a277ffc4d77e4b1c10173"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "只评估函数片段；标准库include移至元数据context_prefix，不再覆盖预处理头与函数之间的留白。",
+    "current_output_sha256": "a4551147341f977e3dbe61340c7efe1dfd98fc784e5f9fe23b527dde8174034f",
+    "coverage_change": "只评估函数片段；标准库include移至元数据context_prefix，不再覆盖预处理头与函数之间的留白。"
+  },
+  "context_prefix": "#include <numeric>\n#include <vector>\n\n",
+  "initial_expectations": [
     {
       "after_line": 4,
       "blank_lines": 1,

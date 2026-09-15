@@ -95,7 +95,7 @@ pub fn main(init: std.process.Init) !void {
     var walker = try cases.walk(allocator);
     defer walker.deinit();
     while (try walker.next(io)) |entry| {
-        if (entry.kind != .file or std.mem.find(u8, entry.path, "/input/dense.") == null) continue;
+        if (entry.kind != .file or std.mem.find(u8, entry.path, "/input.") == null) continue;
         const code = try cases.readFileAlloc(io, entry.path, allocator, .limited(1024 * 1024));
         try development.append(allocator, try compact(allocator, code));
     }
@@ -131,7 +131,7 @@ pub fn main(init: std.process.Init) !void {
             if (std.mem.find(u8, code, canonical) != null or std.mem.find(u8, canonical, code) != null) return error.DevelopmentSourceOverlap;
         }
         var reference_shape: ?[]const u8 = null;
-        for ([_][]const u8{ "output", "input/dense", "input/spaced" }) |variant| {
+        for ([_][]const u8{ "output", "input" }) |variant| {
             const path = try std.fmt.allocPrint(allocator, "evaluation/validation/{s}/{s}.{s}", .{ spec.id, variant, spec.extension });
             const content = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(1024 * 1024));
             if (!std.mem.eql(u8, expected_nonblank, try nonblank(allocator, content))) return error.NonblankSourceChanged;

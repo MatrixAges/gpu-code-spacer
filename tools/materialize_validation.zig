@@ -38,7 +38,7 @@ fn appendWrapper(allocator: std.mem.Allocator, lines: *std.ArrayList(Line), wrap
     }
 }
 
-fn render(allocator: std.mem.Allocator, lines: []const Line, spec: Spec, variant: enum { dense, spaced, reference }) ![]const u8 {
+fn render(allocator: std.mem.Allocator, lines: []const Line, spec: Spec, variant: enum { dense, reference }) ![]const u8 {
     var output: std.ArrayList(u8) = .empty;
     for (lines, 0..) |line, i| {
         try output.appendSlice(allocator, line.text);
@@ -46,7 +46,6 @@ fn render(allocator: std.mem.Allocator, lines: []const Line, spec: Spec, variant
         if (i + 1 == lines.len or (line.protected and lines[i + 1].protected)) continue;
         const gaps: usize = switch (variant) {
             .dense => 0,
-            .spaced => 2,
             // These positions were individually annotated before this import.
             // No source-role rules or product model generate the reference.
             .reference => @intFromBool(std.mem.findScalar(usize, spec.gap_after_source_lines, line.source_line) != null or
@@ -112,11 +111,9 @@ pub fn main(init: std.process.Init) !void {
         try appendWrapper(allocator, &lines, spec.wrapper_suffix);
 
         const dense = try render(allocator, lines.items, spec, .dense);
-        const spaced = try render(allocator, lines.items, spec, .spaced);
         const reference = try render(allocator, lines.items, spec, .reference);
         try std.Io.Dir.cwd().createDir(io, directory, .default_dir);
-        try std.Io.Dir.cwd().createDir(io, try std.fs.path.join(allocator, &.{ directory, "input" }), .default_dir);
-        for ([_][]const u8{ "input/dense", "input/spaced", "output" }, [_][]const u8{ dense, spaced, reference }) |name, content| {
+        for ([_][]const u8{ "input", "output" }, [_][]const u8{ dense, reference }) |name, content| {
             const path = try std.fmt.allocPrint(allocator, "{s}/{s}.{s}", .{ directory, name, spec.extension });
             try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = content });
         }
@@ -157,7 +154,7 @@ pub fn main(init: std.process.Init) !void {
                 .comparison = "shared output is the editable expected result",
             },
             .license_file = spec.license_file,
-            .input_sha256 = .{ .dense = try hash(allocator, dense), .spaced = try hash(allocator, spaced) },
+            .input_sha256 = .{ .dense = try hash(allocator, dense) },
             .initial_output_sha256 = try hash(allocator, reference),
             .used_for_training = false,
             .used_for_model_selection = false,

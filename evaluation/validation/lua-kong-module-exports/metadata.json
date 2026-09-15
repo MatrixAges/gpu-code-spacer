@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "lua-kong-module-exports",
   "language": "lua",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "assistant_reviewed_pending_user_confirmation",
   "source": {
     "repository": "Kong/kong",
     "commit": "3091de006da341d5f289d446a3d73875a14560e0",
@@ -35,11 +35,24 @@
   },
   "license_file": "../../../data/validation/kong/LICENSE",
   "input_sha256": {
-    "dense": "1b278efbe55f14257ad152df72ff7708ad5c81e552f731f9e67417f3af9e33df",
-    "spaced": "f53cc9caa4fd28a2ecd2faf05a6321e88c14b1db9997d201f7bb6f4fd7057b80"
+    "dense": "1b278efbe55f14257ad152df72ff7708ad5c81e552f731f9e67417f3af9e33df"
   },
   "initial_output_sha256": "8cbd0b63ee74f7e1f41de1b1a20b1433f16614fac9e87412f6fcfe759be54bbd",
   "used_for_training": false,
   "used_for_model_selection": false,
-  "product_model_executed": false
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": false,
+    "expected_layout_changed": false,
+    "note": "保留原始源码与期望布局，仅移除spaced输入。",
+    "current_output_sha256": "8cbd0b63ee74f7e1f41de1b1a20b1433f16614fac9e87412f6fcfe759be54bbd"
+  },
+  "used_for_development_feedback": true
 }

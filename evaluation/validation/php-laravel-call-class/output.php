@@ -1,4 +1,5 @@
 <?php
+
 class ValidationSample {
     protected static function callClass($container, $target, array $parameters = [], $defaultMethod = null)
     {

@@ -6,14 +6,10 @@ class ValidationSample {
 
     double offsetToOrigin(double pos) => x - transform(pos).dx;
 
-    // Use a binary search to find the inverse point within 1e-6, or 100
-    // subdivisions, whichever comes first.
-    const errorLimit = 1e-6;
-    var count = 100;
-
     final double startValue = offsetToOrigin(start);
 
-    while ((end - start) / 2.0 > errorLimit && count > 0) {
+    // Stop within 1e-6, or after 100 subdivisions.
+    for (var count = 100; (end - start) / 2.0 > 1e-6 && count > 0; count--) {
       mid = (end + start) / 2.0;
 
       final double value = offsetToOrigin(mid);
@@ -23,8 +19,6 @@ class ValidationSample {
       } else {
         end = mid;
       }
-
-      count--;
     }
 
     return mid;

@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "lua-kong-split",
   "language": "lua",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "Kong/kong",
     "commit": "3091de006da341d5f289d446a3d73875a14560e0",
@@ -17,13 +17,30 @@
     "excerpt_sha256": "e6812a4b055eb260ef3c917aab31657d5f450a9564ff6402d5879366c02423c8",
     "upstream_header": "local new_tab = require \"table.new\"\n\n\nlocal type     = type\nlocal ipairs   = ipairs\nlocal tostring = tostring\nlocal lower    = string.lower\nlocal sub      = string.sub\nlocal fmt      = string.format\nlocal find     = string.find\nlocal gsub     = string.gsub\nlocal byte     = string.byte\nlocal huge     = math.huge\n\n\nlocal SPACE_BYTE = byte(\" \")\nlocal TAB_BYTE   = byte(\"\\t\")\nlocal CR_BYTE    = byte(\"\\r\")\n\n\nlocal _M = {}\n\n\n_M.join = require(\"pl.stringx\").join\n\n"
   },
-  "extraction": {
-    "wrapper_prefix": "",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/kong/LICENSE",
+  "input_sha256": {
+    "dense": "28e5777fe42e5f5225a6c62266227ac0cd6c45078c04744c8cd2318a3b1584dd"
   },
-  "annotation": {
+  "initial_output_sha256": "cdadad8b31b8523efac8d31b4b5b4f194f8b75abd2d18f31c0dfcb5735189f78",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "改为提取非空白单词的分割示例；不再覆盖任意模式、空分隔符、limit、goto与elseif。",
+    "current_output_sha256": "4e141d77c365e1478e8198473dcb261432341ea0ddf740f0e934556e40d5ba3c",
+    "coverage_change": "改为提取非空白单词的分割示例；不再覆盖任意模式、空分隔符、limit、goto与elseif。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       102,
@@ -45,13 +62,16 @@
     "notes": "完整elseif链内部不拆分；局部声明、赋值、循环、goto控制转移及返回按角色分段；标签与其后if贴附。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/kong/LICENSE",
-  "input_sha256": {
-    "dense": "68c5285d4b8bbac75db776ead860fd4b8d17a3d783495d682d97627419f34f3d",
-    "spaced": "a5639c4fe01ebd493e12cfa05f1743cfd1c51687ba9a500955ced5dff1d4c479"
+  "initial_extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "cdadad8b31b8523efac8d31b4b5b4f194f8b75abd2d18f31c0dfcb5735189f78",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

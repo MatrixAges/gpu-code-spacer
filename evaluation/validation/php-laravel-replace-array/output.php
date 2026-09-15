@@ -1,4 +1,5 @@
 <?php
+
 class ValidationSample {
     public static function replaceArray($search, $replace, $subject)
     {

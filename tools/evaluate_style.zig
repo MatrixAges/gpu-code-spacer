@@ -97,19 +97,19 @@ fn checkNonblank(source: []const u8, original: layout.Document, output: []const 
 const Reference = struct {
     directory: []const u8,
     dense_path: []const u8,
-    spaced_path: []const u8,
+    input: []const u8,
+    scenario: []const u8,
     output_path: []const u8,
     output: []const u8,
     corrected: bool,
 };
 
-fn referenceFiles(allocator: std.mem.Allocator, io: std.Io, benchmark_path: []const u8, case: Case, original: layout.Document, spaced: []const u8) !Reference {
+fn referenceFiles(allocator: std.mem.Allocator, io: std.Io, benchmark_path: []const u8, case: Case, original: layout.Document) !Reference {
     const root = "evaluation/cases";
     try std.Io.Dir.cwd().createDirPath(io, root);
     const directory = try std.fs.path.join(allocator, &.{ root, case.id });
     const suffix = try files.extension(case.language);
-    const dense_path = try std.fmt.allocPrint(allocator, "{s}/input/dense.{s}", .{ directory, suffix });
-    const spaced_path = try std.fmt.allocPrint(allocator, "{s}/input/spaced.{s}", .{ directory, suffix });
+    const dense_path = try std.fmt.allocPrint(allocator, "{s}/input.{s}", .{ directory, suffix });
     const output_path = try std.fmt.allocPrint(allocator, "{s}/output.{s}", .{ directory, suffix });
     const metadata_path = try std.fs.path.join(allocator, &.{ directory, "metadata.json" });
     var existing = false;
@@ -119,7 +119,6 @@ fn referenceFiles(allocator: std.mem.Allocator, io: std.Io, benchmark_path: []co
     };
 
     if (!existing) {
-        try std.Io.Dir.cwd().createDirPath(io, try std.fs.path.join(allocator, &.{ directory, "input" }));
         const targets = try allocator.alloc(u8, original.boundaries.len);
         @memset(targets, 255);
         // Serialize existing explicit reference annotations. This does not
@@ -131,7 +130,6 @@ fn referenceFiles(allocator: std.mem.Allocator, io: std.Io, benchmark_path: []co
         }
         const output = try layout.render(allocator, case.source, original, targets);
         try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = dense_path, .data = case.source });
-        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = spaced_path, .data = spaced });
         try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = output_path, .data = output });
         const metadata = try std.json.Stringify.valueAlloc(allocator, .{
             .schema_version = 2,
@@ -143,23 +141,25 @@ fn referenceFiles(allocator: std.mem.Allocator, io: std.Io, benchmark_path: []co
             .initial_output_sha256 = try files.hash(allocator, output),
             .reference_status = "migrated_partial_annotations",
             .output_role = "Shared expected output for all input variants. Model predictions never overwrite this file.",
-            .correction_policy = "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
+            .correction_policy = "Current output defines the complete expected layout; source edits must be synchronized with dense input.",
             .expectations = case.expectations,
         }, .{ .whitespace = .indent_2 });
         try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = metadata_path, .data = metadata });
     }
 
     const metadata = try std.Io.Dir.cwd().readFileAlloc(io, metadata_path, allocator, .limited(1024 * 1024));
-    const saved = (try std.json.parseFromSlice(struct { source_sha256: []const u8, initial_output_sha256: []const u8 }, allocator, metadata, .{ .ignore_unknown_fields = true })).value;
+    const saved = (try std.json.parseFromSlice(struct { source_sha256: []const u8, initial_output_sha256: []const u8, scenario: []const u8 }, allocator, metadata, .{ .ignore_unknown_fields = true })).value;
     if (!std.mem.eql(u8, saved.source_sha256, try files.hash(allocator, case.source))) return error.ReferenceSourceChanged;
     const output = try std.Io.Dir.cwd().readFileAlloc(io, output_path, allocator, .limited(1024 * 1024));
     const target_document = try layout.analyze(allocator, output);
-    try checkNonblank(case.source, original, output, target_document);
+    const input = try std.Io.Dir.cwd().readFileAlloc(io, dense_path, allocator, .limited(1024 * 1024));
+    try checkNonblank(input, try layout.analyze(allocator, input), output, target_document);
 
     return .{
         .directory = directory,
         .dense_path = dense_path,
-        .spaced_path = spaced_path,
+        .input = input,
+        .scenario = saved.scenario,
         .output_path = output_path,
         .output = output,
         .corrected = !std.mem.eql(u8, saved.initial_output_sha256, try files.hash(allocator, output)),
@@ -203,59 +203,47 @@ pub fn main(init: std.process.Init) !void {
     var style: Counts = .{};
     var structure: Counts = .{};
     var checks: usize = 0;
+    var exact_outputs: usize = 0;
 
     for (benchmark.cases) |case| {
-        const original = try layout.analyze(allocator, case.source);
-        if (original.unterminated_region) return error.UnsupportedBenchmarkRegion;
-        for (original.nonblank, 0..) |line, index| {
-            if (index > 0 and line != original.nonblank[index - 1] + 1) return error.ExpectedDenseBenchmarkSource;
-        }
-
-        const labels = try allocator.alloc(u8, original.boundaries.len);
-        @memset(labels, 255);
-
-        // Perturb only explicitly scored, lexically editable gaps. The second
-        // variant measures removal as well as insertion; it is not training.
-        for (original.boundaries, labels) |boundary, *label| {
-            for (case.expectations) |expectation| {
-                if (original.nonblank[boundary.before] + 1 == expectation.after_line) label.* = 2;
-            }
-        }
-        const spaced = try layout.render(allocator, case.source, original, labels);
-        const reference = try referenceFiles(allocator, io, benchmark_path, case, original, spaced);
+        const seed_document = try layout.analyze(allocator, case.source);
+        const reference = try referenceFiles(allocator, io, benchmark_path, case, seed_document);
+        const original = try layout.analyze(allocator, reference.input);
         const reference_document = try layout.analyze(allocator, reference.output);
         var expectations: std.ArrayList(Expectation) = .empty;
-        if (reference.corrected) {
-            for (0..original.nonblank.len - 1) |position| {
-                const gap = reference_document.nonblank[position + 1] - reference_document.nonblank[position] - 1;
-                try expectations.append(allocator, .{
-                    .after_line = original.nonblank[position] + 1,
-                    .blank_lines = std.math.cast(u8, gap) orelse return error.ExcessiveReferenceGap,
-                    .principle = "corrected_output",
-                    .scope = .style,
-                    .comparison = .exact,
-                });
-            }
-        } else try expectations.appendSlice(allocator, case.expectations);
+        // Current editable references define the complete layout, including
+        // unannotated and protected gaps. Historical partial assertions remain
+        // in the benchmark metadata, but do not determine this score.
+        for (0..original.nonblank.len - 1) |position| {
+            const gap = reference_document.nonblank[position + 1] - reference_document.nonblank[position] - 1;
+            try expectations.append(allocator, .{
+                .after_line = original.nonblank[position] + 1,
+                .blank_lines = std.math.cast(u8, gap) orelse return error.ExcessiveReferenceGap,
+                .principle = "current_output",
+                .scope = .style,
+                .comparison = .exact,
+            });
+        }
 
         const case_directory = try std.fs.path.join(allocator, &.{ directory, case.id });
         try std.Io.Dir.cwd().createDirPath(io, case_directory);
         const suffix = try files.extension(case.language);
         const assertion_start = assertions.items.len;
-        var output_hashes: [2][]const u8 = undefined;
-        var input_hashes: [2][]const u8 = undefined;
+        var output_hashes: [1][]const u8 = undefined;
+        var input_hashes: [1][]const u8 = undefined;
 
-        for ([_][]const u8{ "dense", "spaced" }, [_][]const u8{ reference.dense_path, reference.spaced_path }, 0..) |variant, input_path, variant_index| {
+        for ([_][]const u8{"dense"}, [_][]const u8{reference.dense_path}, 0..) |variant, input_path, variant_index| {
             const input = try std.Io.Dir.cwd().readFileAlloc(io, input_path, allocator, .limited(1024 * 1024));
-            try checkNonblank(case.source, original, input, try layout.analyze(allocator, input));
+            try checkNonblank(reference.input, original, input, try layout.analyze(allocator, input));
             const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}.{s}", .{ case_directory, variant, suffix });
             const output = try execute(allocator, io, binary, input_path);
             try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = output_path, .data = output });
             const repeated = try execute(allocator, io, binary, output_path);
             if (!std.mem.eql(u8, output, repeated)) return error.NonIdempotent;
             const actual = try layout.analyze(allocator, output);
-            try checkNonblank(case.source, original, output, actual);
+            try checkNonblank(reference.input, original, output, actual);
             checks += 1;
+            exact_outputs += @intFromBool(std.mem.eql(u8, output, reference.output));
             output_hashes[variant_index] = try files.hash(allocator, output);
             input_hashes[variant_index] = try files.hash(allocator, input);
 
@@ -293,8 +281,8 @@ pub fn main(init: std.process.Init) !void {
             .schema_version = 2,
             .case_id = case.id,
             .language = case.language,
-            .variants = [_][]const u8{ "dense", "spaced" },
-            .scenario = case.scenario,
+            .variants = [_][]const u8{"dense"},
+            .scenario = reference.scenario,
             .benchmark_path = benchmark_path,
             .benchmark_sha256 = try files.hash(allocator, bytes),
             .benchmark_role = benchmark_role,
@@ -306,7 +294,6 @@ pub fn main(init: std.process.Init) !void {
             .output_corrected = reference.corrected,
             .input_sha256 = input_hashes,
             .prediction_sha256 = output_hashes,
-            .variant_predictions_equal = std.mem.eql(u8, output_hashes[0], output_hashes[1]),
             .expectations = expectations.items,
             .generated_assertions = assertions.items[assertion_start..],
             .nonblank_bytes_preserved = true,
@@ -321,6 +308,7 @@ pub fn main(init: std.process.Init) !void {
         .results_directory = directory,
         .model = model,
         .cases = benchmark.cases.len,
+        .exact_outputs = exact_outputs,
         .nonblank_byte_preservation_and_idempotence_checks = checks,
         .criteria_version = benchmark.version,
         .style = style,

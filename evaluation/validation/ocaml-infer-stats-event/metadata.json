@@ -3,9 +3,9 @@
   "case_id": "ocaml-infer-stats-event",
   "language": "ocaml",
   "language_in_archives": false,
-  "generalization_scope": "new repository and language absent from archived corpus language list",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "generalization_scope": "Adapted development examples; no independent generalization claim.",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "facebook/infer",
     "commit": "3d38229b04b649024fee065621f6a4c838f6d029",
@@ -19,13 +19,30 @@
     "excerpt_sha256": "6a327c09bb5abb4a7d5436de00884d31626807fe27ae97005a600c7494498afa",
     "upstream_header": "(*\n * Copyright (c) Facebook, Inc. and its affiliates.\n *\n * This source code is licensed under the MIT license found in the\n * LICENSE file in the root directory of this source tree.\n *)\n\nopen! IStd\n\nlet hostname = Unix.gethostname ()\n\nlet get_stats_dir () =\n  (* cannot use [ResultsDir.get_path], it would introduce a circular dependency *)\n  ResultsDirEntryName.get_path ~results_dir:Config.results_dir Stats\n\n\nlet get_stats_log_file () =\n  let dir_name = get_stats_dir () in\n  let file_name =\n    match WorkerPoolState.get_in_child () with\n    | None ->\n        \"stats.jsonl\"\n    | Some rank ->\n        Printf.sprintf \"stats-%d.jsonl\" rank\n  in\n"
   },
-  "extraction": {
-    "wrapper_prefix": "",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/infer/LICENSE",
+  "input_sha256": {
+    "dense": "6c45604d8c344c0f8a3e397d02972a30a6dc55e6dc7fba8ac99e4d66fb4a24e0"
   },
-  "annotation": {
+  "initial_output_sha256": "25a77730a07909a6dd7ef2723d08f51106127e414caeab9432906f9ba24ba219",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "缩小为整数及消息字段写入；移除事件match、局部helper、timestamp和pipeline覆盖。",
+    "current_output_sha256": "33691dfa3d0d52689f36da4e4ed7652c1224db039797610fc0bf39c8bd7ae9b6",
+    "coverage_change": "缩小为整数及消息字段写入；移除事件match、局部helper、timestamp和pipeline覆盖。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       51
@@ -35,13 +52,16 @@
     "notes": "The local let open StatsSample in scopes the function body; keep it attached to that lexical scope. The local create_sample_with_label definition includes its pipeline and terminating in; only its outside boundary before match needs separation. Each branch pipeline is one application expression; |> lines are internal continuations, never distinct calls or assignments. Match alternatives remain inside match, and the destructured typed parameter is kept whole.",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/infer/LICENSE",
-  "input_sha256": {
-    "dense": "6a327c09bb5abb4a7d5436de00884d31626807fe27ae97005a600c7494498afa",
-    "spaced": "c493ec7e3d947dd053c96a2f121b966b65d5adbee1eae780c74ca5761e3c3c5a"
+  "initial_extraction": {
+    "wrapper_prefix": "",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "25a77730a07909a6dd7ef2723d08f51106127e414caeab9432906f9ba24ba219",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

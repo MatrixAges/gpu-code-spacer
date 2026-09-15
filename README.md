@@ -17,13 +17,11 @@ dataset/
 
 evaluation/
   cases/<case-name>/
-    input/dense.<ext>
-    input/spaced.<ext>
+    input.<ext>
     output.<ext>
     metadata.json
   validation/<case-name>/
-    input/dense.<ext>
-    input/spaced.<ext>
+    input.<ext>
     output.<ext>
     metadata.json
   artifacts/
@@ -33,11 +31,11 @@ evaluation/
 
 旧 `dataset/validation` 已从活动数据集中移除，478 个文件及来源记录归档在 `artifacts/dataset-validation-archive/`，不会被重新采样生成，也不会并入独立验证集。新的 `evaluation/validation` 已有 30 个 GitHub 来源案例：PHP、Lua、Dart、Scala、Go、OCaml 各 5 个；Go 按用户指定作为已见语言的新仓库验证，其余五种语言不在旧语料语言清单中。源码仓库以固定提交 ZIP 解压在 `data/validation/`。
 
-`evaluation/cases` 是固定的验收资料，60 个案例直接放在该目录下。dense 和 spaced 共用一份期望 `output` 和元数据；修改共享 output 会被后续验收读取。模型预测不会回填期望文件，运行报告与预测写到 `evaluation/artifacts`。历史分组仅保留在元数据中，不再用额外目录区分。
+`evaluation/cases` 是固定的验收资料，60 个案例直接放在该目录下。每例仅保留 `input.<ext>`（dense 输入）、一份期望 `output` 和元数据；修改 output 会被后续验收读取。模型预测不会回填期望文件，运行报告与预测写到 `evaluation/artifacts`。历史分组仅保留在元数据中，不再用额外目录区分。
 
-`evaluation/validation` 不用于选模或针对失败调试。若其结果被用于下一轮开发，应将相应案例转为开发验收，再留新的独立案例。具体约定见 [独立泛化验证集说明](evaluation/validation/说明.md)。
+`evaluation/validation` 的路径保留，但本轮已按用户授权调整源码并缩小语法覆盖，现作为开发回归集，不再提供独立泛化分数。原始来源与前后结果分开保留，见 [评估集说明](evaluation/validation/说明.md)。
 
-共享 `output` 可直接校正，导入工具跳过所有已存在案例，不覆盖用户修改。若同时修改代码内容而非仅空行，应同步 input 中两种变体。当前只完成样本保真、语法和直接重复检查，没有运行模型给这批数据打分。
+共享 `output` 可直接校正，导入工具跳过所有已存在案例，不覆盖用户修改。若同时修改代码内容而非仅空行，应同步 dense 输入。2026-09-15 按用户要求移除 spaced，完整验收目标为 cases 60/60、validation 30/30；修改后的样例仍待用户审核。
 
 2026-09-11：按用户要求完成目录整理后暂停模型迭代，等待人工校正数据；尚未宣称所有验收通过。后文训练与历史指标记录对应各自版本。
 
@@ -159,6 +157,18 @@ zig build -Doptimize=ReleaseSmall
 
 训练和选模只读取开发及个人风格验证集。`models/metadata.json` 记录校准规则；不要用最终测试语言调节阈值。
 
+## 当前评估集验收
+
+使用 Python 3 标准库运行完整文件比较，报告目录必须是新目录：
+
+```sh
+python3 tools/evaluate_dataset.py /path/to/version-matched-binary evaluation/artifacts/current-dense
+```
+
+两组都达到 100%、非空行保持和幂等全部通过时命令返回 0；未达标返回 1。工具冻结二进制，记录模型、源码和结果哈希，预测不会写回期望。
+
+恢复后的默认模型为 v5、源码特征为 v6，直接运行会报 `FeatureVersionMismatch`。本轮保持模型文件不变，使用已有 v6 候选隔离构建和评分；具体复现方式及覆盖调整见 [评估代码调整计划](docs/2026-09-15/评估代码调整计划.md) 和 [执行记录](docs/2026-09-15/评估代码调整执行记录.md)。
+
 ## 验证
 
 ```sh
@@ -190,7 +200,7 @@ zig build evaluate-transfer -Doptimize=ReleaseFast -- \
 
 `evaluate` 命令中的置信度应与 `models/config.zig` 一致。它生成 20 组测试与报告，保存在 `evaluation/artifacts/corpus/`，按案例输出完整源码与元数据，不再生成 JSONL。评分区域不重叠，但可共享完整文件上下文；这不等同于 600 个独立项目或独立人工评分，也不作为个人审美真值。
 
-`evaluate-style` 当前使用标准 v2：多行完整表达式外侧留空行；两侧均为单行时，同类连写、异类留空行。完整表达式内部、注释贴附、块边缘作为独立结构检查，不混入风格得分。每个案例分别测试紧凑和过疏输入，报告原则、语言和变体结果。
+`evaluate-style` 当前使用标准 v2：多行完整表达式外侧留空行；两侧均为单行时，同类连写、异类留空行。完整表达式内部、注释贴附、块边缘作为独立结构检查，不混入风格得分。当前每个案例只测试 dense 输入，按当前 output 完整布局评分；不再测试过疏输入。历史报告保留原有口径。
 
 两套案例都已被观察，当前只作回归；`style-benchmark-holdout.json` 保留原路径名称，不再代表新的独立测试。原 v1 标注位于 `config/benchmarks/archive/v1/`。按新标准，36 案例集风格通过 118/144，24 案例集通过 174/192；结构检查分别通过 84/84 和 46/46。本次仅修订验收项，没有调整模型，不能将评分口径变化称作模型提升。
 

@@ -3,9 +3,9 @@
   "case_id": "go-hugo-slice",
   "language": "go",
   "language_in_archives": true,
-  "generalization_scope": "new repository; language already present in archived evaluation",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "generalization_scope": "Adapted development examples; no independent generalization claim.",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "gohugoio/hugo",
     "commit": "881c0ec70d746d3a86b29c9104aa56ac51040ee9",
@@ -19,13 +19,30 @@
     "excerpt_sha256": "ce797cba20e478ce73f2758ff49ec9fe9691e0d08588ded1729bc8fe26507ee9",
     "upstream_header": "// Copyright 2018 The Hugo Authors. All rights reserved.\n//\n// Licensed under the Apache License, Version 2.0 (the \"License\");\n// you may not use this file except in compliance with the License.\n// You may obtain a copy of the License at\n// http://www.apache.org/licenses/LICENSE-2.0\n//\n// Unless required by applicable law or agreed to in writing, software\n// distributed under the License is distributed on an \"AS IS\" BASIS,\n// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n// See the License for the specific language governing permissions and\n// limitations under the License.\n\npackage collections\n\nimport (\n\t\"reflect\"\n\t\"sort\"\n)\n\n// Slicer defines a very generic way to create a typed slice. This is used\n// in collections.Slice template func to get types such as Pages, PageGroups etc.\n// instead of the less useful []interface{}.\ntype Slicer interface {\n\tSlice(items any) (any, error)\n"
   },
-  "extraction": {
-    "wrapper_prefix": "package validation\n",
-    "wrapper_suffix": "",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/hugo/LICENSE",
+  "input_sha256": {
+    "dense": "f86813bcffae3758f64df65564404d9dab2c9325abe405eb897ebf69075dbc43"
   },
-  "annotation": {
+  "initial_output_sha256": "fcad5e5074d8383788f3aa1673be02aa962e18629acf2b874d6800d5287655bc",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "内联首元素访问，保留反射、接口断言与异类回退；移除引用绑定到调用绑定的相邻边界。",
+    "current_output_sha256": "fde8afd486df46be16302132cc6289783967d541550c54cdfab791627483241a",
+    "coverage_change": "内联首元素访问，保留反射、接口断言与异类回退；移除引用绑定到调用绑定的相邻边界。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       32,
@@ -45,13 +62,16 @@
     "notes": "反射构造同类型切片；类型断言、错误路径、嵌套循环、调用与返回。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/hugo/LICENSE",
-  "input_sha256": {
-    "dense": "d237f9af557c625f6b44b0e7aee866e9915cd451596c0b8d21ed0c5cbf8baf33",
-    "spaced": "1c0499ed8f895f2c8f64064d3e55e1128b4df110da19b4b56e1d51533a2abda4"
+  "initial_extraction": {
+    "wrapper_prefix": "package validation\n",
+    "wrapper_suffix": "",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "fcad5e5074d8383788f3aa1673be02aa962e18629acf2b874d6800d5287655bc",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

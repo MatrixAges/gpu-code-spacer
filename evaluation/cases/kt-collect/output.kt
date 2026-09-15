@@ -1,8 +1,7 @@
-fun collect(items: MutableList<String>, name: String, publish: (List<String>) -> Unit) {
+fun MutableList<String>.collect(name: String, publish: (List<String>) -> Unit) {
     val normalized = name.lowercase()
 
-    items.add(normalized)
-    items.sort()
-
-    publish(items)
+    add(normalized)
+    sort()
+    publish(this)
 }

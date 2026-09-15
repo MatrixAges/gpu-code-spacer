@@ -6,10 +6,24 @@
   "source_benchmark": "config/style-benchmark-holdout.json",
   "source_sha256": "f93a65021967dd6580171da3ad1f593a3f01bef3823b6cddf2615df1706ac5f9",
   "initial_output_sha256": "e99d5a0db9e302957dd7334ea94e8363f795519d1e91137f794466d1414c3f2a",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
-  "expectations": [
+  "reference_status": "adapted_example_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "17d333f32f9d67050ffd11ac63147a8a3eb4743492130d35739c4252ebea0e3b"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "利用序列切片的上界截断，移除冗余end计算。",
+    "current_output_sha256": "6e64f1ea5f598bb280888c4b81d802f9658b0c0fe1ff6b5896fbf0cb4fe9bfe9"
+  },
+  "initial_expectations": [
     {
       "after_line": 2,
       "blank_lines": 1,

@@ -2,8 +2,8 @@
   "schema_version": 3,
   "case_id": "dart-flutter-transform-point",
   "language": "dart",
-  "purpose": "independent_generalization",
-  "reference_status": "assistant_annotated_pending_user_review",
+  "purpose": "development_regression",
+  "reference_status": "adapted_example_pending_user_confirmation",
   "source": {
     "repository": "flutter/flutter",
     "commit": "7232346962d641f84fa8cd085cb335d8203c705a",
@@ -17,13 +17,30 @@
     "excerpt_sha256": "67f46d03524781607780a0fb0096f76203e81bc0a685c1a343c039ccd8e58d40",
     "upstream_header": "// Copyright 2014 The Flutter Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style license that can be\n// found in the LICENSE file.\n\n/// @docImport 'package:flutter/rendering.dart';\nlibrary;\n\nimport 'package:flutter/foundation.dart';\nimport 'package:vector_math/vector_math_64.dart';\n\nimport 'basic_types.dart';\n\n/// Utility functions for working with matrices.\nabstract final class MatrixUtils {\n  /// Returns the given [transform] matrix as an [Offset], if the matrix is\n  /// nothing but a 2D translation.\n  ///\n  /// Otherwise, returns null.\n  static Offset? getAsTranslation(Matrix4 transform) {\n    // Values are stored in column-major order, so the appearance\n    // of dx is transposed from the top-right to the bottom-left.\n    if (transform.storage case [\n      1.0,\n      0.0,\n      0.0,\n"
   },
-  "extraction": {
-    "wrapper_prefix": "class ValidationSample {\n",
-    "wrapper_suffix": "}\n",
-    "nonblank_source_bytes_preserved": true,
-    "original_context_required_for_execution": true
+  "license_file": "../../../data/validation/flutter/LICENSE",
+  "input_sha256": {
+    "dense": "eff9adff10c8f219c8a37822d92ee2469eccf7c713f5c4d5787c06dbd2b4d737"
   },
-  "annotation": {
+  "initial_output_sha256": "dc03a864ef7c7fb6ecc6818461bee09adc289c53da625321803828583c18e6da",
+  "used_for_training": false,
+  "used_for_model_selection": false,
+  "product_model_executed": true,
+  "input_variants": [
+    "dense"
+  ],
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "聚焦变换矩阵的存储数组运算；参数从Matrix4改为Float64List，不再覆盖不同类型局部声明分组。",
+    "current_output_sha256": "10b01488b6ea533aad6f9cd886edac13fc5de92e32817ef7c29832e78a8c39d3",
+    "coverage_change": "聚焦变换矩阵的存储数组运算；参数从Matrix4改为Float64List，不再覆盖不同类型局部声明分组。"
+  },
+  "used_for_development_feedback": true,
+  "initial_annotation": {
     "method": "individual source review; no product formatter or model prediction used",
     "gap_after_source_lines": [
       207,
@@ -33,13 +50,16 @@
     "notes": "矩阵坐标计算、相关声明、解释注释和分支返回。",
     "comparison": "shared output is the editable expected result"
   },
-  "license_file": "../../../data/validation/flutter/LICENSE",
-  "input_sha256": {
-    "dense": "b95f6a7529d0e16c200c664cd710ab0941d5bd6a2397a63f0d96f406e491966a",
-    "spaced": "235650f6b532f0d5c9fd56723eb1b1f3782e3304b791ad32d457892a09cbd3d7"
+  "initial_extraction": {
+    "wrapper_prefix": "class ValidationSample {\n",
+    "wrapper_suffix": "}\n",
+    "nonblank_source_bytes_preserved": true,
+    "original_context_required_for_execution": true
   },
-  "initial_output_sha256": "dc03a864ef7c7fb6ecc6818461bee09adc289c53da625321803828583c18e6da",
-  "used_for_training": false,
-  "used_for_model_selection": false,
-  "product_model_executed": false
+  "extraction": {
+    "nonblank_source_bytes_preserved": false,
+    "original_context_required_for_execution": true,
+    "source_role": "Historical inspiration only; current source is explicitly adapted."
+  },
+  "source_role": "Historical upstream source; current code may have different APIs, behavior and syntax coverage."
 }

@@ -1,10 +1,7 @@
 class ValidationSample {
   Offset _previousVelocityAt(int index) {
-    final int endIndex = (_index + index) % _sampleSize;
-    final int startIndex = (_index + index - 1) % _sampleSize;
-
-    final _PointAtTime? end = _touchSamples[endIndex];
-    final _PointAtTime? start = _touchSamples[startIndex];
+    final _PointAtTime? end = _touchSamples[(_index + index) % _sampleSize];
+    final _PointAtTime? start = _touchSamples[(_index + index - 1) % _sampleSize];
 
     if (end == null || start == null) {
       return Offset.zero;

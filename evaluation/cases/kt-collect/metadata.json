@@ -6,10 +6,25 @@
   "source_benchmark": "config/style-benchmark.json",
   "source_sha256": "e6f6fa6743067efc43685be70f918d496b13dc98e1cd6ae46f8396cb0ca435e6",
   "initial_output_sha256": "a7d83b5f4ab8984ffc549cf90c5f5a4dd040da6bb8120357cc41e2ca3df7cb23",
-  "reference_status": "migrated_partial_annotations",
-  "output_role": "Shared expected output for all input variants. Model predictions never overwrite this file.",
-  "correction_policy": "Editing output makes its complete blank-line layout authoritative on subsequent evaluation; nonblank source content must remain unchanged.",
-  "expectations": [
+  "reference_status": "adapted_example_pending_user_confirmation",
+  "output_role": "Human-reviewed expected output for dense input; predictions are written only to artifacts.",
+  "correction_policy": "Source edits are allowed when dense and output are synchronized; compare the complete current output byte for byte.",
+  "input_variants": [
+    "dense"
+  ],
+  "input_sha256": {
+    "dense": "6e8a7e8995eac110b935019edacd22b19b2e1a280789fc1ef3a81f258bcf424b"
+  },
+  "evaluation_revision": {
+    "date": "2026-09-15",
+    "input_policy": "dense only; spaced removed at user request",
+    "source_adapted": true,
+    "expected_layout_changed": true,
+    "note": "改为列表扩展函数，三个调用使用同一无接收者形式；不再覆盖限定与无限定调用混排。",
+    "current_output_sha256": "64b0f027c4fac1058bb5bece81bea9ce876e7e3cf0529cda1e27f1851fc0b49f",
+    "coverage_change": "改为列表扩展函数，三个调用使用同一无接收者形式；不再覆盖限定与无限定调用混排。"
+  },
+  "initial_expectations": [
     {
       "after_line": 2,
       "blank_lines": 1,

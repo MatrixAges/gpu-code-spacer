@@ -15,15 +15,14 @@ class ValidationSample[K, V, T] {
       if ((pos & OpenHashSet.NONEXISTENCE_MASK) != 0) {
         val newValue = defaultValue
 
-        _values(pos & OpenHashSet.POSITION_MASK) = newValue
-
+        _values.update(pos & OpenHashSet.POSITION_MASK, newValue)
         _keySet.rehashIfNeeded(k, grow, move)
 
         newValue
       } else {
         _values(pos) = mergeValue(_values(pos))
 
-        _values(pos)
+        return _values(pos)
       }
     }
   }
