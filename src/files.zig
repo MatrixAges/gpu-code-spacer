@@ -1,5 +1,7 @@
 const std = @import("std");
-const c = @cImport({
+const is_windows = @import("builtin").os.tag == .windows;
+const windows_glob = @import("glob_windows.zig");
+const c = if (is_windows) struct {} else @cImport({
     @cInclude("fnmatch.h");
 });
 
@@ -43,7 +45,21 @@ pub const Selection = struct {
     }
 
     pub fn pattern(self: *Selection, value: []const u8) !void {
-        if (std.mem.indexOfAny(u8, value, "*?[\\") == null) return self.addFile(value);
+        if (!hasPattern(value)) return self.addFile(value);
+
+        if (is_windows) {
+            // Backslashes are separators; use bracket expressions for literal metacharacters.
+            const normalized = try self.allocator.dupe(u8, value);
+            defer self.allocator.free(normalized);
+            std.mem.replaceScalar(u8, normalized, '\\', '/');
+
+            const parsed = std.fs.path.parsePathWindows(u8, normalized);
+            if (parsed.kind == .drive_relative) return error.DriveRelativeGlobUnsupported;
+            const base = if (parsed.root.len == 0) "." else parsed.root;
+            const matched = try self.expand(base, std.mem.trimStart(u8, normalized[parsed.root.len..], "/"));
+            if (!matched) return error.NoFilesMatched;
+            return;
+        }
 
         const matched = try self.expand(if (std.fs.path.isAbsolute(value)) "/" else ".", std.mem.trimStart(u8, value, "/"));
         if (!matched) return error.NoFilesMatched;
@@ -65,21 +81,25 @@ pub const Selection = struct {
             else => return err,
         };
         defer dir.close(self.io);
-        const segment_z = try self.allocator.dupeZ(u8, segment);
-        defer self.allocator.free(segment_z);
+        const segment_z: ?[:0]u8 = if (is_windows) null else try self.allocator.dupeZ(u8, segment);
+        defer if (segment_z) |bytes| self.allocator.free(bytes);
         var iterator = dir.iterate();
 
         // Literal path segments include . and .., which directory iteration omits.
-        if (!recursive and std.mem.indexOfAny(u8, segment, "*?[\\") == null and rest != null) {
+        if (!recursive and !hasPattern(segment) and rest != null) {
             const child = try std.fs.path.join(self.allocator, &.{ base, segment });
             defer self.allocator.free(child);
             return self.expand(child, rest.?);
         }
 
         while (try iterator.next(self.io)) |entry| {
-            const name_z = try self.allocator.dupeZ(u8, entry.name);
-            defer self.allocator.free(name_z);
-            if (c.fnmatch(segment_z.ptr, name_z.ptr, c.FNM_PERIOD) != 0) continue;
+            if (is_windows) {
+                if (!windows_glob.matches(segment, entry.name)) continue;
+            } else {
+                const name_z = try self.allocator.dupeZ(u8, entry.name);
+                defer self.allocator.free(name_z);
+                if (c.fnmatch(segment_z.?.ptr, name_z.ptr, c.FNM_PERIOD) != 0) continue;
+            }
 
             const child = try std.fs.path.join(self.allocator, &.{ base, entry.name });
             defer self.allocator.free(child);
@@ -97,6 +117,10 @@ pub const Selection = struct {
         return matched;
     }
 };
+
+fn hasPattern(value: []const u8) bool {
+    return std.mem.indexOfAny(u8, value, if (is_windows) "*?[" else "*?[\\") != null;
+}
 
 fn skipDirectory(name: []const u8) bool {
     if (std.mem.startsWith(u8, name, ".")) return true;

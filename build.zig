@@ -5,13 +5,17 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const gpu_enabled = b.option(bool, "gpu", "Try ggml hardware GPU inference before CPU") orelse true;
     const gpu_options = b.addOptions();
+
     gpu_options.addOption(bool, "enabled", gpu_enabled);
+
     const ggml_version = b.createModule(.{ .root_source_file = b.path("tools/learning/ggml_version.zig") });
+
     const ggml = b.createModule(.{
         .root_source_file = b.path("src/ggml.zig"),
         .target = target,
         .optimize = optimize,
     });
+
     ggml.addImport("ggml_version", ggml_version);
     linkGgml(b, ggml);
 
@@ -32,6 +36,7 @@ pub fn build(b: *std.Build) void {
     });
 
     trainer.root_module.addImport("ggml", ggml);
+
     const train = b.addRunArtifact(trainer);
     const model = train.addOutputFileArg("probe.onnx");
     const reference = train.addOutputFileArg("reference.bin");
@@ -46,6 +51,7 @@ pub fn build(b: *std.Build) void {
         .{ .path = native_weights, .name = "probe/model.weights" },
     }) |output| {
         const install = b.addInstallFile(output.path, output.name);
+
         training_step.dependOn(&install.step);
     }
 
@@ -61,11 +67,13 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+
     verifier.root_module.addAnonymousImport("probe_weights", .{ .root_source_file = native_weights });
     verifier.root_module.addAnonymousImport("probe_reference", .{ .root_source_file = reference });
 
     const verify_step = b.step("verify-probe", "Verify the embedded model against independent input/output vectors");
     const verify = b.addRunArtifact(verifier);
+
     verify_step.dependOn(&verify.step);
     verify_step.dependOn(&b.addInstallArtifact(verifier, .{}).step);
 
@@ -77,14 +85,20 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+
     const collect = b.addRunArtifact(collector);
+
     if (b.args) |args| collect.addArgs(args);
+
     b.step("collect", "Lock GitHub sources and download/extract source archives").dependOn(&collect.step);
 
     const core = b.createModule(.{ .root_source_file = b.path("src/core.zig"), .target = target, .optimize = optimize });
+
     core.addOptions("gpu_options", gpu_options);
     core.addImport("ggml", ggml);
+
     const syntax = syntaxModule(b, target, optimize);
+
     const prepare = b.addExecutable(.{
         .name = "prepare",
         .root_module = b.createModule(.{
@@ -94,6 +108,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{ .{ .name = "core", .module = core }, .{ .name = "syntax", .module = syntax } },
         }),
     });
+
     b.step("prepare", "Extract shared tokenizer features and isolate corpus splits").dependOn(&b.addRunArtifact(prepare).step);
 
     const sampler = b.addExecutable(.{
@@ -105,6 +120,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     b.step("sample", "Materialize editable source samples without overwriting existing files").dependOn(&b.addRunArtifact(sampler).step);
 
     const inspector = b.addExecutable(.{
@@ -116,8 +132,11 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     const inspection = b.addRunArtifact(inspector);
+
     if (b.args) |args| inspection.addArgs(args);
+
     b.step("inspect-layout", "Inspect structural inputs and model probabilities").dependOn(&inspection.step);
 
     const layout_trainer = b.addExecutable(.{
@@ -129,9 +148,13 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     const train_layout = b.addRunArtifact(layout_trainer);
+
     layout_trainer.root_module.addImport("ggml", ggml);
+
     if (b.args) |args| train_layout.addArgs(args);
+
     b.step("train", "Train the shared classifier using development languages only").dependOn(&train_layout.step);
 
     const guard_verifier = b.addExecutable(.{
@@ -143,10 +166,12 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     b.step("verify-guards", "Check literal preservation and layout-independent features").dependOn(&b.addRunArtifact(guard_verifier).step);
 
     const selected_model = b.option([]const u8, "model", "Model weights to embed") orelse "models/spacer.weights";
     const selected_config = b.option([]const u8, "model-config", "Calibration configuration to embed") orelse "models/config.zig";
+
     const application = b.addExecutable(.{
         .name = "gcs",
         .root_module = b.createModule(.{
@@ -157,6 +182,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     application.root_module.addAnonymousImport("layout_weights", .{ .root_source_file = inputFile(b, selected_model) });
     application.root_module.addAnonymousImport("model_config", .{ .root_source_file = inputFile(b, selected_config) });
     b.installArtifact(application);
@@ -170,10 +196,15 @@ pub fn build(b: *std.Build) void {
             .imports = &.{ .{ .name = "core", .module = core }, .{ .name = "syntax", .module = syntax } },
         }),
     });
+
     const evaluation = b.addRunArtifact(evaluator);
+
     if (b.args) |args| evaluation.addArgs(args);
+
     b.step("evaluate", "Build 20 held-out scenario sets and evaluate the frozen model").dependOn(&evaluation.step);
+
     const check_tools = b.step("check-tools", "Compile offline tools without running training or evaluation");
+
     check_tools.dependOn(&evaluator.step);
     check_tools.dependOn(&layout_trainer.step);
 
@@ -185,8 +216,11 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+
     const bootstrap_run = b.addRunArtifact(bootstrap);
+
     if (b.args) |args| bootstrap_run.addArgs(args);
+
     b.step("bootstrap", "Fetch pinned parsers, style references, or build ggml (--ggml)").dependOn(&bootstrap_run.step);
 
     const selector = b.addExecutable(.{
@@ -198,12 +232,14 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     const selection = b.addRunArtifact(selector);
 
     selector.root_module.addImport("ggml", ggml);
     check_tools.dependOn(&selector.step);
 
     if (b.args) |args| selection.addArgs(args);
+
     b.step("select-model", "Freeze model and confidence using validation data only").dependOn(&selection.step);
 
     const exporter = b.addExecutable(.{
@@ -235,6 +271,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     check_tools.dependOn(&gpu_verifier.step);
     b.step("verify-gpu", "Verify ggml GPU or explicit CPU inference using synthetic data").dependOn(&b.addRunArtifact(gpu_verifier).step);
 
@@ -247,9 +284,13 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     const transfer_run = b.addRunArtifact(transfer);
+
     check_tools.dependOn(&transfer.step);
+
     if (b.args) |args| transfer_run.addArgs(args);
+
     b.step("evaluate-transfer", "Evaluate an explicitly language-held-out model").dependOn(&transfer_run.step);
 
     const style_evaluator = b.addExecutable(.{
@@ -261,8 +302,11 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "core", .module = core }},
         }),
     });
+
     const style_evaluation = b.addRunArtifact(style_evaluator);
+
     if (b.args) |args| style_evaluation.addArgs(args);
+
     b.step("evaluate-style", "Check frozen personal-style requirements against a compiled binary").dependOn(&style_evaluation.step);
 }
 
@@ -271,14 +315,21 @@ fn inputFile(b: *std.Build, path: []const u8) std.Build.LazyPath {
 }
 
 fn linkGgml(b: *std.Build, module: *std.Build.Module) void {
-    module.addIncludePath(b.path(".deps/ggml-install/include"));
+    const prefix = b.option([]const u8, "ggml-prefix", "ggml installation directory for the selected target") orelse ".deps/ggml-install";
+
+    module.addIncludePath(inputFile(b, b.pathJoin(&.{ prefix, "include" })));
+
     module.link_libc = true;
     module.link_libcpp = true;
+    const library_prefix = if (module.resolved_target.?.result.os.tag == .windows) "" else "lib";
+
     for ([_][]const u8{ "ggml", "ggml-cpu", "ggml-base" }) |library| {
-        module.addObjectFile(b.path(b.fmt(".deps/ggml-install/lib/lib{s}.a", .{library})));
+        module.addObjectFile(inputFile(b, b.pathJoin(&.{ prefix, "lib", b.fmt("{s}{s}.a", .{ library_prefix, library }) })));
     }
+
     if (module.resolved_target.?.result.os.tag == .macos) {
-        module.addObjectFile(b.path(".deps/ggml-install/lib/libggml-metal.a"));
+        module.addObjectFile(inputFile(b, b.pathJoin(&.{ prefix, "lib", "libggml-metal.a" })));
+
         for ([_][]const u8{ "Foundation", "Metal", "MetalKit", "Accelerate" }) |framework| module.linkFramework(framework, .{});
     } else if (module.resolved_target.?.result.os.tag == .linux) {
         for ([_][]const u8{ "m", "dl", "pthread" }) |library| module.linkSystemLibrary(library, .{});
@@ -292,6 +343,7 @@ fn syntaxModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
         .link_libc = true,
     });
+
     module.addIncludePath(b.path(".deps/tree-sitter/lib/include"));
     module.addIncludePath(b.path(".deps/tree-sitter/lib/src"));
     module.addCSourceFile(.{ .file = b.path(".deps/tree-sitter/lib/src/lib.c"), .flags = &.{ "-std=c11", "-D_POSIX_C_SOURCE=200809L" } });
@@ -304,10 +356,13 @@ fn syntaxModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .directory = ".deps/tree-sitter-rust/src", .scanner = true },
         .{ .directory = ".deps/tree-sitter-zig/src", .scanner = false },
     };
+
     for (grammars) |grammar| {
         module.addIncludePath(b.path(grammar.directory));
         module.addCSourceFile(.{ .file = b.path(b.pathJoin(&.{ grammar.directory, "parser.c" })), .flags = &.{"-std=c11"} });
+
         if (grammar.scanner) module.addCSourceFile(.{ .file = b.path(b.pathJoin(&.{ grammar.directory, "scanner.c" })), .flags = &.{"-std=c11"} });
     }
+
     return module;
 }

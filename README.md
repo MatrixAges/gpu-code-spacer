@@ -63,9 +63,11 @@ Download artifacts from the completed run:
 
 - `gcs-linux-x86_64`: Linux binary package, built on Ubuntu 24.04 using the CPU backend.
 - `gcs-macos-aarch64`: Apple Silicon binary package with Metal support, built on macOS 15.
+- `gcs-windows-x86_64`: Windows `gcs.exe` package using the CPU backend, cross-compiled on Linux and checked on Windows Server 2022.
 - `gcs-gguf`: standalone `spacer.gguf`, exported from the same committed weights as the binaries.
 
-Each binary artifact contains a `.tar.gz` archive and its SHA-256 checksum. Extract
+Each binary artifact contains an archive (`.zip` for Windows, `.tar.gz` otherwise)
+and its SHA-256 checksum. Extract
 the archive to preserve executable permissions. It includes `gcs`, `spacer.gguf`,
 model metadata and calibration configuration, the source commit, README, and license.
 Artifacts are retained for 30 days. These builds do not retrain the model.
@@ -91,6 +93,18 @@ export PATH="$PWD/zig-out/bin:$PATH"
 ```
 
 Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Building, GGUF export, and binary startup are verified on macOS Apple Silicon and Ubuntu 24.04 x86_64, including GitHub-hosted runners. Windows has not been verified.
+
+To cross-compile Windows x86_64 on Linux, install Ninja alongside Zig and CMake:
+
+```sh
+zig build bootstrap -- --ggml-windows
+
+zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
+  -Dtarget=x86_64-windows-gnu -Dggml-prefix=.deps/ggml-windows-install
+```
+
+The executable is `zig-out/bin/gcs.exe`. The Windows ggml libraries are built in
+a separate directory, so they do not replace the host libraries used to export GGUF.
 
 ## Usage
 
@@ -121,6 +135,12 @@ gcs -f 'src/app/\[id\]/page.tsx'
 ```
 
 Supports `*`, `?`, `[abc]`, `[a-z]`, and `**` as a standalone path segment. Brace expansion and extglob are not supported. Quote patterns to prevent the shell from expanding them first. Escape glob characters in filenames, as shown with `[id]` above.
+
+On Windows, both `/` and `\` separate directories; backslashes do not escape glob
+characters. Use `[[]` and `[]]` for literal brackets, e.g. `gcs.exe -f 'src\[[]id[]]\page.tsx'`
+in PowerShell. Windows glob matching is case-sensitive and byte-wise (`?` consumes
+one UTF-8 byte). Drive-relative glob paths such as `C:*.ts` and POSIX named character
+classes are unsupported; use an absolute path such as `C:\src\*.ts` instead.
 
 ### Checking and Standard Output
 
