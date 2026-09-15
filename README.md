@@ -61,8 +61,8 @@ exact revision on all three platforms. If `build` has divergent commits, the run
 fails instead of force-overwriting them. Direct pushes to `build` still build the
 pushed commit. Keep local development on `master`; no local branch switch is needed.
 
-Artifact versions combine `.version` from `build.zig.zon` with the first 12 characters
-of the source commit, for example `v0.1.0-abcdef123456`. Update the manifest version
+Artifact versions use `.version` from `build.zig.zon`, for example `v0.1.0`,
+without a commit hash suffix. Update the manifest version
 when releasing a new version. Download artifacts from the completed run:
 
 - `gcs-<version>-linux-x86_64`: Linux binary package using the CPU backend, cross-compiled on macOS.

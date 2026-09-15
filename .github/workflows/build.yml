@@ -44,7 +44,7 @@ jobs:
               raise SystemExit("Missing package version in build.zig.zon")
 
           sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-          version = f"v{match.group(1)}-{sha[:12]}"
+          version = f"v{match.group(1)}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"sha={sha}\nversion={version}\n")
