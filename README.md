@@ -51,7 +51,10 @@ function available(stock: number, reserved: number): boolean {
 
 ## Installation
 
-### GitHub Actions packages
+### Releases and builds
+
+Download published executables and GGUF models from
+[GitHub Releases](https://github.com/MatrixAges/gpu-code-spacer/releases).
 
 Push an update to the `build` branch to build packages automatically, or open
 [Build GCS](https://github.com/MatrixAges/gpu-code-spacer/actions/workflows/build.yml),
@@ -59,16 +62,18 @@ click **Run workflow**, leave `master` selected, and run it manually. A manual r
 fetches the latest `master`, increments `.version` in `build.zig.zon`, commits the
 change, and atomically pushes the new commit to both `master` and `build` before
 building it on all three platforms. If either branch cannot be fast-forwarded,
-neither branch is updated. Direct pushes to `build` build the pushed commit without
-incrementing the version. Keep local development on `master`; no local branch
-switch is needed. Pull `master` after a manual release to get the version commit.
+neither branch is updated. After all three builds succeed, the workflow creates a
+version tag on the built commit and publishes a GitHub Release with all four raw
+files. Direct pushes to `build` only produce Actions artifacts, without incrementing
+the version or publishing a Release. Keep local development on `master`; no local
+branch switch is needed. Pull `master` after a manual release to get the version commit.
 
 Artifact versions use `.version` from `build.zig.zon`, for example `v0.1.0`,
 without a commit hash suffix. Each manual release increments the last component;
 patch and minor carry at 10: `0.0.8 → 0.0.9 → 0.1.0` and `0.9.9 → 1.0.0`.
 The major component has no upper limit. The version remains committed if a later
 build fails; rerun only the failed build jobs to retain that version.
-Download artifacts from the completed run:
+Download these files from the Release assets or completed Actions run:
 
 - `gcs-<version>-linux-x86_64`: Linux executable using the CPU backend, cross-compiled on macOS.
 - `gcs-<version>-macos-aarch64`: Apple Silicon executable with Metal support, built on macOS 15.
@@ -79,7 +84,14 @@ Each artifact is uploaded as a single file with archiving disabled. Downloads ar
 the executable or GGUF itself, without ZIP or tar wrappers. On macOS and Linux,
 grant execute permission after downloading, e.g. `chmod +x gcs-v0.1.0-macos-aarch64`.
 The version is in the filename; the source commit is recorded in the workflow run.
-Artifacts are retained for 30 days. These builds do not retrain the model.
+Actions artifacts are retained for 30 days; published files are also stored as
+Release assets. These builds do not retrain the model.
+
+Release notes list every commit since the previous published non-prerelease version,
+with commit links and a full comparison link. The first Release includes all commit
+history through its version. A Release stays in draft until all four files have
+uploaded successfully. Retrying a failed publication resumes its draft; an already
+published Release is checked and left unchanged.
 
 All three build jobs run in parallel on macOS 15 runners. macOS keeps Metal support;
 Linux and Windows use separate cross-compiled ggml libraries. Only the native macOS
