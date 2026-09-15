@@ -1,0 +1,84 @@
+name: Build GCS
+
+on:
+  push:
+    branches: [build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x86_64
+          - runner: macos-15
+            platform: macos-aarch64
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Build ggml
+        run: zig build bootstrap -- --ggml
+
+      - name: Build binary and export GGUF
+        run: |
+          mkdir -p artifacts/package
+
+          zig build -Doptimize=ReleaseSmall -Dcpu=baseline
+          zig build export-gguf -Doptimize=ReleaseSmall -- models/spacer.weights artifacts/package/spacer.gguf
+
+          zig-out/bin/gcs --help
+          zig-out/bin/gcs --model-info
+
+      - name: Package
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          cp zig-out/bin/gcs README.md LICENSE artifacts/package/
+          cp models/metadata.json models/config.zig artifacts/package/
+          printf '%s\n' "$GITHUB_SHA" > artifacts/package/COMMIT
+
+          tar -czf "artifacts/gcs-${PLATFORM}.tar.gz" -C artifacts/package .
+          cd artifacts
+          shasum -a 256 "gcs-${PLATFORM}.tar.gz" > "gcs-${PLATFORM}.tar.gz.sha256"
+
+      - name: Upload binary package
+        uses: actions/upload-artifact@v7
+        with:
+          name: gcs-${{ matrix.platform }}
+          path: |
+            artifacts/gcs-${{ matrix.platform }}.tar.gz
+            artifacts/gcs-${{ matrix.platform }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload standalone GGUF
+        if: matrix.platform == 'linux-x86_64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: gcs-gguf
+          path: artifacts/package/spacer.gguf
+          if-no-files-found: error
+          retention-days: 30

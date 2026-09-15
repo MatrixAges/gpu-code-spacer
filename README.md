@@ -51,6 +51,30 @@ function available(stock: number, reserved: number): boolean {
 
 ## Installation
 
+### GitHub Actions packages
+
+Push an update to the `build` branch to build packages automatically, or open
+[Build GCS](https://github.com/MatrixAges/gpu-code-spacer/actions/workflows/build.yml),
+click **Run workflow**, select `build`, and run it manually. Manual runs build the
+selected branch. The workflow must also exist on the default branch (`master`) for
+GitHub to show the button.
+
+Download artifacts from the completed run:
+
+- `gcs-linux-x86_64`: Linux binary package, built on Ubuntu 24.04 using the CPU backend.
+- `gcs-macos-aarch64`: Apple Silicon binary package with Metal support, built on macOS 15.
+- `gcs-gguf`: standalone `spacer.gguf`, exported from the same committed weights as the binaries.
+
+Each binary artifact contains a `.tar.gz` archive and its SHA-256 checksum. Extract
+the archive to preserve executable permissions. It includes `gcs`, `spacer.gguf`,
+model metadata and calibration configuration, the source commit, README, and license.
+Artifacts are retained for 30 days. These builds do not retrain the model.
+
+The GGUF uses the custom `gcs_mlp` architecture and requires GCS feature extraction
+and inference logic; it is not a general-purpose model for llama.cpp or Ollama.
+
+### Build from source
+
 Building from source requires Zig 0.16.0, Git, CMake, and a system C/C++ compiler. Run these commands from the repository root:
 
 ```sh
