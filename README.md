@@ -65,17 +65,15 @@ Artifact versions use `.version` from `build.zig.zon`, for example `v0.1.0`,
 without a commit hash suffix. Update the manifest version
 when releasing a new version. Download artifacts from the completed run:
 
-- `gcs-<version>-linux-x86_64`: Linux binary package using the CPU backend, cross-compiled on macOS.
-- `gcs-<version>-macos-aarch64`: Apple Silicon binary package with Metal support, built on macOS 15.
-- `gcs-<version>-windows-x86_64`: Windows `gcs.exe` package using the CPU backend, cross-compiled on macOS.
-- `gcs-<version>-gguf`: standalone `spacer-<version>.gguf`, exported from the same committed weights as the binaries.
+- `gcs-<version>-linux-x86_64`: Linux executable using the CPU backend, cross-compiled on macOS.
+- `gcs-<version>-macos-aarch64`: Apple Silicon executable with Metal support, built on macOS 15.
+- `gcs-<version>-windows-x86_64.exe`: Windows executable using the CPU backend, cross-compiled on macOS.
+- `spacer-<version>.gguf`: model exported from the same committed weights as the binaries.
 
-Each binary artifact contains an archive (`.zip` for Windows, `.tar.gz` otherwise)
-and its SHA-256 checksum. Extract
-the archive to preserve executable permissions. It includes `gcs`, `spacer.gguf`,
-model metadata and calibration configuration, `VERSION`, `COMMIT`, README, and license.
-Archive and checksum filenames include the same version; the executable inside
-keeps the stable name `gcs` or `gcs.exe`.
+Each artifact is uploaded as a single file with archiving disabled. Downloads are
+the executable or GGUF itself, without ZIP or tar wrappers. On macOS and Linux,
+grant execute permission after downloading, e.g. `chmod +x gcs-v0.1.0-macos-aarch64`.
+The version is in the filename; the source commit is recorded in the workflow run.
 Artifacts are retained for 30 days. These builds do not retrain the model.
 
 All three build jobs run in parallel on macOS 15 runners. macOS keeps Metal support;

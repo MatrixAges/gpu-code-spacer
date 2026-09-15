@@ -70,19 +70,19 @@ jobs:
             target: x86_64-linux-gnu
             ggml-prefix: .deps/ggml-linux-install
             ggml-bootstrap: --ggml-linux
-            archive: tar.gz
+            extension: ''
           - platform: macos-aarch64
             binary: gcs
             target: native
             ggml-prefix: .deps/ggml-install
             ggml-bootstrap: --ggml
-            archive: tar.gz
+            extension: ''
           - platform: windows-x86_64
             binary: gcs.exe
             target: x86_64-windows-gnu
             ggml-prefix: .deps/ggml-windows-install
             ggml-bootstrap: --ggml-windows
-            archive: zip
+            extension: .exe
 
     defaults:
       run:
@@ -107,11 +107,11 @@ jobs:
 
       - name: Build binary and export GGUF
         run: |
-          mkdir -p artifacts/package
+          mkdir -p artifacts
 
           zig build -Doptimize=ReleaseSmall -Dcpu=baseline -Dtarget=${{ matrix.target }} -Dggml-prefix=${{ matrix.ggml-prefix }}
           file zig-out/bin/${{ matrix.binary }}
-          zig build export-gguf -Doptimize=ReleaseSmall -- models/spacer.weights artifacts/package/spacer.gguf
+          zig build export-gguf -Doptimize=ReleaseSmall -- models/spacer.weights artifacts/spacer-${{ needs.prepare.outputs.version }}.gguf
 
       - name: Check native binary startup
         if: matrix.target == 'native'
@@ -119,36 +119,20 @@ jobs:
           zig-out/bin/gcs --help
           zig-out/bin/gcs --model-info
 
-      - name: Package
+      - name: Name binary
         env:
           PLATFORM: ${{ matrix.platform }}
           BINARY: ${{ matrix.binary }}
-          ARCHIVE: ${{ matrix.archive }}
+          EXTENSION: ${{ matrix.extension }}
           VERSION: ${{ needs.prepare.outputs.version }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
         run: |
-          cp "zig-out/bin/${BINARY}" README.md LICENSE artifacts/package/
-          cp models/metadata.json models/config.zig artifacts/package/
-          printf '%s\n' "$SOURCE_SHA" > artifacts/package/COMMIT
-          printf '%s\n' "$VERSION" > artifacts/package/VERSION
-          cp artifacts/package/spacer.gguf "artifacts/spacer-${VERSION}.gguf"
+          cp "zig-out/bin/${BINARY}" "artifacts/gcs-${VERSION}-${PLATFORM}${EXTENSION}"
 
-          if [ "$ARCHIVE" = zip ]; then
-            (cd artifacts/package && zip "../gcs-${VERSION}-${PLATFORM}.zip" ./*)
-          else
-            tar -czf "artifacts/gcs-${VERSION}-${PLATFORM}.tar.gz" -C artifacts/package .
-          fi
-
-          cd artifacts
-          shasum -a 256 "gcs-${VERSION}-${PLATFORM}.${ARCHIVE}" > "gcs-${VERSION}-${PLATFORM}.${ARCHIVE}.sha256"
-
-      - name: Upload binary package
+      - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
-          name: gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}
-          path: |
-            artifacts/gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive }}
-            artifacts/gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive }}.sha256
+          path: artifacts/gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}${{ matrix.extension }}
+          archive: false
           if-no-files-found: error
           retention-days: 30
 
@@ -156,7 +140,7 @@ jobs:
         if: matrix.platform == 'linux-x86_64'
         uses: actions/upload-artifact@v7
         with:
-          name: gcs-${{ needs.prepare.outputs.version }}-gguf
           path: artifacts/spacer-${{ needs.prepare.outputs.version }}.gguf
+          archive: false
           if-no-files-found: error
           retention-days: 30
