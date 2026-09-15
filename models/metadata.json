@@ -2,29 +2,29 @@
   "model": "spacer-poetic-v3",
   "style": "代码如诗，不仅要好读，还要好看；疏朗、有语义分组的留白",
   "format": "GCSPMLP2",
-  "feature_version": 5,
+  "feature_version": 6,
   "parameters": 12547,
   "bytes": 50244,
-  "sha256": "97c8f4eb4a716d9c3345d47d989d937416a5cdadf5df878e6a1873e007d8c3ab",
+  "sha256": "2120e1fd52294df6a7b6f41076a46e9964dc980ac2823ededf0773de2334913e",
   "confidence": 0,
-  "selected_report": "artifacts/v5-2026-standard.json",
-  "selection_score": 0.9935264129383845,
+  "selected_report": "artifacts/v6-2026-standard.json",
+  "selection_score": 0.99505390367933,
   "selection_rule": "highest standard-annotated style validation macro-F1 among models with dense-input precision >= 0.95 and recall >= 0.60; lowest eligible confidence threshold",
   "calibration_input_policy": "dense input: low-confidence predictions preserve zero blank lines; not a guarantee for arbitrary input layouts",
   "candidates": [
     {
-      "report": "artifacts/v5-73-standard.json",
-      "score": 0.9932870420880859,
+      "report": "artifacts/v6-111-standard.json",
+      "score": 0.9942482218494102,
       "threshold": 0
     },
     {
-      "report": "artifacts/v5-111-standard.json",
-      "score": 0.9922047325523613,
+      "report": "artifacts/v6-2026-standard.json",
+      "score": 0.99505390367933,
       "threshold": 0
     },
     {
-      "report": "artifacts/v5-2026-standard.json",
-      "score": 0.9935264129383845,
+      "report": "artifacts/v6-73-standard.json",
+      "score": 0.9928627814174364,
       "threshold": 0
     }
   ],
@@ -35,5 +35,10 @@
     "config/sources.lock.json",
     "config/style-sources.lock.json"
   ],
-  "limits": "blank-line placement only; generic lexical guards are not a universal semantic proof"
+  "limits": "blank-line placement only; generic lexical guards are not a universal semantic proof",
+  "promotion": {
+    "date": "2026-09-15",
+    "reason": "User selected the frozen model used by task 01a0a2cb-e903-7842-936a-234474474f85",
+    "reference_report": "evaluation/artifacts/review-20260915-flat-input/report.json"
+  }
 }

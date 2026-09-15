@@ -148,7 +148,7 @@ pub fn build(b: *std.Build) void {
     const selected_model = b.option([]const u8, "model", "Model weights to embed") orelse "models/spacer.weights";
     const selected_config = b.option([]const u8, "model-config", "Calibration configuration to embed") orelse "models/config.zig";
     const application = b.addExecutable(.{
-        .name = "gpu-code-spacer",
+        .name = "gcs",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,

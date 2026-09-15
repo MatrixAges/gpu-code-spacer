@@ -43,23 +43,47 @@ evaluation/
 
 需要 Zig 0.16.0、Git、CMake 和系统 C/C++ 编译器。先运行一次 `zig build bootstrap -- --ggml` 构建固定依赖，再构建应用。ggml 静态链接，模型、校准配置和 Metal 内核源均编入可执行文件，运行时无需旁置模型、ggml 动态库或着色器文件。
 
-当前冻结的 `models/config.zig` 仍是特征 v5，源码是 v6；默认应用会报告 `FeatureVersionMismatch`。本次后端迁移没有调整冻结配置或重新训练。可通过 `-Dmodel=<权重路径> -Dmodel-config=<配置路径>` 同时指定匹配的临时文件验证应用，两个选项均支持绝对路径；正式模型应在数据校准完成后再更新。
+默认已内嵌用户指定的 `v6-2026-standard` 模型，特征版本 v6，置信度 0，与当前源码匹配。这是 2026-09-15 指定任务中修订后的 90 个评估案例全部通过时使用的模型；完整 SHA-256 见 `models/metadata.json`。仍可通过 `-Dmodel=<权重路径> -Dmodel-config=<配置路径>` 指定其他匹配模型与配置，支持绝对路径。
 
 ```sh
 zig build -Doptimize=ReleaseSmall
 
-./zig-out/bin/gpu-code-spacer source.ts
+# 将构建目录加入当前终端 PATH，即可直接使用 gcs
+export PATH="$PWD/zig-out/bin:$PATH"
 
-cat source.any-language | ./zig-out/bin/gpu-code-spacer
+# 原地美化目录中的代码文件
+gcs -p ./src
 
-./zig-out/bin/gpu-code-spacer --stats source.py
+# 同时处理内部文件夹
+gcs -p ./src -r
 
-./zig-out/bin/gpu-code-spacer --check source.zig
+# 原地美化单个文件或 glob 匹配的多个文件
+gcs -f ./src/main.ts
+gcs -f '*.ts'
+gcs -f 'src/**/*.ts'
+gcs -f src/main.ts src/utils.ts
 
-./zig-out/bin/gpu-code-spacer --write source.rs
+# 只检查，不写回；有修改建议返回 1，错误返回 2
+gcs -p ./src -r --check
 ```
 
-默认输出改写结果到 stdout。`--write` 才修改文件；`--check` 在存在修改建议时返回 1。`--stats` 向 stderr 输出实际后端、GPU/CPU 批次和放弃数量。`--model-info` 显示模型哈希、默认置信度和设备。
+`-p` 与 `-f` 默认直接写回文件，不能混用。`-r` 仅用于 `-p`。`-p` 按常见代码扩展名筛选（清单见 `src/files.zig`），递归时跳过隐藏目录以及 `node_modules`、`vendor`、`dist`、`build`、`target`、`zig-out`、`__pycache__`；如需处理这些目录，可直接用 `-p` 指定它们。模型本身仍不读取扩展名。
+
+`-f` 接受任意扩展名，支持 `*`、`?`、字符组 `[abc]` / `[a-z]` 和递归路径段 `**`，不支持 brace/extglob。建议给 glob 加引号，让 gcs 展开；也支持 shell 已展开的多个文件。普通 wildcard 不匹配隐藏名称，`**` 遵守上述目录排除规则。重复匹配只处理一次。没有匹配文件的 glob 报错；没有代码文件的目录正常退出。
+
+扫描不跟随目录符号链接；写回仅接受单硬链接的普通文件，保留权限并原子替换。批处理共享一个模型实例，逐文件释放内存；单文件处理失败会报告路径并继续其余文件，最后返回 2。每个文件上限仍为 4 MiB。
+
+保留原有管道和单文件输出方式：
+
+```sh
+gcs source.ts                         # 输出到 stdout
+cat source.any-language | gcs          # 从 stdin 读取
+gcs --write source.rs                 # 原地写回
+gcs --stats source.py                 # 后端与推理统计
+gcs --model-info                      # 模型元数据
+```
+
+`--stats` 向 stderr 逐文件输出统计；GPU/CPU 批次数是本次进程累计值。`--model-info` 显示模型哈希、默认置信度和设备。模型版本不匹配时，`--help` 仍可使用，但格式化会明确报错。
 
 `--confidence 0..1` 可覆盖内嵌校准阈值。低置信度保留当前布局。没有可预测边界时不会产生推理批次。
 
@@ -96,7 +120,7 @@ GPU 的平台适配来自 ggml。当前默认构建 CPU 与 macOS Metal，并实
 
 数据按来源、完整文件、近重复簇和重复上下文隔离。语言字段只用于采样和统计，不进入模型。原作者布局属于弱监督，不能直接等同于唯一正确或最好看的答案。
 
-通用语料用于预训练。个人风格微调先均匀选择文件，再选择文件内边界，避免大型数据表占据训练样本。最终选模依据个人风格验证集；其他项目的原始排版一致性只作诊断。当前权重由 100% 个人风格微调候选选出，特征 v4、10,499 个参数、约 41.1 KiB。
+通用语料用于预训练。个人风格微调先均匀选择文件，再选择文件内边界，避免大型数据表占据训练样本。最终选模依据个人风格验证集；其他项目的原始排版一致性只作诊断。当前默认权重为 v6-2026-standard，个人风格采样占比 0.5、12,547 个参数、50,244 字节。
 
 校准精度与召回率模拟紧凑输入：低置信度保留零空行。它们不是任意输入布局的保证，因此验收同时包含紧凑和过度留白两个变体。
 
@@ -167,7 +191,7 @@ python3 tools/evaluate_dataset.py /path/to/version-matched-binary evaluation/art
 
 两组都达到 100%、非空行保持和幂等全部通过时命令返回 0；未达标返回 1。工具冻结二进制，记录模型、源码和结果哈希，预测不会写回期望。
 
-恢复后的默认模型为 v5、源码特征为 v6，直接运行会报 `FeatureVersionMismatch`。本轮保持模型文件不变，使用已有 v6 候选隔离构建和评分；具体复现方式及覆盖调整见 [评估代码调整计划](docs/2026-09-15/评估代码调整计划.md) 和 [执行记录](docs/2026-09-15/评估代码调整执行记录.md)。
+2026-09-15 CLI 交付已将上述 100% 回归使用的 v6 模型同步为默认权重和配置。100% 对应当前已修订、缩小覆盖范围的评估集；详细背景见 [评估代码调整执行记录](docs/2026-09-15/评估代码调整执行记录.md)。
 
 ## 验证
 
@@ -181,10 +205,10 @@ zig build verify-gpu -Dgpu=false -Doptimize=ReleaseSafe
 zig build evaluate -Doptimize=ReleaseFast -- models/spacer.weights 0.80
 
 zig build evaluate-style -Dgpu=false -Doptimize=ReleaseSafe -- \
-  zig-out/bin/gpu-code-spacer evaluation/artifacts/style-regression
+  zig-out/bin/gcs evaluation/artifacts/style-regression
 
 zig build evaluate-style -Dgpu=false -Doptimize=ReleaseSafe -- \
-  zig-out/bin/gpu-code-spacer evaluation/artifacts/style-reference \
+  zig-out/bin/gcs evaluation/artifacts/style-reference \
   config/style-benchmark-holdout.json regression
 ```
 
