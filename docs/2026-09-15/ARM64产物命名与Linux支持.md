@@ -60,7 +60,12 @@ flowchart LR
 ## 执行记录
 
 - 已更新矩阵、交叉依赖构建和 Release 附件列表；actionlint、Python 语法检查及 Zig 格式检查通过。
-- 实际构建和发布结果待补充。
+- 本机成功交叉编译 Linux ARM64 ggml，目标文件确认为 AArch64 ELF。
+- [运行 34952855079](https://github.com/MatrixAges/gpu-code-spacer/actions/runs/34952855079)的四个平台构建和 Release 发布全部成功。
+- 已发布 [v0.1.3](https://github.com/MatrixAges/gpu-code-spacer/releases/tag/v0.1.3)，五个原始附件齐全，macOS 使用 `macos-arm_64`，新增 `linux-arm_64`。
+- 实际下载 Linux ARM64 程序，`file` 确认为 ARM AArch64 ELF 可执行文件，动态加载器为 `/lib/ld-linux-aarch64.so.1`；未执行 Linux ARM64 原生运行检查。
+- Release changelog 正确比较 `v0.1.2...v0.1.3`，包含三个新增提交和完整比较链接。
+- 本地保持 `master`，已快进拉取自动版本提交；用户布局相关未提交文件保持原样。
 
 ## 自我审查
 
