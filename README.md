@@ -90,7 +90,7 @@ The executable is located at `zig-out/bin/gcs`. Run it directly or add the direc
 export PATH="$PWD/zig-out/bin:$PATH"
 ```
 
-Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Verified on macOS Apple Silicon; Linux and Windows have not yet been verified on actual machines.
+Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Building, GGUF export, and binary startup are verified on macOS Apple Silicon and Ubuntu 24.04 x86_64, including GitHub-hosted runners. Windows has not been verified.
 
 ## Usage
 
