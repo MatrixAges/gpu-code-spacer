@@ -56,14 +56,19 @@ function available(stock: number, reserved: number): boolean {
 Push an update to the `build` branch to build packages automatically, or open
 [Build GCS](https://github.com/MatrixAges/gpu-code-spacer/actions/workflows/build.yml),
 click **Run workflow**, leave `master` selected, and run it manually. A manual run
-fetches the latest `master`, fast-forwards `build` to that commit, and builds that
-exact revision on all three platforms. If `build` has divergent commits, the run
-fails instead of force-overwriting them. Direct pushes to `build` still build the
-pushed commit. Keep local development on `master`; no local branch switch is needed.
+fetches the latest `master`, increments `.version` in `build.zig.zon`, commits the
+change, and atomically pushes the new commit to both `master` and `build` before
+building it on all three platforms. If either branch cannot be fast-forwarded,
+neither branch is updated. Direct pushes to `build` build the pushed commit without
+incrementing the version. Keep local development on `master`; no local branch
+switch is needed. Pull `master` after a manual release to get the version commit.
 
 Artifact versions use `.version` from `build.zig.zon`, for example `v0.1.0`,
-without a commit hash suffix. Update the manifest version
-when releasing a new version. Download artifacts from the completed run:
+without a commit hash suffix. Each manual release increments the last component;
+patch and minor carry at 10: `0.0.8 → 0.0.9 → 0.1.0` and `0.9.9 → 1.0.0`.
+The major component has no upper limit. The version remains committed if a later
+build fails; rerun only the failed build jobs to retain that version.
+Download artifacts from the completed run:
 
 - `gcs-<version>-linux-x86_64`: Linux executable using the CPU backend, cross-compiled on macOS.
 - `gcs-<version>-macos-aarch64`: Apple Silicon executable with Metal support, built on macOS 15.

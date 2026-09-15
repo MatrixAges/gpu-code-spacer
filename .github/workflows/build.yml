@@ -28,7 +28,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && 'master' || github.sha }}
           fetch-depth: 0
 
-      - name: Read source version
+      - name: Prepare source version
         id: revision
         shell: bash
         run: |
@@ -38,23 +38,38 @@ jobs:
           import subprocess
           from pathlib import Path
 
-          manifest = Path("build.zig.zon").read_text()
-          match = re.search(r'^\s*\.version\s*=\s*"([0-9A-Za-z.+-]+)"', manifest, re.MULTILINE)
+          path = Path("build.zig.zon")
+          manifest = path.read_text()
+          match = re.search(r'^\s*\.version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"', manifest, re.MULTILINE)
           if match is None:
-              raise SystemExit("Missing package version in build.zig.zon")
+              raise SystemExit("Expected a numeric major.minor.patch version in build.zig.zon")
+
+          package_version = match.group(1)
+          if os.environ["GITHUB_EVENT_NAME"] == "workflow_dispatch":
+              major, minor, patch = map(int, package_version.split("."))
+              carry, patch = divmod(patch + 1, 10)
+              carry, minor = divmod(minor + carry, 10)
+              major += carry
+              package_version = f"{major}.{minor}.{patch}"
+
+              path.write_text(manifest[:match.start(1)] + package_version + manifest[match.end(1):])
+              subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+              subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+              subprocess.run(["git", "add", "build.zig.zon"], check=True)
+              subprocess.run(["git", "commit", "-m", f"chore: release v{package_version}"], check=True)
 
           sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-          version = f"v{match.group(1)}"
+          version = f"v{package_version}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"sha={sha}\nversion={version}\n")
           print(f"Building {version} from {sha}")
           PY
 
-      - name: Sync master to build
+      - name: Publish version to master and build
         if: github.event_name == 'workflow_dispatch'
         shell: bash
-        run: git push origin HEAD:refs/heads/build
+        run: git push --atomic origin HEAD:refs/heads/master HEAD:refs/heads/build
 
   build:
     name: ${{ matrix.platform }} / ${{ needs.prepare.outputs.version }}
