@@ -87,6 +87,37 @@ gcs --model-info                      # 模型元数据
 
 `--confidence 0..1` 可覆盖内嵌校准阈值。低置信度保留当前布局。没有可预测边界时不会产生推理批次。
 
+## GGUF 模型导出
+
+当前模型同时提供 `models/spacer.weights` 和 `models/spacer.gguf`。正式训练会输出同名前缀的 `.weights`、`.gguf` 和 `.json`；`select-model` 同步更新选定模型的两种权重文件。
+
+无需重新训练即可导出已有权重：
+
+```sh
+# 默认：models/spacer.weights → models/spacer.gguf
+zig build export-gguf -Doptimize=ReleaseSafe
+
+# 显式指定输入与输出；输出目录需已存在
+zig build export-gguf -Doptimize=ReleaseSafe -- \
+  artifacts/v6-2026-standard.weights artifacts/v6-2026-standard.gguf
+```
+
+GGUF v3 保存原始 F32 精度的 `w1`、`b1`、`w2`、`b2`，矩阵排列与 ggml 推理张量一致，并记录特征版本、层维度及 ReLU 激活。`general.architecture` 为自定义的 `gcs_mlp`；使用时仍需本项目的特征提取、前向图和校准配置，不能直接作为 llama.cpp / Ollama 语言模型加载。应用仍从 `.weights` 内嵌模型。
+
+设计边界及参数核对结果见 [GGUF 模型导出记录](docs/2026-09-15/GGUF模型导出.md)。
+
+## Codex 编辑后自动美化
+
+`tools/hooks/gcs.py` 可作为 Codex 的 `PostToolUse` command hook，matcher 为 `^apply_patch$`。命令参数依次为 Python 脚本绝对路径和 gcs 二进制绝对路径：
+
+```sh
+/usr/bin/python3 /absolute/path/tools/hooks/gcs.py /absolute/path/zig-out/bin/gcs
+```
+
+脚本从成功补丁中提取新增、修改和移动后的代码文件，一次调用 `gcs -f`，并向 Codex 反馈结果。覆盖标准补丁编辑；shell、Python 等直接写文件不在该 hook 的范围内。
+
+本机用户级配置已写入 `~/.codex/hooks.json`，还需在 Codex CLI 的 `/hooks` 中信任后才会执行。详细配置、验证和限制见 [编辑钩子接入记录](docs/2026-09-15/编辑钩子接入记录.md)。
+
 ## 核心结构
 
 ```mermaid

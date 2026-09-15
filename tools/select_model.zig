@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const gguf = @import("learning/gguf.zig");
 
 const Curve = struct {
     threshold: f32,
@@ -45,12 +46,14 @@ pub fn main(init: std.process.Init) !void {
     if (!std.mem.endsWith(u8, winner.report, ".json")) return error.ExpectedJsonReport;
     const weights_path = try std.fmt.allocPrint(allocator, "{s}.weights", .{winner.report[0 .. winner.report.len - 5]});
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, weights_path, allocator, .limited(1024 * 1024));
-    _ = try core.weights.decode(core.classifier.Model, bytes, core.features.version);
+    const model = try core.weights.decode(core.classifier.Model, bytes, core.features.version);
     var hash: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &hash, .{});
 
     try std.Io.Dir.cwd().createDirPath(init.io, "models");
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = "models/spacer.weights", .data = bytes });
+    try gguf.write(allocator, "models/spacer.gguf", &model, core.features.version);
+
     const config = try std.fmt.allocPrint(allocator, "pub const confidence: f32 = {d:.2};\n\npub const feature_version: u32 = {d};\n", .{ winner.threshold.?, core.features.version });
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = "models/config.zig", .data = config });
 

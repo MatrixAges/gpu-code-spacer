@@ -5,6 +5,7 @@ pub const c = @cImport({
     @cInclude("ggml-backend.h");
     @cInclude("ggml-cpu.h");
     @cInclude("ggml-opt.h");
+    @cInclude("gguf.h");
 });
 
 pub const commit = @import("ggml_version").commit;

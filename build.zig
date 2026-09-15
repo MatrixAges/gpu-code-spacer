@@ -37,8 +37,8 @@ pub fn build(b: *std.Build) void {
     const reference = train.addOutputFileArg("reference.bin");
     const report = train.addOutputFileArg("training.json");
     const native_weights = train.addOutputFileArg("probe.weights");
-
     const training_step = b.step("train-probe", "Validate ggml gradients and train/export a synthetic ONNX model");
+
     for ([_]struct { path: std.Build.LazyPath, name: []const u8 }{
         .{ .path = model, .name = "probe/model.onnx" },
         .{ .path = reference, .name = "probe/reference.bin" },
@@ -199,8 +199,32 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const selection = b.addRunArtifact(selector);
+
+    selector.root_module.addImport("ggml", ggml);
+    check_tools.dependOn(&selector.step);
+
     if (b.args) |args| selection.addArgs(args);
     b.step("select-model", "Freeze model and confidence using validation data only").dependOn(&selection.step);
+
+    const exporter = b.addExecutable(.{
+        .name = "export-gguf",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/export_gguf.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "core", .module = core },
+                .{ .name = "ggml", .module = ggml },
+            },
+        }),
+    });
+
+    const export_gguf = b.addRunArtifact(exporter);
+
+    if (b.args) |args| export_gguf.addArgs(args);
+
+    check_tools.dependOn(&exporter.step);
+    b.step("export-gguf", "Export selected or explicit native weights to GGUF without training").dependOn(&export_gguf.step);
 
     const gpu_verifier = b.addExecutable(.{
         .name = "verify-gpu",

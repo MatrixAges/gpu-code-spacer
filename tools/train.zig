@@ -3,6 +3,7 @@ const core = @import("core");
 const data = @import("data.zig");
 const metrics = @import("metrics.zig");
 const ggml = @import("learning/ggml.zig");
+const gguf = @import("learning/gguf.zig");
 const Model = core.classifier.Model;
 const Curve = struct { threshold: f32, metrics: metrics.Summary };
 
@@ -83,8 +84,8 @@ pub fn main(init: std.process.Init) !void {
     var standard = false;
     var backend: ggml.Backend = .cpu;
     var threads: u31 = 1;
-
     var argument: usize = 1;
+
     while (argument < args.len) {
         const option = args[argument];
         argument += 1;
@@ -216,6 +217,10 @@ pub fn main(init: std.process.Init) !void {
     const output_path = try std.fmt.allocPrint(allocator, "{s}.weights", .{destination});
     const encoded = try core.weights.encode(allocator, &best, core.features.version);
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = output_path, .data = encoded });
+
+    const gguf_path = try std.fmt.allocPrint(allocator, "{s}.gguf", .{destination});
+
+    try gguf.write(allocator, gguf_path, &best, core.features.version);
 
     const validated = evaluate(&best, validation, heldout_language);
     var summaries: [6]metrics.Summary = undefined;
