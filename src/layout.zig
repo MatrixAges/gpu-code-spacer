@@ -51,15 +51,33 @@ const Scanner = struct {
     paired_close: u8 = 0,
     paired_depth: usize = 0,
     data_tail: bool = false,
+    markup: std.ArrayList(Tag) = .empty,
     braces: i32 = 0,
     parentheses: i32 = 0,
     brackets: i32 = 0,
 
-    fn active(self: *const Scanner) bool {
-        return self.quote != 0 or self.block_depth > 0 or self.raw_close.len > 0 or self.heredoc.len > 0 or self.indent_literal != null or self.macro_delimiter != 0 or self.paired_depth != 0;
+    const Tag = struct {
+        tail: usize,
+        expression_braces: ?i32 = null,
+        quote: u8 = 0,
+    };
+
+    fn markupProtected(self: *const Scanner) bool {
+        if (self.markup.items.len == 0) return false;
+
+        const tag = self.markup.items[self.markup.items.len - 1];
+        const base = tag.expression_braces orelse return true;
+
+        // Preserve the attribute expression's outer layer, while nested code
+        // blocks use the same spacing candidates as ordinary source code.
+        return self.braces <= base + 1;
     }
 
-    fn scan(self: *Scanner, text: []const u8, remaining: []const u8) struct { protected: bool, comment: bool } {
+    fn active(self: *const Scanner) bool {
+        return self.markupProtected() or self.quote != 0 or self.block_depth > 0 or self.raw_close.len > 0 or self.heredoc.len > 0 or self.indent_literal != null or self.macro_delimiter != 0 or self.paired_depth != 0;
+    }
+
+    fn scan(self: *Scanner, allocator: std.mem.Allocator, text: []const u8, remaining: []const u8) !struct { protected: bool, comment: bool } {
         const trimmed = std.mem.trim(u8, text, " \t\r");
         if (self.data_tail) return .{ .protected = true, .comment = false };
         if (!self.active() and (std.mem.eql(u8, trimmed, "__END__") or std.mem.eql(u8, trimmed, "__DATA__"))) {
@@ -107,7 +125,30 @@ const Scanner = struct {
 
         var comment = false;
         var i: usize = 0;
-        while (i < text.len) {
+        while (true) {
+            if (self.markup.items.len > 0) {
+                const tag = &self.markup.items[self.markup.items.len - 1];
+                if (remaining.len - i <= tag.tail) {
+                    _ = self.markup.pop();
+                    continue;
+                }
+                if (i >= text.len) break;
+
+                if (tag.expression_braces == null) {
+                    if (tag.quote != 0) {
+                        if (text[i] == tag.quote) tag.quote = 0;
+                    } else if (text[i] == '\'' or text[i] == '"') {
+                        tag.quote = text[i];
+                    } else if (text[i] == '{') {
+                        tag.expression_braces = self.braces;
+                        self.braces += 1;
+                    }
+                    i += 1;
+                    continue;
+                }
+            }
+            if (i >= text.len) break;
+
             const rest = text[i..];
 
             if (self.paired_depth > 0) {
@@ -153,6 +194,14 @@ const Scanner = struct {
                     i += matched;
                 } else i += 1;
                 continue;
+            }
+
+            if (text[i] == '<') {
+                if (@import("markup.zig").tagEnd(remaining[i..])) |end| {
+                    try self.markup.append(allocator, .{ .tail = remaining.len - i - end });
+                    i += 1;
+                    continue;
+                }
             }
 
             const prefix = std.mem.trim(u8, text[0..i], " \t");
@@ -339,6 +388,13 @@ const Scanner = struct {
                 };
             }
 
+            if (text[i] == '}' and self.markup.items.len > 0) {
+                const tag = &self.markup.items[self.markup.items.len - 1];
+                if (tag.expression_braces) |base| {
+                    if (self.braces == base + 1) tag.expression_braces = null;
+                }
+            }
+
             switch (text[i]) {
                 '{' => self.braces += 1,
                 '}' => self.braces -= 1,
@@ -392,6 +448,7 @@ pub fn analyze(allocator: std.mem.Allocator, source: []const u8) !Document {
     var nonblank: std.ArrayList(usize) = .empty;
     var boundaries: std.ArrayList(Boundary) = .empty;
     var scanner: Scanner = .{};
+    defer scanner.markup.deinit(allocator);
     var start: usize = 0;
 
     while (start < source.len) {
@@ -406,7 +463,7 @@ pub fn analyze(allocator: std.mem.Allocator, source: []const u8) !Document {
         }
 
         const protected_before = scanner.active();
-        const lexical = scanner.scan(text, source[start..]);
+        const lexical = try scanner.scan(allocator, text, source[start..]);
         const protected_after = scanner.active();
         const whole_line_literal = lexical.protected and !protected_before and !protected_after;
         const trimmed = std.mem.trimEnd(u8, text, " \t");
