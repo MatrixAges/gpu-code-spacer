@@ -9,12 +9,56 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+  group: build
+  cancel-in-progress: false
 
 jobs:
+  prepare:
+    name: Prepare build revision
+    runs-on: macos-15
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.revision.outputs.sha }}
+      version: ${{ steps.revision.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'master' || github.sha }}
+          fetch-depth: 0
+
+      - name: Read source version
+        id: revision
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          manifest = Path("build.zig.zon").read_text()
+          match = re.search(r'^\s*\.version\s*=\s*"([0-9A-Za-z.+-]+)"', manifest, re.MULTILINE)
+          if match is None:
+              raise SystemExit("Missing package version in build.zig.zon")
+
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          version = f"v{match.group(1)}-{sha[:12]}"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"sha={sha}\nversion={version}\n")
+          print(f"Building {version} from {sha}")
+          PY
+
+      - name: Sync master to build
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: git push origin HEAD:refs/heads/build
+
   build:
-    name: ${{ matrix.platform }}
+    name: ${{ matrix.platform }} / ${{ needs.prepare.outputs.version }}
+    needs: prepare
     runs-on: macos-15
     timeout-minutes: 30
     strategy:
@@ -47,6 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
 
       - uses: mlugg/setup-zig@v2
@@ -79,27 +124,31 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           BINARY: ${{ matrix.binary }}
           ARCHIVE: ${{ matrix.archive }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
         run: |
           cp "zig-out/bin/${BINARY}" README.md LICENSE artifacts/package/
           cp models/metadata.json models/config.zig artifacts/package/
-          printf '%s\n' "$GITHUB_SHA" > artifacts/package/COMMIT
+          printf '%s\n' "$SOURCE_SHA" > artifacts/package/COMMIT
+          printf '%s\n' "$VERSION" > artifacts/package/VERSION
+          cp artifacts/package/spacer.gguf "artifacts/spacer-${VERSION}.gguf"
 
           if [ "$ARCHIVE" = zip ]; then
-            (cd artifacts/package && zip "../gcs-${PLATFORM}.zip" ./*)
+            (cd artifacts/package && zip "../gcs-${VERSION}-${PLATFORM}.zip" ./*)
           else
-            tar -czf "artifacts/gcs-${PLATFORM}.tar.gz" -C artifacts/package .
+            tar -czf "artifacts/gcs-${VERSION}-${PLATFORM}.tar.gz" -C artifacts/package .
           fi
 
           cd artifacts
-          shasum -a 256 "gcs-${PLATFORM}.${ARCHIVE}" > "gcs-${PLATFORM}.${ARCHIVE}.sha256"
+          shasum -a 256 "gcs-${VERSION}-${PLATFORM}.${ARCHIVE}" > "gcs-${VERSION}-${PLATFORM}.${ARCHIVE}.sha256"
 
       - name: Upload binary package
         uses: actions/upload-artifact@v7
         with:
-          name: gcs-${{ matrix.platform }}
+          name: gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}
           path: |
-            artifacts/gcs-${{ matrix.platform }}.${{ matrix.archive }}
-            artifacts/gcs-${{ matrix.platform }}.${{ matrix.archive }}.sha256
+            artifacts/gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive }}
+            artifacts/gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive }}.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -107,7 +156,7 @@ jobs:
         if: matrix.platform == 'linux-x86_64'
         uses: actions/upload-artifact@v7
         with:
-          name: gcs-gguf
-          path: artifacts/package/spacer.gguf
+          name: gcs-${{ needs.prepare.outputs.version }}-gguf
+          path: artifacts/spacer-${{ needs.prepare.outputs.version }}.gguf
           if-no-files-found: error
           retention-days: 30

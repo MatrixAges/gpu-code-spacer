@@ -55,21 +55,27 @@ function available(stock: number, reserved: number): boolean {
 
 Push an update to the `build` branch to build packages automatically, or open
 [Build GCS](https://github.com/MatrixAges/gpu-code-spacer/actions/workflows/build.yml),
-click **Run workflow**, select `build`, and run it manually. Manual runs build the
-selected branch. The workflow must also exist on the default branch (`master`) for
-GitHub to show the button.
+click **Run workflow**, leave `master` selected, and run it manually. A manual run
+fetches the latest `master`, fast-forwards `build` to that commit, and builds that
+exact revision on all three platforms. If `build` has divergent commits, the run
+fails instead of force-overwriting them. Direct pushes to `build` still build the
+pushed commit. Keep local development on `master`; no local branch switch is needed.
 
-Download artifacts from the completed run:
+Artifact versions combine `.version` from `build.zig.zon` with the first 12 characters
+of the source commit, for example `v0.1.0-abcdef123456`. Update the manifest version
+when releasing a new version. Download artifacts from the completed run:
 
-- `gcs-linux-x86_64`: Linux binary package using the CPU backend, cross-compiled on macOS.
-- `gcs-macos-aarch64`: Apple Silicon binary package with Metal support, built on macOS 15.
-- `gcs-windows-x86_64`: Windows `gcs.exe` package using the CPU backend, cross-compiled on macOS.
-- `gcs-gguf`: standalone `spacer.gguf`, exported from the same committed weights as the binaries.
+- `gcs-<version>-linux-x86_64`: Linux binary package using the CPU backend, cross-compiled on macOS.
+- `gcs-<version>-macos-aarch64`: Apple Silicon binary package with Metal support, built on macOS 15.
+- `gcs-<version>-windows-x86_64`: Windows `gcs.exe` package using the CPU backend, cross-compiled on macOS.
+- `gcs-<version>-gguf`: standalone `spacer-<version>.gguf`, exported from the same committed weights as the binaries.
 
 Each binary artifact contains an archive (`.zip` for Windows, `.tar.gz` otherwise)
 and its SHA-256 checksum. Extract
 the archive to preserve executable permissions. It includes `gcs`, `spacer.gguf`,
-model metadata and calibration configuration, the source commit, README, and license.
+model metadata and calibration configuration, `VERSION`, `COMMIT`, README, and license.
+Archive and checksum filenames include the same version; the executable inside
+keeps the stable name `gcs` or `gcs.exe`.
 Artifacts are retained for 30 days. These builds do not retrain the model.
 
 All three build jobs run in parallel on macOS 15 runners. macOS keeps Metal support;
