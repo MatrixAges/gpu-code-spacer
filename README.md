@@ -1,270 +1,168 @@
-# gpu-code-spacer
+# gpu code spacer
 
-**代码如诗，不仅要好读，还要好看。**
-
-用 Zig 编写、内嵌小模型的代码留白工具。训练与推理统一使用 **ggml**，默认推理优先硬件 GPU，不可用或执行不兼容时使用 ggml CPU。
-
-训练使用 **ggml-opt** 的自动微分和 AdamW（关闭权重衰减），默认使用 CPU，可显式选择 GPU。训练与推理共享同一份 ggml 前向图和权重转换。
-
-模型使用共享的通用 Tokenizer，没有语言名称、文件扩展名或仓库白名单。当前版本处理**已有代码行之间的空行**，保留非空行内容和缩进；长行折行尚不属于这个版本。
-
-## 手动校正数据
-
-```text
-dataset/
-  <language>/<name>.<ext>
-  metadata.json
-
-evaluation/
-  cases/<case-name>/
-    input.<ext>
-    output.<ext>
-    metadata.json
-  validation/<case-name>/
-    input.<ext>
-    output.<ext>
-    metadata.json
-  artifacts/
-```
-
-训练样本按完整源文件从已筛选、去重的 raw 代码中抽取，目前 2,171 个文件直接按语言放在 `dataset/` 下。直接修改源码样本即可校正布局；已有文件不会被重新采样覆盖，准备数据时修改过的样本布局优先于自动标注。
-
-旧 `dataset/validation` 已从活动数据集中移除，478 个文件及来源记录归档在 `artifacts/dataset-validation-archive/`，不会被重新采样生成，也不会并入独立验证集。新的 `evaluation/validation` 已有 30 个 GitHub 来源案例：PHP、Lua、Dart、Scala、Go、OCaml 各 5 个；Go 按用户指定作为已见语言的新仓库验证，其余五种语言不在旧语料语言清单中。源码仓库以固定提交 ZIP 解压在 `data/validation/`。
-
-`evaluation/cases` 是固定的验收资料，60 个案例直接放在该目录下。每例仅保留 `input.<ext>`（dense 输入）、一份期望 `output` 和元数据；修改 output 会被后续验收读取。模型预测不会回填期望文件，运行报告与预测写到 `evaluation/artifacts`。历史分组仅保留在元数据中，不再用额外目录区分。
-
-`evaluation/validation` 的路径保留，但本轮已按用户授权调整源码并缩小语法覆盖，现作为开发回归集，不再提供独立泛化分数。原始来源与前后结果分开保留，见 [评估集说明](evaluation/validation/说明.md)。
-
-共享 `output` 可直接校正，导入工具跳过所有已存在案例，不覆盖用户修改。若同时修改代码内容而非仅空行，应同步 dense 输入。2026-09-15 按用户要求移除 spaced，完整验收目标为 cases 60/60、validation 30/30；修改后的样例仍待用户审核。
-
-2026-09-11：按用户要求完成目录整理后暂停模型迭代，等待人工校正数据；尚未宣称所有验收通过。后文训练与历史指标记录对应各自版本。
-
-## 使用
-
-需要 Zig 0.16.0、Git、CMake 和系统 C/C++ 编译器。先运行一次 `zig build bootstrap -- --ggml` 构建固定依赖，再构建应用。ggml 静态链接，模型、校准配置和 Metal 内核源均编入可执行文件，运行时无需旁置模型、ggml 动态库或着色器文件。
-
-默认已内嵌用户指定的 `v6-2026-standard` 模型，特征版本 v6，置信度 0，与当前源码匹配。这是 2026-09-15 指定任务中修订后的 90 个评估案例全部通过时使用的模型；完整 SHA-256 见 `models/metadata.json`。仍可通过 `-Dmodel=<权重路径> -Dmodel-config=<配置路径>` 指定其他匹配模型与配置，支持绝对路径。
+A model-based code spacing tool (50kb model size). Adjusts blank lines between code lines while preserving code content and indentation.
 
 ```sh
+gcs -f src/main.ts
+gcs -p src -r
+```
+
+[Installation](#installation) · [Usage](#usage) · [Codex Hooks](#codex-hooks) · [Limitations](#limitations) · [License](#license)
+
+## Features
+
+- Supports individual files, recursive directory scanning, and glob patterns.
+- Shares a model instance across batch processing and automatically deduplicates files.
+- Writes files atomically, preserves file permissions, and supports check-only mode.
+- Implemented in Zig with an embedded model. ggml inference prefers the GPU and falls back to the CPU when unavailable.
+- Includes a hook adapter script for automatic formatting after Codex edits.
+
+## Installation
+
+Building from source requires Zig 0.16.0, Git, CMake, and a system C/C++ compiler. Run these commands from the repository root:
+
+```sh
+# Set up ggml before the first build
+zig build bootstrap -- --ggml
+
 zig build -Doptimize=ReleaseSmall
+```
 
-# 将构建目录加入当前终端 PATH，即可直接使用 gcs
+The executable is located at `zig-out/bin/gcs`. Run it directly or add the directory to your PATH:
+
+```sh
 export PATH="$PWD/zig-out/bin:$PATH"
+```
 
-# 原地美化目录中的代码文件
-gcs -p ./src
+Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Verified on macOS Apple Silicon; Linux and Windows have not yet been verified on actual machines.
 
-# 同时处理内部文件夹
-gcs -p ./src -r
+## Usage
 
-# 原地美化单个文件或 glob 匹配的多个文件
-gcs -f ./src/main.ts
-gcs -f '*.ts'
-gcs -f 'src/**/*.ts'
+### Files and Directories
+
+```sh
+# A single file
+gcs -f src/main.ts
+
+# Multiple files
 gcs -f src/main.ts src/utils.ts
 
-# 只检查，不写回；有修改建议返回 1，错误返回 2
-gcs -p ./src -r --check
+# Code files in a directory
+gcs -p src
+
+# Process subdirectories recursively
+gcs -p src -r
 ```
 
-`-p` 与 `-f` 默认直接写回文件，不能混用。`-r` 仅用于 `-p`。`-p` 按常见代码扩展名筛选（清单见 `src/files.zig`），递归时跳过隐藏目录以及 `node_modules`、`vendor`、`dist`、`build`、`target`、`zig-out`、`__pycache__`；如需处理这些目录，可直接用 `-p` 指定它们。模型本身仍不读取扩展名。
+`-f` and `-p` write changes in place by default and cannot be combined. `-r` is only supported with `-p`.
 
-`-f` 接受任意扩展名，支持 `*`、`?`、字符组 `[abc]` / `[a-z]` 和递归路径段 `**`，不支持 brace/extglob。建议给 glob 加引号，让 gcs 展开；也支持 shell 已展开的多个文件。普通 wildcard 不匹配隐藏名称，`**` 遵守上述目录排除规则。重复匹配只处理一次。没有匹配文件的 glob 报错；没有代码文件的目录正常退出。
-
-扫描不跟随目录符号链接；写回仅接受单硬链接的普通文件，保留权限并原子替换。批处理共享一个模型实例，逐文件释放内存；单文件处理失败会报告路径并继续其余文件，最后返回 2。每个文件上限仍为 4 MiB。
-
-保留原有管道和单文件输出方式：
+### Glob
 
 ```sh
-gcs source.ts                         # 输出到 stdout
-cat source.any-language | gcs          # 从 stdin 读取
-gcs --write source.rs                 # 原地写回
-gcs --stats source.py                 # 后端与推理统计
-gcs --model-info                      # 模型元数据
+gcs -f '*.ts'
+gcs -f 'src/**/*.ts'
+gcs -f 'src/app/\[id\]/page.tsx'
 ```
 
-`--stats` 向 stderr 逐文件输出统计；GPU/CPU 批次数是本次进程累计值。`--model-info` 显示模型哈希、默认置信度和设备。模型版本不匹配时，`--help` 仍可使用，但格式化会明确报错。
+Supports `*`, `?`, `[abc]`, `[a-z]`, and `**` as a standalone path segment. Brace expansion and extglob are not supported. Quote patterns to prevent the shell from expanding them first. Escape glob characters in filenames, as shown with `[id]` above.
 
-`--confidence 0..1` 可覆盖内嵌校准阈值。低置信度保留当前布局。没有可预测边界时不会产生推理批次。
-
-## GGUF 模型导出
-
-当前模型同时提供 `models/spacer.weights` 和 `models/spacer.gguf`。正式训练会输出同名前缀的 `.weights`、`.gguf` 和 `.json`；`select-model` 同步更新选定模型的两种权重文件。
-
-无需重新训练即可导出已有权重：
+### Checking and Standard Output
 
 ```sh
-# 默认：models/spacer.weights → models/spacer.gguf
-zig build export-gguf -Doptimize=ReleaseSafe
+# Check whether changes are needed without writing them
+gcs -p src -r --check
 
-# 显式指定输入与输出；输出目录需已存在
-zig build export-gguf -Doptimize=ReleaseSafe -- \
-  artifacts/v6-2026-standard.weights artifacts/v6-2026-standard.gguf
+# Write to stdout without modifying the file
+gcs src/main.ts
+
+# Read from stdin
+gcs < src/main.ts
 ```
 
-GGUF v3 保存原始 F32 精度的 `w1`、`b1`、`w2`、`b2`，矩阵排列与 ggml 推理张量一致，并记录特征版本、层维度及 ReLU 激活。`general.architecture` 为自定义的 `gcs_mlp`；使用时仍需本项目的特征提取、前向图和校准配置，不能直接作为 llama.cpp / Ollama 语言模型加载。应用仍从 `.weights` 内嵌模型。
+### Options
 
-设计边界及参数核对结果见 [GGUF 模型导出记录](docs/2026-09-15/GGUF模型导出.md)。
+| Option | Description |
+| --- | --- |
+| `-f <file or glob>...` | Format one or more files in place |
+| `-p <directory>` | Format code files in a directory in place |
+| `-r` | Process recursively; use with `-p` |
+| `--check` | Check only, without writing changes |
+| `--write` | Write changes in place when using a positional argument, e.g. `gcs --write file.ts` |
+| `--confidence <0..1>` | Override the model's default confidence threshold |
+| `--stats` | Print per-file statistics to stderr; the inference batch count is cumulative for the process |
+| `--model-info` | Show the embedded model and the inference backend actually in use |
+| `-h`, `--help` | Show help |
 
-## Codex 编辑后自动美化
+Exit codes: `0` for success; `1` when `--check` finds suggested changes; `2` for execution errors.
 
-`tools/hooks/gcs.py` 可作为 Codex 的 `PostToolUse` command hook，matcher 为 `^apply_patch$`。命令参数依次为 Python 脚本绝对路径和 gcs 二进制绝对路径：
+### File Scanning
 
-```sh
-/usr/bin/python3 /absolute/path/tools/hooks/gcs.py /absolute/path/zig-out/bin/gcs
+Directory mode filters files by common code extensions. See [src/files.zig](src/files.zig) for the complete list. Explicit file mode accepts any extension.
+
+Recursive scanning skips hidden directories and the following directories. It does not read `.gitignore`:
+
+```text
+node_modules  vendor  dist  build  target  zig-out  __pycache__
 ```
 
-脚本从成功补丁中提取新增、修改和移动后的代码文件，一次调用 `gcs -f`，并向 Codex 反馈结果。覆盖标准补丁编辑；shell、Python 等直接写文件不在该 hook 的范围内。
+To process one of these directories, specify it directly with `-p`. `**` uses the same exclusion rules, and ordinary wildcards do not match hidden names. Scanning does not recursively follow directory symlinks it discovers.
 
-本机用户级配置已写入 `~/.codex/hooks.json`，还需在 Codex CLI 的 `/hooks` 中信任后才会执行。详细配置、验证和限制见 [编辑钩子接入记录](docs/2026-09-15/编辑钩子接入记录.md)。
+A glob with no matching files returns `2`; a directory with no code files returns `0`.
 
-## 核心结构
+## Codex Hooks
 
-```mermaid
-flowchart LR
-    A[UTF-8 源代码] --> B[通用 Tokenizer 与词法保护]
-    B --> C[共享上下文特征]
-    C --> D[内嵌小模型]
-    D --> E[ggml 硬件 GPU]
-    E -->|不可用或失败| F[ggml CPU]
-    E --> G[置信度选择与字节补丁]
-    F --> G
+Use [tools/hooks/gcs.py](tools/hooks/gcs.py) to batch-format code files added or modified by a patch after each successful Codex `apply_patch` call.
+
+Requires a version of Codex that supports `PostToolUse` and Python 3.9+.
+
+### Configuration
+
+Merge the following configuration into `~/.codex/hooks.json` or the target project's `.codex/hooks.json`. Replace `/path/to/gpu-code-spacer` with the absolute path to this repository, and adjust the Python path as needed.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"/path/to/gpu-code-spacer/tools/hooks/gcs.py\" \"/path/to/gpu-code-spacer/zig-out/bin/gcs\"",
+            "timeout": 120,
+            "statusMessage": "Formatting edited code files with gcs"
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
 
-- `src/tokenizer.zig`：词片段、数字、符号、空白和换行，保留完整字节位置。
-- `src/layout.zig`：公共定界符保护与可编辑空白区域。
-- `src/features.zig`：不含语言身份或原始空行数的共享特征。
-- `src/roles.zig`：通用词元形状的粗粒度角色，仅作为模型输入，不直接决定留白。
-- `src/model.zig`：两层 MLP 的参数布局、初始化与原生前向计算。
-- `tools/learning/ggml.zig`：共享前向图上的类别加权交叉熵、自动微分与 Adam。
-- `src/ggml.zig`：共享的 ggml 设备、权重转置和 MLP 前向图。
-- `src/inference.zig`：GPU 优先与 CPU 回退。
-- `models/`：已选定的内嵌权重、校准配置与训练记录。
+Preserve existing hooks and avoid adding the same rule to both the global and project configurations.
 
-GPU 的平台适配来自 ggml。当前默认构建 CPU 与 macOS Metal，并实测 macOS / Apple M5；上游 CUDA/Vulkan 等后端的支持不等于本项目已经完成相应工具链接入和实机验证。
+### Enabling the Hook
 
-当前静态链接方案以 macOS 为验证范围。Linux 引导使用 `zig cc` / `zig c++`，使 ggml 与应用的 C++ runtime ABI 一致，但尚未实机验证；Windows 分发也尚未验证。
+Run `/hooks` in the Codex CLI to review and trust the hook. If the new configuration does not appear, reopen the session. Project hooks also require the project configuration layer to be trusted. Changes to the configuration or definition may require trusting the hook again. See the [Codex Hooks documentation](https://learn.chatgpt.com/docs/hooks) for details.
 
-## 数据与风格
+### Execution Behavior
 
-首批 18 个开源项目提供跨语言结构样本。另有六种未参与训练的语言用于泛化评估。`openages/if` 的手写代码是个人审美参考，`MatrixAges/polywise` 中筛选的局部范围作为风格候选；后者不以空行密度推断作者身份。
+- Runs synchronously once per successful patch, processing the relevant code files in a single `gcs -f` call.
+- Supports destination paths for moved files, spaces, and literal filenames such as `[id]`.
+- Skips deleted files, non-code files, and file symlinks. Does not depend on Git.
+- Reports results to Codex; failures do not undo the original patch.
+- Covers only `apply_patch`. After writing files through the shell, Python, or other tools, call `gcs -f` explicitly.
 
-数据按来源、完整文件、近重复簇和重复上下文隔离。语言字段只用于采样和统计，不进入模型。原作者布局属于弱监督，不能直接等同于唯一正确或最好看的答案。
+Formatting may change line numbers, so subsequent edits should use the updated file contents. Update the hook paths if you move the repository or executable. You can disable the rule in `/hooks`.
 
-通用语料用于预训练。个人风格微调先均匀选择文件，再选择文件内边界，避免大型数据表占据训练样本。最终选模依据个人风格验证集；其他项目的原始排版一致性只作诊断。当前默认权重为 v6-2026-standard，个人风格采样占比 0.5、12,547 个参数、50,244 字节。
+## Limitations
 
-校准精度与召回率模拟紧凑输入：低置信度保留零空行。它们不是任意输入布局的保证，因此验收同时包含紧凑和过度留白两个变体。
+gcs currently adjusts only blank lines. It does not change indentation, wrap long lines, or sort imports.
 
-## 复现训练
+Input should be UTF-8 source code, with a maximum size of 4 MiB per file. Writing changes back is supported only for regular files with a single hard link, and the tool checks for content changes before replacing a file. If a file fails during batch processing, the remaining files are still processed and the final exit code is `2`. Completed writes are not rolled back.
 
-应用与训练工具共用固定的 ggml 静态库。只有离线数据检查需要额外的 Tree-sitter 源码；它不进入产品。
+The default model is `v6-2026-standard`, with a confidence threshold of `0`. See the [model metadata](models/metadata.json) for details. All 90 regression cases in the current revised set pass; this does not guarantee complete coverage of every language or coding style.
 
-ggml 源码、构建缓存和安装后的静态库分别位于 `.deps/ggml`、`.deps/ggml-build`、`.deps/ggml-install`，均不进入 Git。引导命令关闭动态后端插件、启用 Metal 源内嵌，并关闭宿主专用指令优化；普通应用无需携带这些开发目录。
+## License
 
-**数据集与评估集仍待人工校准。下面的合成探针可验证实现可用性；正式数据训练命令留作校准完成后使用。**
-
-```sh
-zig build bootstrap -Dgpu=false -Doptimize=ReleaseSafe -- --ggml
-
-zig build train-probe verify-probe -Dgpu=false -Doptimize=ReleaseSafe
-
-zig build bootstrap -Dgpu=false -Doptimize=ReleaseSafe
-
-zig build collect -Dgpu=false -Doptimize=ReleaseSafe
-
-zig build collect -Dgpu=false -Doptimize=ReleaseSafe -- --evaluation
-
-zig build bootstrap -Dgpu=false -Doptimize=ReleaseSafe -- --style
-
-zig build prepare -Dgpu=false -Doptimize=ReleaseFast
-```
-
-风格来源使用 `gh` 获取，需要可用的 GitHub CLI 登录状态。源码归档、解压目录、中间数据和实验检查点均不进入 Git。
-
-`verify-gpu` 使用固定种子的合成权重和 1,025 个随机输入检查分批推理，不读取模型或数据集；输出在 `runs/`。`train-probe` 只生成合成数据，检查 ggml 类别加权梯度、收敛和原生权重导出；`verify-probe` 对比 ggml 生成的参考 logits 与 Zig 前向输出，产物在构建缓存和 `zig-out/probe/`。
-
-正式训练支持 `--backend cpu|gpu`、`--threads N`，默认 `cpu`、1 线程。`-Dgpu=false` 表示产品与评估工具只使用 ggml CPU，不改变静态库集合，也不影响训练的 `--backend` 选择。训练 GPU 模式通过 ggml 调度器将不支持的算子交给 CPU；没有 GPU 后端时显式报错。产品推理则在整个前向图可以由 GPU 执行时计为 GPU 批次，否则整体使用 ggml CPU。其他平台的默认引导仅提供 CPU；CUDA/Vulkan 等还需配置上游 CMake 及对应静态链接项，当前构建未提供跨架构编译方案。
-
-当前小模型及 batch=64 下，CPU 启动与调度开销较低；GPU 首次启动还需编译 Metal 内核，不能把“使用 GPU”直接视为加速。原来的种子、采样、类别权重、验证选模和 `.weights` 格式保持兼容。
-
-若本机 Xcode 与 Command Line Tools SDK 不匹配导致 `libSystem.tbd` 链接失败，可在引导命令前指定与编译器匹配的 `SDKROOT`；本轮使用 Xcode 内的 macOS SDK，未修改系统配置。
-
-```sh
-for seed in 73 111 2026; do
-  zig build train -Dgpu=false -Doptimize=ReleaseFast -- \
-    --seed "$seed" --epochs 20 --steps 256 \
-    --output-prefix "artifacts/v4-$seed-base"
-
-  for share in 0.5 0.8 1.0; do
-    zig build train -Dgpu=false -Doptimize=ReleaseFast -- \
-      --seed "$seed" --epochs 24 --steps 256 \
-      --style --style-share "$share" \
-      --init "artifacts/v4-$seed-base.weights" \
-      --output-prefix "artifacts/style-objective-$seed-$share"
-  done
-done
-
-zig build select-model -Dgpu=false -Doptimize=ReleaseSafe -- \
-  artifacts/style-objective-*.json
-
-zig build -Doptimize=ReleaseSmall
-```
-
-训练和选模只读取开发及个人风格验证集。`models/metadata.json` 记录校准规则；不要用最终测试语言调节阈值。
-
-## 当前评估集验收
-
-使用 Python 3 标准库运行完整文件比较，报告目录必须是新目录：
-
-```sh
-python3 tools/evaluate_dataset.py /path/to/version-matched-binary evaluation/artifacts/current-dense
-```
-
-两组都达到 100%、非空行保持和幂等全部通过时命令返回 0；未达标返回 1。工具冻结二进制，记录模型、源码和结果哈希，预测不会写回期望。
-
-2026-09-15 CLI 交付已将上述 100% 回归使用的 v6 模型同步为默认权重和配置。100% 对应当前已修订、缩小覆盖范围的评估集；详细背景见 [评估代码调整执行记录](docs/2026-09-15/评估代码调整执行记录.md)。
-
-## 验证
-
-```sh
-zig build verify-guards -Dgpu=false -Doptimize=ReleaseSafe
-
-zig build verify-gpu -Doptimize=ReleaseSafe
-
-zig build verify-gpu -Dgpu=false -Doptimize=ReleaseSafe
-
-zig build evaluate -Doptimize=ReleaseFast -- models/spacer.weights 0.80
-
-zig build evaluate-style -Dgpu=false -Doptimize=ReleaseSafe -- \
-  zig-out/bin/gcs evaluation/artifacts/style-regression
-
-zig build evaluate-style -Dgpu=false -Doptimize=ReleaseSafe -- \
-  zig-out/bin/gcs evaluation/artifacts/style-reference \
-  config/style-benchmark-holdout.json regression
-```
-
-额外的留一语言实验：
-
-```sh
-zig build train -Dgpu=false -Doptimize=ReleaseFast -- \
-  --seed 73 --epochs 20 --steps 256 --holdout-language zig
-
-zig build evaluate-transfer -Doptimize=ReleaseFast -- \
-  artifacts/seed-73-zig.weights zig
-```
-
-`evaluate` 命令中的置信度应与 `models/config.zig` 一致。它生成 20 组测试与报告，保存在 `evaluation/artifacts/corpus/`，按案例输出完整源码与元数据，不再生成 JSONL。评分区域不重叠，但可共享完整文件上下文；这不等同于 600 个独立项目或独立人工评分，也不作为个人审美真值。
-
-`evaluate-style` 当前使用标准 v2：多行完整表达式外侧留空行；两侧均为单行时，同类连写、异类留空行。完整表达式内部、注释贴附、块边缘作为独立结构检查，不混入风格得分。当前每个案例只测试 dense 输入，按当前 output 完整布局评分；不再测试过疏输入。历史报告保留原有口径。
-
-两套案例都已被观察，当前只作回归；`style-benchmark-holdout.json` 保留原路径名称，不再代表新的独立测试。原 v1 标注位于 `config/benchmarks/archive/v1/`。按新标准，36 案例集风格通过 118/144，24 案例集通过 174/192；结构检查分别通过 84/84 和 46/46。本次仅修订验收项，没有调整模型，不能将评分口径变化称作模型提升。
-
-通用词法保护不是所有语言的形式化语义证明。当前版本会保留已识别的字符串、注释、续行和数据区域，对不确定区域放弃修改；未知语法仍可能超出保护范围。报告分别列出布局一致性、实际修改覆盖率、幂等性与已完成的语法检查。
-
-详细目标、证据、边界与验收采用 IDEA 框架，见 [训练与测试结果](docs/2026-09-10/训练与测试结果.md)、[执行计划](docs/2026-09-10/执行计划.md)、[审美与泛化原则](docs/2026-09-10/审美与泛化原则.md) 和 [执行记录](docs/2026-09-10/执行记录.md)。
-
-本轮更新见 [语句分组完善](docs/2026-09-10/语句分组完善.md)、[泛化验收集设计](docs/2026-09-10/泛化验收集设计.md) 和 [泛化质量结果](docs/2026-09-10/泛化质量结果.md)。旧报告记录的是当时版本，当前结果以本轮报告及模型元数据为准。
-
-本轮训练后端迁移采用 IDEA 框架，详见 [迁移计划](docs/2026-09-11/训练后端迁移计划.md) 与 [迁移执行记录](docs/2026-09-11/训练后端迁移执行记录.md)。
-
-统一训练与推理后的最新结构见 [统一计算后端计划](docs/2026-09-11/统一计算后端计划.md) 和 [移除旧后端执行记录](docs/2026-09-11/移除旧后端执行记录.md)。
+[MIT](LICENSE)
