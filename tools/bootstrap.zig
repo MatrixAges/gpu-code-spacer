@@ -39,8 +39,10 @@ pub fn main(init: std.process.Init) !void {
     if (args.len > 2) return error.UnknownArgument;
 
     const windows = args.len == 2 and std.mem.eql(u8, args[1], "--ggml-windows");
+    const linux = args.len == 2 and std.mem.eql(u8, args[1], "--ggml-linux");
+    const cross_compile = windows or linux;
 
-    if (args.len == 2 and (std.mem.eql(u8, args[1], "--ggml") or windows)) {
+    if (args.len == 2 and (std.mem.eql(u8, args[1], "--ggml") or cross_compile)) {
         const commit = @import("learning/ggml_version.zig").commit;
         const path = ".deps/ggml";
 
@@ -55,8 +57,8 @@ pub fn main(init: std.process.Init) !void {
 
         try verify(allocator, init.io, path, commit);
 
-        const build_dir = if (windows) ".deps/ggml-windows-build" else ".deps/ggml-build";
-        const install_arg = if (windows) "-DCMAKE_INSTALL_PREFIX=.deps/ggml-windows-install" else "-DCMAKE_INSTALL_PREFIX=.deps/ggml-install";
+        const build_dir = if (windows) ".deps/ggml-windows-build" else if (linux) ".deps/ggml-linux-build" else ".deps/ggml-build";
+        const install_arg = if (windows) "-DCMAKE_INSTALL_PREFIX=.deps/ggml-windows-install" else if (linux) "-DCMAKE_INSTALL_PREFIX=.deps/ggml-linux-install" else "-DCMAKE_INSTALL_PREFIX=.deps/ggml-install";
 
         const cmake_args = [_][]const u8{
             "cmake",                      "-S",                      path,                    "-B",                            build_dir,
@@ -67,7 +69,7 @@ pub fn main(init: std.process.Init) !void {
 
         // Linux host GCC would produce libstdc++ objects, whereas the Zig
         // executable links libc++. Use the same toolchain for both sides.
-        const compiler_args: []const []const u8 = if (windows or @import("builtin").os.tag == .linux) &.{
+        const compiler_args: []const []const u8 = if (cross_compile or @import("builtin").os.tag == .linux) &.{
             "-DCMAKE_C_COMPILER=zig",
             "-DCMAKE_C_COMPILER_ARG1=cc",
             "-DCMAKE_CXX_COMPILER=zig",
@@ -76,11 +78,11 @@ pub fn main(init: std.process.Init) !void {
             "-DCMAKE_ASM_COMPILER_ARG1=cc",
         } else &.{};
 
-        const target_args: []const []const u8 = if (windows) &.{
-            "-G",                                           "Ninja",
-            "-DCMAKE_SYSTEM_NAME=Windows",                  "-DCMAKE_SYSTEM_PROCESSOR=AMD64",
-            "-DCMAKE_C_COMPILER_TARGET=x86_64-windows-gnu", "-DCMAKE_CXX_COMPILER_TARGET=x86_64-windows-gnu",
-            "-DCMAKE_ASM_FLAGS=-target x86_64-windows-gnu", "-DCMAKE_USER_MAKE_RULES_OVERRIDE=../../tools/cmake/zig-archive.cmake",
+        const target_args: []const []const u8 = if (cross_compile) &.{
+            "-G",                                                                                                          "Ninja",
+            if (windows) "-DCMAKE_SYSTEM_NAME=Windows" else "-DCMAKE_SYSTEM_NAME=Linux",                                   "-DCMAKE_SYSTEM_PROCESSOR=x86_64",
+            if (windows) "-DCMAKE_C_COMPILER_TARGET=x86_64-windows-gnu" else "-DCMAKE_C_COMPILER_TARGET=x86_64-linux-gnu", if (windows) "-DCMAKE_CXX_COMPILER_TARGET=x86_64-windows-gnu" else "-DCMAKE_CXX_COMPILER_TARGET=x86_64-linux-gnu",
+            if (windows) "-DCMAKE_ASM_FLAGS=-target x86_64-windows-gnu" else "-DCMAKE_ASM_FLAGS=-target x86_64-linux-gnu", "-DCMAKE_USER_MAKE_RULES_OVERRIDE=../../tools/cmake/zig-archive.cmake",
         } else &.{};
 
         _ = try command(allocator, init.io, try std.mem.concat(allocator, []const u8, &.{ &cmake_args, compiler_args, target_args }));

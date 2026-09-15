@@ -61,9 +61,9 @@ GitHub to show the button.
 
 Download artifacts from the completed run:
 
-- `gcs-linux-x86_64`: Linux binary package, built on Ubuntu 24.04 using the CPU backend.
+- `gcs-linux-x86_64`: Linux binary package using the CPU backend, cross-compiled on macOS.
 - `gcs-macos-aarch64`: Apple Silicon binary package with Metal support, built on macOS 15.
-- `gcs-windows-x86_64`: Windows `gcs.exe` package using the CPU backend, cross-compiled on Linux and checked on Windows Server 2022.
+- `gcs-windows-x86_64`: Windows `gcs.exe` package using the CPU backend, cross-compiled on macOS.
 - `gcs-gguf`: standalone `spacer.gguf`, exported from the same committed weights as the binaries.
 
 Each binary artifact contains an archive (`.zip` for Windows, `.tar.gz` otherwise)
@@ -71,6 +71,10 @@ and its SHA-256 checksum. Extract
 the archive to preserve executable permissions. It includes `gcs`, `spacer.gguf`,
 model metadata and calibration configuration, the source commit, README, and license.
 Artifacts are retained for 30 days. These builds do not retrain the model.
+
+All three build jobs run in parallel on macOS 15 runners. macOS keeps Metal support;
+Linux and Windows use separate cross-compiled ggml libraries. Only the native macOS
+binary is executed during the workflow; no Linux or Windows runners are used.
 
 The GGUF uses the custom `gcs_mlp` architecture and requires GCS feature extraction
 and inference logic; it is not a general-purpose model for llama.cpp or Ollama.
@@ -92,19 +96,27 @@ The executable is located at `zig-out/bin/gcs`. Run it directly or add the direc
 export PATH="$PWD/zig-out/bin:$PATH"
 ```
 
-Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Building, GGUF export, and binary startup are verified on macOS Apple Silicon and Ubuntu 24.04 x86_64, including GitHub-hosted runners. The Windows x86_64 executable is cross-compiled on Linux and verified on Windows Server 2022 for startup, model initialization, and file formatting.
+Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Earlier builds were executed successfully on macOS Apple Silicon, Ubuntu 24.04 x86_64, and Windows Server 2022. The current workflow executes only its native macOS binary; cross-compiled Linux and Windows packages are not run on their target operating systems in CI.
 
-To cross-compile Windows x86_64 on Linux, install Ninja alongside Zig and CMake:
+To cross-compile Linux and Windows x86_64 on macOS, install Ninja alongside Zig and CMake:
 
 ```sh
+zig build bootstrap -- --ggml-linux
+
+zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
+  -Dtarget=x86_64-linux-gnu -Dggml-prefix=.deps/ggml-linux-install \
+  --prefix zig-out/linux-x86_64
+
 zig build bootstrap -- --ggml-windows
 
 zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
-  -Dtarget=x86_64-windows-gnu -Dggml-prefix=.deps/ggml-windows-install
+  -Dtarget=x86_64-windows-gnu -Dggml-prefix=.deps/ggml-windows-install \
+  --prefix zig-out/windows-x86_64
 ```
 
-The executable is `zig-out/bin/gcs.exe`. The Windows ggml libraries are built in
-a separate directory, so they do not replace the host libraries used to export GGUF.
+The executables are `zig-out/linux-x86_64/bin/gcs` and
+`zig-out/windows-x86_64/bin/gcs.exe`. Target libraries are built in separate
+directories, so they do not replace the host libraries used to export GGUF.
 
 ## Usage
 

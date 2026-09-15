@@ -38,3 +38,10 @@ Linux 生成 Windows x86_64 可执行文件和 GGUF 下载包，复用现有自�
 - 新增 glob 实现只用于 Windows，不替换 Unix 上已使用的 libc 匹配器。
 - GGUF 仍由宿主导出工具生成，不尝试在 Linux 执行 Windows 导出器。
 - 编译成功不代表 Windows 实际可用，验收包含 Windows 原生启动、模型初始化及真实文件选择。
+
+## 后续调整：移除 Windows 验证任务
+
+- 按用户要求删除 `verify-windows`，后续工作流不再申请 Windows runner。
+- 移除验证时保留交叉打包能力；随后按用户选择统一到 macOS，当前方案见[统一平台打包](统一平台打包.md)。
+- 上述 Windows 原生验证结果属于已完成的历史验证，不表示后续每次构建都会运行 Windows 验证。
+- 此次仅删除验证任务并更新说明，使用 actionlint 和 diff 检查确认配置，没有增加测试用例。

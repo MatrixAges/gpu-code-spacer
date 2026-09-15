@@ -15,29 +15,29 @@ concurrency:
 jobs:
   build:
     name: ${{ matrix.platform }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-15
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
-            platform: linux-x86_64
+          - platform: linux-x86_64
+            binary: gcs
+            target: x86_64-linux-gnu
+            ggml-prefix: .deps/ggml-linux-install
+            ggml-bootstrap: --ggml-linux
+            archive: tar.gz
+          - platform: macos-aarch64
             binary: gcs
             target: native
             ggml-prefix: .deps/ggml-install
+            ggml-bootstrap: --ggml
             archive: tar.gz
-          - runner: macos-15
-            platform: macos-aarch64
-            binary: gcs
-            target: native
-            ggml-prefix: .deps/ggml-install
-            archive: tar.gz
-          - runner: ubuntu-24.04
-            platform: windows-x86_64
+          - platform: windows-x86_64
             binary: gcs.exe
             target: x86_64-windows-gnu
             ggml-prefix: .deps/ggml-windows-install
+            ggml-bootstrap: --ggml-windows
             archive: zip
 
     defaults:
@@ -56,15 +56,16 @@ jobs:
       - name: Build ggml
         run: zig build bootstrap -- --ggml
 
-      - name: Cross-compile ggml for Windows
-        if: matrix.platform == 'windows-x86_64'
-        run: zig build bootstrap -- --ggml-windows
+      - name: Cross-compile target ggml
+        if: matrix.target != 'native'
+        run: zig build bootstrap -- ${{ matrix.ggml-bootstrap }}
 
       - name: Build binary and export GGUF
         run: |
           mkdir -p artifacts/package
 
           zig build -Doptimize=ReleaseSmall -Dcpu=baseline -Dtarget=${{ matrix.target }} -Dggml-prefix=${{ matrix.ggml-prefix }}
+          file zig-out/bin/${{ matrix.binary }}
           zig build export-gguf -Doptimize=ReleaseSmall -- models/spacer.weights artifacts/package/spacer.gguf
 
       - name: Check native binary startup
@@ -110,31 +111,3 @@ jobs:
           path: artifacts/package/spacer.gguf
           if-no-files-found: error
           retention-days: 30
-
-  verify-windows:
-    name: Verify Windows executable
-    needs: build
-    runs-on: windows-2022
-    timeout-minutes: 10
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: gcs-windows-x86_64
-
-      - name: Verify package and run executable
-        shell: pwsh
-        run: |
-          $expected = (Get-Content gcs-windows-x86_64.zip.sha256).Split(' ')[0]
-          $actual = (Get-FileHash gcs-windows-x86_64.zip -Algorithm SHA256).Hash
-          if ($actual -ne $expected) { throw 'Package checksum mismatch' }
-
-          Expand-Archive gcs-windows-x86_64.zip -DestinationPath package
-          ./package/gcs.exe --help
-          if ($LASTEXITCODE -ne 0) { throw 'Executable startup failed' }
-
-          ./package/gcs.exe --model-info
-          if ($LASTEXITCODE -ne 0) { throw 'Model initialization failed' }
-
-          $packagePath = (Resolve-Path package).Path
-          ./package/gcs.exe -f "$packagePath\*.zig"
-          if ($LASTEXITCODE -ne 0) { throw 'Windows file selection or formatting failed' }

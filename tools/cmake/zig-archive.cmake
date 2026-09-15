@@ -1,4 +1,4 @@
-# Use Zig's COFF-aware archiver when producing Windows libraries on another OS.
+# Use Zig's archiver for target objects instead of the host platform's archiver.
 set(CMAKE_AR "${CMAKE_C_COMPILER}")
 
 foreach(language C CXX)
