@@ -60,7 +60,12 @@ flowchart LR
 
 - 已添加独立发布脚本和工作流发布任务，README 以 Releases 为正式下载入口。
 - actionlint、Python 语法和 diff 检查通过。
-- 实际云端发布结果待补充。
+- [运行 34950031224](https://github.com/MatrixAges/gpu-code-spacer/actions/runs/34950031224)的版本准备、三端构建及正式发布任务全部成功。
+- 已公开发布 [v0.1.2](https://github.com/MatrixAges/gpu-code-spacer/releases/tag/v0.1.2)，不是草稿或预发布版，并设为 Latest。
+- 标签指向 `6247a73568632a1253ad8bfe6868d117e26805e5`，与版本清单及实际构建提交一致。
+- Release API 核对四个附件齐全：三个原始可执行文件以及 `spacer-v0.1.2.gguf`，无自定义压缩包或哈希后缀。
+- 首次 changelog 收录 24 个提交并带提交链接，与该版本 git 历史数量一致。
+- 本次验证覆盖首次发布；未额外生成虚假旧标签或额外版本来验证后续版本差异路径。
 
 ## 自我审查
 
