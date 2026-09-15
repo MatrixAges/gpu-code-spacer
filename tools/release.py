@@ -19,7 +19,8 @@ def main():
         Path("artifacts") / name
         for name in (
             f"gcs-{version}-linux-x86_64",
-            f"gcs-{version}-macos-aarch64",
+            f"gcs-{version}-linux-arm_64",
+            f"gcs-{version}-macos-arm_64",
             f"gcs-{version}-windows-x86_64.exe",
             f"spacer-{version}.gguf",
         )

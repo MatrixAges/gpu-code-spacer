@@ -61,9 +61,9 @@ Push an update to the `build` branch to build packages automatically, or open
 click **Run workflow**, leave `master` selected, and run it manually. A manual run
 fetches the latest `master`, increments `.version` in `build.zig.zon`, commits the
 change, and atomically pushes the new commit to both `master` and `build` before
-building it on all three platforms. If either branch cannot be fast-forwarded,
-neither branch is updated. After all three builds succeed, the workflow creates a
-version tag on the built commit and publishes a GitHub Release with all four raw
+building it for all four platform targets. If either branch cannot be fast-forwarded,
+neither branch is updated. After all four builds succeed, the workflow creates a
+version tag on the built commit and publishes a GitHub Release with all five raw
 files. Direct pushes to `build` only produce Actions artifacts, without incrementing
 the version or publishing a Release. Keep local development on `master`; no local
 branch switch is needed. Pull `master` after a manual release to get the version commit.
@@ -76,24 +76,25 @@ build fails; rerun only the failed build jobs to retain that version.
 Download these files from the Release assets or completed Actions run:
 
 - `gcs-<version>-linux-x86_64`: Linux executable using the CPU backend, cross-compiled on macOS.
-- `gcs-<version>-macos-aarch64`: Apple Silicon executable with Metal support, built on macOS 15.
+- `gcs-<version>-linux-arm_64`: Linux ARM64 executable using the CPU backend, cross-compiled on macOS.
+- `gcs-<version>-macos-arm_64`: Apple Silicon executable with Metal support, built on macOS 15.
 - `gcs-<version>-windows-x86_64.exe`: Windows executable using the CPU backend, cross-compiled on macOS.
 - `spacer-<version>.gguf`: model exported from the same committed weights as the binaries.
 
 Each artifact is uploaded as a single file with archiving disabled. Downloads are
 the executable or GGUF itself, without ZIP or tar wrappers. On macOS and Linux,
-grant execute permission after downloading, e.g. `chmod +x gcs-v0.1.0-macos-aarch64`.
+grant execute permission after downloading, e.g. `chmod +x gcs-v0.1.0-macos-arm_64`.
 The version is in the filename; the source commit is recorded in the workflow run.
 Actions artifacts are retained for 30 days; published files are also stored as
 Release assets. These builds do not retrain the model.
 
 Release notes list every commit since the previous published non-prerelease version,
 with commit links and a full comparison link. The first Release includes all commit
-history through its version. A Release stays in draft until all four files have
+history through its version. A Release stays in draft until all five files have
 uploaded successfully. Retrying a failed publication resumes its draft; an already
 published Release is checked and left unchanged.
 
-All three build jobs run in parallel on macOS 15 runners. macOS keeps Metal support;
+All four build jobs run in parallel on macOS 15 runners. macOS keeps Metal support;
 Linux and Windows use separate cross-compiled ggml libraries. Only the native macOS
 binary is executed during the workflow; no Linux or Windows runners are used.
 
@@ -119,7 +120,7 @@ export PATH="$PWD/zig-out/bin:$PATH"
 
 Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Earlier builds were executed successfully on macOS Apple Silicon, Ubuntu 24.04 x86_64, and Windows Server 2022. The current workflow executes only its native macOS binary; cross-compiled Linux and Windows packages are not run on their target operating systems in CI.
 
-To cross-compile Linux and Windows x86_64 on macOS, install Ninja alongside Zig and CMake:
+To cross-compile Linux x86_64/ARM64 and Windows x86_64 on macOS, install Ninja alongside Zig and CMake:
 
 ```sh
 zig build bootstrap -- --ggml-linux
@@ -128,6 +129,12 @@ zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
   -Dtarget=x86_64-linux-gnu -Dggml-prefix=.deps/ggml-linux-install \
   --prefix zig-out/linux-x86_64
 
+zig build bootstrap -- --ggml-linux-arm64
+
+zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
+  -Dtarget=aarch64-linux-gnu -Dggml-prefix=.deps/ggml-linux-arm64-install \
+  --prefix zig-out/linux-arm_64
+
 zig build bootstrap -- --ggml-windows
 
 zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
@@ -135,8 +142,9 @@ zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
   --prefix zig-out/windows-x86_64
 ```
 
-The executables are `zig-out/linux-x86_64/bin/gcs` and
-`zig-out/windows-x86_64/bin/gcs.exe`. Target libraries are built in separate
+The executables are `zig-out/linux-x86_64/bin/gcs`, `zig-out/linux-arm_64/bin/gcs`,
+and `zig-out/windows-x86_64/bin/gcs.exe`. The compiler target uses Zig's canonical
+`aarch64` name; downloadable ARM64 files use `arm_64`. Target libraries are built in separate
 directories, so they do not replace the host libraries used to export GGUF.
 
 ## Usage

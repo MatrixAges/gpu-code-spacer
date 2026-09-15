@@ -86,7 +86,13 @@ jobs:
             ggml-prefix: .deps/ggml-linux-install
             ggml-bootstrap: --ggml-linux
             extension: ''
-          - platform: macos-aarch64
+          - platform: linux-arm_64
+            binary: gcs
+            target: aarch64-linux-gnu
+            ggml-prefix: .deps/ggml-linux-arm64-install
+            ggml-bootstrap: --ggml-linux-arm64
+            extension: ''
+          - platform: macos-arm_64
             binary: gcs
             target: native
             ggml-prefix: .deps/ggml-install

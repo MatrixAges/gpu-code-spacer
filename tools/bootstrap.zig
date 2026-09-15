@@ -40,7 +40,8 @@ pub fn main(init: std.process.Init) !void {
 
     const windows = args.len == 2 and std.mem.eql(u8, args[1], "--ggml-windows");
     const linux = args.len == 2 and std.mem.eql(u8, args[1], "--ggml-linux");
-    const cross_compile = windows or linux;
+    const linux_arm64 = args.len == 2 and std.mem.eql(u8, args[1], "--ggml-linux-arm64");
+    const cross_compile = windows or linux or linux_arm64;
 
     if (args.len == 2 and (std.mem.eql(u8, args[1], "--ggml") or cross_compile)) {
         const commit = @import("learning/ggml_version.zig").commit;
@@ -57,8 +58,9 @@ pub fn main(init: std.process.Init) !void {
 
         try verify(allocator, init.io, path, commit);
 
-        const build_dir = if (windows) ".deps/ggml-windows-build" else if (linux) ".deps/ggml-linux-build" else ".deps/ggml-build";
-        const install_arg = if (windows) "-DCMAKE_INSTALL_PREFIX=.deps/ggml-windows-install" else if (linux) "-DCMAKE_INSTALL_PREFIX=.deps/ggml-linux-install" else "-DCMAKE_INSTALL_PREFIX=.deps/ggml-install";
+        const dependency = if (windows) "ggml-windows" else if (linux_arm64) "ggml-linux-arm64" else if (linux) "ggml-linux" else "ggml";
+        const build_dir = try std.fmt.allocPrint(allocator, ".deps/{s}-build", .{dependency});
+        const install_arg = try std.fmt.allocPrint(allocator, "-DCMAKE_INSTALL_PREFIX=.deps/{s}-install", .{dependency});
 
         const cmake_args = [_][]const u8{
             "cmake",                      "-S",                      path,                    "-B",                            build_dir,
@@ -78,11 +80,13 @@ pub fn main(init: std.process.Init) !void {
             "-DCMAKE_ASM_COMPILER_ARG1=cc",
         } else &.{};
 
+        const triple = if (windows) "x86_64-windows-gnu" else if (linux_arm64) "aarch64-linux-gnu" else "x86_64-linux-gnu";
+
         const target_args: []const []const u8 = if (cross_compile) &.{
-            "-G",                                                                                                          "Ninja",
-            if (windows) "-DCMAKE_SYSTEM_NAME=Windows" else "-DCMAKE_SYSTEM_NAME=Linux",                                   "-DCMAKE_SYSTEM_PROCESSOR=x86_64",
-            if (windows) "-DCMAKE_C_COMPILER_TARGET=x86_64-windows-gnu" else "-DCMAKE_C_COMPILER_TARGET=x86_64-linux-gnu", if (windows) "-DCMAKE_CXX_COMPILER_TARGET=x86_64-windows-gnu" else "-DCMAKE_CXX_COMPILER_TARGET=x86_64-linux-gnu",
-            if (windows) "-DCMAKE_ASM_FLAGS=-target x86_64-windows-gnu" else "-DCMAKE_ASM_FLAGS=-target x86_64-linux-gnu", "-DCMAKE_USER_MAKE_RULES_OVERRIDE=../../tools/cmake/zig-archive.cmake",
+            "-G",                                                                          "Ninja",
+            if (windows) "-DCMAKE_SYSTEM_NAME=Windows" else "-DCMAKE_SYSTEM_NAME=Linux",   if (linux_arm64) "-DCMAKE_SYSTEM_PROCESSOR=aarch64" else "-DCMAKE_SYSTEM_PROCESSOR=x86_64",
+            try std.fmt.allocPrint(allocator, "-DCMAKE_C_COMPILER_TARGET={s}", .{triple}), try std.fmt.allocPrint(allocator, "-DCMAKE_CXX_COMPILER_TARGET={s}", .{triple}),
+            try std.fmt.allocPrint(allocator, "-DCMAKE_ASM_FLAGS=-target {s}", .{triple}), "-DCMAKE_USER_MAKE_RULES_OVERRIDE=../../tools/cmake/zig-archive.cmake",
         } else &.{};
 
         _ = try command(allocator, init.io, try std.mem.concat(allocator, []const u8, &.{ &cmake_args, compiler_args, target_args }));
