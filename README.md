@@ -9,6 +9,38 @@ gcs -p src -r
 
 [Installation](#installation) · [Usage](#usage) · [Codex Hooks](#codex-hooks) · [Limitations](#limitations) · [License](#license)
 
+## What is gcs
+
+`gcs` uses an embedded model to place blank lines between logical groups of code, keeping the original code and indentation intact.
+
+**Before**
+
+```ts
+function available(stock: number, reserved: number): boolean {
+  const remaining = stock - reserved;
+  const threshold = 2;
+  if (remaining < threshold) {
+    return false;
+  }
+  return true;
+}
+```
+
+**After**
+
+```ts
+function available(stock: number, reserved: number): boolean {
+  const remaining = stock - reserved;
+  const threshold = 2;
+
+  if (remaining < threshold) {
+    return false;
+  }
+
+  return true;
+}
+```
+
 ## Features
 
 - Supports individual files, recursive directory scanning, and glob patterns.
