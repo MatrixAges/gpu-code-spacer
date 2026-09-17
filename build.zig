@@ -1,6 +1,11 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
+    if (b.option(bool, "wasm", "Build the portable WebAssembly library") orelse false) {
+        buildWasm(b);
+        return;
+    }
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const gpu_enabled = b.option(bool, "gpu", "Try ggml hardware GPU inference before CPU") orelse true;
@@ -365,4 +370,25 @@ fn syntaxModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }
 
     return module;
+}
+
+fn buildWasm(b: *std.Build) void {
+    const wasm = b.addExecutable(.{
+        .name = "spacer",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm.zig"),
+            .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding }),
+            .optimize = .ReleaseSmall,
+        }),
+    });
+
+    wasm.entry = .disabled;
+    wasm.rdynamic = true;
+    wasm.export_memory = true;
+    wasm.stack_size = 1024 * 1024;
+    wasm.max_memory = 512 * 1024 * 1024;
+
+    wasm.root_module.addAnonymousImport("layout_weights", .{ .root_source_file = b.path("models/spacer.weights") });
+    wasm.root_module.addAnonymousImport("model_config", .{ .root_source_file = b.path("models/config.zig") });
+    b.installArtifact(wasm);
 }

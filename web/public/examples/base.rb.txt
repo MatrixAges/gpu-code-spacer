@@ -1,0 +1,134 @@
+def content_type(type = nil, params = {})
+  return response['content-type'] unless type
+  default = params.delete :default
+  mime_type = mime_type(type) || default
+  raise format('Unknown media type: %p', type) if mime_type.nil?
+  mime_type = mime_type.dup
+  unless params.include?(:charset) || settings.add_charset.all? { |p| !(p === mime_type) }
+    params[:charset] = params.delete('charset') || settings.default_encoding
+  end
+  params.delete :charset if mime_type.include? 'charset'
+  unless params.empty?
+    mime_type << ';'
+    mime_type << params.map do |key, val|
+      val = val.inspect if val.to_s =~ /[";,]/
+      "#{key}=#{val}"
+    end.join(';')
+  end
+  response['content-type'] = mime_type
+end
+MULTIPART_FORM_DATA_REPLACEMENT_TABLE = {
+  '"'  => '%22',
+  "\r" => '%0D',
+  "\n" => '%0A'
+}.freeze
+def attachment(filename = nil, disposition = :attachment)
+  response['Content-Disposition'] = disposition.to_s.dup
+  return unless filename
+  params = format('; filename="%s"', File.basename(filename).gsub(/["\r\n]/, MULTIPART_FORM_DATA_REPLACEMENT_TABLE))
+  response['Content-Disposition'] << params
+  ext = File.extname(filename)
+  content_type(ext) unless response['content-type'] || ext.empty?
+end
+def send_file(path, opts = {})
+  if opts[:type] || !response['content-type']
+    content_type opts[:type] || File.extname(path), default: 'application/octet-stream'
+  end
+  disposition = opts[:disposition]
+  filename    = opts[:filename]
+  disposition = :attachment if disposition.nil? && filename
+  filename    = path        if filename.nil?
+  attachment(filename, disposition) if disposition
+  last_modified opts[:last_modified] if opts[:last_modified]
+  file   = Rack::Files.new(File.dirname(settings.app_file))
+  result = file.serving(request, path)
+  result[1].each { |k, v| headers[k] ||= v }
+  headers['content-length'] = result[1]['content-length']
+  opts[:status] &&= Integer(opts[:status])
+  halt (opts[:status] || result[0]), result[2]
+rescue Errno::ENOENT
+  not_found
+end
+class Stream
+  def self.schedule(*) yield end
+  def self.defer(*)    yield end
+  def initialize(scheduler = self.class, keep_open = false, &back)
+    @back = back.to_proc
+    @scheduler = scheduler
+    @keep_open = keep_open
+    @callbacks = []
+    @closed = false
+  end
+  def close
+    return if closed?
+    @closed = true
+    @scheduler.schedule { @callbacks.each { |c| c.call } }
+  end
+  def each(&front)
+    @front = front
+    @scheduler.defer do
+      begin
+        @back.call(self)
+      rescue Exception => e
+        @scheduler.schedule { raise e }
+      ensure
+        close unless @keep_open
+      end
+    end
+  end
+  def <<(data)
+    @scheduler.schedule { @front.call(data.to_s) }
+    self
+  end
+  def callback(&block)
+    return yield if closed?
+    @callbacks << block
+  end
+  alias errback callback
+  def closed?
+    @closed
+  end
+end
+def stream(keep_open = false)
+  scheduler = env['async.callback'] ? EventMachine : Stream
+  current   = @params.dup
+  stream = if scheduler == Stream  && keep_open
+    Stream.new(scheduler, false) do |out|
+      until out.closed?
+        with_params(current) { yield(out) }
+      end
+    end
+  else
+    Stream.new(scheduler, keep_open) { |out| with_params(current) { yield(out) } }
+  end
+  body stream
+end
+def cache_control(*values)
+  if values.last.is_a?(Hash)
+    hash = values.pop
+    hash.reject! { |_k, v| v == false }
+    hash.reject! { |k, v| values << k if v == true }
+  else
+    hash = {}
+  end
+  values.map! { |value| value.to_s.tr('_', '-') }
+  hash.each do |key, value|
+    key = key.to_s.tr('_', '-')
+    value = value.to_i if %w[max-age s-maxage].include? key
+    values << "#{key}=#{value}"
+  end
+  response['Cache-Control'] = values.join(', ') if values.any?
+end
+def expires(amount, *values)
+  values << {} unless values.last.is_a?(Hash)
+  if amount.is_a? Integer
+    time    = Time.now + amount.to_i
+    max_age = amount
+  else
+    time    = time_for amount
+    max_age = time - Time.now
+  end
+  values.last.merge!(max_age: max_age) { |_key, v1, v2| v1 || v2 }
+  cache_control(*values)
+  response['Expires'] = time.httpdate
+end

@@ -2,7 +2,7 @@ const std = @import("std");
 const layout = @import("layout.zig");
 const features = @import("features.zig");
 const classifier = @import("classifier.zig");
-const inference = @import("inference.zig");
+const batch_capacity = 256;
 
 pub const Result = struct {
     text: []u8,
@@ -13,7 +13,7 @@ pub const Result = struct {
     unterminated_region: bool,
 };
 
-pub fn apply(allocator: std.mem.Allocator, source: []const u8, runner: *inference.Runner, confidence: f32) !Result {
+pub fn apply(allocator: std.mem.Allocator, source: []const u8, runner: anytype, confidence: f32) !Result {
     if (!std.unicode.utf8ValidateSlice(source)) return error.InvalidUtf8;
     if (!std.math.isFinite(confidence) or confidence < 0 or confidence > 1) return error.InvalidConfidence;
     for (source, 0..) |byte, i| {
@@ -36,11 +36,11 @@ pub fn apply(allocator: std.mem.Allocator, source: []const u8, runner: *inferenc
         @memset(labels, classifier.keep);
         abstained = labels.len;
     } else {
-        const inputs = try temporary.alloc(features.Vector, inference.batch_capacity);
-        const outputs = try temporary.alloc(classifier.Model.Output, inference.batch_capacity);
+        const inputs = try temporary.alloc(features.Vector, batch_capacity);
+        const outputs = try temporary.alloc(classifier.Model.Output, batch_capacity);
         var start: usize = 0;
-        while (start < document.boundaries.len) : (start += inference.batch_capacity) {
-            const count = @min(inference.batch_capacity, document.boundaries.len - start);
+        while (start < document.boundaries.len) : (start += batch_capacity) {
+            const count = @min(batch_capacity, document.boundaries.len - start);
             for (document.boundaries[start..][0..count], inputs[0..count]) |boundary, *input| input.* = features.encode(source, document, boundary);
             try runner.compute(inputs[0..count], outputs[0..count]);
 

@@ -1,0 +1,134 @@
+[
+  {
+    "language": "typescript",
+    "label": "TypeScript",
+    "project": "Vite",
+    "file": "client.ts",
+    "url": "https://github.com/vitejs/vite/blob/9913672bee9c34a2df7fff4c2538783cd4f43b4e/packages/vite/src/client/client.ts",
+    "license": "MIT",
+    "lines": 115,
+    "selection": "L209–L341",
+    "nonblankLines": 115
+  },
+  {
+    "language": "javascript",
+    "label": "JavaScript",
+    "project": "Express",
+    "file": "response.js",
+    "url": "https://github.com/expressjs/express/blob/bed501c695a61886399ee622875f3be933c716d8/lib/response.js",
+    "license": "MIT",
+    "lines": 135,
+    "selection": "L126–L220, L373–L415, L435–L484",
+    "nonblankLines": 135
+  },
+  {
+    "language": "python",
+    "label": "Python",
+    "project": "Requests",
+    "file": "auth.py",
+    "url": "https://github.com/psf/requests/blob/dae7ef63b4df6eded86637f251fc4e3a06c3b479/src/requests/auth.py",
+    "license": "Apache-2.0",
+    "lines": 163,
+    "selection": "L124–L354",
+    "nonblankLines": 163
+  },
+  {
+    "language": "java",
+    "label": "Java",
+    "project": "Guava",
+    "file": "CaseFormat.java",
+    "url": "https://github.com/google/guava/blob/0bfee017f6146c3e09b14c08e1634d51b5a6c791/guava/src/com/google/common/base/CaseFormat.java",
+    "license": "Apache-2.0",
+    "lines": 105,
+    "selection": "CaseFormat enum without StringConverter",
+    "nonblankLines": 105
+  },
+  {
+    "language": "rust",
+    "label": "Rust",
+    "project": "ripgrep",
+    "file": "parse.rs",
+    "url": "https://github.com/BurntSushi/ripgrep/blob/3fce3b5bb0236da2df6d99672afb8a719642eca7/crates/core/flags/parse.rs",
+    "license": "MIT",
+    "lines": 113,
+    "selection": "L171–L313",
+    "nonblankLines": 113
+  },
+  {
+    "language": "zig",
+    "label": "Zig",
+    "project": "Zig std",
+    "file": "InstallArtifact.zig",
+    "url": "https://github.com/ziglang/zig/blob/738d2be9d6b6ef3ff3559130c05159ef53336224/lib/std/Build/Step/InstallArtifact.zig",
+    "license": "MIT",
+    "lines": 130,
+    "selection": "create and make",
+    "nonblankLines": 130
+  },
+  {
+    "language": "go",
+    "label": "Go",
+    "project": "Gin",
+    "file": "form_mapping.go",
+    "url": "https://github.com/gin-gonic/gin/blob/dcaa4296d111981ffb31ac3eba90bb63e1eb5ab9/binding/form_mapping.go",
+    "license": "MIT",
+    "lines": 126,
+    "nonblankLines": 126,
+    "selection": "L245–L388"
+  },
+  {
+    "language": "cpp",
+    "label": "C++",
+    "project": "fmt",
+    "file": "printf.h",
+    "url": "https://github.com/fmtlib/fmt/blob/8dc5d3f69f15417d13c60a4a21f7298ed24db41c/include/fmt/printf.h",
+    "license": "MIT",
+    "lines": 129,
+    "nonblankLines": 129,
+    "selection": "L405–L560"
+  },
+  {
+    "language": "csharp",
+    "label": "C#",
+    "project": "Dapper",
+    "file": "DynamicParameters.cs",
+    "url": "https://github.com/DapperLib/Dapper/blob/6d48ef664acc7298c649e2d449d903b3360d5a90/Dapper/DynamicParameters.cs",
+    "license": "Apache-2.0",
+    "lines": 104,
+    "nonblankLines": 104,
+    "selection": "L182–L309"
+  },
+  {
+    "language": "ruby",
+    "label": "Ruby",
+    "project": "Sinatra",
+    "file": "base.rb",
+    "url": "https://github.com/sinatra/sinatra/blob/cb22afd7902b566b6eaba6c4ea89739494a65d12/lib/sinatra/base.rb",
+    "license": "MIT",
+    "lines": 134,
+    "nonblankLines": 134,
+    "selection": "L384–L581"
+  },
+  {
+    "language": "kotlin",
+    "label": "Kotlin",
+    "project": "OkHttp",
+    "file": "CallServerInterceptor.kt",
+    "url": "https://github.com/square/okhttp/blob/1f04bf8028b0fd9471ba9a77eba0ad913f86705a/okhttp/src/commonJvmAndroid/kotlin/okhttp3/internal/http/CallServerInterceptor.kt",
+    "license": "Apache-2.0",
+    "lines": 149,
+    "nonblankLines": 149,
+    "selection": "L30–L207"
+  },
+  {
+    "language": "swift",
+    "label": "Swift",
+    "project": "Alamofire",
+    "file": "MultipartFormData.swift",
+    "url": "https://github.com/Alamofire/Alamofire/blob/bda9ed57d72988a3a2ada33d824583541f86eac6/Source/Features/MultipartFormData.swift",
+    "license": "MIT",
+    "lines": 136,
+    "nonblankLines": 136,
+    "selection": "L320–L510"
+  }
+]

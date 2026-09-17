@@ -1,0 +1,91 @@
+<!doctype html>
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111111" />
+    <meta name="description" content="Give your code room to breathe. A tiny model that puts blank lines between logical groups of code. Try it locally in your browser." />
+    <title>gpu code spacer — room to breathe</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+
+  </head>
+  <body>
+    <main>
+      <nav aria-label="Main navigation">
+        <a class="brand" href="#"><span class="mark" aria-hidden="true">[ ]</span> gpu code spacer</a>
+        <a href="https://github.com/MatrixAges/gpu-code-spacer">GitHub ↗</a>
+      </nav>
+      <header class="intro">
+        <p class="eyebrow"><span class="dot"></span> Small model. A little more space.</p>
+        <h1>Give your code<br />room to <em>breathe.</em></h1>
+        <p class="lede">A tiny model that puts blank lines where your ideas pause.<br class="desktop-break" /> Same code. Same indentation. A calmer read.</p>
+
+        <div class="intro-actions">
+          <a class="primary" href="#playground">Try the live demo <span>↓</span></a>
+          <button id="copy-install" class="install" aria-label="Copy npm install command">npm i gpu-code-spacer <span aria-hidden="true">⧉</span></button>
+        </div>
+        <div class="facts" aria-label="Project facts">
+          <span><b>~52 KB</b> shared model</span>
+          <span><b>x languages</b> to explore</span>
+          <span><b>100% local</b> processing</span>
+        </div>
+      </header>
+      <section id="playground" aria-labelledby="demo-heading">
+        <div class="section-heading">
+          <h2 id="demo-heading">[ live demos ]</h2>
+          <span>Edit a little. See the space.</span>
+        </div>
+        <div class="workbench">
+          <div class="toolbar">
+            <div id="examples" class="examples" role="group" aria-label="Load a code example"></div>
+            <button id="reset" class="text-button">Reset example ↺</button>
+          </div>
+          <div class="panes">
+            <section class="pane" aria-labelledby="source-heading">
+              <div class="pane-heading">
+                <h3 id="source-heading"><span class="pane-number">01</span> Original <span class="editable">/ editable</span></h3>
+                <span id="source-file" class="file-label"></span>
+              </div>
+              <div class="editor" id="editor">
+                <div id="source-highlight" class="highlight" aria-hidden="true"></div>
+                <textarea id="source" aria-label="Original source code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea>
+              </div>
+              <div class="pane-footer"><span id="source-count">Loading example…</span><span>UTF-8</span></div>
+            </section>
+            <section class="pane output-pane" aria-labelledby="output-heading">
+              <div class="pane-heading">
+                <h3 id="output-heading"><span class="pane-number">02</span> Spaced <span class="output-star" aria-hidden="true">✳</span></h3>
+                <button id="copy-output" class="text-button" disabled>Copy code ⧉</button>
+              </div>
+              <div id="output" class="output-code highlight" tabindex="0" aria-label="Formatted source code"></div>
+              <div class="pane-footer"><span id="output-count">Waiting for model…</span><span id="timing">—</span></div>
+            </section>
+          </div>
+          <div class="statusbar">
+            <span id="status" role="status" aria-live="polite">Loading WebAssembly & gpu-lexer…</span>
+            <span>Spacing · WASM / CPU <span class="dot"></span></span>
+          </div>
+        </div>
+        <div class="demo-note"><span id="example-credit"></span><span>Code stays in your browser. gpu-lexer highlighting requires WebGPU.</span></div>
+      </section>
+      <section class="details" aria-label="How it works">
+        <article><span class="detail-index">01 / UNDER THE HOOD</span><h2>One model. Many languages.</h2><p>A shared tokenizer and a small neural network read the structure around each line. The model chooses the space between logical groups, without a separate formatting rulebook for every language.</p></article>
+        <article><span class="detail-index">02 / A NARROW PROMISE</span><h2>Your code stays yours.</h2><p>Only blank lines change. Nonblank content and indentation stay intact, with protected multiline regions preserved. This is a spacing tool; it does not wrap lines, sort imports, or replace your formatter.</p></article>
+        <article><span class="detail-index">03 / WHEREVER YOU WORK</span><h2>Zig at the core.</h2><p>The native CLI uses ggml with GPU acceleration when available. The npm package and this demo run the same model through WebAssembly on the CPU. No server, account, or API key required.</p></article>
+      </section>
+      <section class="get-started" aria-labelledby="start-heading">
+        <div><p class="eyebrow">[ bring it into your workflow ]</p><h2 id="start-heading">A little space.<br />A small API.</h2><p>Initialize once. Format as often as you need.</p><a href="https://github.com/MatrixAges/gpu-code-spacer#npm-package">Read the documentation ↗</a></div>
+        <pre class="api-example"><code><span class="code-muted">// npm i gpu-code-spacer</span>
+<span class="code-purple">import</span> { createSpacer } <span class="code-purple">from</span> <span class="code-green">'gpu-code-spacer'</span>;
+<span class="code-purple">const</span> spacer = <span class="code-purple">await</span> createSpacer();
+<span class="code-purple">const</span> { text } = spacer.format(source);
+
+<span class="code-muted">// Same code, with room to breathe.</span></code></pre>
+      </section>
+      <footer><span>gpu code spacer <span class="muted">/ open source, MIT</span> · <a href="./THIRD_PARTY_NOTICES.txt">Credits</a></span><a href="https://github.com/MatrixAges/gpu-code-spacer">Made with Zig. Shared with everyone. ↗</a></footer>
+    </main>
+    <noscript>This demo needs JavaScript and WebAssembly. You can also use the native CLI from the GitHub repository.</noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

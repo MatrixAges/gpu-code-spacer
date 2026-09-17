@@ -1,0 +1,126 @@
+func setByForm(value reflect.Value, field reflect.StructField, form map[string][]string, tagValue string, opt setOptions) (isSet bool, err error) {
+	vs, ok := form[tagValue]
+	if !ok && !opt.isDefaultExists {
+		return false, nil
+	}
+	switch value.Kind() {
+	case reflect.Slice:
+		if len(vs) == 0 {
+			if !opt.isDefaultExists {
+				return false, nil
+			}
+			vs = []string{opt.defaultValue}
+			cfTag := field.Tag.Get("collection_format")
+			if cfTag == "" || cfTag == "multi" {
+				vs = strings.Split(opt.defaultValue, ",")
+			}
+		}
+		if ok, err = trySetUsingParser(vs[0], value, opt.parser); ok {
+			return ok, err
+		} else if ok, err = trySetCustom(vs[0], value); ok {
+			return ok, err
+		}
+		if vs, err = trySplit(vs, field); err != nil {
+			return false, err
+		}
+		return true, setSlice(vs, value, field, opt)
+	case reflect.Array:
+		if len(vs) == 0 {
+			if !opt.isDefaultExists {
+				return false, nil
+			}
+			vs = []string{opt.defaultValue}
+			cfTag := field.Tag.Get("collection_format")
+			if cfTag == "" || cfTag == "multi" {
+				vs = strings.Split(opt.defaultValue, ",")
+			}
+		}
+		if ok, err = trySetUsingParser(vs[0], value, opt.parser); ok {
+			return ok, err
+		} else if ok, err = trySetCustom(vs[0], value); ok {
+			return ok, err
+		}
+		if vs, err = trySplit(vs, field); err != nil {
+			return false, err
+		}
+		if len(vs) != value.Len() {
+			return false, fmt.Errorf("%q is not valid value for %s", vs, value.Type().String())
+		}
+		return true, setArray(vs, value, field, opt)
+	default:
+		var val string
+		if !ok || len(vs) == 0 || (len(vs) > 0 && vs[0] == "") {
+			val = opt.defaultValue
+		} else if len(vs) > 0 {
+			val = vs[0]
+		}
+		if ok, err = trySetUsingParser(val, value, opt.parser); ok {
+			return ok, err
+		} else if ok, err = trySetCustom(val, value); ok {
+			return ok, err
+		}
+		return true, setWithProperType(val, value, field, opt)
+	}
+}
+func setWithProperType(val string, value reflect.Value, field reflect.StructField, opt setOptions) error {
+	if ok, err := trySetUsingParser(val, value, opt.parser); ok {
+		return err
+	} else if ok, err = trySetCustom(val, value); ok {
+		return err
+	}
+	if value.Kind() != reflect.String {
+		val = strings.TrimSpace(val)
+	}
+	switch value.Kind() {
+	case reflect.Int:
+		return setIntField(val, 0, value)
+	case reflect.Int8:
+		return setIntField(val, 8, value)
+	case reflect.Int16:
+		return setIntField(val, 16, value)
+	case reflect.Int32:
+		return setIntField(val, 32, value)
+	case reflect.Int64:
+		switch value.Interface().(type) {
+		case time.Duration:
+			return setTimeDuration(val, value)
+		}
+		return setIntField(val, 64, value)
+	case reflect.Uint:
+		return setUintField(val, 0, value)
+	case reflect.Uint8:
+		return setUintField(val, 8, value)
+	case reflect.Uint16:
+		return setUintField(val, 16, value)
+	case reflect.Uint32:
+		return setUintField(val, 32, value)
+	case reflect.Uint64:
+		return setUintField(val, 64, value)
+	case reflect.Bool:
+		return setBoolField(val, value)
+	case reflect.Float32:
+		return setFloatField(val, 32, value)
+	case reflect.Float64:
+		return setFloatField(val, 64, value)
+	case reflect.String:
+		value.SetString(val)
+	case reflect.Struct:
+		switch value.Interface().(type) {
+		case time.Time:
+			return setTimeField(val, field, value)
+		case multipart.FileHeader:
+			return nil
+		}
+		return json.API.Unmarshal(bytesconv.StringToBytes(val), value.Addr().Interface())
+	case reflect.Map:
+		return json.API.Unmarshal(bytesconv.StringToBytes(val), value.Addr().Interface())
+	case reflect.Ptr:
+		if !value.Elem().IsValid() {
+			value.Set(reflect.New(value.Type().Elem()))
+		}
+		return setWithProperType(val, value.Elem(), field, opt)
+	default:
+		return errUnknownType
+	}
+	return nil
+}

@@ -1,0 +1,129 @@
+template <typename Char, typename Context>
+void vprintf(buffer<Char>& buf, basic_string_view<Char> format,
+             basic_format_args<Context> args) {
+  using iterator = basic_appender<Char>;
+  auto out = iterator(buf);
+  auto context = basic_printf_context<Char>(out, args);
+  auto parse_ctx = parse_context<Char>(format);
+  auto get_arg = [&](int arg_index) {
+    if (arg_index < 0)
+      arg_index = parse_ctx.next_arg_id();
+    else
+      parse_ctx.check_arg_id(--arg_index);
+    auto arg = context.arg(arg_index);
+    if (!arg) report_error("argument not found");
+    return arg;
+  };
+  const Char* start = parse_ctx.begin();
+  const Char* end = parse_ctx.end();
+  auto it = start;
+  while (it != end) {
+    if (!find<false, Char>(it, end, '%', it)) {
+      it = end;
+      break;
+    }
+    Char c = *it++;
+    if (it != end && *it == c) {
+      write(out, basic_string_view<Char>(start, to_unsigned(it - start)));
+      start = ++it;
+      continue;
+    }
+    write(out, basic_string_view<Char>(start, to_unsigned(it - 1 - start)));
+    if (it == end) report_error("invalid format string");
+    auto specs = format_specs();
+    specs.set_align(align::right);
+    int arg_index = parse_header(it, end, specs, get_arg);
+    if (arg_index == 0) report_error("argument not found");
+    if (it != end && *it == '.') {
+      ++it;
+      c = it != end ? *it : 0;
+      if ('0' <= c && c <= '9') {
+        specs.precision = parse_nonnegative_int(it, end, 0);
+      } else if (c == '*') {
+        ++it;
+        if (it != end && *it >= '0' && *it <= '9') {
+          int precision_index = parse_nonnegative_int(it, end, -1);
+          if (it != end && *it == '$') {
+            ++it;
+            specs.precision = static_cast<int>(
+                get_arg(precision_index).visit(printf_precision_handler()));
+          } else {
+            report_error("invalid format specifier");
+          }
+        } else {
+          specs.precision =
+              static_cast<int>(get_arg(-1).visit(printf_precision_handler()));
+        }
+      } else {
+        specs.precision = 0;
+      }
+    }
+    auto arg = get_arg(arg_index);
+    if (specs.precision >= 0 && is_integral_type(arg.type())) {
+      specs.set_fill(' ');
+    }
+    if (specs.precision >= 0 && arg.type() == type::cstring_type) {
+      auto str = arg.visit(get_cstring<Char>());
+      auto str_end = str + specs.precision;
+      auto nul = std::find(str, str_end, Char());
+      auto sv = basic_string_view<Char>(
+          str, to_unsigned(nul != str_end ? nul - str : specs.precision));
+      arg = sv;
+    }
+    if (specs.alt() && arg.visit(is_zero_int())) specs.clear_alt();
+    if (specs.fill_unit<Char>() == '0') {
+      if (is_arithmetic_type(arg.type()) && specs.align() != align::left) {
+        specs.set_align(align::numeric);
+      } else {
+        specs.set_fill(' ');
+      }
+    }
+    c = it != end ? *it++ : 0;
+    Char t = it != end ? *it : 0;
+    switch (c) {
+    case 'h':
+      if (t == 'h') {
+        ++it;
+        t = it != end ? *it : 0;
+        convert_arg<signed char>(arg, t);
+      } else {
+        convert_arg<short>(arg, t);
+      }
+      break;
+    case 'l':
+      if (t == 'l') {
+        ++it;
+        t = it != end ? *it : 0;
+        convert_arg<long long>(arg, t);
+      } else {
+        convert_arg<long>(arg, t);
+      }
+      break;
+    case 'j': convert_arg<intmax_t>(arg, t); break;
+    case 'z': convert_arg<size_t>(arg, t); break;
+    case 't': convert_arg<std::ptrdiff_t>(arg, t); break;
+    case 'L':
+      break;
+    default: --it; convert_arg<void>(arg, c);
+    }
+    if (it == end) report_error("invalid format string");
+    char type = static_cast<char>(*it++);
+    if (is_integral_type(arg.type())) {
+      switch (type) {
+      case 'i':
+      case 'u': type = 'd'; break;
+      case 'c':
+        arg.visit(char_converter<basic_printf_context<Char>>(arg));
+        break;
+      }
+    }
+    bool upper = false;
+    specs.set_type(parse_printf_presentation_type(type, arg.type(), upper));
+    if (specs.type() == presentation_type::none)
+      report_error("invalid format specifier");
+    if (upper) specs.set_upper();
+    start = it;
+    arg.visit(printf_arg_formatter<Char>(out, specs, context));
+  }
+  write(out, basic_string_view<Char>(start, to_unsigned(it - start)));
+}

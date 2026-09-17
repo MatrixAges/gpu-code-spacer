@@ -1,0 +1,135 @@
+res.send = function send(body) {
+  var chunk = body;
+  var encoding;
+  var req = this.req;
+  var app = this.app;
+  switch (typeof chunk) {
+    case 'string':
+      encoding = 'utf8';
+      const type = this.get('Content-Type');
+      if (typeof type === 'string') {
+        this.set('Content-Type', setCharset(type, 'utf-8'));
+      } else {
+        this.type('html');
+      }
+      break;
+    case 'boolean':
+    case 'number':
+    case 'object':
+      if (chunk === null) {
+        chunk = '';
+      } else if (ArrayBuffer.isView(chunk)) {
+        if (!this.get('Content-Type')) {
+          this.type('bin');
+        }
+      } else {
+        return this.json(chunk);
+      }
+      break;
+  }
+  var etagFn = app.get('etag fn')
+  var generateETag = !this.get('ETag') && typeof etagFn === 'function'
+  var len;
+  if (chunk !== undefined && !this.get('Transfer-Encoding')) {
+    if (Buffer.isBuffer(chunk)) {
+      len = chunk.length
+    } else if (!generateETag && chunk.length < 1000) {
+      len = Buffer.byteLength(chunk, encoding)
+    } else {
+      chunk = Buffer.from(chunk, encoding)
+      encoding = undefined;
+      len = chunk.length
+    }
+    this.set('Content-Length', len);
+  }
+  var etag;
+  if (generateETag && len !== undefined) {
+    if ((etag = etagFn(chunk, encoding))) {
+      this.set('ETag', etag);
+    }
+  }
+  if (req.fresh) this.status(304);
+  if (204 === this.statusCode || 304 === this.statusCode) {
+    this.removeHeader('Content-Type');
+    this.removeHeader('Content-Length');
+    this.removeHeader('Transfer-Encoding');
+    chunk = '';
+  }
+  if (this.statusCode === 205) {
+    this.set('Content-Length', '0')
+    this.removeHeader('Transfer-Encoding')
+    chunk = ''
+  }
+  if (req.method === 'HEAD') {
+    this.end();
+  } else {
+    this.end(chunk, encoding);
+  }
+  return this;
+};
+res.sendFile = function sendFile(path, options, callback) {
+  var done = callback;
+  var req = this.req;
+  var res = this;
+  var next = req.next;
+  var opts = options || {};
+  if (!path) {
+    throw new TypeError('path argument is required to res.sendFile');
+  }
+  if (typeof path !== 'string') {
+    throw new TypeError('path must be a string to res.sendFile')
+  }
+  if (typeof options === 'function') {
+    done = options;
+    opts = {};
+  }
+  if (!opts.root && !pathIsAbsolute(path)) {
+    throw new TypeError('path must be absolute or specify root to res.sendFile');
+  }
+  var pathname = encodeURI(path);
+  opts.etag = this.app.enabled('etag');
+  var file = send(req, pathname, opts);
+  sendfile(res, file, opts, function (err) {
+    if (done) return done(err);
+    if (err && err.code === 'EISDIR') return next();
+    if (err && err.code !== 'ECONNABORTED' && err.syscall !== 'write') {
+      next(err);
+    }
+  });
+};
+res.download = function download (path, filename, options, callback) {
+  var done = callback;
+  var name = filename;
+  var opts = options || null
+  if (typeof filename === 'function') {
+    done = filename;
+    name = null;
+    opts = null
+  } else if (typeof options === 'function') {
+    done = options
+    opts = null
+  }
+  if (typeof filename === 'object' &&
+    (typeof options === 'function' || options === undefined)) {
+    name = null
+    opts = filename
+  }
+  var headers = {
+    'Content-Disposition': contentDisposition.create(basename(name || path))
+  };
+  if (opts && opts.headers) {
+    var keys = Object.keys(opts.headers)
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i]
+      if (key.toLowerCase() !== 'content-disposition') {
+        headers[key] = opts.headers[key]
+      }
+    }
+  }
+  opts = Object.create(opts)
+  opts.headers = headers
+  var fullPath = !opts.root
+    ? resolve(path)
+    : path
+  return this.sendFile(fullPath, opts, done)
+};

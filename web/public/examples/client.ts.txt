@@ -1,0 +1,115 @@
+async function handleMessage(payload: HotPayload) {
+  const activeHmrClient = bundledDevClient ?? hmrClient
+  switch (payload.type) {
+    case 'connected':
+      console.debug(`[vite] connected.`)
+      break
+    case 'bundled-dev-update':
+      bundledDevClient!.handlePush(payload)
+      break
+    case 'update':
+      await activeHmrClient.notifyListeners('vite:beforeUpdate', payload)
+      if (clearOverlayOrReloadOnFirstUpdate() === 'reload') {
+        return
+      }
+      await Promise.all(
+        payload.updates.map(async (update): Promise<void> => {
+          if (update.type === 'js-update') {
+            return hmrClient.queueUpdate(update)
+          }
+          const { path, timestamp } = update
+          const searchUrl = cleanUrl(path)
+          const el = Array.from(
+            document.querySelectorAll<HTMLLinkElement>('link'),
+          ).find(
+            (e) =>
+              !outdatedLinkTags.has(e) && cleanUrl(e.href).includes(searchUrl),
+          )
+          if (!el) {
+            return
+          }
+          const newPath = `${base}${searchUrl.slice(1)}${
+            searchUrl.includes('?') ? '&' : '?'
+          }t=${timestamp}`
+          return new Promise((resolve) => {
+            const newLinkTag = el.cloneNode() as HTMLLinkElement
+            newLinkTag.href = new URL(newPath, el.href).href
+            const removeOldEl = () => {
+              el.remove()
+              console.debug(`[vite] css hot updated: ${searchUrl}`)
+              resolve()
+            }
+            newLinkTag.addEventListener('load', removeOldEl)
+            newLinkTag.addEventListener('error', removeOldEl)
+            outdatedLinkTags.add(el)
+            el.after(newLinkTag)
+          })
+        }),
+      )
+      await activeHmrClient.notifyListeners('vite:afterUpdate', payload)
+      break
+    case 'custom': {
+      await activeHmrClient.notifyListeners(payload.event, payload.data)
+      if (payload.event === 'vite:ws:disconnect') {
+        if (hasDocument && !willUnload) {
+          console.log(`[vite] server connection lost. Polling for restart...`)
+          const socket = payload.data.webSocket as WebSocket
+          const url = new URL(socket.url)
+          url.search = ''
+          await waitForSuccessfulPing(url.href)
+          location.reload()
+        }
+      }
+      break
+    }
+    case 'full-reload':
+      if (
+        payload.ifFallback &&
+        !(globalThis as any).__vite_is_fallback_page__
+      ) {
+        break
+      }
+      await activeHmrClient.notifyListeners('vite:beforeFullReload', payload)
+      if (hasDocument) {
+        if (payload.path && payload.path.endsWith('.html')) {
+          const pagePath = decodeURI(location.pathname)
+          const payloadPath = base + payload.path.slice(1)
+          if (
+            pagePath === payloadPath ||
+            payload.path === '/index.html' ||
+            (pagePath.endsWith('/') && pagePath + 'index.html' === payloadPath)
+          ) {
+            pageReload()
+          }
+          return
+        } else {
+          pageReload()
+        }
+      }
+      break
+    case 'prune':
+      await activeHmrClient.notifyListeners('vite:beforePrune', payload)
+      await activeHmrClient.prunePaths(payload.paths)
+      break
+    case 'error': {
+      await activeHmrClient.notifyListeners('vite:error', payload)
+      if (hasDocument) {
+        const err = payload.err
+        if (enableOverlay) {
+          createErrorOverlay(err)
+        } else {
+          console.error(
+            `[vite] Internal Server Error\n${err.message}\n${err.stack}`,
+          )
+        }
+      }
+      break
+    }
+    case 'ping':
+      break
+    default: {
+      const check: never = payload
+      return check
+    }
+  }
+}

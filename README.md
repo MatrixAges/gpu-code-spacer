@@ -51,101 +51,79 @@ function available(stock: number, reserved: number): boolean {
 
 ## Installation
 
-### Releases and builds
+For the native GPU-enabled CLI, download an executable from [GitHub Releases](https://github.com/MatrixAges/gpu-code-spacer/releases), or [build from source](#build-from-source).
 
-Download published executables and GGUF models from
-[GitHub Releases](https://github.com/MatrixAges/gpu-code-spacer/releases).
+## npm package
 
-Push an update to the `build` branch to build packages automatically, or open
-[Build GCS](https://github.com/MatrixAges/gpu-code-spacer/actions/workflows/build.yml),
-click **Run workflow**, leave `master` selected, and run it manually. A manual run
-fetches the latest `master`, increments `.version` in `build.zig.zon`, commits the
-change, and atomically pushes the new commit to both `master` and `build` before
-building it for all four platform targets. If either branch cannot be fast-forwarded,
-neither branch is updated. After all four builds succeed, the workflow creates a
-version tag on the built commit and publishes a GitHub Release with all five raw
-files. Direct pushes to `build` only produce Actions artifacts, without incrementing
-the version or publishing a Release. Keep local development on `master`; no local
-branch switch is needed. Pull `master` after a manual release to get the version commit.
-
-Artifact versions use `.version` from `build.zig.zon`, for example `v0.1.0`,
-without a commit hash suffix. Each manual release increments the last component;
-patch and minor carry at 10: `0.0.8 → 0.0.9 → 0.1.0` and `0.9.9 → 1.0.0`.
-The major component has no upper limit. The version remains committed if a later
-build fails; rerun only the failed build jobs to retain that version.
-Download these files from the Release assets or completed Actions run:
-
-- `gcs-<version>-linux-x86_64`: Linux executable using the CPU backend, cross-compiled on macOS.
-- `gcs-<version>-linux-arm_64`: Linux ARM64 executable using the CPU backend, cross-compiled on macOS.
-- `gcs-<version>-macos-arm_64`: Apple Silicon executable with Metal support, built on macOS 15.
-- `gcs-<version>-windows-x86_64.exe`: Windows executable using the CPU backend, cross-compiled on macOS.
-- `spacer-<version>.gguf`: model exported from the same committed weights as the binaries.
-
-Each artifact is uploaded as a single file with archiving disabled. Downloads are
-the executable or GGUF itself, without ZIP or tar wrappers. On macOS and Linux,
-grant execute permission after downloading, e.g. `chmod +x gcs-v0.1.0-macos-arm_64`.
-The version is in the filename; the source commit is recorded in the workflow run.
-Actions artifacts are retained for 30 days; published files are also stored as
-Release assets. These builds do not retrain the model.
-
-Release notes list every commit since the previous published non-prerelease version,
-with commit links and a full comparison link. The first Release includes all commit
-history through its version. A Release stays in draft until all five files have
-uploaded successfully. Retrying a failed publication resumes its draft; an already
-published Release is checked and left unchanged.
-
-All four build jobs run in parallel on macOS 15 runners. macOS keeps Metal support;
-Linux and Windows use separate cross-compiled ggml libraries. Only the native macOS
-binary is executed during the workflow; no Linux or Windows runners are used.
-
-The GGUF uses the custom `gcs_mlp` architecture and requires GCS feature extraction
-and inference logic; it is not a general-purpose model for llama.cpp or Ollama.
-
-### Build from source
-
-Building from source requires Zig 0.16.0, Git, CMake, and a system C/C++ compiler. Run these commands from the repository root:
+The npm package provides an ESM JavaScript API and TypeScript declarations for Node.js 22+ and modern browsers. It embeds the same model in an approximately 86 KiB WebAssembly module and runs inference on the **CPU**. Installing the published package does not require Zig, ggml, a native compiler, or an install script.
 
 ```sh
-# Set up ggml before the first build
-zig build bootstrap -- --ggml
-
-zig build -Doptimize=ReleaseSmall
+npm install gpu-code-spacer
 ```
 
-The executable is located at `zig-out/bin/gcs`. Run it directly or add the directory to your PATH:
+```js
+import { createSpacer } from 'gpu-code-spacer';
+
+const spacer = await createSpacer();
+const { text, changes, candidates } = spacer.format(source);
+```
+
+Initialize once and reuse the instance. `format` is synchronous and accepts an optional `{ confidence: 0.8 }` argument; omitting it uses the embedded model calibration. Source must be well-formed Unicode, at most 4 MiB as UTF-8, with LF or CRLF line endings. Invalid input throws. `changes` counts boundaries with changed blank-line counts, and `candidates` counts analyzed boundaries.
+
+The browser entry loads the colocated WASM asset. For bundlers such as Vite, explicitly importing the asset ensures it is emitted with the correct deployment URL:
+
+```js
+import { createSpacer } from 'gpu-code-spacer';
+import wasm from 'gpu-code-spacer/spacer.wasm?url';
+
+const spacer = await createSpacer({ wasm });
+const result = spacer.format(source);
+```
+
+Custom loaders can pass a URL, bytes, or a compiled `WebAssembly.Module` through `wasm`. Serve browser assets over HTTP(S), and run large files in a Worker to keep the UI responsive. The npm package is a library; the existing native `gcs` CLI is distributed separately.
+
+### Building and publishing npm
+
+Package development requires Zig 0.16.0 and Node.js 22.12+ (Node.js 24 is used in CI). WebAssembly builds do not need ggml or CMake.
 
 ```sh
-export PATH="$PWD/zig-out/bin:$PATH"
+npm ci
+npm run build
+npm pack --dry-run
+
+# After reviewing the package and selecting an unused package.json version:
+npm login
+npm publish --access public
 ```
 
-Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Earlier builds were executed successfully on macOS Apple Silicon, Ubuntu 24.04 x86_64, and Windows Server 2022. The current workflow executes only its native macOS binary; cross-compiled Linux and Windows packages are not run on their target operating systems in CI.
+`prepack` rebuilds the WASM library, and only `dist/`, README, LICENSE, and package metadata enter the package. The npm version is maintained in `package.json` independently of the native release workflow; use `npm version <version> --no-git-tag-version` to update it and the lockfile together.
 
-To cross-compile Linux x86_64/ARM64 and Windows x86_64 on macOS, install Ninja alongside Zig and CMake:
+The manually dispatched **Publish npm package** GitHub Actions workflow publishes the version in `package.json` from `master`. Configure a repository secret named `NPM_TOKEN` with publishing access to this package, or configure an npm trusted publisher for `.github/workflows/npm.yml`. The workflow does not publish on ordinary pushes. Initial publication and npm ownership are managed by the maintainer.
+
+## Web demo
+
+The landing page uses a fixed dark theme with editable source on the left and spaced output on the right. Both panels use [gpu-lexer](https://github.com/vercel-labs/gpu-lexer) for language-agnostic highlighting. Formatting and highlighting run locally in a Worker; source code is never submitted to a server.
+
+Twelve edited implementation excerpts are included: TypeScript, JavaScript, Python, Java, Rust, Zig, Go, C++, C#, Ruby, Kotlin, and Swift. Each contains at least 100 nonblank code lines, with comments, docstrings, imports, and unrelated setup removed to focus on spacing. These are excerpts, not standalone programs. Pinned source links, original copyright notices, and licenses are retained outside the code panels. Sources come from the existing corpus and are not an independent accuracy benchmark.
 
 ```sh
-zig build bootstrap -- --ggml-linux
+npm ci
+npm run dev
 
-zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
-  -Dtarget=x86_64-linux-gnu -Dggml-prefix=.deps/ggml-linux-install \
-  --prefix zig-out/linux-x86_64
-
-zig build bootstrap -- --ggml-linux-arm64
-
-zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
-  -Dtarget=aarch64-linux-gnu -Dggml-prefix=.deps/ggml-linux-arm64-install \
-  --prefix zig-out/linux-arm_64
-
-zig build bootstrap -- --ggml-windows
-
-zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
-  -Dtarget=x86_64-windows-gnu -Dggml-prefix=.deps/ggml-windows-install \
-  --prefix zig-out/windows-x86_64
+# Compile to web-dist/ and serve the production build:
+npm run build:web
+npm run preview
 ```
 
-The executables are `zig-out/linux-x86_64/bin/gcs`, `zig-out/linux-arm_64/bin/gcs`,
-and `zig-out/windows-x86_64/bin/gcs.exe`. The compiler target uses Zig's canonical
-`aarch64` name; downloadable ARM64 files use `arm_64`. Target libraries are built in separate
-directories, so they do not replace the host libraries used to export GGUF.
+The live demo accepts up to 256 KiB for interactive use. `gpu-lexer` requires WebGPU in a secure context (HTTPS or localhost). If GPU highlighting is unavailable, the page reports the error and displays uncolored code; WASM spacing remains available. Highlighting is probabilistic and is not a parser. The displayed duration measures spacing inference, excluding GPU initialization and highlighting.
+
+### GitHub Pages
+
+1. In repository **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source.
+2. Push the implementation to `master`, or run **Build and deploy web** manually from `master`.
+3. The workflow builds the npm library and website, uploads `web-dist/`, and deploys it with `actions/deploy-pages`.
+
+Pull requests build without deploying. Asset paths are relative so the site can run under `/gpu-code-spacer/`. The expected URL after the first successful deployment is `https://MatrixAges.github.io/gpu-code-spacer/`.
 
 ## Usage
 
@@ -279,6 +257,52 @@ gcs currently adjusts only blank lines. It does not change indentation, wrap lon
 Input should be UTF-8 source code, with a maximum size of 4 MiB per file. Writing changes back is supported only for regular files with a single hard link, and the tool checks for content changes before replacing a file. If a file fails during batch processing, the remaining files are still processed and the final exit code is `2`. Completed writes are not rolled back.
 
 The default model is `v6-2026-standard`, with a confidence threshold of `0`. See the [model metadata](models/metadata.json) for details. All 90 regression cases in the current revised set pass; this does not guarantee complete coverage of every language or coding style.
+
+## Build from source
+
+Building from source requires Zig 0.16.0, Git, CMake, and a system C/C++ compiler. Run these commands from the repository root:
+
+```sh
+# Set up ggml before the first build
+zig build bootstrap -- --ggml
+
+zig build -Doptimize=ReleaseSmall
+```
+
+The executable is located at `zig-out/bin/gcs`. Run it directly or add the directory to your PATH:
+
+```sh
+export PATH="$PWD/zig-out/bin:$PATH"
+```
+
+Both the model and ggml are compiled into the executable, so no separate model files or ggml shared libraries are needed at runtime. Earlier builds were executed successfully on macOS Apple Silicon, Ubuntu 24.04 x86_64, and Windows Server 2022. The current workflow executes only its native macOS binary; cross-compiled Linux and Windows packages are not run on their target operating systems in CI.
+
+To cross-compile Linux x86_64/ARM64 and Windows x86_64 on macOS, install Ninja alongside Zig and CMake:
+
+```sh
+zig build bootstrap -- --ggml-linux
+
+zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
+  -Dtarget=x86_64-linux-gnu -Dggml-prefix=.deps/ggml-linux-install \
+  --prefix zig-out/linux-x86_64
+
+zig build bootstrap -- --ggml-linux-arm64
+
+zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
+  -Dtarget=aarch64-linux-gnu -Dggml-prefix=.deps/ggml-linux-arm64-install \
+  --prefix zig-out/linux-arm_64
+
+zig build bootstrap -- --ggml-windows
+
+zig build -Doptimize=ReleaseSmall -Dcpu=baseline \
+  -Dtarget=x86_64-windows-gnu -Dggml-prefix=.deps/ggml-windows-install \
+  --prefix zig-out/windows-x86_64
+```
+
+The executables are `zig-out/linux-x86_64/bin/gcs`, `zig-out/linux-arm_64/bin/gcs`,
+and `zig-out/windows-x86_64/bin/gcs.exe`. The compiler target uses Zig's canonical
+`aarch64` name; downloadable ARM64 files use `arm_64`. Target libraries are built in separate
+directories, so they do not replace the host libraries used to export GGUF.
 
 ## License
 

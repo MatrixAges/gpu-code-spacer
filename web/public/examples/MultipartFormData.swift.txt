@@ -1,0 +1,136 @@
+public func encode() throws -> Data {
+    if let bodyPartError {
+        throw bodyPartError
+    }
+    var encoded = Data()
+    bodyParts.first?.hasInitialBoundary = true
+    bodyParts.last?.hasFinalBoundary = true
+    for bodyPart in bodyParts {
+        let encodedData = try encode(bodyPart)
+        encoded.append(encodedData)
+    }
+    return encoded
+}
+public func writeEncodedData(to fileURL: URL) throws {
+    if let bodyPartError {
+        throw bodyPartError
+    }
+    if fileManager.fileExists(atPath: fileURL.path) {
+        throw AFError.multipartEncodingFailed(reason: .outputStreamFileAlreadyExists(at: fileURL))
+    } else if !fileURL.isFileURL {
+        throw AFError.multipartEncodingFailed(reason: .outputStreamURLInvalid(url: fileURL))
+    }
+    guard let outputStream = OutputStream(url: fileURL, append: false) else {
+        throw AFError.multipartEncodingFailed(reason: .outputStreamCreationFailed(for: fileURL))
+    }
+    outputStream.open()
+    defer { outputStream.close() }
+    bodyParts.first?.hasInitialBoundary = true
+    bodyParts.last?.hasFinalBoundary = true
+    for bodyPart in bodyParts {
+        try write(bodyPart, to: outputStream)
+    }
+}
+private func encode(_ bodyPart: BodyPart) throws -> Data {
+    var encoded = Data()
+    let initialData = bodyPart.hasInitialBoundary ? initialBoundaryData() : encapsulatedBoundaryData()
+    encoded.append(initialData)
+    let headerData = encodeHeaders(for: bodyPart)
+    encoded.append(headerData)
+    let bodyStreamData = try encodeBodyStream(for: bodyPart)
+    encoded.append(bodyStreamData)
+    if bodyPart.hasFinalBoundary {
+        encoded.append(finalBoundaryData())
+    }
+    return encoded
+}
+private func encodeHeaders(for bodyPart: BodyPart) -> Data {
+    let headerText = bodyPart.headers.map { "\($0.name): \($0.value)\(EncodingCharacters.crlf)" }
+        .joined()
+        + EncodingCharacters.crlf
+    return Data(headerText.utf8)
+}
+private func encodeBodyStream(for bodyPart: BodyPart) throws -> Data {
+    let inputStream = bodyPart.bodyStream
+    inputStream.open()
+    defer { inputStream.close() }
+    var encoded = Data()
+    while inputStream.hasBytesAvailable {
+        var buffer = [UInt8](repeating: 0, count: streamBufferSize)
+        let bytesRead = inputStream.read(&buffer, maxLength: streamBufferSize)
+        if let error = inputStream.streamError {
+            throw AFError.multipartEncodingFailed(reason: .inputStreamReadFailed(error: error))
+        }
+        if bytesRead > 0 {
+            encoded.append(buffer, count: bytesRead)
+        } else {
+            break
+        }
+    }
+    guard UInt64(encoded.count) == bodyPart.bodyContentLength else {
+        let error = AFError.UnexpectedInputStreamLength(bytesExpected: bodyPart.bodyContentLength,
+                                                        bytesRead: UInt64(encoded.count))
+        throw AFError.multipartEncodingFailed(reason: .inputStreamReadFailed(error: error))
+    }
+    return encoded
+}
+private func write(_ bodyPart: BodyPart, to outputStream: OutputStream) throws {
+    try writeInitialBoundaryData(for: bodyPart, to: outputStream)
+    try writeHeaderData(for: bodyPart, to: outputStream)
+    try writeBodyStream(for: bodyPart, to: outputStream)
+    try writeFinalBoundaryData(for: bodyPart, to: outputStream)
+}
+private func writeInitialBoundaryData(for bodyPart: BodyPart, to outputStream: OutputStream) throws {
+    let initialData = bodyPart.hasInitialBoundary ? initialBoundaryData() : encapsulatedBoundaryData()
+    return try write(initialData, to: outputStream)
+}
+private func writeHeaderData(for bodyPart: BodyPart, to outputStream: OutputStream) throws {
+    let headerData = encodeHeaders(for: bodyPart)
+    return try write(headerData, to: outputStream)
+}
+private func writeBodyStream(for bodyPart: BodyPart, to outputStream: OutputStream) throws {
+    let inputStream = bodyPart.bodyStream
+    inputStream.open()
+    defer { inputStream.close() }
+    var bytesLeftToRead = bodyPart.bodyContentLength
+    while inputStream.hasBytesAvailable && bytesLeftToRead > 0 {
+        let bufferSize = min(streamBufferSize, Int(bytesLeftToRead))
+        var buffer = [UInt8](repeating: 0, count: bufferSize)
+        let bytesRead = inputStream.read(&buffer, maxLength: bufferSize)
+        if let streamError = inputStream.streamError {
+            throw AFError.multipartEncodingFailed(reason: .inputStreamReadFailed(error: streamError))
+        }
+        if bytesRead > 0 {
+            if buffer.count != bytesRead {
+                buffer = Array(buffer[0..<bytesRead])
+            }
+            try write(&buffer, to: outputStream)
+            bytesLeftToRead -= UInt64(bytesRead)
+        } else {
+            break
+        }
+    }
+}
+private func writeFinalBoundaryData(for bodyPart: BodyPart, to outputStream: OutputStream) throws {
+    if bodyPart.hasFinalBoundary {
+        try write(finalBoundaryData(), to: outputStream)
+    }
+}
+private func write(_ data: Data, to outputStream: OutputStream) throws {
+    var buffer = [UInt8](repeating: 0, count: data.count)
+    data.copyBytes(to: &buffer, count: data.count)
+    return try write(&buffer, to: outputStream)
+}
+private func write(_ buffer: inout [UInt8], to outputStream: OutputStream) throws {
+    var bytesToWrite = buffer.count
+    while bytesToWrite > 0, outputStream.hasSpaceAvailable {
+        let bytesWritten = outputStream.write(buffer, maxLength: bytesToWrite)
+        if let error = outputStream.streamError {
+            throw AFError.multipartEncodingFailed(reason: .outputStreamWriteFailed(error: error))
+        }
+        bytesToWrite -= bytesWritten
+        if bytesToWrite > 0 {
+            buffer = Array(buffer[bytesWritten..<buffer.count])
+        }
+    }
+}

@@ -36,7 +36,7 @@ fn bag(line: []const u8, output: []f32, scale: f32) void {
     while (iterator.next()) |token| {
         if (token.kind == .whitespace or token.kind == .newline) continue;
         const value = hash(token.text(excerpt));
-        output[value % output.len] += if ((value >> 32) & 1 == 0) scale else -scale;
+        output[@intCast(value % output.len)] += if ((value >> 32) & 1 == 0) scale else -scale;
         tokens += 1;
     }
 
@@ -104,11 +104,11 @@ pub fn encode(source: []const u8, document: layout.Document, boundary: layout.Bo
     for (1..4) |distance| {
         if (boundary.before >= distance) {
             const context = firstWord(text(source, document, boundary.before - distance));
-            result[96 + hash(context) % 16] += 1 / @as(f32, @floatFromInt(distance));
+            result[96 + @as(usize, @intCast(hash(context) % 16))] += 1 / @as(f32, @floatFromInt(distance));
         }
         if (boundary.after + distance < document.nonblank.len) {
             const context = firstWord(text(source, document, boundary.after + distance));
-            result[112 + hash(context) % 16] += 1 / @as(f32, @floatFromInt(distance));
+            result[112 + @as(usize, @intCast(hash(context) % 16))] += 1 / @as(f32, @floatFromInt(distance));
         }
     }
 
