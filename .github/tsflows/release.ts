@@ -183,9 +183,9 @@ export default workflow({
       ]
     },
     "npm-build": {
-      name: "Build npm package",
+      name: "Build npm package once / macOS",
       needs: "prepare",
-      "runs-on": "ubuntu-latest",
+      "runs-on": "macos-15",
       "timeout-minutes": 10,
       steps: [
         {
@@ -221,7 +221,7 @@ export default workflow({
           name: "Pack release artifact",
           run: [
             "mkdir -p npm-package",
-            "npm pack --pack-destination npm-package"
+            "npm pack --ignore-scripts --pack-destination npm-package"
           ].join('\n')
         },
         {
@@ -235,7 +235,7 @@ export default workflow({
       ]
     },
     "npm-check": {
-      name: "Check npm / ${{ matrix.runner }}",
+      name: "Verify built npm package / ${{ matrix.runner }}",
       needs: [
         "prepare",
         "npm-build"

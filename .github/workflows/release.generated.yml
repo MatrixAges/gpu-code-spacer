@@ -122,9 +122,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   npm-build:
-    name: Build npm package
+    name: Build npm package once / macOS
     needs: prepare
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -144,14 +144,14 @@ jobs:
       - name: Pack release artifact
         run: |-
           mkdir -p npm-package
-          npm pack --pack-destination npm-package
+          npm pack --ignore-scripts --pack-destination npm-package
       - uses: actions/upload-artifact@v7
         with:
           name: npm-package
           path: npm-package/*.tgz
           if-no-files-found: error
   npm-check:
-    name: Check npm / ${{ matrix.runner }}
+    name: Verify built npm package / ${{ matrix.runner }}
     needs:
       - prepare
       - npm-build

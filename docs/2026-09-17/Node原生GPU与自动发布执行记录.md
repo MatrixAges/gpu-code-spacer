@@ -40,6 +40,7 @@ Node npm 包默认自动使用 GPU，并将版本发布接入用户已经绑定�
 - tools/prepare-release.py 将 Zig、package.json 和 package-lock.json 版本作为同一次提交更新。
 - 用临时 Git 仓库执行实际版本准备脚本，确认 0.1.3 同步更新为 0.1.4。本工作区仍是 0.1.3。
 - 构建一次 npm tarball，将其作为 artifact 传给三平台安装校验和发布作业。
+- npm 包统一在 macOS 构建；打包使用 --ignore-scripts，避免 prepack 再次编译 WASM。三平台验证作业只下载并安装同一 tarball，不安装 Zig、不执行编译命令。
 - 发布作业仅有 contents:read / id-token:write，不使用 NPM_TOKEN。
 - 发布之前读取 tarball 中的包名和版本；如果 registry 中已有该版本，仅在 SHA-512 完全一致时跳过。
 - 直接推送 build 分支需要源码已经包含未发布的统一版本；重复使用 0.1.3 发布新内容会明确失败。手动运行 Build GCS 会自动处理下一版。
