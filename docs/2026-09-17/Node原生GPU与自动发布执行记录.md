@@ -61,6 +61,12 @@ Node npm 包默认自动使用 GPU，并将版本发布接入用户已经绑定�
 
 ## Answer：交付与自我审查
 
+### 发布路径修复
+
+首次 v0.1.4 运行的原生构建与三平台 npm 校验均通过，但发布命令使用未加路径前缀的 npm-package/xxx.tgz，被 npm 解析为 GitHub 简写并报 EALLOWGIT。
+tools/publish-npm.mjs 改用 node:path.resolve 生成绝对 tarball 路径。本地 npm 12.0.2 对实际打包文件执行 publish --dry-run 已通过。
+该错误发生在认证之前，不需要开放 Git 下载权限。修复后启动新 workflow，让它使用新脚本；原有手动版本规则将生成 v0.1.5。
+
 本次交付选择复用现成原生插件和共享 WebGPU 实现，满足 Node GPU 目标，并减少自行维护 ABI 和跨平台 GPU 构建的代码。
 复核发现 Dawn 生命周期会持有事件循环，因此用 Worker 终止来保证释放；并检查了 Node --input-type 两种参数形式对子 Worker 的影响。
 没有依据操作系统名称直接宣称 GPU 可用，实际后端由原生插件和硬件适配器初始化决定。

@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const version = process.env.VERSION?.replace(/^v/, '');
-const archive = `npm-package/gpu-code-spacer-${version}.tgz`;
+const archive = resolve('npm-package', `gpu-code-spacer-${version}.tgz`);
 const metadata = JSON.parse(execFileSync('tar', ['-xOf', archive, 'package/package.json'], { encoding: 'utf8' }));
 
 if (metadata.name !== 'gpu-code-spacer' || metadata.version !== version) {
