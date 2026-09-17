@@ -1,4 +1,3 @@
-import './style.css';
 import examples from './examples.json';
 import type { FormatRequest, FormatResponse, SyntaxSpan } from './messages';
 
@@ -135,6 +134,7 @@ worker.onmessage = (event: MessageEvent<FormatResponse>) => {
 
   formatted = result.text;
 
+  element('backend').textContent = result.backend === 'webgpu' ? 'Spacing · WebGPU' : 'Spacing · WASM / CPU';
   renderCode(sourceHighlight, source.value, result.before);
   renderCode(output, result.text, result.after);
   source.classList.remove('pending');

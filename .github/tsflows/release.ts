@@ -1,0 +1,405 @@
+import { workflow } from '@jlarky/gha-ts/workflow-types';
+
+export default workflow({
+  name: "Build GCS",
+  on: {
+    push: {
+      branches: [
+        "build"
+      ]
+    },
+    workflow_dispatch: {}
+  },
+  permissions: {
+    contents: "read"
+  },
+  concurrency: {
+    group: "build",
+    "cancel-in-progress": false
+  },
+  jobs: {
+    prepare: {
+      name: "Prepare build revision",
+      "runs-on": "macos-15",
+      "timeout-minutes": 5,
+      permissions: {
+        contents: "write"
+      },
+      outputs: {
+        sha: "${{ steps.revision.outputs.sha }}",
+        version: "${{ steps.revision.outputs.version }}"
+      },
+      steps: [
+        {
+          uses: "actions/checkout@v7",
+          with: {
+            ref: "${{ github.event_name == 'workflow_dispatch' && 'master' || github.sha }}",
+            "fetch-depth": 0
+          }
+        },
+        {
+          name: "Prepare source version",
+          id: "revision",
+          shell: "bash",
+          run: "python3 tools/prepare-release.py",
+          env: {
+            GITHUB_EVENT_NAME: "${{ github.event_name }}"
+          }
+        },
+        {
+          name: "Publish version to master and build",
+          if: "github.event_name == 'workflow_dispatch'",
+          shell: "bash",
+          run: "git push --atomic origin HEAD:refs/heads/master HEAD:refs/heads/build"
+        }
+      ]
+    },
+    build: {
+      name: "${{ matrix.platform }} / ${{ needs.prepare.outputs.version }}",
+      needs: "prepare",
+      "runs-on": "macos-15",
+      "timeout-minutes": 30,
+      strategy: {
+        "fail-fast": false,
+        matrix: {
+          include: [
+            {
+              platform: "linux-x86_64",
+              binary: "gcs",
+              target: "x86_64-linux-gnu",
+              "ggml-prefix": ".deps/ggml-linux-install",
+              "ggml-bootstrap": "--ggml-linux",
+              extension: ""
+            },
+            {
+              platform: "linux-arm_64",
+              binary: "gcs",
+              target: "aarch64-linux-gnu",
+              "ggml-prefix": ".deps/ggml-linux-arm64-install",
+              "ggml-bootstrap": "--ggml-linux-arm64",
+              extension: ""
+            },
+            {
+              platform: "macos-arm_64",
+              binary: "gcs",
+              target: "native",
+              "ggml-prefix": ".deps/ggml-install",
+              "ggml-bootstrap": "--ggml",
+              extension: ""
+            },
+            {
+              platform: "windows-x86_64",
+              binary: "gcs.exe",
+              target: "x86_64-windows-gnu",
+              "ggml-prefix": ".deps/ggml-windows-install",
+              "ggml-bootstrap": "--ggml-windows",
+              extension: ".exe"
+            }
+          ]
+        }
+      },
+      defaults: {
+        run: {
+          shell: "bash"
+        }
+      },
+      steps: [
+        {
+          uses: "actions/checkout@v7",
+          with: {
+            ref: "${{ needs.prepare.outputs.sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          uses: "mlugg/setup-zig@v2",
+          with: {
+            version: "0.16.0"
+          }
+        },
+        {
+          name: "Build ggml",
+          run: "zig build bootstrap -- --ggml"
+        },
+        {
+          name: "Cross-compile target ggml",
+          if: "matrix.target != 'native'",
+          run: "zig build bootstrap -- ${{ matrix.ggml-bootstrap }}"
+        },
+        {
+          name: "Build binary and export GGUF",
+          run: [
+            "mkdir -p artifacts",
+            "",
+            "zig build -Doptimize=ReleaseSmall -Dcpu=baseline -Dtarget=${{ matrix.target }} -Dggml-prefix=${{ matrix.ggml-prefix }}",
+            "file zig-out/bin/${{ matrix.binary }}",
+            "zig build export-gguf -Doptimize=ReleaseSmall -- models/spacer.weights artifacts/spacer-${{ needs.prepare.outputs.version }}.gguf",
+            ""
+          ].join('\n')
+        },
+        {
+          name: "Check native binary startup",
+          if: "matrix.target == 'native'",
+          run: [
+            "zig-out/bin/gcs --help",
+            "zig-out/bin/gcs --model-info",
+            ""
+          ].join('\n')
+        },
+        {
+          name: "Name binary",
+          env: {
+            PLATFORM: "${{ matrix.platform }}",
+            BINARY: "${{ matrix.binary }}",
+            EXTENSION: "${{ matrix.extension }}",
+            VERSION: "${{ needs.prepare.outputs.version }}"
+          },
+          run: [
+            "cp \"zig-out/bin/${BINARY}\" \"artifacts/gcs-${VERSION}-${PLATFORM}${EXTENSION}\"",
+            ""
+          ].join('\n')
+        },
+        {
+          name: "Upload binary",
+          uses: "actions/upload-artifact@v7",
+          with: {
+            path: "artifacts/gcs-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}${{ matrix.extension }}",
+            archive: false,
+            "if-no-files-found": "error",
+            "retention-days": 30
+          }
+        },
+        {
+          name: "Upload standalone GGUF",
+          if: "matrix.platform == 'linux-x86_64'",
+          uses: "actions/upload-artifact@v7",
+          with: {
+            path: "artifacts/spacer-${{ needs.prepare.outputs.version }}.gguf",
+            archive: false,
+            "if-no-files-found": "error",
+            "retention-days": 30
+          }
+        }
+      ]
+    },
+    "npm-build": {
+      name: "Build npm package",
+      needs: "prepare",
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": 10,
+      steps: [
+        {
+          uses: "actions/checkout@v7",
+          with: {
+            ref: "${{ needs.prepare.outputs.sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          uses: "actions/setup-node@v6",
+          with: {
+            "node-version": 24,
+            "package-manager-cache": false
+          }
+        },
+        {
+          uses: "mlugg/setup-zig@v2",
+          with: {
+            version: "0.16.0"
+          }
+        },
+        {
+          run: "npm ci"
+        },
+        {
+          run: "npm run build:workflows -- --check"
+        },
+        {
+          run: "npm run build:web"
+        },
+        {
+          name: "Pack release artifact",
+          run: [
+            "mkdir -p npm-package",
+            "npm pack --pack-destination npm-package"
+          ].join('\n')
+        },
+        {
+          uses: "actions/upload-artifact@v7",
+          with: {
+            name: "npm-package",
+            path: "npm-package/*.tgz",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    },
+    "npm-check": {
+      name: "Check npm / ${{ matrix.runner }}",
+      needs: [
+        "prepare",
+        "npm-build"
+      ],
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 10,
+      strategy: {
+        "fail-fast": false,
+        matrix: {
+          runner: [
+            "ubuntu-latest",
+            "macos-15",
+            "windows-latest"
+          ]
+        }
+      },
+      defaults: {
+        run: {
+          shell: "bash"
+        }
+      },
+      steps: [
+        {
+          uses: "actions/checkout@v7",
+          with: {
+            ref: "${{ needs.prepare.outputs.sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          uses: "actions/setup-node@v6",
+          with: {
+            "node-version": 24,
+            "package-manager-cache": false
+          }
+        },
+        {
+          uses: "actions/download-artifact@v8",
+          with: {
+            name: "npm-package",
+            path: "npm-package"
+          }
+        },
+        {
+          name: "Install and run packed package",
+          env: {
+            VERSION: "${{ needs.prepare.outputs.version }}"
+          },
+          run: [
+            "package_archive=\"$PWD/npm-package/gpu-code-spacer-${VERSION#v}.tgz\"",
+            "package_source=\"$PWD/src/engine.zig\"",
+            "package_check=$(mktemp -d)",
+            "cd \"$package_check\"",
+            "npm init --yes",
+            "npm install \"$package_archive\"",
+            "SOURCE_FILE=\"$package_source\" node --input-type=module <<'JS'",
+            "import { readFile } from 'node:fs/promises';",
+            "import { createSpacer } from 'gpu-code-spacer';",
+            "const spacer = await createSpacer();",
+            "try {",
+            "  const result = await spacer.format(await readFile(process.env.SOURCE_FILE, 'utf8'));",
+            "  console.log({ backend: spacer.backend, fallbackReason: spacer.fallbackReason, candidates: result.candidates });",
+            "  if (result.candidates === 0) throw new Error('No source boundaries were processed.');",
+            "} finally {",
+            "  await spacer.destroy();",
+            "}",
+            "JS"
+          ].join('\n')
+        }
+      ]
+    },
+    "npm-publish": {
+      name: "Publish npm package",
+      needs: [
+        "prepare",
+        "build",
+        "npm-check"
+      ],
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": 10,
+      permissions: {
+        contents: "read",
+        "id-token": "write"
+      },
+      steps: [
+        {
+          uses: "actions/checkout@v7",
+          with: {
+            ref: "${{ needs.prepare.outputs.sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          uses: "actions/setup-node@v6",
+          with: {
+            "node-version": 24,
+            "package-manager-cache": false
+          }
+        },
+        {
+          run: "npm install -g npm@latest"
+        },
+        {
+          uses: "actions/download-artifact@v8",
+          with: {
+            name: "npm-package",
+            path: "npm-package"
+          }
+        },
+        {
+          name: "Publish built tarball with trusted publishing",
+          env: {
+            VERSION: "${{ needs.prepare.outputs.version }}"
+          },
+          shell: "bash",
+          run: [
+            "publish_userconfig=$(mktemp)",
+            "printf \"registry=https://registry.npmjs.org/\\n\" > \"$publish_userconfig\"",
+            "export NPM_CONFIG_USERCONFIG=\"$publish_userconfig\"",
+            "unset NODE_AUTH_TOKEN NPM_TOKEN",
+            "node tools/publish-npm.mjs"
+          ].join('\n')
+        }
+      ]
+    },
+    release: {
+      name: "Publish GitHub Release",
+      if: "github.event_name == 'workflow_dispatch'",
+      needs: [
+        "prepare",
+        "build",
+        "npm-publish"
+      ],
+      "runs-on": "macos-15",
+      "timeout-minutes": 10,
+      permissions: {
+        contents: "write"
+      },
+      steps: [
+        {
+          uses: "actions/checkout@v7",
+          with: {
+            ref: "${{ needs.prepare.outputs.sha }}",
+            "fetch-depth": 0,
+            "persist-credentials": false
+          }
+        },
+        {
+          uses: "actions/download-artifact@v8",
+          with: {
+            path: "artifacts",
+            "merge-multiple": true
+          }
+        },
+        {
+          name: "Generate changelog and publish raw assets",
+          env: {
+            GH_TOKEN: "${{ github.token }}",
+            VERSION: "${{ needs.prepare.outputs.version }}",
+            SOURCE_SHA: "${{ needs.prepare.outputs.sha }}"
+          },
+          run: "python3 tools/release.py"
+        }
+      ]
+    }
+  }
+});

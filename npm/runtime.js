@@ -2,12 +2,24 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const maxBytes = 4 * 1024 * 1024;
 
-export async function instantiate(bytes) {
+export async function loadRuntime(bytes) {
   const loaded = await WebAssembly.instantiate(bytes, {});
   const wasm = (loaded instanceof WebAssembly.Instance ? loaded : loaded.instance).exports;
+  const outputText = () => decoder.decode(new Uint8Array(wasm.memory.buffer, wasm.output_pointer(), wasm.output_length()));
+
+  function check(status) {
+    if (status !== 0) throw new Error(`Unable to format source: ${outputText()}`);
+  }
+
+  check(wasm.initialize());
 
   return {
-    format(source, { confidence = wasm.default_confidence() } = {}) {
+    wasm,
+    check,
+    result() {
+      return { text: outputText(), changes: wasm.changes(), candidates: wasm.candidates() };
+    },
+    async withInput(source, confidence, operation) {
       if (typeof source !== 'string') throw new TypeError('Source must be a string.');
       if (!source.isWellFormed()) throw new TypeError('Source contains an unpaired UTF-16 surrogate.');
       if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
@@ -23,14 +35,36 @@ export async function instantiate(bytes) {
 
       try {
         new Uint8Array(wasm.memory.buffer, pointer, input.byteLength).set(input);
-        const status = wasm.format(pointer, input.byteLength, confidence);
-        const text = decoder.decode(new Uint8Array(wasm.memory.buffer, wasm.output_pointer(), wasm.output_length()));
-        if (status !== 0) throw new Error(`Unable to format source: ${text}`);
-
-        return { text, changes: wasm.changes(), candidates: wasm.candidates() };
+        return await operation(pointer, input.byteLength, confidence);
       } finally {
+        wasm.reset();
         wasm.release(pointer, input.byteLength);
       }
+    },
+  };
+}
+
+export function createFormatter(runtime, backend, operation, release = () => {}) {
+  let queue = Promise.resolve();
+  let closing;
+
+  return {
+    get backend() { return backend; },
+
+    async format(source, { confidence = runtime.wasm.default_confidence() } = {}) {
+      if (closing) throw new Error('This spacer has been destroyed.');
+
+      const result = queue.then(() => runtime.withInput(source, confidence, operation));
+      queue = result.then(() => {}, () => {});
+      return result;
+    },
+
+    destroy() {
+      closing ??= queue.then(() => {
+        release();
+        runtime.wasm.reset();
+      });
+      return closing;
     },
   };
 }

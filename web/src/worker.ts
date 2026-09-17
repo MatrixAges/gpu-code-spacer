@@ -13,17 +13,21 @@ let running = false;
 
 self.onmessage = (event: MessageEvent<FormatRequest>) => {
   pending = event.data;
+
   void drain();
 };
 
 async function drain() {
   if (running) return;
+
   running = true;
 
   try {
     while (pending) {
       const request = pending;
+
       pending = undefined;
+
       await processRequest(request);
     }
   } finally {
@@ -35,7 +39,7 @@ async function processRequest({ id, source }: FormatRequest) {
   try {
     const spacer = await ready;
     const start = performance.now();
-    const result = spacer.format(source);
+    const result = await spacer.format(source);
     const milliseconds = performance.now() - start;
     let before: SyntaxSpan[] = [];
     let after: SyntaxSpan[] = [];
@@ -51,7 +55,7 @@ async function processRequest({ id, source }: FormatRequest) {
       highlightError = error instanceof Error ? error.message : String(error);
     }
 
-    self.postMessage({ id, ok: true, ...result, before, after, highlightError, milliseconds } satisfies FormatResponse);
+    self.postMessage({ id, ok: true, ...result, backend: spacer.backend, before, after, highlightError, milliseconds } satisfies FormatResponse);
   } catch (error) {
     self.postMessage({ id, ok: false, error: error instanceof Error ? error.message : String(error) } satisfies FormatResponse);
   }

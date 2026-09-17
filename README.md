@@ -1,5 +1,7 @@
 # gpu code spacer
 
+[Live Demo](https://matrixages.github.io/gpu-code-spacer/)
+
 A model-based code spacing tool (50kb model size). Adjusts blank lines between code lines while preserving code content and indentation.
 
 ```sh
@@ -55,7 +57,7 @@ For the native GPU-enabled CLI, download an executable from [GitHub Releases](ht
 
 ## npm package
 
-The npm package provides an ESM JavaScript API and TypeScript declarations for Node.js 22+ and modern browsers. It embeds the same model in an approximately 86 KiB WebAssembly module and runs inference on the **CPU**. Installing the published package does not require Zig, ggml, a native compiler, or an install script.
+The npm package provides an ESM JavaScript API and TypeScript declarations for Node.js 22+ and modern browsers. Both run model inference on WebGPU, with Zig/WebAssembly handling source analysis, feature extraction, classification, and rendering. Node.js automatically loads the platform's prebuilt Dawn native plugin through the optional `webgpu` dependency and falls back to WASM CPU inference if GPU initialization is unavailable. Installing the package does not require Zig, ggml, or a native compiler.
 
 ```sh
 npm install gpu-code-spacer
@@ -65,10 +67,10 @@ npm install gpu-code-spacer
 import { createSpacer } from 'gpu-code-spacer';
 
 const spacer = await createSpacer();
-const { text, changes, candidates } = spacer.format(source);
+const { text, changes, candidates } = await spacer.format(source);
 ```
 
-Initialize once and reuse the instance. `format` is synchronous and accepts an optional `{ confidence: 0.8 }` argument; omitting it uses the embedded model calibration. Source must be well-formed Unicode, at most 4 MiB as UTF-8, with LF or CRLF line endings. Invalid input throws. `changes` counts boundaries with changed blank-line counts, and `candidates` counts analyzed boundaries.
+Initialize once and reuse the instance. `format` returns a Promise and accepts an optional `{ confidence: 0.8 }` argument; omitting it uses the embedded model calibration. Source must be well-formed Unicode, at most 4 MiB as UTF-8, with LF or CRLF line endings. Invalid input rejects the formatting Promise. `changes` counts boundaries with changed blank-line counts, and `candidates` counts analyzed boundaries.
 
 The browser entry loads the colocated WASM asset. For bundlers such as Vite, explicitly importing the asset ensures it is emitted with the correct deployment URL:
 
@@ -77,53 +79,27 @@ import { createSpacer } from 'gpu-code-spacer';
 import wasm from 'gpu-code-spacer/spacer.wasm?url';
 
 const spacer = await createSpacer({ wasm });
-const result = spacer.format(source);
+const result = await spacer.format(source);
 ```
 
-Custom loaders can pass a URL, bytes, or a compiled `WebAssembly.Module` through `wasm`. Serve browser assets over HTTP(S), and run large files in a Worker to keep the UI responsive. The npm package is a library; the existing native `gcs` CLI is distributed separately.
+Custom loaders can pass a URL, bytes, or a compiled `WebAssembly.Module` through `wasm`. Browsers require WebGPU in a secure context (HTTPS or localhost). Initialization, device loss, and compute errors are reported; there is no automatic CPU fallback in the browser. Run large files in a Worker to keep source analysis off the UI thread. The npm package is a library; the existing native `gcs` CLI is distributed separately.
 
-### Building and publishing npm
+`spacer.backend` reports the actual inference backend: `webgpu` or `wasm`. In Node.js, `spacer.fallbackReason` explains an automatic CPU fallback. Use `createSpacer({ backend: 'webgpu' })` to require hardware GPU inference, or `{ backend: 'wasm' }` to explicitly use CPU. These backend options apply only to Node.js; the browser always requires WebGPU. Node GPU work runs in a dedicated Worker. Calls on one instance are queued so they can safely reuse model and GPU buffers. When finished, call `await spacer.destroy()`; it waits for queued calls and releases resources. New calls after destruction reject. The model runs in batches of up to 4096 boundaries, with GPU weights uploaded once per instance.
 
-Package development requires Zig 0.16.0 and Node.js 22.12+ (Node.js 24 is used in CI). WebAssembly builds do not need ggml or CMake.
+The native dependency includes macOS arm64/x64, Linux arm64/x64, and Windows arm64/x64 builds; actual GPU availability depends on the system and drivers. Its unpacked size is approximately 95 MB. Installing with `--omit=optional` leaves Node.js on WASM CPU. GPU errors after initialization reject the current operation rather than silently retrying on CPU.
 
-```sh
-npm ci
-npm run build
-npm pack --dry-run
+```js
+const spacer = await createSpacer();
 
-# After reviewing the package and selecting an unused package.json version:
-npm login
-npm publish --access public
+try {
+  const result = await spacer.format(source);
+  console.log(spacer.backend, result.text);
+} finally {
+  await spacer.destroy();
+}
 ```
 
-`prepack` rebuilds the WASM library, and only `dist/`, README, LICENSE, and package metadata enter the package. The npm version is maintained in `package.json` independently of the native release workflow; use `npm version <version> --no-git-tag-version` to update it and the lockfile together.
-
-The manually dispatched **Publish npm package** GitHub Actions workflow publishes the version in `package.json` from `master`. Configure a repository secret named `NPM_TOKEN` with publishing access to this package, or configure an npm trusted publisher for `.github/workflows/npm.yml`. The workflow does not publish on ordinary pushes. Initial publication and npm ownership are managed by the maintainer.
-
-## Web demo
-
-The landing page uses a fixed dark theme with editable source on the left and spaced output on the right. Both panels use [gpu-lexer](https://github.com/vercel-labs/gpu-lexer) for language-agnostic highlighting. Formatting and highlighting run locally in a Worker; source code is never submitted to a server.
-
-Twelve edited implementation excerpts are included: TypeScript, JavaScript, Python, Java, Rust, Zig, Go, C++, C#, Ruby, Kotlin, and Swift. Each contains at least 100 nonblank code lines, with comments, docstrings, imports, and unrelated setup removed to focus on spacing. These are excerpts, not standalone programs. Pinned source links, original copyright notices, and licenses are retained outside the code panels. Sources come from the existing corpus and are not an independent accuracy benchmark.
-
-```sh
-npm ci
-npm run dev
-
-# Compile to web-dist/ and serve the production build:
-npm run build:web
-npm run preview
-```
-
-The live demo accepts up to 256 KiB for interactive use. `gpu-lexer` requires WebGPU in a secure context (HTTPS or localhost). If GPU highlighting is unavailable, the page reports the error and displays uncolored code; WASM spacing remains available. Highlighting is probabilistic and is not a parser. The displayed duration measures spacing inference, excluding GPU initialization and highlighting.
-
-### GitHub Pages
-
-1. In repository **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source.
-2. Push the implementation to `master`, or run **Build and deploy web** manually from `master`.
-3. The workflow builds the npm library and website, uploads `web-dist/`, and deploys it with `actions/deploy-pages`.
-
-Pull requests build without deploying. Asset paths are relative so the site can run under `/gpu-code-spacer/`. The expected URL after the first successful deployment is `https://MatrixAges.github.io/gpu-code-spacer/`.
+GPU and CPU floating-point accumulation can differ at classification boundaries. The shared renderer independently verifies that nonblank source content is preserved.
 
 ## Usage
 

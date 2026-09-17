@@ -1,5 +1,5 @@
 impl Parser {
-                    fn new() -> &'static Parser {
+    fn new() -> &'static Parser {
         static P: OnceLock<Parser> = OnceLock::new();
         P.get_or_init(|| {
             let mut infos = vec![];
@@ -35,7 +35,7 @@ impl Parser {
             Parser { map, info: infos }
         })
     }
-                fn parse<I, O>(&self, rawargs: I, args: &mut LowArgs) -> anyhow::Result<()>
+    fn parse<I, O>(&self, rawargs: I, args: &mut LowArgs) -> anyhow::Result<()>
     where
         I: IntoIterator<Item = O>,
         O: Into<OsString>,
@@ -94,7 +94,7 @@ impl Parser {
         }
         Ok(())
     }
-        fn find_short(&self, ch: char) -> FlagLookup<'_> {
+    fn find_short(&self, ch: char) -> FlagLookup<'_> {
         if !ch.is_ascii() {
             return FlagLookup::UnrecognizedShort(ch);
         }
@@ -104,7 +104,7 @@ impl Parser {
         };
         FlagLookup::Match(&self.info[index])
     }
-                fn find_long(&self, name: &str) -> FlagLookup<'_> {
+    fn find_long(&self, name: &str) -> FlagLookup<'_> {
         let Some(index) = self.map.find(name.as_bytes()) else {
             return FlagLookup::UnrecognizedLong(name.to_string());
         };
