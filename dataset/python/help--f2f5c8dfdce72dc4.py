@@ -48,6 +48,7 @@ def _implementation():
 
     if implementation == "CPython":
         implementation_version = platform.python_version()
+
     elif implementation == "PyPy":
         pypy = sys.pypy_version_info  # type: ignore[attr-defined]
 
@@ -57,8 +58,10 @@ def _implementation():
             implementation_version = "".join(
                 [implementation_version, sys.pypy_version_info.releaselevel]  # type: ignore[attr-defined]
             )
+
     elif implementation == "Jython":
         implementation_version = platform.python_version()  # Complete Guess
+
     elif implementation == "IronPython":
         implementation_version = platform.python_version()  # Complete Guess
     else:

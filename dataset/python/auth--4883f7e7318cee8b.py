@@ -189,6 +189,7 @@ class HTTPDigestAuth(AuthBase):
                 return hashlib.md5(x, usedforsecurity=False).hexdigest()
 
             hash_utf8 = md5_utf8
+
         elif _algorithm == "SHA":
             def sha_utf8(x: str | bytes) -> str:
                 if isinstance(x, str):
@@ -197,6 +198,7 @@ class HTTPDigestAuth(AuthBase):
                 return hashlib.sha1(x, usedforsecurity=False).hexdigest()
 
             hash_utf8 = sha_utf8
+
         elif _algorithm == "SHA-256":
             def sha256_utf8(x: str | bytes) -> str:
                 if isinstance(x, str):
@@ -205,6 +207,7 @@ class HTTPDigestAuth(AuthBase):
                 return hashlib.sha256(x, usedforsecurity=False).hexdigest()
 
             hash_utf8 = sha256_utf8
+
         elif _algorithm == "SHA-512":
             def sha512_utf8(x: str | bytes) -> str:
                 if isinstance(x, str):
@@ -245,7 +248,6 @@ class HTTPDigestAuth(AuthBase):
         ncvalue = f"{self._thread_local.nonce_count:08x}"
 
         s = str(self._thread_local.nonce_count).encode("utf-8")
-
         s += nonce.encode("utf-8")
         s += time.ctime().encode("utf-8")
         s += os.urandom(8)
@@ -257,6 +259,7 @@ class HTTPDigestAuth(AuthBase):
 
         if not qop:
             respdig = KD(HA1, f"{nonce}:{HA2}")
+
         elif qop == "auth" or "auth" in qop.split(","):
             noncebit = f"{nonce}:{ncvalue}:{cnonce}:auth:{HA2}"
 

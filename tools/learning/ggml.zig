@@ -114,6 +114,10 @@ pub fn Trainer(comptime Model: type) type {
             try self.evaluate(inputs, labels, class_weights, true);
         }
 
+        pub fn stepSoft(self: *Self, inputs: *const [batch_size]Model.Input, targets: *const [batch_size]Model.Output, weights: *const [batch_size]f32) !void {
+            try self.evaluateTargets(inputs, targets, weights, true);
+        }
+
         fn evaluate(self: *Self, inputs: *const [batch_size]Model.Input, labels: *const [batch_size]u8, class_weights: *const [Model.output_count]f32, backward: bool) !void {
             var one_hot: [batch_size][Model.output_count]f32 = @splat(@splat(0));
             var weights: [batch_size]f32 = undefined;
@@ -121,10 +125,15 @@ pub fn Trainer(comptime Model: type) type {
                 target[label] = 1;
                 weight.* = class_weights[label];
             }
+
+            try self.evaluateTargets(inputs, &one_hot, &weights, backward);
+        }
+
+        fn evaluateTargets(self: *Self, inputs: *const [batch_size]Model.Input, targets: *const [batch_size]Model.Output, weights: *const [batch_size]f32, backward: bool) !void {
             c.ggml_opt_alloc(self.optimizer, backward);
             c.ggml_backend_tensor_set(self.inputs, inputs, 0, @sizeOf(@TypeOf(inputs.*)));
-            c.ggml_backend_tensor_set(self.labels, &one_hot, 0, @sizeOf(@TypeOf(one_hot)));
-            c.ggml_backend_tensor_set(self.sample_weights, &weights, 0, @sizeOf(@TypeOf(weights)));
+            c.ggml_backend_tensor_set(self.labels, targets, 0, @sizeOf(@TypeOf(targets.*)));
+            c.ggml_backend_tensor_set(self.sample_weights, weights, 0, @sizeOf(@TypeOf(weights.*)));
             c.ggml_opt_eval(self.optimizer, null);
 
             var loss: f32 = undefined;

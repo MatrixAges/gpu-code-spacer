@@ -100,6 +100,7 @@ def add_ctx(f: F) -> F:
     def wrapper(self: Flask, *args: t.Any, **kwargs: t.Any) -> t.Any:
         if not args:
             args = (app_ctx._get_current_object(),)
+
         elif not isinstance(args[0], AppContext):
             args = (app_ctx._get_current_object(), *args)
 
@@ -551,6 +552,7 @@ class Flask(App):
                 # Don't pass SERVER_NAME, otherwise it's used and the actual
                 # host is ignored, which breaks host matching.
                 server_name = None
+
             elif not self.subdomain_matching:
                 # Werkzeug doesn't implement subdomain matching yet. Until then,
                 # disable it by forcing the current subdomain to the default, or
@@ -749,6 +751,7 @@ class Flask(App):
 
         if port or port == 0:
             port = int(port)
+
         elif sn_port is not None:
             port = sn_port
         else:
@@ -1328,6 +1331,7 @@ class Flask(App):
             # a 3-tuple is unpacked directly
             if len_rv == 3:
                 rv, status, headers = rv  # type: ignore[misc]
+
             # decide if a 2-tuple has status or headers
             elif len_rv == 2:
                 if isinstance(rv[1], (Headers, dict, tuple, list)):
@@ -1363,8 +1367,10 @@ class Flask(App):
                 )
 
                 status = headers = None
+
             elif isinstance(rv, (dict, list)):
                 rv = self.json.response(rv)
+
             elif isinstance(rv, BaseResponse) or callable(rv):
                 # evaluate a WSGI callable, or coerce a different response
                 # class to the correct type

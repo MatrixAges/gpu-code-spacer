@@ -300,6 +300,7 @@ class App(Scaffold):
 
         if instance_path is None:
             instance_path = self.auto_find_instance_path()
+
         elif not os.path.isabs(instance_path):
             raise ValueError(
                 "If an instance path is provided it must be absolute."

@@ -9,7 +9,7 @@ gcs -f src/main.ts
 gcs -p src -r
 ```
 
-[Installation](#installation) · [Usage](#usage) · [Codex Hooks](#codex-hooks) · [Limitations](#limitations) · [License](#license)
+[Usage](#usage) · [Codex Hooks](#codex-hooks) · [Limitations](#limitations) · [License](#license)
 
 ## What is gcs
 
@@ -51,57 +51,48 @@ function available(stock: number, reserved: number): boolean {
 - Implemented in Zig with an embedded model. ggml inference prefers the GPU and falls back to the CPU when unavailable.
 - Includes a hook adapter script for automatic formatting after Codex edits.
 
-## Installation
+## Usage
 
-For the native GPU-enabled CLI, download an executable from [GitHub Releases](https://github.com/MatrixAges/gpu-code-spacer/releases), or [build from source](#build-from-source).
+### Installation
 
-## npm package
+**CLI:** download the executable for your platform from [GitHub Releases](https://github.com/MatrixAges/gpu-code-spacer/releases) and add it to your PATH, or [build from source](#build-from-source).
 
-The npm package provides an ESM JavaScript API and TypeScript declarations for Node.js 22+ and modern browsers. Both run model inference on WebGPU, with Zig/WebAssembly handling source analysis, feature extraction, classification, and rendering. Node.js automatically loads the platform's prebuilt Dawn native plugin through the optional `webgpu` dependency and falls back to WASM CPU inference if GPU initialization is unavailable. Installing the package does not require Zig, ggml, or a native compiler.
+**JavaScript library:** supports Node.js 22+ and WebGPU-enabled browsers, with TypeScript declarations included. The native CLI is distributed separately.
 
 ```sh
 npm install gpu-code-spacer
 ```
 
+### npm package
+
+Create one instance, reuse it, and release it when finished:
+
 ```js
 import { createSpacer } from 'gpu-code-spacer';
 
 const spacer = await createSpacer();
-const { text, changes, candidates } = await spacer.format(source);
+
+try {
+  const { text } = await spacer.format('const a = 1;\nconst b = 2;\n');
+
+  console.log(text);
+} finally {
+  await spacer.destroy();
+}
 ```
 
-Initialize once and reuse the instance. `format` returns a Promise and accepts an optional `{ confidence: 0.8 }` argument; omitting it uses the embedded model calibration. Source must be well-formed Unicode, at most 4 MiB as UTF-8, with LF or CRLF line endings. Invalid input rejects the formatting Promise. `changes` counts boundaries with changed blank-line counts, and `candidates` counts analyzed boundaries.
+`format(source, { confidence: 0.8 })` optionally overrides the model's confidence threshold. It returns `{ text, changes, candidates }`: formatted text, changed boundaries, and analyzed boundaries. Input is limited to 4 MiB of valid UTF-8 with LF or CRLF line endings.
 
-The browser entry loads the colocated WASM asset. For bundlers such as Vite, explicitly importing the asset ensures it is emitted with the correct deployment URL:
+Node.js automatically uses the platform's native GPU backend, falling back to WASM CPU if GPU initialization is unavailable. `spacer.backend` reports `webgpu` or `wasm`; `spacer.fallbackReason` explains an automatic fallback. Pass `{ backend: 'webgpu' }` to `createSpacer` to require GPU, or `{ backend: 'wasm' }` to use CPU. The optional GPU dependency is about 95 MB unpacked; use `npm install gpu-code-spacer --omit=optional` for CPU-only installation.
+
+Browsers require WebGPU over HTTPS or localhost and do not fall back to CPU. With Vite, pass the bundled WASM URL when creating the instance, then use the same `format` and `destroy` methods:
 
 ```js
 import { createSpacer } from 'gpu-code-spacer';
 import wasm from 'gpu-code-spacer/spacer.wasm?url';
 
 const spacer = await createSpacer({ wasm });
-const result = await spacer.format(source);
 ```
-
-Custom loaders can pass a URL, bytes, or a compiled `WebAssembly.Module` through `wasm`. Browsers require WebGPU in a secure context (HTTPS or localhost). Initialization, device loss, and compute errors are reported; there is no automatic CPU fallback in the browser. Run large files in a Worker to keep source analysis off the UI thread. The npm package is a library; the existing native `gcs` CLI is distributed separately.
-
-`spacer.backend` reports the actual inference backend: `webgpu` or `wasm`. In Node.js, `spacer.fallbackReason` explains an automatic CPU fallback. Use `createSpacer({ backend: 'webgpu' })` to require hardware GPU inference, or `{ backend: 'wasm' }` to explicitly use CPU. These backend options apply only to Node.js; the browser always requires WebGPU. Node GPU work runs in a dedicated Worker. Calls on one instance are queued so they can safely reuse model and GPU buffers. When finished, call `await spacer.destroy()`; it waits for queued calls and releases resources. New calls after destruction reject. The model runs in batches of up to 4096 boundaries, with GPU weights uploaded once per instance.
-
-The native dependency includes macOS arm64/x64, Linux arm64/x64, and Windows arm64/x64 builds; actual GPU availability depends on the system and drivers. Its unpacked size is approximately 95 MB. Installing with `--omit=optional` leaves Node.js on WASM CPU. GPU errors after initialization reject the current operation rather than silently retrying on CPU.
-
-```js
-const spacer = await createSpacer();
-
-try {
-  const result = await spacer.format(source);
-  console.log(spacer.backend, result.text);
-} finally {
-  await spacer.destroy();
-}
-```
-
-GPU and CPU floating-point accumulation can differ at classification boundaries. The shared renderer independently verifies that nonblank source content is preserved.
-
-## Usage
 
 ### Files and Directories
 
@@ -232,7 +223,7 @@ gcs currently adjusts only blank lines. It does not change indentation, wrap lon
 
 Input should be UTF-8 source code, with a maximum size of 4 MiB per file. Writing changes back is supported only for regular files with a single hard link, and the tool checks for content changes before replacing a file. If a file fails during batch processing, the remaining files are still processed and the final exit code is `2`. Completed writes are not rolled back.
 
-The default model is `v6-2026-standard`, with a confidence threshold of `0`. See the [model metadata](models/metadata.json) for details. All 90 regression cases in the current revised set pass; this does not guarantee complete coverage of every language or coding style.
+The default model is the 2026-09-17 feedback-calibrated v6 checkpoint (seed 111, epoch 4), with a confidence threshold of `0`. See the [model metadata](models/metadata.json) for details. All 90 regression cases in the current revised set pass; this does not guarantee complete coverage of every language or coding style.
 
 ## Build from source
 

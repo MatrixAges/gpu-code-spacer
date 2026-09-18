@@ -356,6 +356,7 @@ class Blueprint(Scaffold):
         if self.cli.commands:
             if cli_resolved_group is None:
                 app.cli.commands.update(self.cli.commands)
+
             elif cli_resolved_group is _sentinel:
                 self.cli.name = name
 
@@ -375,8 +376,10 @@ class Blueprint(Scaffold):
 
             if state.subdomain is not None and bp_subdomain is not None:
                 bp_options["subdomain"] = bp_subdomain + "." + state.subdomain
+
             elif bp_subdomain is not None:
                 bp_options["subdomain"] = bp_subdomain
+
             elif state.subdomain is not None:
                 bp_options["subdomain"] = state.subdomain
 
@@ -387,8 +390,10 @@ class Blueprint(Scaffold):
                 bp_options["url_prefix"] = (
                     state.url_prefix.rstrip("/") + "/" + bp_url_prefix.lstrip("/")
                 )
+
             elif bp_url_prefix is not None:
                 bp_options["url_prefix"] = bp_url_prefix
+
             elif state.url_prefix is not None:
                 bp_options["url_prefix"] = state.url_prefix
 

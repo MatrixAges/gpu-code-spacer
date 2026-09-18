@@ -598,6 +598,7 @@ def morsel_to_cookie(morsel: Morsel[Any]) -> Cookie:
             expires = int(time.time() + int(morsel["max-age"]))
         except ValueError:
             raise TypeError(f"max-age: {morsel['max-age']} must be integer")
+
     elif morsel["expires"]:
         time_template = "%a, %d-%b-%Y %H:%M:%S GMT"
 
@@ -681,6 +682,7 @@ def merge_cookies(
 
     if isinstance(cookies, dict):
         cookiejar = cookiejar_from_dict(cookies, cookiejar=cookiejar, overwrite=False)
+
     elif isinstance(cookies, cookielib.CookieJar):
         if update_method := getattr(cookiejar, "update", None):
             update_method(cookies)

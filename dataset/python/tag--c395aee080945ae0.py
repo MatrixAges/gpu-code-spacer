@@ -316,6 +316,7 @@ class TaggedJSONSerializer:
 
             # untag the dict itself
             value = self.untag(value)
+
         elif isinstance(value, list):
             # untag each item recursively
             value = [self._untag_scan(item) for item in value]

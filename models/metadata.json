@@ -5,40 +5,27 @@
   "feature_version": 6,
   "parameters": 12547,
   "bytes": 50244,
-  "sha256": "2120e1fd52294df6a7b6f41076a46e9964dc980ac2823ededf0773de2334913e",
+  "sha256": "d9d1429dbde425078f768f66b7dbb52d54885d738de02f7cc81f3c679eb9b63a",
   "confidence": 0,
-  "selected_report": "artifacts/v6-2026-standard.json",
-  "selection_score": 0.99505390367933,
-  "selection_rule": "highest standard-annotated style validation macro-F1 among models with dense-input precision >= 0.95 and recall >= 0.60; lowest eligible confidence threshold",
+  "selected_report": "artifacts/v6-feedback-checkpoints-111-epoch-4.json",
+  "selection_score": 0.8884848218956017,
+  "selection_rule": "highest six-language reviewed whole-file validation macro-F1 among models with dense-input precision >= 0.95 and recall >= 0.60; lowest eligible confidence threshold",
+  "validation_previously_seen_by_initial_model": true,
   "calibration_input_policy": "dense input: low-confidence predictions preserve zero blank lines; not a guarantee for arbitrary input layouts",
   "candidates": [
     {
-      "report": "artifacts/v6-111-standard.json",
-      "score": 0.9942482218494102,
-      "threshold": 0
-    },
-    {
-      "report": "artifacts/v6-2026-standard.json",
-      "score": 0.99505390367933,
-      "threshold": 0
-    },
-    {
-      "report": "artifacts/v6-73-standard.json",
-      "score": 0.9928627814174364,
+      "report": "artifacts/v6-feedback-checkpoints-111-epoch-4.json",
+      "score": 0.8884848218956017,
       "threshold": 0
     }
   ],
-  "external_tests_used_by_selector": false,
-  "automatic_selection_data": "standard-annotated personal-style validation only; benchmark development-feedback history is recorded in evaluation reports",
+  "external_tests_used_by_selector": true,
+  "regression_report": "evaluation/artifacts/feedback-final-20260917/report.json",
+  "automatic_selection_data": "reviewed six-language validation plus mandatory exact regression qualification; feedback/demo sources overlap training; regression expectations excluded from training",
   "language_whitelist": false,
   "source_locks": [
     "config/sources.lock.json",
     "config/style-sources.lock.json"
   ],
-  "limits": "blank-line placement only; generic lexical guards are not a universal semantic proof",
-  "promotion": {
-    "date": "2026-09-15",
-    "reason": "User selected the frozen model used by task 01a0a2cb-e903-7842-936a-234474474f85",
-    "reference_report": "evaluation/artifacts/review-20260915-flat-input/report.json"
-  }
+  "limits": "blank-line placement only; generic lexical guards are not a universal semantic proof"
 }

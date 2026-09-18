@@ -243,6 +243,7 @@ class SessionRedirectMixin:
 
             if parsed.fragment == "" and previous_fragment:
                 parsed = parsed._replace(fragment=previous_fragment)
+
             elif parsed.fragment:
                 previous_fragment = parsed.fragment
 

@@ -228,6 +228,7 @@ class FlaskClient(Client):
                 builder.environ_base = self._copy_environ(builder.environ_base or {})  # type: ignore[arg-type]
 
                 request = builder.get_request()
+
             elif isinstance(args[0], dict):
                 request = EnvironBuilder.from_environ(
                     args[0], app=self.application, environ_base=self._copy_environ({})

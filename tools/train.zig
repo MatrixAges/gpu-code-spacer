@@ -82,6 +82,12 @@ pub fn main(init: std.process.Init) !void {
     var output_prefix: ?[]const u8 = null;
     var style_share: f32 = 1;
     var standard = false;
+    var reviewed = false;
+    var learning_rate: ?f32 = null;
+    var token_dropout: f32 = 0;
+    var replay_share: f32 = 0;
+    var feedback_path: ?[]const u8 = null;
+    var save_epochs = false;
     var backend: ggml.Backend = .cpu;
     var threads: u31 = 1;
     var argument: usize = 1;
@@ -95,6 +101,14 @@ pub fn main(init: std.process.Init) !void {
         }
         if (std.mem.eql(u8, option, "--standard")) {
             standard = true;
+            continue;
+        }
+        if (std.mem.eql(u8, option, "--reviewed")) {
+            reviewed = true;
+            continue;
+        }
+        if (std.mem.eql(u8, option, "--save-epochs")) {
+            save_epochs = true;
             continue;
         }
         if (argument == args.len) return error.MissingArgumentValue;
@@ -116,6 +130,14 @@ pub fn main(init: std.process.Init) !void {
             output_prefix = value;
         } else if (std.mem.eql(u8, option, "--style-share")) {
             style_share = try std.fmt.parseFloat(f32, value);
+        } else if (std.mem.eql(u8, option, "--learning-rate")) {
+            learning_rate = try std.fmt.parseFloat(f32, value);
+        } else if (std.mem.eql(u8, option, "--token-dropout")) {
+            token_dropout = try std.fmt.parseFloat(f32, value);
+        } else if (std.mem.eql(u8, option, "--replay-share")) {
+            replay_share = try std.fmt.parseFloat(f32, value);
+        } else if (std.mem.eql(u8, option, "--feedback-files")) {
+            feedback_path = value;
         } else if (std.mem.eql(u8, option, "--holdout-language")) {
             heldout_language = try data.languageIndex(value);
             if (heldout_language.? >= 6) return error.LanguageAlreadyHeldOut;
@@ -123,16 +145,28 @@ pub fn main(init: std.process.Init) !void {
     }
     if (epochs == 0 or steps == 0) return error.InvalidTrainingBudget;
     if (threads == 0) return error.InvalidThreadCount;
+    if (!std.math.isFinite(token_dropout) or token_dropout < 0 or token_dropout >= 1) return error.InvalidDropout;
+    if (!std.math.isFinite(replay_share) or replay_share < 0 or replay_share >= 1) return error.InvalidReplayShare;
+    if (replay_share > 0 and (!reviewed or initial_model == null)) return error.ReplayRequiresReviewedFineTuning;
+    if (feedback_path != null and (!reviewed or replay_share == 0)) return error.FeedbackRequiresReplay;
+    if (save_epochs and (!reviewed or output_prefix == null)) return error.EpochExportRequiresReviewedPrefix;
+    if (learning_rate) |rate| {
+        if (!std.math.isFinite(rate) or rate <= 0) return error.InvalidLearningRate;
+    }
     if (!std.math.isFinite(style_share) or style_share <= 0 or style_share > 1) return error.InvalidStyleShare;
     if (style and heldout_language != null) return error.SeparateStyleAndLanguageHoldoutExperiments;
+    if (reviewed and (style or standard or heldout_language != null)) return error.SeparateReviewedExperiment;
 
     const prefix = if (standard) "standard_" else "";
     const training_path = try std.fmt.allocPrint(allocator, "data/processed/{s}train.bin", .{prefix});
     const validation_path = try std.fmt.allocPrint(allocator, "data/processed/{s}validation.bin", .{prefix});
     const style_training_path = try std.fmt.allocPrint(allocator, "data/processed/{s}style_train.bin", .{prefix});
     const style_validation_path = try std.fmt.allocPrint(allocator, "data/processed/{s}style_validation.bin", .{prefix});
-    const training = try data.load(allocator, init.io, training_path);
-    const validation = try data.load(allocator, init.io, validation_path);
+    const all_training = try data.load(allocator, init.io, training_path);
+    const reviewed_data = if (reviewed) try @import("reviewed.zig").split(allocator, init.io, all_training, feedback_path) else null;
+    const feedback_training = if (feedback_path != null) try allocator.dupe(data.Row, reviewed_data.?.training) else null;
+    const training = if (feedback_training) |rows| rows else if (reviewed_data) |split| split.training else all_training;
+    const validation = if (reviewed_data) |split| split.validation else try data.load(allocator, init.io, validation_path);
     const style_training = if (style) try data.load(allocator, init.io, style_training_path) else &.{};
     const style_validation = if (style) try data.load(allocator, init.io, style_validation_path) else &.{};
     if (style and (style_training.len == 0 or style_validation.len == 0)) return error.MissingStyleData;
@@ -148,12 +182,24 @@ pub fn main(init: std.process.Init) !void {
         try style_files.items[entry.value_ptr.*].append(allocator, index);
     }
 
-    var buckets: [6]std.ArrayList(usize) = @splat(.empty);
+    var buckets: [data.languages.len]std.ArrayList(usize) = @splat(.empty);
+    var training_files: std.ArrayList(std.ArrayList(usize)) = .empty;
+    var training_file_indices = std.AutoHashMap(u32, usize).init(allocator);
     var counts: [3]usize = @splat(0);
 
     for (training, 0..) |row, index| {
         if (row.language_id >= buckets.len or row.language_id == heldout_language) continue;
-        try buckets[row.language_id].append(allocator, index);
+        if (reviewed) {
+            const entry = try training_file_indices.getOrPut(row.file_id);
+
+            if (!entry.found_existing) {
+                entry.value_ptr.* = training_files.items.len;
+                try training_files.append(allocator, .empty);
+                try buckets[row.language_id].append(allocator, entry.value_ptr.*);
+            }
+
+            try training_files.items[entry.value_ptr.*].append(allocator, index);
+        } else try buckets[row.language_id].append(allocator, index);
         counts[row.label] += 1;
     }
     var active: std.ArrayList(usize) = .empty;
@@ -170,11 +216,40 @@ pub fn main(init: std.process.Init) !void {
 
     var model = if (initial_model) |path| try core.weights.decode(Model, try std.Io.Dir.cwd().readFileAlloc(init.io, path, allocator, .limited(1024 * 1024)), core.features.version) else Model.init(seed);
     var best = model;
+    var replay: []data.Row = &.{};
+    var replay_targets: []Model.Output = &.{};
+
+    if (feedback_path != null) {
+        // Feedback concerns separator presence, not a new policy for counting
+        // consecutive blank lines. Retain the teacher's positive counts.
+        for (feedback_training.?) |*row| {
+            if (row.label == 0) continue;
+
+            const previous = Model.classify(model.forward(row.input));
+            row.label = @intCast(if (previous > 0) previous else 1);
+        }
+    }
+
+    if (replay_share > 0) {
+        const original_style = try data.load(allocator, init.io, style_training_path);
+        replay = try std.mem.concat(allocator, data.Row, &.{ reviewed_data.?.replay, original_style });
+        replay_targets = try allocator.alloc(Model.Output, replay.len);
+
+        // Rehearse the frozen model on separate development files. Neither
+        // regression inputs nor held-out reviewed files enter this pool.
+        for (replay, replay_targets) |*row, *target| {
+            target.* = Model.probabilities(model.forward(row.input));
+            row.label = @intCast(Model.classify(target.*));
+        }
+
+        if (replay.len == 0) return error.MissingReplayData;
+    }
     const initial_score = selectionScore(&model, validation, style_validation, heldout_language);
     var best_score = initial_score;
     var best_epoch: usize = 0;
     var trainer: ggml.Trainer(Model) = undefined;
-    try trainer.init(&model, backend, threads, if (style) 0.0003 else 0.001, .train);
+    const rate = learning_rate orelse (if (style) @as(f32, 0.0003) else @as(f32, 0.001));
+    try trainer.init(&model, backend, threads, rate, .train);
     defer trainer.deinit();
     std.log.info("training: ggml {s}, backend {s}, CPU threads {d}", .{ ggml.commit, trainer.backendName(), threads });
     var random = std.Random.DefaultPrng.init(seed ^ 0x5a17);
@@ -185,19 +260,48 @@ pub fn main(init: std.process.Init) !void {
         for (0..steps) |_| {
             var inputs: [ggml.batch_size]Model.Input = undefined;
             var labels: [ggml.batch_size]u8 = undefined;
-            for (&inputs, &labels) |*input, *label| {
-                const row = if (style and random.random().float(f32) < style_share) block: {
+            var targets: [ggml.batch_size]Model.Output = @splat(@splat(0));
+            var sample_weights: [ggml.batch_size]f32 = undefined;
+
+            for (&inputs, &labels, &targets, &sample_weights) |*input, *label, *target, *sample_weight| {
+                const replay_index: ?usize = if (replay.len > 0 and random.random().float(f32) < replay_share) random.random().uintLessThan(usize, replay.len) else null;
+                const row = if (replay_index) |index|
+                    replay[index]
+                else if (style and random.random().float(f32) < style_share) block: {
                     const file = style_files.items[random.random().uintLessThan(usize, style_files.items.len)];
                     break :block style_training[file.items[random.random().uintLessThan(usize, file.items.len)]];
                 } else block: {
                     const language = active.items[random.random().uintLessThan(usize, active.items.len)];
                     const bucket = buckets[language].items;
-                    break :block training[bucket[random.random().uintLessThan(usize, bucket.len)]];
+                    const picked = bucket[random.random().uintLessThan(usize, bucket.len)];
+
+                    if (reviewed) {
+                        const file = training_files.items[picked].items;
+                        break :block training[file[random.random().uintLessThan(usize, file.len)]];
+                    }
+
+                    break :block training[picked];
                 };
                 input.* = row.input;
                 label.* = row.label;
+
+                if (replay_index) |index| {
+                    target.* = replay_targets[index];
+                    sample_weight.* = 1;
+                } else {
+                    target[row.label] = 1;
+                    sample_weight.* = class_weights[row.label];
+                }
+
+                // Regularize hashed lexical channels so identifier collisions
+                // cannot dominate structural evidence. Inference is unchanged.
+                if (token_dropout > 0) {
+                    for (input[32..128]) |*value| {
+                        value.* = if (random.random().float(f32) < token_dropout) 0 else value.* / (1 - token_dropout);
+                    }
+                }
             }
-            try trainer.step(&inputs, &labels, &class_weights);
+            if (replay.len > 0) try trainer.stepSoft(&inputs, &targets, &sample_weights) else try trainer.step(&inputs, &labels, &class_weights);
         }
 
         try trainer.download(&model);
@@ -205,6 +309,32 @@ pub fn main(init: std.process.Init) !void {
         const current_score = selectionScore(&model, validation, style_validation, heldout_language);
         if (!std.math.isFinite(current_score)) return error.NonFiniteScore;
         std.log.info("seed {d} epoch {d}: validation selection score {d:.5}", .{ seed, completed, current_score });
+
+        if (save_epochs) {
+            const checkpoint = try std.fmt.allocPrint(allocator, "{s}-epoch-{d}", .{ output_prefix.?, completed });
+            const checkpoint_weights = try core.weights.encode(allocator, &model, core.features.version);
+            try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try std.fmt.allocPrint(allocator, "{s}.weights", .{checkpoint}), .data = checkpoint_weights });
+
+            var checkpoint_metrics: [6]metrics.Summary = undefined;
+            for (evaluate(&model, validation, heldout_language), &checkpoint_metrics) |result, *summary| summary.* = result.summary();
+
+            const checkpoint_report = try std.json.Stringify.valueAlloc(allocator, .{
+                .seed = seed,
+                .feature_version = core.features.version,
+                .style_reference = false,
+                .best_validation_score = current_score,
+                .style_confidence_curves = confidenceCurves(&model, validation),
+                .test_data_used = false,
+                .selection_objective = "reviewed_language_macro_f1",
+                .reviewed_validation_files = reviewed_data.?.heldout_files,
+                .validation_previously_seen_by_initial_model = initial_model != null,
+                .training_run_report = try std.fmt.allocPrint(allocator, "{s}.json", .{output_prefix.?}),
+                .completed_epochs = completed,
+                .best_epoch = completed,
+                .validation = checkpoint_metrics,
+            }, .{ .whitespace = .indent_2 });
+            try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try std.fmt.allocPrint(allocator, "{s}.json", .{checkpoint}), .data = checkpoint_report });
+        }
         if (current_score > best_score + 0.0001) {
             best_score = current_score;
             best_epoch = completed;
@@ -232,11 +362,22 @@ pub fn main(init: std.process.Init) !void {
         .training_backend = trainer.backendName(),
         .cpu_threads = threads,
         .optimizer = "AdamW (weight_decay=0, beta1=0.9, beta2=0.999, epsilon=1e-8)",
-        .loss = "mean(class_weight[label] * cross_entropy)",
+        .learning_rate = rate,
+        .token_dropout = token_dropout,
+        .replay_share = replay_share,
+        .replay_rows = replay.len,
+        .feedback_files = feedback_path,
+        .feedback_policy = if (feedback_path != null) "learn separator presence from reviewed files; retain existing positive blank counts; use one blank for newly separated boundaries" else null,
+        .supervised_training_files = if (reviewed) training_file_indices.count() else 0,
+        .supervised_training_rows = training.len,
+        .feedback_source_sha256 = if (reviewed_data) |split| split.feedback_sha256 else null,
+        .replay_labels = if (replay.len > 0) "frozen initial-model probability distributions on other development files; not human annotations" else null,
+        .loss = if (replay.len > 0) "mixed cross-entropy: class-weighted reviewed targets and unweighted frozen-model soft targets" else "mean(class_weight[label] * cross_entropy)",
         .seed = seed,
         .heldout_language = if (heldout_language) |language| data.languages[language] else null,
         .style_reference = style,
         .initial_model = initial_model,
+        .initial_model_sha256 = if (initial_model) |path| try inputHash(allocator, init.io, path) else null,
         .feature_version = core.features.version,
         .language_is_model_input = false,
         .parameters = Model.parameter_count,
@@ -245,10 +386,14 @@ pub fn main(init: std.process.Init) !void {
         .best_epoch = best_epoch,
         .steps_per_epoch = steps,
         .batch_size = ggml.batch_size,
-        .sampling = if (style) "uniform personal-style file then boundary; optional development-language replay, with replacement" else "uniform language then uniform training boundary, with replacement",
+        .sampling = if (reviewed) "uniform language, then reviewed file, then boundary, with replacement" else if (style) "uniform personal-style file then boundary; optional development-language replay, with replacement" else "uniform language then uniform training boundary, with replacement",
         .style_share = if (style) style_share else 0,
-        .selection_objective = if (style and standard) "standard_style_macro_f1" else if (style) "personal_style_macro_f1" else "development_language_macro_f1",
-        .label_set = if (standard) "AST-annotated user standard" else "original author layout",
+        .selection_objective = if (reviewed) "reviewed_language_macro_f1" else if (style and standard) "standard_style_macro_f1" else if (style) "personal_style_macro_f1" else "development_language_macro_f1",
+        .label_set = if (reviewed) "manually revised source layouts" else if (standard) "AST-annotated user standard" else "original author layout",
+        .reviewed_files = if (reviewed_data) |split| split.files else 0,
+        .reviewed_validation_files = if (reviewed_data) |split| split.heldout_files else 0,
+        .reviewed_split = if (reviewed) "canonical_sha256 first 32 bits modulo 10 == 0; whole-file validation" else null,
+        .validation_previously_seen_by_initial_model = reviewed and initial_model != null,
         .style_training_files = style_files.items.len,
         .class_weights = class_weights,
         .initial_validation_score = initial_score,
@@ -257,13 +402,16 @@ pub fn main(init: std.process.Init) !void {
         .language_order = data.languages[0..6],
         .validation = summaries,
         .style_validation = styleMetrics(&best, style_validation).summary(),
-        .style_confidence_curves = confidenceCurves(&best, style_validation),
+        .style_confidence_curves = confidenceCurves(&best, if (reviewed) validation else style_validation),
+        .calibration_set = if (reviewed) "reviewed whole-file validation" else "personal-style validation",
         .calibration_input_policy = "dense input: low-confidence predictions preserve zero blank lines",
         .test_data_used = false,
         .dataset_sha256 = .{
             .train = try inputHash(allocator, init.io, training_path),
-            .validation = try inputHash(allocator, init.io, validation_path),
-            .style_train = if (style) try inputHash(allocator, init.io, style_training_path) else null,
+            .validation = if (reviewed) null else try inputHash(allocator, init.io, validation_path),
+            .reviewed_manifest = if (reviewed) try inputHash(allocator, init.io, "data/processed/files.json") else null,
+            .feedback_manifest = if (feedback_path) |path| try inputHash(allocator, init.io, path) else null,
+            .style_train = if (style or replay.len > 0) try inputHash(allocator, init.io, style_training_path) else null,
             .style_validation = if (style) try inputHash(allocator, init.io, style_validation_path) else null,
         },
     }, .{ .whitespace = .indent_2 });

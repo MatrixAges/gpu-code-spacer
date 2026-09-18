@@ -57,6 +57,7 @@ def find_best_app(module: ModuleType) -> Flask:
 
     if len(matches) == 1:
         return matches[0]
+
     elif len(matches) > 1:
         raise NoAppException(
             "Detected multiple Flask applications in module"
@@ -140,6 +141,7 @@ def find_app_by_string(module: ModuleType, app_name: str) -> Flask:
 
         args = []
         kwargs = {}
+
     elif isinstance(expr, ast.Call):
         # Ensure the function name is an attribute name only.
         if not isinstance(expr.func, ast.Name):
@@ -259,6 +261,7 @@ def locate_app(
                 f"While importing {module_name!r}, an ImportError was"
                 f" raised:\n\n{traceback.format_exc()}"
             ) from None
+
         elif raise_if_not_found:
             raise NoAppException(f"Could not import {module_name!r}.") from None
         else:
