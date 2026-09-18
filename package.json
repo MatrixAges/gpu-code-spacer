@@ -1,6 +1,6 @@
 {
   "name": "gpu-code-spacer",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Model-based blank-line formatting with WebGPU in Node.js and browsers, powered by Zig/WebAssembly.",
   "type": "module",
   "license": "MIT",
